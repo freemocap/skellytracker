@@ -14,4 +14,7 @@ Then it can be run with `skelly_tracker`.
 
 A GUI should pop up that looks like this: 
 
+<img width="591" alt="Image of skelly_tracker GUI" src="https://github.com/freemocap/skelly_tracker/assets/24758117/8767a7fb-2535-407c-99fb-40295ee5af93">
+
+
 Choose your image in the file dialog and click run to see the image annotated with the tracking information.
