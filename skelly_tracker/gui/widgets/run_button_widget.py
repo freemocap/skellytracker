@@ -10,7 +10,7 @@ class RunButtonWidget(QWidget):
 
         self._layout = QVBoxLayout()
 
-        self._title = QLabel(f"The code for this widget is defined in the file: {__file__}")
+        self._title = QLabel(f"Detect skeleton in image:")
         self._layout.addWidget(self._title)
         
         self.run_button_widget = QPushButton('Run',self)

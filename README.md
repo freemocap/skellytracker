@@ -1,11 +1,17 @@
 # skelly_tracker
 
-This is a basic template repository for a python project. 
+Currently, the bare bones of a tracking backend for freemocap.
 
-## Publishing to PyPi (to make it pip installable)
+## Run skelly_tracker
 
-NOTE - These instructions haven't been tested yet, this is placeholder text (written 2023-01-19)
+Currently, it is not pip installable. Download it by running `git clone https://github.com/freemocap/skelly_tracker`. 
 
-You'll need to create a PyPi account and then create an API token for the Github Action configured in the file: `.github/workflows/publish_to_pypi_when_new_tag_is_pushed_to_main.yml` 
+Change directories to skelly_tracker with `cd skelly_tracker`, and install the requirements with `pip install .`.
 
-These instructions may help you set that up! https://packaging.python.org/en/latest/guides/publishing-package-distribution-releases-using-github-actions-ci-cd-workflows/
+Then it can be run with `skelly_tracker`.
+
+## Using skelly_tracker
+
+A GUI should pop up that looks like this: 
+
+Choose your image in the file dialog and click run to see the image annotated with the tracking information.
