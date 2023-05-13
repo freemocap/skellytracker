@@ -5,7 +5,7 @@ import numpy as np
 from pydantic import BaseModel
 from skelly_tracker.trackers.base_tracker.tracking_data_model import TrackingData, TrackedObject, FrameData
 
-from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import CameraViewer
+from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 
 class BaseTracker(ABC, BaseModel):
     """
@@ -47,6 +47,6 @@ class BaseTracker(ABC, BaseModel):
         }
 
     def demo(self, window_title="Tracker"):
-        camera_viewer = CameraViewer(self, window_title)
+        camera_viewer = WebcamDemoViewer(self, window_title)
         camera_viewer.run()
 
