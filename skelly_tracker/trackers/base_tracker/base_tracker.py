@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, Callable, Union, Optional
 import numpy as np
 
-from skelly_tracker.trackers.base_tracker.tracking_data_model import TrackingData, TrackedObject, FrameData
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 
 class BaseTracker(ABC):
@@ -10,19 +9,21 @@ class BaseTracker(ABC):
     An abstract base class for implementing different tracking algorithms.
     """
     def __init__(self, tracked_object_names: Union[list, dict], process_image_function: Callable=None, **data: Any):
-        self.tracking_data = TrackingData()
+        self.tracking_data = {}
         self.annotated_image = None
         self.raw_image = None
-        self.tracked_objects: Dict[str, TrackedObject] = {}
+        self.tracked_objects: Dict[str, Dict] = {}
         self.process_image_function: Optional[Callable] = None
 
         super().__init__(**data)
         if isinstance(tracked_object_names, list):
             for name in tracked_object_names:
-                self.tracked_objects[name] = TrackedObject(object_id=name)
+                self.tracked_objects[name] = {"object_id": name, "pixel_locations": [], "bounding_boxes": []}
+
         elif isinstance(tracked_object_names, dict):
             for name, info in tracked_object_names.items():
-                self.tracked_objects[name] = TrackedObject(object_id=name, **info)
+                self.tracked_objects[name] = {"object_id": name, "pixel_locations": [], "bounding_boxes": []}
+                self.tracked_objects[name].update(info)
 
         if process_image_function:
             self.process_image_function = process_image_function
@@ -41,7 +42,6 @@ class BaseTracker(ABC):
                 "tracking_data": self.tracking_data,
                 "annotated_image": self.annotated_image,
                 "raw_image": self.raw_image,
-                "tracked_objects": self.tracked_objects
             }
 
     def demo(self, window_title: str="Tracker") -> None:

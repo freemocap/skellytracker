@@ -61,10 +61,10 @@ class WebcamDemoViewer:
             if key == KEY_QUIT:
                 break
             elif key == KEY_INCREASE_EXPOSURE:
-                exposure = min(exposure + 1, cap.get(cv2.CAP_PROP_EXPOSURE))
+                exposure += 1
                 self._set_exposure(cap, exposure)
             elif key == KEY_DECREASE_EXPOSURE:
-                exposure = max(exposure - 1, cap.get(cv2.CAP_PROP_EXPOSURE))
+                exposure -= 1
                 self._set_exposure(cap, exposure)
             elif key == KEY_RESET_EXPOSURE:
                 exposure = self.default_exposure
