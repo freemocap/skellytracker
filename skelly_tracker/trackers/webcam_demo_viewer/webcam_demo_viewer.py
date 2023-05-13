@@ -29,13 +29,11 @@ class WebcamDemoViewer:
         """
         Overlay text on the image.
         """
-        cv2.putText(image,
-                    text,
-                    (10, 30),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    .5,
-                    (0, 0, 255),
-                    2)
+        y0, dy = 30, 25  # y0 - initial y value, dy - offset between lines
+        for i, line in enumerate(text.split('\n')):
+            y = y0 + i * dy
+            cv2.putText(image, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, .75, (100, 0, 255), 2)
+
 
     def run(self):
         """
@@ -49,7 +47,6 @@ class WebcamDemoViewer:
         exposure = self.default_exposure
         self._set_exposure(cap, exposure)
 
-        print("Press 'w' to increase exposure, 's' to decrease exposure, 'r' to reset exposure, 'q' to quit.")
 
         while True:
             ret, frame = cap.read()
@@ -73,7 +70,8 @@ class WebcamDemoViewer:
                 exposure = self.default_exposure
                 self._set_exposure(cap, exposure)
 
-            self._show_overlay(annotated_image, f"Exposure: {exposure} - (w/s: exp +/-, r: reset, q: quit)")
+            self._show_overlay(annotated_image, f"Exposure: {exposure}\n"
+                                                f"Controls: \n`w`/`s`: exposure +/- \n'r': reset \n'q': quit")
             cv2.imshow(self.window_title, annotated_image)
 
         cap.release()
