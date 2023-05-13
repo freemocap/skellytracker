@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import Field
-from typing import Any, Dict, Callable, Union
+from typing import Any, Dict, Callable, Union, Optional
 import numpy as np
 from pydantic import BaseModel
 from skelly_tracker.trackers.base_tracker.tracking_data_model import TrackingData, TrackedObject, FrameData
@@ -15,12 +15,11 @@ class BaseTracker(ABC, BaseModel):
     annotated_image: np.ndarray = None
     raw_image: np.ndarray = None
     tracked_objects: Dict[str, TrackedObject] = {}
-    process_image_function: Callable = None
-
+    process_image_function: Optional[Callable] = None
     class Config:
         arbitrary_types_allowed = True
 
-    def __init__(self, tracked_object_names: Union[list, dict], process_image_func: Callable, **data: Any):
+    def __init__(self, tracked_object_names: Union[list, dict], process_image_function: Callable=None, **data: Any):
         super().__init__(**data)
         if isinstance(tracked_object_names, list):
             for name in tracked_object_names:
@@ -28,7 +27,9 @@ class BaseTracker(ABC, BaseModel):
         elif isinstance(tracked_object_names, dict):
             for name, info in tracked_object_names.items():
                 self.tracked_objects[name] = TrackedObject(object_id=name, **info)
-        self.process_image_function = process_image_func
+
+        if process_image_function:
+            self.process_image_function = process_image_function
 
     def process_image(self, image, **kwargs):
         """
@@ -37,14 +38,16 @@ class BaseTracker(ABC, BaseModel):
         :param image: An input image.
         :return: None
         """
-        self.process_image_function(self, image=image, **kwargs)
+        if self.process_image_function:
+            self.process_image_function(self, image=image, **kwargs)
 
-        return {
-            "tracking_data": self.tracking_data,
-            "annotated_image": self.annotated_image,
-            "raw_image": self.raw_image,
-            "tracked_objects": self.tracked_objects
-        }
+            return {
+                "tracking_data": self.tracking_data,
+                "annotated_image": self.annotated_image,
+                "raw_image": self.raw_image,
+                "tracked_objects": self.tracked_objects
+            }
+
 
     def demo(self, window_title="Tracker"):
         camera_viewer = WebcamDemoViewer(self, window_title)

@@ -83,10 +83,10 @@ class Quine:
 
 if __name__ == "__main__":
     # base_directory_in =r"C:\Users\jonma\github_repos\freemocap_organization\skelly_tracker\skelly_tracker\trackers"
-    base_directory_in = r"C:\Users\jonma\github_repos\freemocap_organization\skelly_tracker\skelly_tracker\trackers\base_tracker"
+    base_directory_in = r"C:\Users\jonma\github_repos\freemocap_organization\skelly_tracker\skelly_tracker\trackers"
     quine = Quine(
         base_directory=base_directory_in,
-        excluded_directories=["__pycache__", ".git", "output"],
+        excluded_directories=["__pycache__", ".git", "output", "mediapipe", "webcam_demo_viewer", "color_tracker", "charuco_tracker"],
 
         excluded_extensions=[".pyc", ".pyo"])
     quine.generate_quine()
