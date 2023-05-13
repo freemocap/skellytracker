@@ -1,15 +1,31 @@
-# pyproject.toml
+[tool.poetry]
+name = "skelly-tracker"
+version = "0.1.0"
+description = ""
+readme = "README.md"
+authors = ["Skelly FreeMoCap"]
+packages = [{include = "skelly_tracker"}]
+
+[tool.poetry.dependencies]
+python = "^3.9"
+opencv-contrib-python = "^4.7.0.72"
+PyQt6 = "^6.5.0"
+
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.3.1"
+black = "^23.3.0"
+bumpver = "^2023.1121"
 
 [build-system]
-requires = ["flit_core >=3.2,<4"]
-build-backend = "flit_core.buildapi"
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
-[project]
-name = "skelly_tracker"
-description = "Basic template of a python repository"
-readme = "README.md"
-authors = [{ name = "skelly_tracker", email = "info@freemocap.org" }]
-license = { file = "LICENSE" }
+dynamic = ["version"]
+
+[project.optional-dependencies]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
+
 
 
 
@@ -18,41 +34,4 @@ classifiers = [
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)", #https://www.gnu.org/philosophy/open-source-misses-the-point.en.html
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
-] #additional classifiers can be found here: https://pypi.org/classifiers/
-
-keywords = ["basic",
-            "template",
-            "python",
-            "repository"] #change these to your project keywords
-
-dependencies = ['mediapipe; platform_system != "Darwin" or platform_machine != "arm64"',
-                'mediapipe-silicon; platform_system == "Darwin" and platform_machine == "arm64"',
-                "opencv-contrib-python==4.6.0.66",
-                "pytest",
-                "PyQt6",
-                "pydantic",
-                "rich"] #add additional dependencies here - try to pin versions as minimally as possible
-
-requires-python = ">=3.8"
-
-dynamic = ["version"]
-
-[project.optional-dependencies]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
-
-[tool.bumpver] #bump the version by entering `bumpver update` in the terminal
-current_version = "v0.1.0"
-version_pattern = "vMAJOR.MINOR.PATCH[-TAG]"
-commit_message  = "Bump version {old_version} -> {new_version}"
-commit          = true
-tag             = true
-push            = true
-
-[tool.bumpver.file_patterns]
-"pyproject.toml" = ["{version}"]
-"skelly_tracker/__init__.py" = ["{version}"]
-
-
-[project.scripts]
-skelly_tracker = "skelly_tracker.__main__:main"
-skelly_tracker-gui = "skelly_tracker.gui.gui:run_gui_window"
+]
