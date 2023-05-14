@@ -62,12 +62,6 @@ class BrightestPointTracker(BaseTracker):
         # Copy the original image for annotation
         annotated_image = image.copy()
 
-        # Create a mask from the thresholded image stored in the tracked object extra dictionary
-        mask = tracked_objects["brightest_point"].extra["thresholded_image"].astype(bool)
-
-        # Color all the pixels that exceed the threshold in Blue using the mask
-        annotated_image[mask, 0] = 255  # BGR color, altering only Blue channel
-
         # Draw a red 'X' over the largest bright patch
         if tracked_objects["brightest_point"].pixel_x is not None and tracked_objects[
             "brightest_point"].pixel_y is not None:
