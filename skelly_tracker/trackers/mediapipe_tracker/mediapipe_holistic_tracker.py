@@ -1,11 +1,18 @@
 import cv2
 import mediapipe as mp
-import numpy as np
+
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 
+
 class MediapipeHolisticTracker(BaseTracker):
-    def __init__(self, model_complexity=2, min_detection_confidence=0.5, min_tracking_confidence=0.5, static_image_mode=False, skip_2d_image_tracking=False):
-        super().__init__(tracked_object_names=["pose_landmarks", "face_landmarks", "left_hand_landmarks", "right_hand_landmarks"])
+    def __init__(self,
+                 model_complexity=2,
+                 min_detection_confidence=0.5,
+                 min_tracking_confidence=0.5,
+                 static_image_mode=False,
+                 smooth_landmarks=True):
+        super().__init__(
+            tracked_object_names=["pose_landmarks", "face_landmarks", "left_hand_landmarks", "right_hand_landmarks"])
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_holistic = mp.solutions.holistic
         self.holistic = self.mp_holistic.Holistic(
@@ -13,7 +20,7 @@ class MediapipeHolisticTracker(BaseTracker):
             min_detection_confidence=min_detection_confidence,
             min_tracking_confidence=min_tracking_confidence,
             static_image_mode=static_image_mode,
-            smooth_landmarks=not skip_2d_image_tracking
+            smooth_landmarks=smooth_landmarks
         )
 
     def process_image(self, image, **kwargs):
@@ -44,5 +51,10 @@ class MediapipeHolisticTracker(BaseTracker):
             "raw_image": image,
         }
 
+
 if __name__ == "__main__":
-    MediapipeHolisticTracker().demo()
+    MediapipeHolisticTracker(model_complexity=2,
+                             min_detection_confidence=0.5,
+                             min_tracking_confidence=0.5,
+                             static_image_mode=False,
+                             smooth_landmarks=True).demo()

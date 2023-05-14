@@ -3,7 +3,7 @@ import cv2
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 
 
-class CharucoBoardTracker(BaseTracker):
+class CharucoTracker(BaseTracker):
     def __init__(self,
                  squaresX: int,
                  squaresY: int,
@@ -48,7 +48,6 @@ class CharucoBoardTracker(BaseTracker):
 
 
 if __name__ == "__main__":
-    # Create a Charuco board tracker with a 5x7 board, square length 0.04, marker length 0.02, and the 4x4_50 dictionary
-    CharucoBoardTracker(squaresX=5,
-                        squaresY=3,
+    CharucoTracker(squaresX=7,
+                        squaresY=5,
                         dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)).demo()
