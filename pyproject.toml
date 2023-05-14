@@ -11,6 +11,7 @@ python = "^3.9"
 opencv-contrib-python = "4.6.0.66"
 PyQt6 = "^6.5.0"
 pydantic = "^1.10.7"
+mediapipe = "^0.10.0"
 
 
 [tool.poetry.group.dev.dependencies]
