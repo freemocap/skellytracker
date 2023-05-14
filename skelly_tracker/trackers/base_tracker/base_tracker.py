@@ -1,10 +1,21 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Callable, Optional, List
-
 import numpy as np
-
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
+from typing import List
+from dataclasses import dataclass, field
 
+
+@dataclass
+class TrackedObject:
+    """
+    A dataclass for storing information about a tracked object in a single image/frame
+    """
+    object_id: str
+    pixel_x: Optional[float] = None
+    pixel_y: Optional[float] = None
+    depth_z: Optional[float] = None
+    extra: Optional[Dict[str, Any]] = field(default_factory=dict)
 
 class BaseTracker(ABC):
     """
@@ -12,24 +23,31 @@ class BaseTracker(ABC):
     """
 
     def __init__(self, tracked_object_names: List[str], **data: Any):
-        self.tracking_data = {}
         self.annotated_image = None
         self.raw_image = None
-        self.tracked_objects: Dict[str, Dict] = {}
-        self.process_image_function: Optional[Callable] = None
-
-        super().__init__()
+        self.tracked_objects: Dict[str, TrackedObject] = {}
 
         for name in tracked_object_names:
-            self.tracked_objects[name] = {"object_id": name, "pixel": {"x": None, "y": None}}
+            self.tracked_objects[name] = TrackedObject(object_id=name)
 
-
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, Any]:
+    @abstractmethod
+    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         """
         Process the input image and apply the tracking algorithm.
 
         :param image: An input image.
-        :return: A dictionary of the form {"tracking_data": tracking_data, "annotated_image": annotated_image, "raw_image": raw_image}
+        :return: A dictionary of tracked objects
+        """
+        pass
+
+    @abstractmethod
+    def annotate_image(self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+        """
+        Annotate the input image with the results of the tracking algorithm.
+
+        :param image: An input image.
+        :param tracked_objects: A dictionary of tracked objects.
+        :return: Annotated image
         """
         pass
 
