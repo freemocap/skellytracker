@@ -18,21 +18,42 @@ class BrightestPointTracker(BaseTracker):
         super().__init__(tracked_object_names=["brightest_points"],
                          process_image_function=self.process_image)
 
-    def process_image(self, image,**kwargs):
+    def process_image(self, image, **kwargs):
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         # Threshold the image to get only bright regions
         _, thresholded = cv2.threshold(gray_image, self.luminance_threshold, 255, cv2.THRESH_BINARY)
 
-        # Find the coordinates of the brightest point
-        min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(thresholded)
+        # Find contours of the bright regions
+        contours, _ = cv2.findContours(thresholded, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
-        # Draw a circle around the brightest point
-        cv2.circle(image, max_loc, 20, (0, 255, 0), 2)
+        # For storing bright points and corresponding centroids
+        self.tracking_data = {"brightest_points": []}
 
-        # Update the tracking data
-        self.tracking_data = {"brightest_points": {"pixel": {"x": max_loc[0], "y": max_loc[1]}}}
+        # Process each bright patch separately
+        for contour in contours:
+            # Calculate the centroid of the bright patch
+            M = cv2.moments(contour)
+            M = cv2.moments(contour)
+
+            if M["m00"] != 0:
+                cX = int(M["m10"] / M["m00"])
+                cY = int(M["m01"] / M["m00"])
+
+                # Draw an 'X' on the centroid
+                cv2.drawMarker(image, (cX, cY), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=20, thickness=2)
+
+                # Draw minimum enclosing circle around the bright patch
+                center, radius = cv2.minEnclosingCircle(contour)
+                cv2.circle(image, (int(center[0]), int(center[1])), int(radius), (0, 255, 0), 2)
+
+                # Add to tracking data
+                self.tracking_data["brightest_points"].append({"pixel": {"x": cX, "y": cY}})
+
+        # Color all the pixels that exceed the threshold in Blue
+        image[thresholded == 255] = [255, 0, 0]
+
         self.annotated_image = image
 
         return {
@@ -40,6 +61,7 @@ class BrightestPointTracker(BaseTracker):
             "annotated_image": self.annotated_image,
             "raw_image": image,
         }
+
 
 
 if __name__ == "__main__":
