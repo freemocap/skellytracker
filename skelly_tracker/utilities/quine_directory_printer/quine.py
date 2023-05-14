@@ -89,8 +89,8 @@ if __name__ == "__main__":
         excluded_directories=["__pycache__",
                               ".git",
                               "output",
-                              "mediapipe_tracker",
-                              "charuco_tracker",
+                              # "mediapipe_tracker",
+                              # "charuco_tracker",
                               "mmpose_tracker"],
         included_extensions=[".py"])
     quine.generate_quine()

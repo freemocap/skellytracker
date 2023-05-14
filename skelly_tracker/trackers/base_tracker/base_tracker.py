@@ -22,7 +22,9 @@ class BaseTracker(ABC):
     An abstract base class for implementing different tracking algorithms.
     """
 
-    def __init__(self, tracked_object_names: List[str], **data: Any):
+    def __init__(self,
+                 tracked_object_names: List[str]=None,
+                 **data: Any):
         self.annotated_image = None
         self.raw_image = None
         self.tracked_objects: Dict[str, TrackedObject] = {}

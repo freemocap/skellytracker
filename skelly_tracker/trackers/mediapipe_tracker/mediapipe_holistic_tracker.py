@@ -1,7 +1,10 @@
 import cv2
 import mediapipe as mp
+from typing import Dict
 
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
+import numpy as np
+
+from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker, TrackedObject
 
 
 class MediapipeHolisticTracker(BaseTracker):
@@ -11,8 +14,7 @@ class MediapipeHolisticTracker(BaseTracker):
                  min_tracking_confidence=0.5,
                  static_image_mode=False,
                  smooth_landmarks=True):
-        super().__init__(
-            tracked_object_names=["pose_landmarks", "face_landmarks", "left_hand_landmarks", "right_hand_landmarks"])
+        super().__init__(tracked_object_names=["pose_landmarks", "face_landmarks", "left_hand_landmarks", "right_hand_landmarks"])
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_holistic = mp.solutions.holistic
         self.holistic = self.mp_holistic.Holistic(
@@ -23,33 +25,34 @@ class MediapipeHolisticTracker(BaseTracker):
             smooth_landmarks=smooth_landmarks
         )
 
-    def process_image(self, image, **kwargs):
+    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # Convert the image to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
         # Process the image
         results = self.holistic.process(rgb_image)
 
-        # Draw the pose, face, and hand landmarks on the image
-        self.mp_drawing.draw_landmarks(image, results.pose_landmarks, self.mp_holistic.POSE_CONNECTIONS)
-        self.mp_drawing.draw_landmarks(image, results.face_landmarks, self.mp_holistic.FACEMESH_TESSELATION)
-        self.mp_drawing.draw_landmarks(image, results.left_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
-        self.mp_drawing.draw_landmarks(image, results.right_hand_landmarks, self.mp_holistic.HAND_CONNECTIONS)
-
         # Update the tracking data
-        self.tracking_data = {
-            "pose_landmarks": results.pose_landmarks,
-            "face_landmarks": results.face_landmarks,
-            "left_hand_landmarks": results.left_hand_landmarks,
-            "right_hand_landmarks": results.right_hand_landmarks
-        }
-        self.annotated_image = image
+        self.tracked_objects["pose_landmarks"].extra["landmarks"] = results.pose_landmarks
+        self.tracked_objects["face_landmarks"].extra["landmarks"] = results.face_landmarks
+        self.tracked_objects["left_hand_landmarks"].extra["landmarks"] = results.left_hand_landmarks
+        self.tracked_objects["right_hand_landmarks"].extra["landmarks"] = results.right_hand_landmarks
 
-        return {
-            "tracking_data": self.tracking_data,
-            "annotated_image": self.annotated_image,
-            "raw_image": image,
-        }
+        self.raw_image = image.copy()
+
+        self.annotated_image = self.annotate_image(image=image,
+                                                   tracked_objects=self.tracked_objects)
+
+        return self.tracked_objects
+
+    def annotate_image(self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+        # Draw the pose, face, and hand landmarks on the image
+        self.mp_drawing.draw_landmarks(image, tracked_objects["pose_landmarks"].extra["landmarks"], self.mp_holistic.POSE_CONNECTIONS)
+        self.mp_drawing.draw_landmarks(image, tracked_objects["face_landmarks"].extra["landmarks"], self.mp_holistic.FACEMESH_TESSELATION)
+        self.mp_drawing.draw_landmarks(image, tracked_objects["left_hand_landmarks"].extra["landmarks"], self.mp_holistic.HAND_CONNECTIONS)
+        self.mp_drawing.draw_landmarks(image, tracked_objects["right_hand_landmarks"].extra["landmarks"], self.mp_holistic.HAND_CONNECTIONS)
+
+        return image
 
 
 if __name__ == "__main__":
@@ -58,3 +61,4 @@ if __name__ == "__main__":
                              min_tracking_confidence=0.5,
                              static_image_mode=False,
                              smooth_landmarks=True).demo()
+
