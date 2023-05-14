@@ -50,6 +50,7 @@ class WebcamDemoViewer:
 
         while True:
             ret, frame = cap.read()
+
             if not ret:
                 print("Error: Failed to read frame.")
                 break
