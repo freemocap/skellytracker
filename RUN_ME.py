@@ -24,4 +24,4 @@ if __name__ == "__main__":
                                  smooth_landmarks=True).demo()
 
     elif demo_tracker == "yolo_tracker":
-        YOLOPoseTracker().demo()
+        YOLOPoseTracker(model_size="high_res").demo()
