@@ -1,4 +1,4 @@
-yolo_object_detection_model_dictionary = {
+yolo_object_model_dictionary = {
     "nano": "yolov8n.pt",
     "small": "yolov8s.pt",
     "medium": "yolov8m.pt",

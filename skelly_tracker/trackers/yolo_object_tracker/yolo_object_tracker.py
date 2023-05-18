@@ -4,13 +4,14 @@ from typing import Dict
 from ultralytics import YOLO
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
+from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_dictionary import yolo_object_model_dictionary
 
-class YOLOPoseTracker(BaseTracker):
+class YOLOObjectTracker(BaseTracker):
     def __init__(self, model_size: str="nano"):
-        super().__init__(tracked_object_names=["human_pose"])
+        super().__init__(tracked_object_names=["objects"])
 
-        # pytorch_model = yolo_object_detection_model_dictionary[model_size]
-        self.model = YOLO('yolov8n.pt')
+        pytorch_model = yolo_object_model_dictionary[model_size]
+        self.model = YOLO(pytorch_model)
 
     def process_image(self, image, **kwargs):
         results = self.model(image)
@@ -26,4 +27,4 @@ class YOLOPoseTracker(BaseTracker):
         
 
 if __name__ == "__main__":
-    YOLOPoseTracker().demo()
+    YOLOObjectTracker().demo()
