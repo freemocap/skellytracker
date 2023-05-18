@@ -3,9 +3,10 @@ import cv2
 from skelly_tracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
 from skelly_tracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
 from skelly_tracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
+from skelly_tracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 
 if __name__ == "__main__":
-    demo_tracker = "brightest_point_tracker"
+    demo_tracker = "yolo_tracker"
 
     if demo_tracker == "brightest_point_tracker":
         BrightestPointTracker().demo()
@@ -21,3 +22,6 @@ if __name__ == "__main__":
                                  min_tracking_confidence=0.5,
                                  static_image_mode=False,
                                  smooth_landmarks=True).demo()
+
+    elif demo_tracker == "yolo_tracker":
+        YOLOPoseTracker(model_size="high_res").demo()
