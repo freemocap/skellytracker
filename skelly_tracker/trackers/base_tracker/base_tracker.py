@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from pathlib import Path
 from typing import Any, Dict, Callable, Optional, List
 import numpy as np
+from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 from typing import List
 from dataclasses import dataclass, field
@@ -62,3 +64,13 @@ class BaseTracker(ABC):
         """
         camera_viewer = WebcamDemoViewer(self, self.__class__.__name__)
         camera_viewer.run()
+
+    def image_demo(self, image_path: Path) -> None:
+        """
+        Run tracker on single image
+        
+        :return: None
+        """
+
+        image_viewer = ImageDemoViewer(self, self.__class__.__name__)
+        image_viewer.run(image_path=image_path)
