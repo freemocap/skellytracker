@@ -8,7 +8,7 @@ from skelly_tracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 
 if __name__ == "__main__":
     demo_tracker = "brightest_point_tracker"
-    image_path = Path("/Users/philipqueen/Downloads/standing_pose.JPG")
+    image_path = Path("/Path/To/Your/Image.jpg")
 
     if demo_tracker == "brightest_point_tracker":
         BrightestPointTracker().image_demo(image_path=image_path)
