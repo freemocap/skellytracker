@@ -52,7 +52,9 @@ class BrightestPointTracker(BaseTracker):
             self.tracked_objects["brightest_point"].pixel_y = largest_patch_centroid[1]
             self.tracked_objects["brightest_point"].extra["thresholded_image"] = thresholded_image
 
-        self.tracked_objects_across_frames.append(copy.deepcopy(self.tracked_objects["brightest_point"]))
+        tracked_object_copy = copy.deepcopy(self.tracked_objects["brightest_point"])
+        tracked_object_copy.extra["thresholded_image"] = None
+        self.tracked_objects_across_frames.append(tracked_object_copy)
 
         self.raw_image = image.copy()
 
