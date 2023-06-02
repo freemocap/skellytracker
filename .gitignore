@@ -155,3 +155,5 @@ cython_debug/
 
 .DS_Store
 skelly_tracker/utilities/quine_directory_printer/output/*
+*.pt
+bus.jpg
