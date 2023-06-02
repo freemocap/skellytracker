@@ -1,5 +1,6 @@
+import copy
 import logging
-from typing import Dict
+from typing import Dict, List
 
 import cv2
 import numpy as np
@@ -51,14 +52,21 @@ class BrightestPointTracker(BaseTracker):
             self.tracked_objects["brightest_point"].pixel_y = largest_patch_centroid[1]
             self.tracked_objects["brightest_point"].extra["thresholded_image"] = thresholded_image
 
+        self.tracked_objects_across_frames.append(copy.deepcopy(self.tracked_objects["brightest_point"]))
+
         self.raw_image = image.copy()
 
         self.annotated_image = self.annotate_image(image=image,
-                                                   tracked_objects=self.tracked_objects)
+                                                   tracked_objects=self.tracked_objects,
+                                                   tracked_objects_across_frames=self.tracked_objects_across_frames[-10:],)
 
         return self.tracked_objects
 
-    def annotate_image(self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+    def annotate_image(self, 
+                       image: np.ndarray, 
+                       tracked_objects: Dict[str, TrackedObject],
+                       tracked_objects_across_frames: List[Dict[str, TrackedObject]],
+                       **kwargs) -> np.ndarray:
         # Copy the original image for annotation
         annotated_image = image.copy()
 
@@ -68,7 +76,11 @@ class BrightestPointTracker(BaseTracker):
             cv2.drawMarker(annotated_image,
                            (tracked_objects["brightest_point"].pixel_x, tracked_objects["brightest_point"].pixel_y),
                            (0, 0, 255), markerType=cv2.MARKER_CROSS, markerSize=20, thickness=2)
-
+        
+        for tracked_object in tracked_objects_across_frames:
+            cv2.drawMarker(annotated_image,
+                            (tracked_object.pixel_x, tracked_object.pixel_y),
+                            (255, 0, 0), markerType=cv2.MARKER_DIAMOND, markerSize=15, thickness=2)
         return annotated_image
 
 

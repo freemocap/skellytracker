@@ -9,9 +9,7 @@ from skelly_tracker.trackers.yolo_object_tracker.yolo_object_tracker import YOLO
 
 if __name__ == "__main__":
 
-#    demo_tracker = "SAM_tracker"
-    demo_tracker = "yolo_object_tracker"
-
+    demo_tracker = "brightest_point_tracker"
 
     if demo_tracker == "brightest_point_tracker":
         BrightestPointTracker().demo()
@@ -30,7 +28,9 @@ if __name__ == "__main__":
 
     elif demo_tracker == "yolo_tracker":
         YOLOPoseTracker(model_size="high_res").demo()
+
     elif demo_tracker == "SAM_tracker":
         SAMTracker().demo()
+
     elif demo_tracker == "yolo_object_tracker":
         YOLOObjectTracker(model_size="medium").demo()

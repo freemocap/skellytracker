@@ -34,6 +34,8 @@ class BaseTracker(ABC):
         for name in tracked_object_names:
             self.tracked_objects[name] = TrackedObject(object_id=name)
 
+        self.tracked_objects_across_frames = []
+
     @abstractmethod
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         """
