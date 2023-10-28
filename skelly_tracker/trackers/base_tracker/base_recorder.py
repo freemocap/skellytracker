@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 from typing import Dict
 
+import numpy as np
+
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 
 
@@ -23,11 +25,11 @@ class BaseRecorder(ABC):
         pass
 
     @abstractmethod
-    def save(self, file_path: str) -> None:
+    def save(self, file_path: str) -> np.ndarray:
         """
         Save the recorded objects to a file.
 
         :param file_path: The path to the file where the recorded objects should be saved.
-        :return: None
+        :return: An array of recorded objects.
         """
         pass

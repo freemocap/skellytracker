@@ -9,7 +9,7 @@ class BrightestPointRecorder(BaseRecorder):
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
         self.recorded_objects.append(tracked_objects["brightest_point"])
 
-    def save(self, file_path: str) -> None:
+    def save(self, file_path: str) -> np.ndarray:
         recorded_objects_array = np.zeros((len(self.recorded_objects), 1, 3))
         for i, recorded_object in enumerate(self.recorded_objects):
             recorded_objects_array[i, 0, 0] = recorded_object.pixel_x
@@ -18,3 +18,5 @@ class BrightestPointRecorder(BaseRecorder):
 
         print(f"Saving recorded objects to {file_path}")
         np.save(file_path, recorded_objects_array)
+
+        return recorded_objects_array
