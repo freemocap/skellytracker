@@ -1,4 +1,3 @@
-import cv2
 import numpy as np
 from typing import Dict
 from ultralytics import YOLO
@@ -16,7 +15,7 @@ class YOLOPoseTracker(BaseTracker):
         pytorch_model = yolo_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
 
-    def process_image(self, image, **kwargs):
+    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         results = self.model(image)
         
         self.unpack_results(results)
@@ -30,7 +29,8 @@ class YOLOPoseTracker(BaseTracker):
 
     def unpack_results(self, results):
         tracked_person_number = 0
-        for tracked_person in np.array(results[-1].keypoints):
+
+        for tracked_person in np.asarray(results[-1].keypoints.xy):
             tracked_person_name = f"tracked_person_{tracked_person_number}"
 
             self.tracked_objects[tracked_person_name] = TrackedObject(
