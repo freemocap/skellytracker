@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Dict
 
-from skelly_tracker.trackers.base_tracker.base_tracker import TrackedObject
+from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 
 
 class BaseRecorder(ABC):

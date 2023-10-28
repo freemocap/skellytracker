@@ -1,23 +1,12 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, Callable, Optional, List
+from typing import Any, Dict, List
 import numpy as np
+from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 from typing import List
-from dataclasses import dataclass, field
 
-
-@dataclass
-class TrackedObject:
-    """
-    A dataclass for storing information about a tracked object in a single image/frame
-    """
-    object_id: str
-    pixel_x: Optional[float] = None
-    pixel_y: Optional[float] = None
-    depth_z: Optional[float] = None
-    extra: Optional[Dict[str, Any]] = field(default_factory=dict)
 
 class BaseTracker(ABC):
     """
