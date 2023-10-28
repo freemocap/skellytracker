@@ -3,7 +3,8 @@ from typing import Dict, List
 import cv2
 import numpy as np
 
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker, TrackedObject
+from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
+from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 
 
 class CharucoTracker(BaseTracker):

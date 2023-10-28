@@ -16,4 +16,5 @@ class BrightestPointRecorder(BaseRecorder):
             recorded_objects_array[i, 0, 1] = recorded_object.pixel_y
             recorded_objects_array[i, 0, 2] = recorded_object.depth_z
 
+        print(f"Saving recorded objects to {file_path}")
         np.save(file_path, recorded_objects_array)

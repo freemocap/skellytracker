@@ -6,6 +6,7 @@ import numpy as np
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
+from skelly_tracker.trackers.bright_point_tracker.brightest_point_recorder import BrightestPointRecorder
 
 UPPER_BOUND_COLOR = [255, 255, 255]
 
@@ -18,7 +19,7 @@ class BrightestPointTracker(BaseTracker):
     luminance_threshold: int = 200
 
     def __init__(self):
-        super().__init__(tracked_object_names=["brightest_point"])
+        super().__init__(tracked_object_names=["brightest_point"], recorder=BrightestPointRecorder())
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # Convert the image to grayscale

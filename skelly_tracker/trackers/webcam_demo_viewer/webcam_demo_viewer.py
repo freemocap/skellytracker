@@ -1,6 +1,5 @@
 import cv2
 
-from skelly_tracker.trackers.bright_point_tracker.brightest_point_recorder import BrightestPointRecorder
 
 # Constants for key actions
 KEY_INCREASE_EXPOSURE = ord("w")
@@ -11,11 +10,12 @@ KEY_QUIT = ord("q")
 class WebcamDemoViewer:
     DEFAULT_EXPOSURE = -7
 
-    def __init__(self, tracker, window_title: str = None, default_exposure: int = DEFAULT_EXPOSURE):
+    def __init__(self, tracker, recorder = None, window_title: str = None, default_exposure: int = DEFAULT_EXPOSURE):
         """
         Initialize with a tracker and optional window title and default exposure.
         """
         self.tracker = tracker
+        self.recorder = recorder
         self.default_exposure = default_exposure
         if window_title is None:
             window_title = f"{tracker.__class__.__name__}"
@@ -49,8 +49,6 @@ class WebcamDemoViewer:
         exposure = self.default_exposure
         self._set_exposure(cap, exposure)
 
-        recorder = BrightestPointRecorder()
-
         while True:
             ret, frame = cap.read()
 
@@ -60,7 +58,8 @@ class WebcamDemoViewer:
 
             self.tracker.process_image(frame)
             annotated_image = self.tracker.annotated_image
-            recorder.record(self.tracker.tracked_objects)
+            if self.recorder is not None:
+                self.recorder.record(self.tracker.tracked_objects)
 
             key = cv2.waitKey(1) & 0xFF
             if key == KEY_QUIT:
@@ -82,4 +81,5 @@ class WebcamDemoViewer:
         cap.release()
         cv2.destroyAllWindows()
 
-        recorder.save("recorded_objects.npy")
+        if self.recorder is not None:
+            self.recorder.save("recorded_objects.npy")

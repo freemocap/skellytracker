@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List
 import numpy as np
+from skelly_tracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
@@ -15,7 +16,9 @@ class BaseTracker(ABC):
 
     def __init__(self,
                  tracked_object_names: List[str]=None,
+                 recorder: BaseRecorder=None,
                  **data: Any):
+        self.recorder = recorder
         self.annotated_image = None
         self.raw_image = None
         self.tracked_objects: Dict[str, TrackedObject] = {}
@@ -51,7 +54,9 @@ class BaseTracker(ABC):
         :param window_title: The title of the demo window.
         :return: None
         """
-        camera_viewer = WebcamDemoViewer(self, self.__class__.__name__)
+        camera_viewer = WebcamDemoViewer(tracker=self,
+                                         recorder=self.recorder,
+                                         window_title=self.__class__.__name__)
         camera_viewer.run()
 
     def image_demo(self, image_path: Path) -> None:
