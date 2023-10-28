@@ -13,23 +13,35 @@ class BaseRecorder(ABC):
 
     def __init__(self):
         self.recorded_objects = []
+        self.recorded_objects_array = None
 
     @abstractmethod
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
         """
-        Record the tracked object.
+        Record the tracked objects.
 
-        :param tracked_object: A tracked object.
+        :param tracked_object: A tracked objects dictionary.
         :return: None
         """
         pass
 
     @abstractmethod
-    def save(self, file_path: str) -> np.ndarray:
+    def process_tracked_objects(self) -> np.ndarray:
+        """
+        Process the recorded objects.
+
+        :return: Array of tracked objects.
+        """
+        pass
+
+    def save(self, file_path: str) -> None:
         """
         Save the recorded objects to a file.
 
         :param file_path: The path to the file where the recorded objects should be saved.
-        :return: An array of recorded objects.
+        :return: None
         """
-        pass
+        if self.recorded_objects_array is None:
+            self.process_tracked_objects()
+        print(f"Saving recorded objects to {file_path}")
+        np.save(file_path, self.recorded_objects_array)
