@@ -6,3 +6,5 @@ yolo_model_dictionary = {
     "extra_large": "yolov8x-pose.pt",
     "high_res": "yolov8x-pose-p6.pt",
 }
+
+NUM_TRACKED_POINTS_YOLO = 17

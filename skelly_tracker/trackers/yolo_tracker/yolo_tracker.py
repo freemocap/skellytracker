@@ -4,21 +4,24 @@ from ultralytics import YOLO
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
-from skelly_tracker.trackers.yolo_tracker.yolo_model_dictionary import (
+from skelly_tracker.trackers.yolo_tracker.yolo_model_info import (
+    NUM_TRACKED_POINTS_YOLO,
     yolo_model_dictionary,
 )
+from skelly_tracker.trackers.yolo_tracker.yolo_recorder import YOLORecorder
 
 
 class YOLOPoseTracker(BaseTracker):
     def __init__(self, model_size: str = "nano"):
-        super().__init__(tracked_object_names=[])
+        super().__init__(tracked_object_names=[], recorder=YOLORecorder())
 
         pytorch_model = yolo_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
-        results = self.model(image)
-        
+        # TODO: "max_det=1" argument to limit to single person tracking for now
+        results = self.model(image, max_det=1)
+
         self.unpack_results(results)
 
         self.annotated_image = self.annotate_image(image, results=results, **kwargs)
@@ -29,26 +32,25 @@ class YOLOPoseTracker(BaseTracker):
         return results[-1].plot()
 
     def unpack_results(self, results):
-        tracked_person_number = 0
-
-        for tracked_person in np.asarray(results[-1].keypoints.xy):
-            tracked_person_name = f"tracked_person_{tracked_person_number}"
-
-            self.tracked_objects[tracked_person_name] = TrackedObject(
-                object_id=tracked_person_name
-            )
+        tracked_person = np.asarray(results[-1].keypoints.xy)
+        self.tracked_objects["tracked_person"] = TrackedObject(
+            object_id="tracked_person"
+        )
+        if tracked_person.size != 0:
             # add averages of all tracked points as pixel x and y
-            self.tracked_objects[tracked_person_name].pixel_x = np.mean(
+            self.tracked_objects["tracked_person"].pixel_x = np.mean(
                 tracked_person[:, 0], axis=0
             )
-            self.tracked_objects[tracked_person_name].pixel_y = np.mean(
+            self.tracked_objects["tracked_person"].pixel_y = np.mean(
                 tracked_person[:, 1], axis=0
             )
-            self.tracked_objects[tracked_person_name].extra[
-                "landmarks"
-            ] = tracked_person
-
-            tracked_person_number += 1
+            self.tracked_objects["tracked_person"].extra["landmarks"] = tracked_person
+        else:
+            self.tracked_objects["tracked_person"].pixel_x = None
+            self.tracked_objects["tracked_person"].pixel_y = None
+            self.tracked_objects["tracked_person"].extra["landmarks"] = np.full(
+                (1, NUM_TRACKED_POINTS_YOLO, 2), np.nan
+            )
 
 
 if __name__ == "__main__":
