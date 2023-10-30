@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Union
 import numpy as np
 from skelly_tracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
+from skelly_tracker.trackers.video_processor import VideoProcessor
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 from typing import List
 
@@ -46,6 +47,19 @@ class BaseTracker(ABC):
         :return: Annotated image
         """
         pass
+
+    def process_video(self, video_filepath: Union[str, Path]) -> np.ndarray:
+        """
+        Run the tracker on a video.
+        
+        :param video_filepath: Path to video file.
+        :return: Array of tracked keypoint data
+        """
+        video_processor = VideoProcessor(tracker=self,
+                                         recorder=self.recorder,
+                                         video_filepath=video_filepath)
+        
+        video_processor.run(save_data_bool=True)
 
     def demo(self) -> None:
         """
