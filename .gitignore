@@ -156,10 +156,10 @@ cython_debug/
 .DS_Store
 
 # ML models
-.pt
+*.pt
 
 #image outputs
-.jpg
-.jpeg
+*.jpg
+*.jpeg
 
 skelly_tracker/utilities/quine_directory_printer/output/*
