@@ -1,6 +1,7 @@
 from pathlib import Path
 from typing import Union
 import cv2
+import numpy as np
 
 
 class VideoProcessor:
@@ -10,7 +11,13 @@ class VideoProcessor:
         self.video_filepath = video_filepath
         self.data_array = None
 
-    def run(self, save_data_bool = False):
+    def run(self, save_data_bool = False) -> np.ndarray:
+        """
+        Run the tracker on a video.
+        
+        :save_data_bool: Whether to save the data to a file.
+        :return: None
+        """
         cap = cv2.VideoCapture(str(self.video_filepath))
 
         while cap.isOpened():

@@ -20,7 +20,7 @@ class YOLOPoseTracker(BaseTracker):
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # TODO: "max_det=1" argument to limit to single person tracking for now
-        results = self.model(image, max_det=1)
+        results = self.model(image, max_det=1, verbose=False)
 
         self.unpack_results(results)
 

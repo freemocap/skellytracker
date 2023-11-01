@@ -48,18 +48,21 @@ class BaseTracker(ABC):
         """
         pass
 
-    def process_video(self, video_filepath: Union[str, Path]) -> np.ndarray:
+    def process_video(self, video_filepath: Union[str, Path], save_data_bool: bool = False) -> np.ndarray:
         """
         Run the tracker on a video.
         
         :param video_filepath: Path to video file.
+        :param save_data_bool: Whether to save the data to a file.
         :return: Array of tracked keypoint data
         """
         video_processor = VideoProcessor(tracker=self,
                                          recorder=self.recorder,
                                          video_filepath=video_filepath)
         
-        video_processor.run(save_data_bool=True)
+        output_array = video_processor.run(save_data_bool=save_data_bool)
+
+        return output_array
 
     def demo(self) -> None:
         """
