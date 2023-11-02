@@ -7,10 +7,17 @@ KEY_DECREASE_EXPOSURE = ord("s")
 KEY_RESET_EXPOSURE = ord("r")
 KEY_QUIT = ord("q")
 
+
 class WebcamDemoViewer:
     DEFAULT_EXPOSURE = -7
 
-    def __init__(self, tracker, recorder = None, window_title: str = None, default_exposure: int = DEFAULT_EXPOSURE):
+    def __init__(
+        self,
+        tracker,
+        recorder=None,
+        window_title: str = None,
+        default_exposure: int = DEFAULT_EXPOSURE,
+    ):
         """
         Initialize with a tracker and optional window title and default exposure.
         """
@@ -32,10 +39,11 @@ class WebcamDemoViewer:
         Overlay text on the image.
         """
         y0, dy = 30, 25  # y0 - initial y value, dy - offset between lines
-        for i, line in enumerate(text.split('\n')):
+        for i, line in enumerate(text.split("\n")):
             y = y0 + i * dy
-            cv2.putText(image, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, .75, (100, 0, 255), 2)
-
+            cv2.putText(
+                image, line, (10, y), cv2.FONT_HERSHEY_SIMPLEX, 0.75, (100, 0, 255), 2
+            )
 
     def run(self):
         """
@@ -59,7 +67,7 @@ class WebcamDemoViewer:
             self.tracker.process_image(frame)
             annotated_image = self.tracker.annotated_image
             if self.recorder is not None:
-                self.recorder.record(self.tracker.tracked_objects)
+                self.recorder.record(tracked_objects=self.tracker.tracked_objects)
 
             key = cv2.waitKey(1) & 0xFF
             if key == KEY_QUIT:
@@ -74,8 +82,11 @@ class WebcamDemoViewer:
                 exposure = self.default_exposure
                 self._set_exposure(cap, exposure)
 
-            self._show_overlay(annotated_image, f"Exposure: {exposure}\n"
-                                                f"Controls: \n`w`/`s`: exposure +/- \n'r': reset \n'q': quit")
+            self._show_overlay(
+                annotated_image,
+                f"Exposure: {exposure}\n"
+                f"Controls: \n`w`/`s`: exposure +/- \n'r': reset \n'q': quit",
+            )
             cv2.imshow(self.window_title, annotated_image)
 
         cap.release()
