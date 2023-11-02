@@ -4,10 +4,7 @@ from ultralytics import YOLO
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
-from skelly_tracker.trackers.yolo_tracker.yolo_model_info import (
-    NUM_TRACKED_POINTS_YOLO,
-    yolo_model_dictionary,
-)
+from skelly_tracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 from skelly_tracker.trackers.yolo_tracker.yolo_recorder import YOLORecorder
 
 
@@ -15,7 +12,7 @@ class YOLOPoseTracker(BaseTracker):
     def __init__(self, model_size: str = "nano"):
         super().__init__(tracked_object_names=[], recorder=YOLORecorder())
 
-        pytorch_model = yolo_model_dictionary[model_size]
+        pytorch_model = YOLOModelInfo.yolo_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
@@ -49,7 +46,7 @@ class YOLOPoseTracker(BaseTracker):
             self.tracked_objects["tracked_person"].pixel_x = None
             self.tracked_objects["tracked_person"].pixel_y = None
             self.tracked_objects["tracked_person"].extra["landmarks"] = np.full(
-                (1, NUM_TRACKED_POINTS_YOLO, 2), np.nan
+                (1, YOLOModelInfo.num_tracked_points, 2), np.nan
             )
 
 

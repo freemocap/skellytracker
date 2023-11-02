@@ -6,6 +6,7 @@ import numpy as np
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
+from skelly_tracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 
 
 class MediapipeHolisticTracker(BaseTracker):
@@ -15,7 +16,7 @@ class MediapipeHolisticTracker(BaseTracker):
                  min_tracking_confidence=0.5,
                  static_image_mode=False,
                  smooth_landmarks=True):
-        super().__init__(tracked_object_names=["pose_landmarks", "face_landmarks", "left_hand_landmarks", "right_hand_landmarks"])
+        super().__init__(tracked_object_names=MediapipeModelInfo.mediapipe_tracked_object_names)
         self.mp_drawing = mp.solutions.drawing_utils
         self.mp_holistic = mp.solutions.holistic
         self.holistic = self.mp_holistic.Holistic(
