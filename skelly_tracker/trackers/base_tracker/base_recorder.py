@@ -18,7 +18,7 @@ class BaseRecorder(ABC):
     @abstractmethod
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
         """
-        Record the tracked objects.
+        Record the tracked objects as they are created by the tracker.
 
         :param tracked_object: A tracked objects dictionary.
         :return: None
@@ -28,7 +28,7 @@ class BaseRecorder(ABC):
     @abstractmethod
     def process_tracked_objects(self) -> np.ndarray:
         """
-        Process the recorded objects.
+        Process the recorded objects to be in a consistent array format across trackers.
 
         :return: Array of tracked objects.
         """
