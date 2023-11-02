@@ -12,7 +12,7 @@ class YOLOPoseTracker(BaseTracker):
     def __init__(self, model_size: str = "nano"):
         super().__init__(tracked_object_names=[], recorder=YOLORecorder())
 
-        pytorch_model = YOLOModelInfo.yolo_model_dictionary[model_size]
+        pytorch_model = YOLOModelInfo.yolo_model_dictionary.value[model_size]
         self.model = YOLO(pytorch_model)
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
