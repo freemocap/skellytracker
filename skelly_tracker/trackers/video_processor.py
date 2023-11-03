@@ -23,7 +23,7 @@ class VideoProcessor:
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                print("Error: Failed to read frame.")
+                print("Done processing video")
                 break
 
             self.tracker.process_image(frame)

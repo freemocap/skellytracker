@@ -34,6 +34,10 @@ class BaseRecorder(ABC):
         """
         pass
 
+    def clear_recorded_objects(self):
+        self.recorded_objects = []
+        self.recorded_objects_array = None
+
     def save(self, file_path: str) -> None:
         """
         Save the recorded objects to a file.
