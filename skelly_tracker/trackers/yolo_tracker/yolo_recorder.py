@@ -1,5 +1,5 @@
+from copy import deepcopy
 from typing import Dict
-
 import numpy as np
 
 from skelly_tracker.trackers.base_tracker.base_recorder import BaseRecorder
@@ -9,9 +9,9 @@ from skelly_tracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 
 class YOLORecorder(BaseRecorder):
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
-        self.recorded_objects.append(tracked_objects["tracked_person"])
+        self.recorded_objects.append(deepcopy(tracked_objects["tracked_person"]))
 
-    def process_tracked_objects(self) -> np.ndarray:
+    def process_tracked_objects(self, **kwargs) -> np.ndarray:
         self.recorded_objects_array = np.zeros(
             (len(self.recorded_objects), YOLOModelInfo.num_tracked_points, 3)
         )

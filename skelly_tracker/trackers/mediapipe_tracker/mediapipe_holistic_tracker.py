@@ -1,8 +1,7 @@
 import cv2
 import mediapipe as mp
-from typing import Dict
-
 import numpy as np
+from typing import Dict
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject

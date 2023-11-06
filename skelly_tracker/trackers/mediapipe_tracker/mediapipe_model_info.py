@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class MediapipeModelInfo(Enum):
-    num_tracked_points_total = 533
+    num_tracked_points_total = 543
     num_tracked_points_body = 33
     num_tracked_points_face = 468
     num_tracked_points_left_hand = 21

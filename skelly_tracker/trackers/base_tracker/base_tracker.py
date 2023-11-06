@@ -1,13 +1,16 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, List, Union
+import cv2
 import numpy as np
+
+
 from skelly_tracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
-from skelly_tracker.trackers.video_processor import VideoProcessor
-from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
-from typing import List
+from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import (
+    WebcamDemoViewer,
+)
 
 
 class BaseTracker(ABC):
@@ -15,10 +18,12 @@ class BaseTracker(ABC):
     An abstract base class for implementing different tracking algorithms.
     """
 
-    def __init__(self,
-                 tracked_object_names: List[str]=None,
-                 recorder: BaseRecorder=None,
-                 **data: Any):
+    def __init__(
+        self,
+        tracked_object_names: List[str] = None,
+        recorder: BaseRecorder = None,
+        **data: Any
+    ):
         self.recorder = recorder
         self.annotated_image = None
         self.raw_image = None
@@ -38,7 +43,9 @@ class BaseTracker(ABC):
         pass
 
     @abstractmethod
-    def annotate_image(self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+    def annotate_image(
+        self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs
+    ) -> np.ndarray:
         """
         Annotate the input image with the results of the tracking algorithm.
 
@@ -48,19 +55,41 @@ class BaseTracker(ABC):
         """
         pass
 
-    def process_video(self, video_filepath: Union[str, Path], save_data_bool: bool = False) -> np.ndarray:
+    def process_video(
+        self, video_filepath: Union[str, Path], save_data_bool: bool = False
+    ) -> np.ndarray:
         """
         Run the tracker on a video.
-        
+
         :param video_filepath: Path to video file.
         :param save_data_bool: Whether to save the data to a file.
         :return: Array of tracked keypoint data
         """
-        video_processor = VideoProcessor(tracker=self,
-                                         recorder=self.recorder,
-                                         video_filepath=video_filepath)
-        
-        output_array = video_processor.run(save_data_bool=save_data_bool)
+
+        cap = cv2.VideoCapture(str(video_filepath))
+
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                print("Done processing video")
+                break
+
+            image_size = (frame.shape[1], frame.shape[0])
+
+            self.process_image(frame)
+            if self.recorder is not None:
+                self.recorder.record(self.tracked_objects)
+
+        cap.release()
+
+        if self.recorder is not None:
+            output_array = self.recorder.process_tracked_objects(image_size=image_size)
+            if save_data_bool:
+                self.recorder.save(
+                    file_path=Path(video_filepath).with_suffix(".npy")
+                )
+        else:
+            output_array = None
 
         return output_array
 
@@ -71,15 +100,15 @@ class BaseTracker(ABC):
         :param window_title: The title of the demo window.
         :return: None
         """
-        camera_viewer = WebcamDemoViewer(tracker=self,
-                                         recorder=self.recorder,
-                                         window_title=self.__class__.__name__)
+        camera_viewer = WebcamDemoViewer(
+            tracker=self, recorder=self.recorder, window_title=self.__class__.__name__
+        )
         camera_viewer.run()
 
     def image_demo(self, image_path: Path) -> None:
         """
         Run tracker on single image
-        
+
         :return: None
         """
 

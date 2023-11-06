@@ -64,6 +64,8 @@ class WebcamDemoViewer:
                 print("Error: Failed to read frame.")
                 break
 
+            image_size = (frame.shape[1], frame.shape[0])
+
             self.tracker.process_image(frame)
             annotated_image = self.tracker.annotated_image
             if self.recorder is not None:
@@ -93,4 +95,5 @@ class WebcamDemoViewer:
         cv2.destroyAllWindows()
 
         if self.recorder is not None:
+            self.recorder.process_tracked_objects(image_size=image_size)
             self.recorder.save("recorded_objects.npy")

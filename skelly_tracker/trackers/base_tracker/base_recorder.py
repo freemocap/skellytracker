@@ -26,7 +26,7 @@ class BaseRecorder(ABC):
         pass
 
     @abstractmethod
-    def process_tracked_objects(self) -> np.ndarray:
+    def process_tracked_objects(self, **kwargs) -> np.ndarray:
         """
         Process the recorded objects to be in a consistent array format across trackers.
 
