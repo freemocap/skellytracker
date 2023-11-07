@@ -2,7 +2,7 @@ from enum import Enum
 
 class YOLOModelInfo(Enum):
     num_tracked_points = 17
-    yolo_model_dictionary = {
+    model_dictionary = {
         "nano": "yolov8n-pose.pt",
         "small": "yolov8s-pose.pt",
         "medium": "yolov8m-pose.pt",
@@ -10,7 +10,7 @@ class YOLOModelInfo(Enum):
         "extra_large": "yolov8x-pose.pt",
         "high_res": "yolov8x-pose-p6.pt",
     }
-    yolo_marker_dict = {
+    marker_dict = {
         0: "nose",
         1: "left_eye",
         2: "right_eye",
@@ -29,3 +29,51 @@ class YOLOModelInfo(Enum):
         15: "left_ankle",
         16: "right_ankle",
     }
+    body_segment_names = {
+        "head",
+        "trunk",
+        "right_upper_arm",
+        "left_upper_arm",
+        "right_forearm",
+        "left_forearm",
+        "right_thigh",
+        "left_thigh",
+        "right_shin",
+        "left_shin",
+    }
+    joint_connections = {
+        ["left_ear", "right_ear"],
+        ["mid_chest_marker", "mid_hip_marker"],
+        ["right_shoulder", "right_elbow"],
+        ["left_shoulder", "left_elbow"],
+        ["right_elbow", "right_wrist"],
+        ["left_elbow", "left_wrist"],
+        ["right_hip", "right_knee"],
+        ["left_hip", "left_knee"],
+        ["right_knee", "right_ankle"],
+        ["left_knee", "left_ankle"],
+    }
+    segment_COM_lengths = [
+        0.5,
+        0.5,
+        0.436,
+        0.436,
+        0.430, # potentially offset these lengths with hand lengths?
+        0.430, # potentially offset these lengths with hand lengths?
+        0.433,
+        0.433,
+        0.433, # potentially offset these lengths with foot lengths?
+        0.433, # potentially offset these lengths with foot lengths?
+    ]
+    segment_COM_percentages = [
+        0.081,
+        0.497,
+        0.028,
+        0.028,
+        0.016, # potentially add .006 for the hands here
+        0.016, # potentially add .006 for the hands here
+        0.1,
+        0.1,
+        0.0465, # potentially add .0145 for the feet here
+        0.0465, # potentially add .0145 for the feet here
+    ]
