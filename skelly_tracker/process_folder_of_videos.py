@@ -55,5 +55,5 @@ if __name__ == "__main__":
     synchronized_video_path = Path(
         "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
-    tracker = MediapipeHolisticTracker()
+    tracker = YOLOPoseTracker()
     process_folder_of_videos(synchronized_video_path, tracker)

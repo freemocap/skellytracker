@@ -46,7 +46,7 @@ class YOLOPoseTracker(BaseTracker):
             self.tracked_objects["tracked_person"].pixel_x = None
             self.tracked_objects["tracked_person"].pixel_y = None
             self.tracked_objects["tracked_person"].extra["landmarks"] = np.full(
-                (1, YOLOModelInfo.num_tracked_points, 2), np.nan
+                (1, YOLOModelInfo.num_tracked_points.value, 2), np.nan
             )
 
 

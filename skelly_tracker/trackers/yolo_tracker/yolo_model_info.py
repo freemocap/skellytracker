@@ -29,7 +29,7 @@ class YOLOModelInfo(Enum):
         15: "left_ankle",
         16: "right_ankle",
     }
-    body_segment_names = {
+    body_segment_names = [
         "head",
         "trunk",
         "right_upper_arm",
@@ -40,8 +40,8 @@ class YOLOModelInfo(Enum):
         "left_thigh",
         "right_shin",
         "left_shin",
-    }
-    joint_connections = {
+    ]
+    joint_connections = [
         ["left_ear", "right_ear"],
         ["mid_chest_marker", "mid_hip_marker"],
         ["right_shoulder", "right_elbow"],
@@ -52,28 +52,28 @@ class YOLOModelInfo(Enum):
         ["left_hip", "left_knee"],
         ["right_knee", "right_ankle"],
         ["left_knee", "left_ankle"],
-    }
+    ]
     segment_COM_lengths = [
         0.5,
         0.5,
         0.436,
         0.436,
-        0.430, # potentially offset these lengths with hand lengths?
-        0.430, # potentially offset these lengths with hand lengths?
+        0.682,
+        0.682,
         0.433,
         0.433,
-        0.433, # potentially offset these lengths with foot lengths?
-        0.433, # potentially offset these lengths with foot lengths?
+        0.606,
+        0.606,
     ]
     segment_COM_percentages = [
         0.081,
         0.497,
         0.028,
         0.028,
-        0.016, # potentially add .006 for the hands here
-        0.016, # potentially add .006 for the hands here
+        0.022,
+        0.022,
         0.1,
         0.1,
-        0.0465, # potentially add .0145 for the feet here
-        0.0465, # potentially add .0145 for the feet here
+        0.061, # potentially add .0145 for the feet here
+        0.061, # potentially add .0145 for the feet here
     ]
