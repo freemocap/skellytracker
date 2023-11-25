@@ -4,10 +4,12 @@ from typing import Any, Dict, Callable, Optional, List
 
 import cv2
 import numpy as np
-from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
-from skellytracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
+
 from typing import List
 from dataclasses import dataclass, field
+
+from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
+from skellytracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 
 
 @dataclass
@@ -21,22 +23,24 @@ class TrackedObject:
     depth_z: Optional[float] = None
     extra: Optional[Dict[str, Any]] = field(default_factory=dict)
 
+
 class BaseTracker(ABC):
     """
     An abstract base class for implementing different tracking algorithms.
     """
 
     def __init__(self,
-                 tracked_object_names: List[str]=None,
+                 tracked_object_names: List[str] = None,
                  **data: Any):
         self.annotated_image = None
         self.raw_image = None
         self.tracked_objects: Dict[str, TrackedObject] = {}
+        self.results = []
 
         for name in tracked_object_names:
             self.tracked_objects[name] = TrackedObject(object_id=name)
 
-    def process_video(self, video_path: str, **kwargs) -> None:
+    def process_video(self, video_path: str, show:bool = True, **kwargs) -> None:
         """
         Process a video and apply the tracking algorithm.
 
@@ -54,13 +58,18 @@ class BaseTracker(ABC):
         frame_idx = 0
 
         while success:
-            success, frame = video_capture.read()
+            success, image = video_capture.read()
             frame_idx += 1
 
             if not success:
                 break
 
-            self.process_image(frame, **kwargs)
+            self.results.append( self.process_image(image, **kwargs))
+
+            if show:
+                cv2.imshow(f"{self.__class__.__name__}", self.annotated_image)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
 
 
     @abstractmethod
@@ -97,7 +106,7 @@ class BaseTracker(ABC):
     def image_demo(self, image_path: Path) -> None:
         """
         Run tracker on single image
-        
+
         :return: None
         """
 

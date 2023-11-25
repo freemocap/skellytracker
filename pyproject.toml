@@ -12,6 +12,7 @@ opencv-contrib-python = "4.8.*"
 pydantic = "1.*"
 mediapipe = "^0.10.8"
 ultralytics = "^8.0.215"
+openmim = "^0.3.9"
 
 
 
