@@ -23,7 +23,7 @@ class MediapipeHolisticTracker(BaseTracker):
         smooth_landmarks=True,
     ):
         super().__init__(
-            tracked_object_names=MediapipeModelInfo.mediapipe_tracked_object_names.value,
+            tracked_object_names=MediapipeModelInfo.mediapipe_tracked_object_names,
             recorder=MediapipeHolisticRecorder(),
         )
         self.mp_drawing = mp.solutions.drawing_utils

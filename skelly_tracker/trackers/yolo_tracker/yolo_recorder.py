@@ -13,11 +13,11 @@ class YOLORecorder(BaseRecorder):
 
     def process_tracked_objects(self, **kwargs) -> np.ndarray:
         self.recorded_objects_array = np.zeros(
-            (len(self.recorded_objects), YOLOModelInfo.num_tracked_points.value, 3)
+            (len(self.recorded_objects), YOLOModelInfo.num_tracked_points, 3)
         )
         print(self.recorded_objects[-1].extra["landmarks"])
         for i, recorded_object in enumerate(self.recorded_objects):
-            for j in range(YOLOModelInfo.num_tracked_points.value):
+            for j in range(YOLOModelInfo.num_tracked_points):
                 self.recorded_objects_array[i, j, 0] = recorded_object.extra[
                     "landmarks"
                 ][0, j, 0]

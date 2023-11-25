@@ -1,6 +1,4 @@
-from enum import Enum
-
-class YOLOModelInfo(Enum):
+class YOLOModelInfo:
     num_tracked_points = 17
     model_dictionary = {
         "nano": "yolov8n-pose.pt",
@@ -74,6 +72,6 @@ class YOLOModelInfo(Enum):
         0.022,
         0.1,
         0.1,
-        0.061, # potentially add .0145 for the feet here
-        0.061, # potentially add .0145 for the feet here
+        0.061,
+        0.061,
     ]

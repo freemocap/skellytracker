@@ -14,7 +14,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
         self.recorded_objects.append(
             [
                 deepcopy(tracked_objects[tracked_object_name])
-                for tracked_object_name in MediapipeModelInfo.mediapipe_tracked_object_names.value
+                for tracked_object_name in MediapipeModelInfo.mediapipe_tracked_object_names
             ]
         )
 
@@ -25,7 +25,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
         self.recorded_objects_array = np.zeros(
             (
                 len(self.recorded_objects),
-                MediapipeModelInfo.num_tracked_points_total.value,
+                MediapipeModelInfo.num_tracked_points_total,
                 3,
             )
         )
@@ -47,13 +47,13 @@ class MediapipeHolisticRecorder(BaseRecorder):
                         landmark_number += 1
                 else:
                     if recorded_object.object_id == "pose_landmarks":
-                        number = MediapipeModelInfo.num_tracked_points_body.value
+                        number = MediapipeModelInfo.num_tracked_points_body
                     elif recorded_object.object_id == "face_landmarks":
-                        number = MediapipeModelInfo.num_tracked_points_face.value
+                        number = MediapipeModelInfo.num_tracked_points_face
                     elif recorded_object.object_id == "left_hand_landmarks":
-                        number = MediapipeModelInfo.num_tracked_points_left_hand.value
+                        number = MediapipeModelInfo.num_tracked_points_left_hand
                     else:
-                        number = MediapipeModelInfo.num_tracked_points_right_hand.value
+                        number = MediapipeModelInfo.num_tracked_points_right_hand
                     for _ in range(number):
                         self.recorded_objects_array[i, landmark_number, :] = np.NaN
                         landmark_number += 1
