@@ -1,9 +1,11 @@
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Dict, Callable, Optional, List
+
+import cv2
 import numpy as np
-from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
-from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
+from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
+from skellytracker.trackers.webcam_demo_viewer.webcam_demo_viewer import WebcamDemoViewer
 from typing import List
 from dataclasses import dataclass, field
 
@@ -33,6 +35,33 @@ class BaseTracker(ABC):
 
         for name in tracked_object_names:
             self.tracked_objects[name] = TrackedObject(object_id=name)
+
+    def process_video(self, video_path: str, **kwargs) -> None:
+        """
+        Process a video and apply the tracking algorithm.
+
+        :param video_path: A path to a video file.
+        :return: None
+        """
+        if not Path(video_path).exists():
+            raise FileNotFoundError(f"Video file {video_path} does not exist.")
+
+        video_capture = cv2.VideoCapture(video_path)
+        if not video_capture.isOpened():
+            raise Exception(f"Could not open video file {video_path}.")
+
+        success = True
+        frame_idx = 0
+
+        while success:
+            success, frame = video_capture.read()
+            frame_idx += 1
+
+            if not success:
+                break
+
+            self.process_image(frame, **kwargs)
+
 
     @abstractmethod
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
