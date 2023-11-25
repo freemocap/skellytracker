@@ -3,7 +3,7 @@ import numpy as np
 from typing import Dict
 from ultralytics.vit import SAM
 
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
 class SAMTracker(BaseTracker):
     def __init__(self, model_size: str="nano"):

@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from mmpose.apis import inference_top_down_pose_model, init_pose_model
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
 class MMPoseTracker(BaseTracker):
     def __init__(self, config_file, checkpoint_file):

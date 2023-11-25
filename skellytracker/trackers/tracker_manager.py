@@ -3,8 +3,8 @@ import time
 from asyncio import sleep
 from typing import List
 
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
-from skelly_tracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
 
 
 class TrackerManager:

@@ -3,8 +3,8 @@ import numpy as np
 from typing import Dict
 from ultralytics import YOLO
 
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
-from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_dictionary import yolo_object_model_dictionary
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.yolo_object_tracker.yolo_object_model_dictionary import yolo_object_model_dictionary
 
 class YOLOObjectTracker(BaseTracker):
     def __init__(self, model_size: str="nano"):

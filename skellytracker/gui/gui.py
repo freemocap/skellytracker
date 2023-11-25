@@ -11,7 +11,7 @@ from PyQt6.QtWidgets import (
     QLabel,
 )
 
-from skelly_tracker.gui.widgets.run_button_widget import RunButtonWidget
+from skellytracker.gui.widgets.run_button_widget import RunButtonWidget
 
 
 logger = logging.getLogger(__name__)

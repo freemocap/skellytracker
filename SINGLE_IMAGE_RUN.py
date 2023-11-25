@@ -1,10 +1,10 @@
 import cv2
 from pathlib import Path
 
-from skelly_tracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
-from skelly_tracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skelly_tracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
-from skelly_tracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
+from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
+from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
+from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 
 if __name__ == "__main__":
     demo_tracker = "brightest_point_tracker"

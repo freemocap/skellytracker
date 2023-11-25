@@ -82,8 +82,8 @@ class Quine:
 
 
 if __name__ == "__main__":
-    # base_directory_in =r"C:\Users\jonma\github_repos\freemocap_organization\skelly_tracker\skelly_tracker\trackers"
-    base_directory_in = r"C:\Users\jonma\github_repos\freemocap_organization\skelly_tracker\skelly_tracker\trackers"
+    # base_directory_in =r"C:\Users\jonma\github_repos\freemocap_organization\skellytracker\skellytracker\trackers"
+    base_directory_in = r"C:\Users\jonma\github_repos\freemocap_organization\skellytracker\skellytracker\trackers"
     quine = Quine(
         base_directory=base_directory_in,
         excluded_directories=["__pycache__",

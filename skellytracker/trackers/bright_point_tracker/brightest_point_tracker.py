@@ -4,7 +4,7 @@ from typing import Dict
 import cv2
 import numpy as np
 
-from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker, TrackedObject
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, TrackedObject
 
 UPPER_BOUND_COLOR = [255, 255, 255]
 
