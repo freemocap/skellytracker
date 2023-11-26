@@ -156,7 +156,7 @@ cython_debug/
 .DS_Store
 skellytracker/utilities/quine_directory_printer/output/*
 
-skellytracker/trackers/mmpose_tracker
-skellytracker/trackers/configs
+skellytracker/trackers/mmpose_tracker/*
+skellytracker/trackers/configs/*
 
 *.pt
