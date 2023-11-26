@@ -11,15 +11,20 @@ python = ">3.8, <3.12"
 opencv-contrib-python = "4.8.*"
 pydantic = "1.*"
 mediapipe = "^0.10.8"
-ultralytics = "^8.0.215"
-openmim = "^0.3.9"
-
-
+#ultralytics = "^8.0.215"
+#https://mmpose.readthedocs.io/en/latest/installation.html
+#openmim = "^0.3.9"
+## installing pytorch with poetry - https://github.com/python-poetry/poetry/issues/6409
+#torch = {url = "https://download.pytorch.org/whl/cu118/torch-2.1.1%2Bcu118-cp311-cp311-win_amd64.whl"}
+#torchvision = {url = "https://download.pytorch.org/whl/cu118/torchvision-0.16.1%2Bcu118-cp311-cp311-win_amd64.whl"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.3.1"
 black = "^23.3.0"
 bumpver = "^2023.1121"
+
+[tool.poetry.scripts]
+install-mmpose = "skellytracker.system.install_mmpose:install_mmpose"
 
 [build-system]
 requires = ["poetry-core"]

@@ -1,48 +1,19 @@
 # Copyright (c) OpenMMLab. All rights reserved.
 import logging
-import os
-import traceback
 from pathlib import Path
 
 import numpy as np
 import torch
+
 logger = logging.getLogger(__name__)
-for _ in range(2):
-    try:
-        from mmdet.apis import inference_detector, init_detector
-        from mmpose.apis import inference_topdown
-        from mmpose.apis import init_model as init_pose_estimator
-        from mmpose.evaluation.functional import nms
-        from mmpose.registry import VISUALIZERS
-        from mmpose.structures import merge_data_samples, PoseDataSample
-        from mmpose.utils import adapt_mmdet_pipeline
-        break
-    except (ImportError, ModuleNotFoundError) as e:
-        traceback.print_exc()
-        logging.info("MMPose is not installed. Installing via `mim` subprocess calls (per https://mmpose.readthedocs.io/en/latest/installation.html ) ...")
-        # # run mim install commands in subprocess
-        # mim install mmengine
-        # mim install "mmcv>=2.0.1"
-        # mim install "mmdet>=3.1.0"
-        # mim install "mmpose>=1.1.0"
-        logger.info("running `mim install mmengine`")
-        os.system("mim install mmengine")
-        logger.info("`mimengine` installed successfully")
 
-        logger.info("running `mim install \"mmcv>=2.0.1\"`")
-        os.system("mim install \"mmcv>=2.0.1\"")
-        logger.info("`mmcv` installed successfully")
-
-        logger.info("running `mim install \"mmdet>=3.1.0\"`")
-        os.system("mim install \"mmdet>=3.1.0\"")
-        logger.info("`mmdet` installed successfully")
-
-        logger.info("running `mim install \"mmpose>=1.1.0\"`")
-        os.system("mim install \"mmpose>=1.1.0\"")
-        logger.info("`mmpose` installed successfully")
-
-        logger.info("MMPose installed successfully! Shutting down now (it should work if you run this script again).")
-
+from mmdet.apis import inference_detector, init_detector
+from mmpose.apis import inference_topdown
+from mmpose.apis import init_model as init_pose_estimator
+from mmpose.evaluation.functional import nms
+from mmpose.registry import VISUALIZERS
+from mmpose.structures import merge_data_samples, PoseDataSample
+from mmpose.utils import adapt_mmdet_pipeline
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
@@ -184,9 +155,10 @@ class MMPoseTracker(BaseTracker):
 
 
 if __name__ == '__main__':
-    detection_config_in = "demo/mmdetection_cfg/rtmdet_m_640-8xb32_coco-person.py"
+    detection_config_in = str(Path(__file__).parent / "mmdetection_cfg/rtmdet_m_640-8xb32_coco-person.py")
     detection_checkpoint_in = "https://download.openmmlab.com/mmpose/v1/projects/rtmpose/rtmdet_m_8xb32-100e_coco-obj365-person-235e8209.pth"
-    pose_config_in = "configs/wholebody_2d_keypoint/topdown_heatmap/coco-wholebody/td-hm_hrnet-w48_dark-8xb32-210e_coco-wholebody-384x288.py"
+    pose_config_in = str(Path(
+        __file__).parent / "configs/wholebody_2d_keypoint/topdown_heatmap/coco-wholebody/td-hm_hrnet-w48_dark-8xb32-210e_coco-wholebody-384x288.py")
     pose_checkpoint_in = "https://download.openmmlab.com/mmpose/top_down/hrnet/hrnet_w48_coco_wholebody_384x288_dark-f5726563_20200918.pth"
 
     input_in = r"C:\Users\jonma\freemocap_data\recording_sessions\session_2023-11-13_10_44_51_asl_etc\recording_12_59_19_gmt-5__ASL\synchronized_videos\Camera_000_synchronized.mp4"
