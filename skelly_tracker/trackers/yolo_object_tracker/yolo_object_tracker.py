@@ -8,11 +8,12 @@ from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
 from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_dictionary import (
     yolo_object_model_dictionary,
 )
+from skelly_tracker.trackers.yolo_object_tracker.yolo_object_recorder import YOLOObjectRecorder
 
 
 class YOLOObjectTracker(BaseTracker):
     def __init__(self, model_size: str = "nano", person_only: bool = True):
-        super().__init__(tracked_object_names=["objects"])
+        super().__init__(tracked_object_names=["object"], recorder=YOLOObjectRecorder())
 
         pytorch_model = yolo_object_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
@@ -24,9 +25,17 @@ class YOLOObjectTracker(BaseTracker):
     def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
         results = self.model(image, classes=self.classes, max_det=1, verbose=False)
 
-        self.tracked_objects["objects"].extra["landmarks"] = np.array(
-            results[0].keypoints
-        )
+        box_xywh = np.asarray(results[0].boxes.xywh).flatten()
+        print(box_xywh)
+        print(box_xywh.shape)
+
+        if box_xywh.size > 0:
+            self.tracked_objects["object"].pixel_x = box_xywh[0] + (box_xywh[2] * 0.5)
+            self.tracked_objects["object"].pixel_y = box_xywh[1] + (box_xywh[3] * 0.5)
+
+        self.tracked_objects["object"].extra["boxes_xywh"] = box_xywh
+        self.tracked_objects["object"].extra["original_image_shape"] = results[0].boxes.orig_shape
+
 
         self.annotated_image = self.annotate_image(image, results=results, **kwargs)
 
