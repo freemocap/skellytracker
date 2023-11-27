@@ -23,6 +23,10 @@ sys.path.insert(0, str(base_package_path))  # add parent directory to sys.path
 from skelly_tracker.system.default_paths import get_log_file_path
 from skelly_tracker.system.logging_configuration import configure_logging
 
+from skelly_tracker.trackers.mediapipe_tracker import mediapipe_holistic_tracker
+from skelly_tracker.trackers.yolo_tracker import yolo_tracker
+from skelly_tracker.trackers.yolo_mediapipe_combo_tracker import yolo_mediapipe_combo_tracker
+
 
 
 configure_logging(log_file_path=get_log_file_path())
