@@ -26,8 +26,6 @@ class YOLOObjectTracker(BaseTracker):
         results = self.model(image, classes=self.classes, max_det=1, verbose=False)
 
         box_xywh = np.asarray(results[0].boxes.xywh).flatten()
-        print(box_xywh)
-        print(box_xywh.shape)
 
         if box_xywh.size > 0:
             self.tracked_objects["object"].pixel_x = box_xywh[0] + (box_xywh[2] * 0.5)
@@ -35,7 +33,6 @@ class YOLOObjectTracker(BaseTracker):
 
         self.tracked_objects["object"].extra["boxes_xywh"] = box_xywh
         self.tracked_objects["object"].extra["original_image_shape"] = results[0].boxes.orig_shape
-
 
         self.annotated_image = self.annotate_image(image, results=results, **kwargs)
 

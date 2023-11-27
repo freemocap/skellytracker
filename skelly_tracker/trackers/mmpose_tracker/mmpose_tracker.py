@@ -3,6 +3,8 @@ import numpy as np
 from mmpose.apis import inference_top_down_pose_model, init_pose_model
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 
+# correct/fill this out based on these docs: https://github.com/open-mmlab/mmpose/blob/main/docs/en/user_guides/inference.md
+
 class MMPoseTracker(BaseTracker):
     def __init__(self, config_file, checkpoint_file):
         super().__init__(tracked_object_names=["human_pose"])
