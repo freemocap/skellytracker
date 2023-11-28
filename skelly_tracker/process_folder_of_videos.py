@@ -28,7 +28,7 @@ def process_folder_of_videos(
 
     :param synchronized_video_path: Path to folder of synchronized videos.
     :param tracker: Tracker to use.
-    :return: None
+    :return: Array of tracking data
     """
     file_name = file_name_dictionary[tracker.__class__.__name__]
     output_path = (
@@ -49,6 +49,8 @@ def process_folder_of_videos(
 
     print(f"Shape of output array: {combined_array.shape}")
     np.save(output_path, combined_array)
+
+    return combined_array
 
 
 if __name__ == "__main__":
