@@ -25,13 +25,13 @@ class YOLOObjectTracker(BaseTracker):
     def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
         results = self.model(image, classes=self.classes, max_det=1, verbose=False)
 
-        box_xywh = np.asarray(results[0].boxes.xywh).flatten()
+        box_xyxy = np.asarray(results[0].boxes.xyxy).flatten()
 
-        if box_xywh.size > 0:
-            self.tracked_objects["object"].pixel_x = box_xywh[0] + (box_xywh[2] * 0.5)
-            self.tracked_objects["object"].pixel_y = box_xywh[1] + (box_xywh[3] * 0.5)
+        if box_xyxy.size > 0:
+            self.tracked_objects["object"].pixel_x = (box_xyxy[0] + box_xyxy[2]) / 0.5
+            self.tracked_objects["object"].pixel_y = (box_xyxy[1] + box_xyxy[3]) / 0.5
 
-        self.tracked_objects["object"].extra["boxes_xywh"] = box_xywh
+        self.tracked_objects["object"].extra["boxes_xywy"] = box_xyxy
         self.tracked_objects["object"].extra["original_image_shape"] = results[0].boxes.orig_shape
 
         self.annotated_image = self.annotate_image(image, results=results, **kwargs)
