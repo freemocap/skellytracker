@@ -29,7 +29,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
                 3,
             )
         )
-        print(len(self.recorded_objects))
+
         for i, recorded_object_list in enumerate(self.recorded_objects):
             landmark_number = 0
             for recorded_object in recorded_object_list:

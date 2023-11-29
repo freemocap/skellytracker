@@ -1,9 +1,12 @@
 from abc import ABC, abstractmethod
+import logging
 from typing import Dict
 
 import numpy as np
 
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
+
+logger = logging.getLogger(__name__)
 
 
 class BaseRecorder(ABC):
@@ -16,11 +19,14 @@ class BaseRecorder(ABC):
         self.recorded_objects_array = None
 
     @abstractmethod
-    def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
+    def record(
+        self, tracked_objects: Dict[str, TrackedObject], annotated_image: np.ndarray
+    ) -> None:
         """
         Record the tracked objects as they are created by the tracker.
 
         :param tracked_object: A tracked objects dictionary.
+        :param annotated_image: Image array with tracking results annotated.
         :return: None
         """
         pass
@@ -35,6 +41,7 @@ class BaseRecorder(ABC):
         pass
 
     def clear_recorded_objects(self):
+        logger.info("Clearing recorded objects from recorder")
         self.recorded_objects = []
         self.recorded_objects_array = None
 
@@ -47,5 +54,5 @@ class BaseRecorder(ABC):
         """
         if self.recorded_objects_array is None:
             self.process_tracked_objects()
-        print(f"Saving recorded objects to {file_path}")
+        logger.info(f"Saving recorded objects to {file_path}")
         np.save(file_path, self.recorded_objects_array)

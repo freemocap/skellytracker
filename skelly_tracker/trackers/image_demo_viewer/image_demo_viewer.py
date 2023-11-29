@@ -21,7 +21,7 @@ class ImageDemoViewer:
         image = cv2.imread(str(image_path))
 
         tracked_results = self.tracker.process_image(image)
-        print(tracked_results)
+
         annotated_image = self.tracker.annotated_image
 
         cv2.imshow(self.window_title, annotated_image)
