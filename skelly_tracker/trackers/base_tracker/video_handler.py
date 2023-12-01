@@ -1,11 +1,20 @@
 import logging
+from pathlib import Path
+from typing import Union
 import cv2
 import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 class VideoHandler:
-    def __init__(self, output_path, frame_size, fps=30.0, codec='mp4v'):
+    def __init__(
+        self,
+        output_path: Union[Path, str],
+        frame_size: tuple[int, int],
+        fps: float = 30.0,
+        codec: str = "mp4v",
+    ):
         """
         Initialize the VideoHandler.
 
@@ -16,7 +25,9 @@ class VideoHandler:
         """
         self.output_path = output_path
         fourcc = cv2.VideoWriter_fourcc(*codec)
-        self.video_writer = cv2.VideoWriter(output_path, fourcc, fps, frame_size)
+        self.video_writer = cv2.VideoWriter(
+            str(output_path), fourcc, fps, frame_size
+        )
 
     def add_frame(self, frame: np.ndarray) -> None:
         """

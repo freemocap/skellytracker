@@ -1,16 +1,20 @@
 from abc import ABC, abstractmethod
+import logging
 from pathlib import Path
-from typing import Any, Dict, List, Union
+from typing import Any, Dict, List, Optional, Union
 import cv2
 import numpy as np
 
 
 from skelly_tracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
+from skelly_tracker.trackers.base_tracker.video_handler import VideoHandler
 from skelly_tracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
 from skelly_tracker.trackers.webcam_demo_viewer.webcam_demo_viewer import (
     WebcamDemoViewer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class BaseTracker(ABC):
@@ -56,7 +60,10 @@ class BaseTracker(ABC):
         pass
 
     def process_video(
-        self, video_filepath: Union[str, Path], save_data_bool: bool = False
+        self,
+        input_video_filepath: Union[str, Path],
+        output_video_filepath: Optional[Union[str, Path]] = None,
+        save_data_bool: bool = False,
     ) -> np.ndarray:
         """
         Run the tracker on a video.
@@ -66,27 +73,42 @@ class BaseTracker(ABC):
         :return: Array of tracked keypoint data
         """
 
-        cap = cv2.VideoCapture(str(video_filepath))
+        cap = cv2.VideoCapture(str(input_video_filepath))
+
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        image_size = (width, height)
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+
+        if output_video_filepath is not None:
+            video_handler = VideoHandler(
+                output_path=output_video_filepath, frame_size=image_size, fps=fps
+            )
+        else:
+            video_handler = None
 
         while cap.isOpened():
             ret, frame = cap.read()
             if not ret:
-                print("Done processing video")
+                logger.info("Done processing video")
                 break
-
-            image_size = (frame.shape[1], frame.shape[0])
 
             self.process_image(frame)
             if self.recorder is not None:
                 self.recorder.record(self.tracked_objects)
+            if video_handler is not None:
+                video_handler.add_frame(self.annotated_image)
 
         cap.release()
+        if video_handler is not None:
+            video_handler.close()
 
         if self.recorder is not None:
             output_array = self.recorder.process_tracked_objects(image_size=image_size)
             if save_data_bool:
                 self.recorder.save(
-                    file_path=Path(video_filepath).with_suffix(".npy")
+                    file_path=Path(input_video_filepath).with_suffix(".npy")
                 )
         else:
             output_array = None
