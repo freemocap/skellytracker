@@ -11,12 +11,16 @@ from skelly_tracker.trackers.bright_point_tracker.brightest_point_tracker import
 from skelly_tracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
     MediapipeHolisticTracker,
 )
+from skelly_tracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+    YOLOMediapipeComboTracker,
+)
 from skelly_tracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 
 logger = logging.getLogger(__name__)
 
 file_name_dictionary = {
     "MediapipeHolisticTracker": "mediapipe2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "YOLOMediapipeComboTracker": "mediapipe2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "YOLOPoseTracker": "yolo2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "BrightestPointTracker": "brightestPoint2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
 }
@@ -70,7 +74,7 @@ def process_folder_of_videos(
 
 if __name__ == "__main__":
     synchronized_video_path = Path(
-        "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+        "/Users/philipqueen/Downloads/sesh_2023-05-10_16_47_16_parade_AC_MN_JSM_ML/synchronized_videos"
     )
-    tracker = YOLOPoseTracker()
+    tracker = YOLOMediapipeComboTracker()
     process_folder_of_videos(tracker=tracker, synchronized_video_path=synchronized_video_path)

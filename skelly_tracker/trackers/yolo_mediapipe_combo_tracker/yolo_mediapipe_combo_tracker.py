@@ -65,35 +65,18 @@ class YOLOMediapipeComboTracker(BaseTracker):
         mediapipe_results = self.holistic.process(cropped_rgb_image)
 
         # Update the tracking data
-        if mediapipe_results.pose_landmarks is not None:
-            for landmark in mediapipe_results.pose_landmarks.landmark:
-                landmark.x = ((landmark.x * (box_right-box_left)) + box_left) / image.shape[1]
-                landmark.y = ((landmark.y * (box_bottom-box_top)) + box_top) / image.shape[0]
-                landmark.z = (landmark.z * (box_right-box_left)) / image.shape[1]
+        self._rescale_cropped_data(
+            image, box_left, box_top, box_right, box_bottom, mediapipe_results
+        )
         self.tracked_objects["pose_landmarks"].extra[
             "landmarks"
         ] = mediapipe_results.pose_landmarks
-        if mediapipe_results.face_landmarks is not None:
-            for landmark in mediapipe_results.face_landmarks.landmark:
-                landmark.x = ((landmark.x * (box_right-box_left)) + box_left) / image.shape[1]
-                landmark.y = ((landmark.y * (box_bottom-box_top)) + box_top) / image.shape[0]
-                landmark.z = (landmark.z * (box_right-box_left)) / image.shape[1]
         self.tracked_objects["face_landmarks"].extra[
             "landmarks"
         ] = mediapipe_results.face_landmarks
-        if mediapipe_results.left_hand_landmarks is not None:
-            for landmark in mediapipe_results.left_hand_landmarks.landmark:
-                landmark.x = ((landmark.x * (box_right-box_left)) + box_left) / image.shape[1]
-                landmark.y = ((landmark.y * (box_bottom-box_top)) + box_top) / image.shape[0]
-                landmark.z = (landmark.z * (box_right-box_left)) / image.shape[1]
         self.tracked_objects["left_hand_landmarks"].extra[
             "landmarks"
         ] = mediapipe_results.left_hand_landmarks
-        if mediapipe_results.right_hand_landmarks is not None:
-            for landmark in mediapipe_results.right_hand_landmarks.landmark:
-                landmark.x = ((landmark.x * (box_right-box_left)) + box_left) / image.shape[1]
-                landmark.y = ((landmark.y * (box_bottom-box_top)) + box_top) / image.shape[0]
-                landmark.z = (landmark.z * (box_right-box_left)) / image.shape[1]
         self.tracked_objects["right_hand_landmarks"].extra[
             "landmarks"
         ] = mediapipe_results.right_hand_landmarks
@@ -105,6 +88,52 @@ class YOLOMediapipeComboTracker(BaseTracker):
         )
 
         return self.tracked_objects
+
+    def _rescale_cropped_data(
+        self,
+        image: np.ndarray,
+        box_left: int,
+        box_top: int,
+        box_right: int,
+        box_bottom: int,
+        mediapipe_results,
+    ) -> None:
+        if mediapipe_results.pose_landmarks is not None:
+            for landmark in mediapipe_results.pose_landmarks.landmark:
+                landmark.x = (
+                    (landmark.x * (box_right - box_left)) + box_left
+                ) / image.shape[1]
+                landmark.y = (
+                    (landmark.y * (box_bottom - box_top)) + box_top
+                ) / image.shape[0]
+                landmark.z = (landmark.z * (box_right - box_left)) / image.shape[1]
+        if mediapipe_results.face_landmarks is not None:
+            for landmark in mediapipe_results.face_landmarks.landmark:
+                landmark.x = (
+                    (landmark.x * (box_right - box_left)) + box_left
+                ) / image.shape[1]
+                landmark.y = (
+                    (landmark.y * (box_bottom - box_top)) + box_top
+                ) / image.shape[0]
+                landmark.z = (landmark.z * (box_right - box_left)) / image.shape[1]
+        if mediapipe_results.left_hand_landmarks is not None:
+            for landmark in mediapipe_results.left_hand_landmarks.landmark:
+                landmark.x = (
+                    (landmark.x * (box_right - box_left)) + box_left
+                ) / image.shape[1]
+                landmark.y = (
+                    (landmark.y * (box_bottom - box_top)) + box_top
+                ) / image.shape[0]
+                landmark.z = (landmark.z * (box_right - box_left)) / image.shape[1]
+        if mediapipe_results.right_hand_landmarks is not None:
+            for landmark in mediapipe_results.right_hand_landmarks.landmark:
+                landmark.x = (
+                    (landmark.x * (box_right - box_left)) + box_left
+                ) / image.shape[1]
+                landmark.y = (
+                    (landmark.y * (box_bottom - box_top)) + box_top
+                ) / image.shape[0]
+                landmark.z = (landmark.z * (box_right - box_left)) / image.shape[1]
 
     def annotate_image(
         self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs
