@@ -55,7 +55,7 @@ def process_folder_of_videos(
 
     array_list = []
     for video_path in synchronized_video_path.glob("*.mp4"):
-        video_name = video_path.stem + ".mp4"
+        video_name = video_path.stem + "_mediapipe.mp4" # TODO: fix it so blender output doesn't require mediapipe addendum here
         output_array = tracker.process_video(
             input_video_filepath=video_path,
             output_video_filepath=annotated_video_path / video_name,
@@ -74,7 +74,7 @@ def process_folder_of_videos(
 
 if __name__ == "__main__":
     synchronized_video_path = Path(
-        "/Users/philipqueen/Downloads/sesh_2023-05-10_16_47_16_parade_AC_MN_JSM_ML/synchronized_videos"
+        "/Users/philipqueen/freemocap_data/recording_sessions/sesh_2023-05-10_16_47_16_parade_AC_MN_JSM_ML/synchronized_videos"
     )
     tracker = YOLOMediapipeComboTracker()
     process_folder_of_videos(tracker=tracker, synchronized_video_path=synchronized_video_path)
