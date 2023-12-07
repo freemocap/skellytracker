@@ -154,4 +154,12 @@ cython_debug/
 .vscode/
 
 .DS_Store
+
+# ML models
+*.pt
+
+#image outputs
+*.jpg
+*.jpeg
+
 skelly_tracker/utilities/quine_directory_printer/output/*

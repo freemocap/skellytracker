@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 from typing import Dict
-from ultralytics.vit import SAM
+from ultralytics import SAM
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 
