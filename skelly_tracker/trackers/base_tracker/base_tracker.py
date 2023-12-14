@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 import cv2
 import numpy as np
+from tqdm import tqdm
 
 
 from skelly_tracker.trackers.base_tracker.base_recorder import BaseRecorder
@@ -26,7 +27,7 @@ class BaseTracker(ABC):
         self,
         tracked_object_names: List[str] = None,
         recorder: BaseRecorder = None,
-        **data: Any
+        **data: Any,
     ):
         self.recorder = recorder
         self.annotated_image = None
@@ -64,12 +65,15 @@ class BaseTracker(ABC):
         input_video_filepath: Union[str, Path],
         output_video_filepath: Optional[Union[str, Path]] = None,
         save_data_bool: bool = False,
+        use_tqdm: bool = True,
     ) -> np.ndarray:
         """
         Run the tracker on a video.
 
-        :param video_filepath: Path to video file.
+        :param input_video_filepath: Path to video file.
+        :param output_video_filepath: Path to save annotated video to, does not save video if None.
         :param save_data_bool: Whether to save the data to a file.
+        :param use_tqdm: Whether to use tqdm to show a progress bar
         :return: Array of tracked keypoint data
         """
 
@@ -88,17 +92,36 @@ class BaseTracker(ABC):
         else:
             video_handler = None
 
-        while cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                logger.info("Done processing video")
-                break
+        ret, frame = cap.read()
+
+        number_of_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+        if use_tqdm:
+            iterator = tqdm(
+                range(number_of_frames),
+                desc=f"processing video: {input_video_filepath.name}",
+                total=number_of_frames,
+                colour="magenta",
+                unit="frames",
+                dynamic_ncols=True,
+            )
+        else:
+            iterator = range(number_of_frames)
+
+        for _frame_number in iterator:
+            if not ret or frame is None:
+                logger.error(
+                    f"Failed to load an image from: {str(input_video_filepath)}"
+                )
+                raise Exception
 
             self.process_image(frame)
             if self.recorder is not None:
                 self.recorder.record(self.tracked_objects)
             if video_handler is not None:
                 video_handler.add_frame(self.annotated_image)
+
+            ret, frame = cap.read()
 
         cap.release()
         if video_handler is not None:

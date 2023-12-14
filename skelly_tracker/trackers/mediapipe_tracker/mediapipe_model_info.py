@@ -1,5 +1,6 @@
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
+from pydantic import BaseModel
 
 mediapipe_body_landmark_names = [
     landmark.name.lower() for landmark in mp_holistic.PoseLandmark
@@ -25,3 +26,10 @@ class MediapipeModelInfo:
         "left_hand_landmarks",
         "right_hand_landmarks",
     ]
+
+
+class MediapipeTrackingParams(BaseModel):
+    mediapipe_model_complexity: int = 1
+    min_detection_confidence: float = 0.5
+    min_tracking_confidence: float = 0.5
+    static_image_mode: bool = True
