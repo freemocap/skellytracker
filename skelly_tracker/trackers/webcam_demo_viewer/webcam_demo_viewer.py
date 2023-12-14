@@ -1,4 +1,7 @@
+import logging
 import cv2
+
+logger = logging.getLogger(__name__)
 
 
 # Constants for key actions
@@ -51,7 +54,7 @@ class WebcamDemoViewer:
         """
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
-            print("Error: Could not open camera.")
+            logger.error("Error: Could not open camera.")
             return
 
         exposure = self.default_exposure
@@ -61,7 +64,7 @@ class WebcamDemoViewer:
             ret, frame = cap.read()
 
             if not ret:
-                print("Error: Failed to read frame.")
+                logger.error("Error: Failed to read frame.")
                 break
 
             image_size = (frame.shape[1], frame.shape[0])
