@@ -1,11 +1,10 @@
-import cv2
 import numpy as np
 from typing import Dict
 from ultralytics import YOLO
 
 from skelly_tracker.trackers.base_tracker.base_tracker import BaseTracker
 from skelly_tracker.trackers.base_tracker.tracked_object import TrackedObject
-from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_dictionary import (
+from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_info import (
     yolo_object_model_dictionary,
 )
 from skelly_tracker.trackers.yolo_object_tracker.yolo_object_recorder import (
