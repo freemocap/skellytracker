@@ -12,7 +12,7 @@ from skelly_tracker.trackers.mediapipe_tracker.mediapipe_holistic_recorder impor
 from skelly_tracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
 )
-from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_dictionary import (
+from skelly_tracker.trackers.yolo_object_tracker.yolo_object_model_info import (
     yolo_object_model_dictionary,
 )
 
