@@ -1,3 +1,6 @@
+from pydantic import BaseModel
+
+
 class YOLOModelInfo:
     num_tracked_points = 17
     model_dictionary = {
@@ -75,3 +78,6 @@ class YOLOModelInfo:
         0.061,
         0.061,
     ]
+
+class YOLOTrackingParams(BaseModel):
+    model_size: str = "medium"
