@@ -121,7 +121,6 @@ def process_single_video(
         output_video_filepath=annotated_video_path / video_name,
         save_data_bool=False,
     )
-    tracker.recorder.clear_recorded_objects()
     return output_array
 
 
