@@ -59,14 +59,14 @@ def process_folder_of_videos(
 
     file_name = file_name_dictionary[tracker_name]
     synchronized_video_path = Path(synchronized_video_path)
-    if output_path is None:
-        output_path = (
+    if output_folder_path is None:
+        output_folder_path = (
             synchronized_video_path.parent / "output_data" / "raw_data" / file_name
         )
     else:
-        output_path = Path(output_path) / file_name
-    if not output_path.exists():
-        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_folder_path = Path(output_folder_path) / file_name
+    if not output_folder_path.exists():
+        output_folder_path.parent.mkdir(parents=True, exist_ok=True)
 
     if annotated_video_path is None:
         annotated_video_path = synchronized_video_path.parent / "annotated_videos"
@@ -90,7 +90,7 @@ def process_folder_of_videos(
     combined_array = np.stack(array_list)
 
     logger.info(f"Shape of output array: {combined_array.shape}")
-    np.save(output_path, combined_array)
+    np.save(output_folder_path, combined_array)
 
     return combined_array
 
