@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from skelly_tracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 
 
 yolo_object_model_dictionary = {
@@ -10,7 +10,7 @@ yolo_object_model_dictionary = {
 }
 
 
-class YOLOObjectTrackingParams(BaseModel):
+class YOLOObjectTrackingParams(BaseTrackingParams):
     model_size: str = "medium"
     person_only: bool = True
     confidence_threshold: float = 0.5

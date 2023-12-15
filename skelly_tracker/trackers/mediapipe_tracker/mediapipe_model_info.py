@@ -1,6 +1,7 @@
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
-from pydantic import BaseModel
+
+from skelly_tracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 
 mediapipe_body_landmark_names = [
     landmark.name.lower() for landmark in mp_holistic.PoseLandmark
@@ -28,7 +29,7 @@ class MediapipeModelInfo:
     ]
 
 
-class MediapipeTrackingParams(BaseModel):
+class MediapipeTrackingParams(BaseTrackingParams):
     mediapipe_model_complexity: int = 1
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5

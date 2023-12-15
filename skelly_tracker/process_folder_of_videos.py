@@ -36,7 +36,7 @@ def process_folder_of_videos(
     tracker_name: str,
     tracking_params: BaseModel,
     synchronized_video_path: Path,
-    output_path: Optional[Path] = None,
+    output_folder_path: Optional[Path] = None,
     annotated_video_path: Optional[Path] = None,
     num_processes: int = None,
 ) -> None:
@@ -47,7 +47,7 @@ def process_folder_of_videos(
     :param tracker_name: Tracker to use.
     :param tracking_params: Tracking parameters to use.
     :param synchronized_video_path: Path to folder of synchronized videos.
-    :param output_path: Path to save tracked data to.
+    :param output_folder_path: Path to save tracked data to.
     :param annotated_video_path: Path to save annotated videos to.
     :param num_processes: Number of processes to use, 1 to disable multiprocessing.
     :return: Array of tracking data
@@ -63,6 +63,8 @@ def process_folder_of_videos(
         output_path = (
             synchronized_video_path.parent / "output_data" / "raw_data" / file_name
         )
+    else:
+        output_path = Path(output_path) / file_name
     if not output_path.exists():
         output_path.parent.mkdir(parents=True, exist_ok=True)
 

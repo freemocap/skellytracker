@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from skelly_tracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 
 
 class YOLOModelInfo:
@@ -79,5 +79,6 @@ class YOLOModelInfo:
         0.061,
     ]
 
-class YOLOTrackingParams(BaseModel):
+
+class YOLOTrackingParams(BaseTrackingParams):
     model_size: str = "medium"
