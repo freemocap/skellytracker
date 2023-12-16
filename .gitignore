@@ -162,4 +162,4 @@ cython_debug/
 *.jpg
 *.jpeg
 
-skelly_tracker/utilities/quine_directory_printer/output/*
+skellytracker/utilities/quine_directory_printer/output/*
