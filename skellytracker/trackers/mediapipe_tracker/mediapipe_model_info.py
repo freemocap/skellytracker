@@ -30,6 +30,7 @@ class MediapipeModelInfo:
 
 
 class MediapipeTrackingParams(BaseTrackingParams):
+    use_yolo_crop_method: bool = True
     mediapipe_model_complexity: int = 1
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
