@@ -1,11 +1,11 @@
 import cv2
 
-from skelly_tracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
-from skelly_tracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skelly_tracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
-from skelly_tracker.trackers.segment_anything_tracker.segment_anything_tracker import SAMTracker
-from skelly_tracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-from skelly_tracker.trackers.yolo_object_tracker.yolo_object_tracker import YOLOObjectTracker
+from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import BrightestPointTracker
+from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
+from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
+from skellytracker.trackers.segment_anything_tracker.segment_anything_tracker import SAMTracker
+from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import YOLOObjectTracker
 
 if __name__ == "__main__":
 
