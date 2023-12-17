@@ -39,7 +39,7 @@ def process_folder_of_videos(
     output_folder_path: Optional[Path] = None,
     annotated_video_path: Optional[Path] = None,
     num_processes: int = None,
-) -> None:
+) -> np.ndarray:
     """
     Process a folder of synchronized videos with the given tracker.
     Tracked data will be saved to a .npy file with the shape (numCams, numFrames, numTrackedPoints, pixelXYZ).
