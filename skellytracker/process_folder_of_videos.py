@@ -135,33 +135,32 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     :return BaseTracker: The tracker object based on the given tracker_type and tracking_params.
     :raise ValueError: If an invalid tracker_type is provided.
     """
-    match tracker_name:
-        case "MediapipeHolisticTracker":
-            tracker = MediapipeHolisticTracker(
-                model_complexity=tracking_params.mediapipe_model_complexity,
-                min_detection_confidence=tracking_params.min_detection_confidence,
-                min_tracking_confidence=tracking_params.min_tracking_confidence,
-                static_image_mode=tracking_params.static_image_mode,
-            )
+    if tracker_name == "MediapipeHolisticTracker":
+        tracker = MediapipeHolisticTracker(
+            model_complexity=tracking_params.mediapipe_model_complexity,
+            min_detection_confidence=tracking_params.min_detection_confidence,
+            min_tracking_confidence=tracking_params.min_tracking_confidence,
+            static_image_mode=tracking_params.static_image_mode,
+        )
 
-        case "YOLOMediapipeComboTracker":
-            tracker = YOLOMediapipeComboTracker(
-                model_complexity=tracking_params.mediapipe_model_complexity,
-                min_detection_confidence=tracking_params.min_detection_confidence,
-                min_tracking_confidence=tracking_params.min_tracking_confidence,
-                static_image_mode=True,  # yolo cropping must be run with static image mode due to changing size of bounding boxes
-            )
+    elif tracker_name == "YOLOMediapipeComboTracker":
+        tracker = YOLOMediapipeComboTracker(
+            model_complexity=tracking_params.mediapipe_model_complexity,
+            min_detection_confidence=tracking_params.min_detection_confidence,
+            min_tracking_confidence=tracking_params.min_tracking_confidence,
+            static_image_mode=True,  # yolo cropping must be run with static image mode due to changing size of bounding boxes
+        )
 
-        case "YOLOPoseTracker":
-            tracker = YOLOPoseTracker(
-                model_size="medium",
-            )
+    elif tracker_name == "YOLOPoseTracker":
+        tracker = YOLOPoseTracker(
+            model_size="medium",
+        )
 
-        case "BrightestPointTracker":
-            tracker = BrightestPointTracker()
+    elif tracker_name == "BrightestPointTracker":
+        tracker = BrightestPointTracker()
 
-        case _:
-            raise ValueError("Invalid tracker type")
+    else:
+        raise ValueError("Invalid tracker type")
 
     return tracker
 
