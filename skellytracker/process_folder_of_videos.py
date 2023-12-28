@@ -56,6 +56,8 @@ def process_folder_of_videos(
         num_processes = min(
             (cpu_count() - 1), len(list(synchronized_video_path.glob("*.mp4")))
         )
+    elif num_processes > len(list(synchronized_video_path.glob("*.mp4"))):
+        num_processes = len(list(synchronized_video_path.glob("*.mp4")))
 
     file_name = file_name_dictionary[tracker_name]
     synchronized_video_path = Path(synchronized_video_path)
