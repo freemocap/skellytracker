@@ -1,7 +1,7 @@
 """Top-level package for skellytracker"""
 
 __package_name__ = "skellytracker"
-__version__ = "v2023.12.1006"
+__version__ = "v2024.01.1007"
 
 __author__ = """Skelly FreeMoCap"""
 __email__ = "info@freemocap.org"
