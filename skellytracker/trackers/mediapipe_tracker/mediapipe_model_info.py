@@ -1,9 +1,13 @@
+from typing import List
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 
 
+# values for segment weight and segment mass percentages taken from Winter anthropometry tables
+# https://imgur.com/a/aD74j
+# Winter, D.A. (2005) Biomechanics and Motor Control of Human Movement. 3rd Edition, John Wiley & Sons, Inc., Hoboken.
 class MediapipeModelInfo:
     body_landmark_names = [
         landmark.name.lower() for landmark in mp_holistic.PoseLandmark
@@ -36,6 +40,70 @@ class MediapipeModelInfo:
         "face_landmarks",
         "left_hand_landmarks",
         "right_hand_landmarks",
+    ]
+    segment_names = [
+        "head",
+        "trunk",
+        "right_upper_arm",
+        "left_upper_arm",
+        "right_forearm",
+        "left_forearm",
+        "right_hand",
+        "left_hand",
+        "right_thigh",
+        "left_thigh",
+        "right_shin",
+        "left_shin",
+        "right_foot",
+        "left_foot",
+    ]
+    joint_connections = [  # TODO: seems like we probably have duplications on the connections here
+        ["left_ear", "right_ear"],
+        ["mid_chest_marker", "mid_hip_marker"],
+        ["right_shoulder", "right_elbow"],
+        ["left_shoulder", "left_elbow"],
+        ["right_elbow", "right_wrist"],
+        ["left_elbow", "left_wrist"],
+        ["right_wrist", "right_hand_marker"],
+        ["left_wrist", "left_hand_marker"],
+        ["right_hip", "right_knee"],
+        ["left_hip", "left_knee"],
+        ["right_knee", "right_ankle"],
+        ["left_knee", "left_ankle"],
+        ["right_back_of_foot_marker", "right_foot_index"],
+        ["left_back_of_foot_marker", "left_foot_index"],
+    ]
+    segment_COM_lengths = [
+        0.5,
+        0.5,
+        0.436,
+        0.436,
+        0.430,
+        0.430,
+        0.506,
+        0.506,
+        0.433,
+        0.433,
+        0.433,
+        0.433,
+        0.5,
+        0.5,
+    ]
+    segment_COM_percentages = [
+        0.081,
+        0.497,
+        0.028,
+        0.028,
+        0.016,
+        0.016,
+        0.006,
+        0.006,
+        0.1,
+        0.1,
+        0.0465,
+        0.0465,
+        0.0145,
+        0.0145,
     ]
     names_and_connections_dict = {
         "body": {
@@ -207,3 +275,53 @@ class MediapipeTrackingParams(BaseTrackingParams):
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = True
+
+
+def mediapipe_body_names_match_expected(
+    mediapipe_body_landmark_names: List[str],
+) -> bool:
+    """
+    Check if the mediapipe folks have changed their landmark names. If they have, then this function may need to be updated.
+
+    Args:
+        mediapipe_body_landmark_names: List of strings, each string is the name of a mediapipe landmark.
+
+    Returns:
+        bool: True if the mediapipe landmark names are as expected, False otherwise.
+    """
+    expected_mediapipe_body_landmark_names = [
+        "nose",
+        "left_eye_inner",
+        "left_eye",
+        "left_eye_outer",
+        "right_eye_inner",
+        "right_eye",
+        "right_eye_outer",
+        "left_ear",
+        "right_ear",
+        "mouth_left",
+        "mouth_right",
+        "left_shoulder",
+        "right_shoulder",
+        "left_elbow",
+        "right_elbow",
+        "left_wrist",
+        "right_wrist",
+        "left_pinky",
+        "right_pinky",
+        "left_index",
+        "right_index",
+        "left_thumb",
+        "right_thumb",
+        "left_hip",
+        "right_hip",
+        "left_knee",
+        "right_knee",
+        "left_ankle",
+        "right_ankle",
+        "left_heel",
+        "right_heel",
+        "left_foot_index",
+        "right_foot_index",
+    ]
+    return mediapipe_body_landmark_names == expected_mediapipe_body_landmark_names
