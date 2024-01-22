@@ -1,3 +1,4 @@
+from torch import cuda
 import numpy as np
 from typing import Dict
 from ultralytics import YOLO
@@ -14,10 +15,17 @@ class YOLOPoseTracker(BaseTracker):
 
         pytorch_model = YOLOModelInfo.model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
+        # metal (mps) is currently not supported for YOLO pose
+        if cuda.is_available():
+            self.device = "0"
+            cuda.set_device(int(self.device))
+        else:
+            self.device = "cpu"
+        # self.device = "cpu"
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # "max_det=1" argument to limit to single person tracking for now
-        results = self.model(image, max_det=1, verbose=False)
+        results = self.model(image, max_det=1, verbose=False, device=self.device)
 
         self.unpack_results(results)
 

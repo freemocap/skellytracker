@@ -1,3 +1,4 @@
+from torch import cuda, backends
 import numpy as np
 from typing import Dict
 from ultralytics import YOLO
@@ -29,8 +30,24 @@ class YOLOObjectTracker(BaseTracker):
         else:
             self.classes = None
 
+        if cuda.is_available():
+            self.device = "0"
+            cuda.set_device(int(self.device))
+        elif backends.mps.is_available():
+            self.device = "mps"
+        else:
+            self.device = "cpu"
+        # self.device = "cpu"
+
     def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
-        results = self.model(image, classes=self.classes, max_det=1, verbose=False, conf=self.confidence_threshold)
+        results = self.model(
+            image,
+            classes=self.classes,
+            max_det=1,
+            verbose=False,
+            conf=self.confidence_threshold,
+            device=self.device,
+        )
 
         box_xyxy = np.asarray(results[0].boxes.xyxy).flatten()
 
