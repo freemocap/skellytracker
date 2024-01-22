@@ -25,7 +25,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
         self.recorded_objects_array = np.zeros(
             (
                 len(self.recorded_objects),
-                MediapipeModelInfo.num_tracked_points_total,
+                MediapipeModelInfo.num_tracked_points,
                 3,
             )
         )

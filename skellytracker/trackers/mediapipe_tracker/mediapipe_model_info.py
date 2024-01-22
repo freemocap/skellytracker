@@ -3,12 +3,13 @@ from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
+from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 
 # values for segment weight and segment mass percentages taken from Winter anthropometry tables
 # https://imgur.com/a/aD74j
 # Winter, D.A. (2005) Biomechanics and Motor Control of Human Movement. 3rd Edition, John Wiley & Sons, Inc., Hoboken.
-class MediapipeModelInfo:
+class MediapipeModelInfo(ModelInfo):
     body_landmark_names = [
         landmark.name.lower() for landmark in mp_holistic.PoseLandmark
     ]
@@ -23,17 +24,19 @@ class MediapipeModelInfo:
         "right_ear_tragion",
         "left_ear_tragion",
     ]
+    landmark_names = body_landmark_names + hand_landmark_names + face_landmark_names
     body_connections = [connection for connection in mp_holistic.POSE_CONNECTIONS]
     hand_connections = [connection for connection in mp_holistic.HAND_CONNECTIONS]
     face_connections = [connection for connection in mp_holistic.FACEMESH_CONTOURS]
+    connections = body_connections + hand_connections + face_connections
     num_tracked_points_body = len(body_landmark_names)
     num_tracked_points_face = FACEMESH_NUM_LANDMARKS_WITH_IRISES
     num_tracked_points_left_hand = len(hand_landmark_names)
     num_tracked_points_right_hand = len(hand_landmark_names)
-    num_tracked_points_total = (
+    num_tracked_points = (
         len(body_landmark_names)
         + 2 * len(hand_landmark_names)
-        + FACEMESH_NUM_LANDMARKS_WITH_IRISES
+        + num_tracked_points_face
     )
     tracked_object_names = [
         "pose_landmarks",
