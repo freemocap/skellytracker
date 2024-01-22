@@ -28,8 +28,10 @@ if __name__ == "__main__":
                                  smooth_landmarks=True).demo()
 
     elif demo_tracker == "yolo_tracker":
-        YOLOPoseTracker(model_size="high_res").demo()
+        YOLOPoseTracker(model_size="nano").demo()
     elif demo_tracker == "SAM_tracker":
         SAMTracker().demo()
     elif demo_tracker == "yolo_object_tracker":
         YOLOObjectTracker(model_size="medium").demo()
+    else:
+        raise ValueError("Invalid tracker type")
