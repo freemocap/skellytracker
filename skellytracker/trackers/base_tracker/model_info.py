@@ -1,7 +1,7 @@
 from typing import Optional
 
 
-class ModelInfo:
+class ModelInfo(dict):
     landmark_names: Optional[list] = None
     connections: Optional[list] = None
     num_tracked_points: Optional[int] = None
