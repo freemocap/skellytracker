@@ -1,8 +1,7 @@
 from typing import Optional
-from pydantic import BaseModel
 
 
-class ModelInfo(BaseModel):
+class ModelInfo:
     landmark_names: Optional[list] = None
     connections: Optional[list] = None
     num_tracked_points: Optional[int] = None
