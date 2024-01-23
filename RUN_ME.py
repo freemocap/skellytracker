@@ -9,7 +9,7 @@ from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import YOLOO
 
 if __name__ == "__main__":
 
-    demo_tracker = "yolo_object_tracker"
+    demo_tracker = "yolo_tracker"
 
 
     if demo_tracker == "brightest_point_tracker":

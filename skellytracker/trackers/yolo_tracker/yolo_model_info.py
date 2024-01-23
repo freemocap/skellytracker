@@ -82,3 +82,4 @@ class YOLOModelInfo:
 
 class YOLOTrackingParams(BaseTrackingParams):
     model_size: str = "medium"
+    use_gpu: bool = True

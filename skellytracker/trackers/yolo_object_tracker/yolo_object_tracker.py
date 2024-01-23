@@ -21,6 +21,7 @@ class YOLOObjectTracker(BaseTracker):
         model_size: str = "nano",
         person_only: bool = True,
         confidence_threshold: float = 0.5,
+        use_gpu: bool = True,
     ):
         super().__init__(tracked_object_names=["object"], recorder=YOLOObjectRecorder())
 
@@ -32,10 +33,10 @@ class YOLOObjectTracker(BaseTracker):
         else:
             self.classes = None
 
-        if cuda.is_available():
+        if cuda.is_available() and use_gpu:
             self.device = "0"
             cuda.set_device(int(self.device))
-        elif backends.mps.is_available():
+        elif backends.mps.is_available() and use_gpu:
             self.device = "mps"
         else:
             self.device = "cpu"
@@ -45,7 +46,7 @@ class YOLOObjectTracker(BaseTracker):
             image,
             classes=self.classes,
             max_det=1,
-            verbose=True,
+            verbose=False,
             conf=self.confidence_threshold,
             device=self.device,
         )
