@@ -16,8 +16,13 @@ if __name__ == "__main__":
         BrightestPointTracker().demo()
 
     elif demo_tracker == "charuco_tracker":
-        CharucoTracker(squaresX=7,
-                       squaresY=5,
+        charuco_squares_x = 7
+        charuco_squares_y = 5
+        number_of_charuco_markers = charuco_squares_x - 1 * charuco_squares_y - 1
+        charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
+        CharucoTracker(tracked_object_names=charuco_ids, 
+                       squares_x=charuco_squares_x,
+                       squares_y=charuco_squares_y,
                        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)).demo()
 
     elif demo_tracker == "mediapipe_holistic_tracker":

@@ -1,13 +1,13 @@
 import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-import sys
-from typing import Any, Optional, Type
+from typing import Optional, Union
 import numpy as np
 from pydantic import BaseModel
 
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
@@ -18,6 +18,7 @@ from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tr
     YOLOMediapipeComboTracker,
 )
 from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeTrackingParams,
 )
@@ -38,7 +39,7 @@ def process_folder_of_videos(
     synchronized_video_path: Path,
     output_folder_path: Optional[Path] = None,
     annotated_video_path: Optional[Path] = None,
-    num_processes: int = None,
+    num_processes: Optional[int] = None,
 ) -> np.ndarray:
     """
     Process a folder of synchronized videos with the given tracker.
@@ -126,12 +127,17 @@ def process_single_video(
     return output_array
 
 
-def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
+def get_tracker(
+    tracker_name: str,
+    tracking_params: Union[
+        BaseTrackingParams, MediapipeTrackingParams, YOLOTrackingParams
+    ],
+) -> BaseTracker:
     """
     Returns a tracker object based on the given tracker_type and tracking_params.
 
     :param tracker_type (str): The type of tracker to be created.
-    :param tracking_params (BaseModel): The tracking parameters to be used for creating the tracker.
+    :param tracking_params (Union[BaseTrackingParams, MediapipeTrackingParams, YOLOTrackingParams],): The tracking parameters to be used for creating the tracker.
     :return BaseTracker: The tracker object based on the given tracker_type and tracking_params.
     :raise ValueError: If an invalid tracker_type is provided.
     """
@@ -153,7 +159,7 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     elif tracker_name == "YOLOPoseTracker":
         tracker = YOLOPoseTracker(
-            model_size="medium",
+            model_size=tracking_params.model_size,
         )
 
     elif tracker_name == "BrightestPointTracker":
