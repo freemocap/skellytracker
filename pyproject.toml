@@ -58,8 +58,10 @@ dependencies = [
     "opencv-contrib-python==4.8.*",
     "pyside6~=6.6.0",
     "pydantic==1.*",
-    "mediapipe~=0.10.*",
+    "mediapipe==0.10.*",
     "ultralytics~=8.1.5",
+    torch==2.1.2,
+    torchvision==0.16.2
 ]
 requires-python = ">=3.9,<3.12"
 
