@@ -12,19 +12,20 @@ class CharucoTracker(BaseTracker):
                  tracked_object_names: List[str],
                  squares_x: int,
                  squares_y: int,
-                 dictionary: cv2.aruco_Dictionary,
+                 dictionary: cv2.aruco.Dictionary,
                  squareLength: float = 1,
                  markerLength: float = .8,
                  ):
         super().__init__(tracked_object_names=tracked_object_names)
-        self.board = cv2.aruco.CharucoBoard_create(squares_x, squares_y, squareLength, markerLength, dictionary)
+        self.board = cv2.aruco.CharucoBoard([squares_x, squares_y], squareLength, markerLength, dictionary)
+        self.dictionary = dictionary
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
         # Detect Aruco markers
-        corners, ids, _ = cv2.aruco.detectMarkers(gray_image, self.board.dictionary)
+        corners, ids, _ = cv2.aruco.detectMarkers(gray_image, self.dictionary)
 
         # If any markers were found
         if len(corners) > 0:
@@ -66,13 +67,13 @@ class CharucoTracker(BaseTracker):
 
 
 if __name__ == "__main__":
-    charuco_squares_x_in = 7
-    charuco_squares_y_in = 5
-    number_of_charuco_markers = charuco_squares_x_in - 1 * charuco_squares_y_in - 1
+    charuco_squares_x = 7
+    charuco_squares_y = 5
+    number_of_charuco_markers = charuco_squares_x - 1 * charuco_squares_y - 1
     charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     CharucoTracker(tracked_object_names=charuco_ids,
-                   squares_x=charuco_squares_x_in,
-                   squares_y=charuco_squares_y_in,
-                   dictionary=cv2.aruco.Dictionary_get(cv2.aruco.DICT_4X4_250)
+                   squares_x=charuco_squares_x,
+                   squares_y=charuco_squares_y,
+                   dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
                    ).demo()

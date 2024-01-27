@@ -1,4 +1,7 @@
+import platform
 import numpy as np
+
+from torch import Tensor, cuda, backends
 from typing import Dict
 from ultralytics import YOLO
 
@@ -18,6 +21,7 @@ class YOLOObjectTracker(BaseTracker):
         model_size: str = "nano",
         person_only: bool = True,
         confidence_threshold: float = 0.5,
+        use_gpu: bool = True,
     ):
         super().__init__(tracked_object_names=["object"], recorder=YOLOObjectRecorder())
 
@@ -29,10 +33,28 @@ class YOLOObjectTracker(BaseTracker):
         else:
             self.classes = None
 
-    def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
-        results = self.model(image, classes=self.classes, max_det=1, verbose=False, conf=self.confidence_threshold)
+        if cuda.is_available() and use_gpu:
+            self.device = "0"
+            cuda.set_device(int(self.device))
+        elif backends.mps.is_available() and use_gpu:
+            self.device = "mps"
+        else:
+            self.device = "cpu"
 
-        box_xyxy = np.asarray(results[0].boxes.xyxy).flatten()
+    def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
+        results = self.model(
+            image,
+            classes=self.classes,
+            max_det=1,
+            verbose=False,
+            conf=self.confidence_threshold,
+            device=self.device,
+        )
+
+        if self.device == "mps":  # numpy cannot handle mps tensors currently
+            box_xyxy = np.asarray(Tensor.cpu(results[0].boxes.xyxy)).flatten()
+        else:
+            box_xyxy = np.asarray(results[0].boxes.xyxy).flatten()
 
         if box_xyxy.size > 0:
             self.tracked_objects["object"].pixel_x = (box_xyxy[0] + box_xyxy[2]) / 0.5

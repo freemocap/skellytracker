@@ -9,15 +9,20 @@ from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import YOLOO
 
 if __name__ == "__main__":
 
-    demo_tracker = "yolo_object_tracker"
+    demo_tracker = "yolo_tracker"
 
 
     if demo_tracker == "brightest_point_tracker":
         BrightestPointTracker().demo()
 
     elif demo_tracker == "charuco_tracker":
-        CharucoTracker(squaresX=7,
-                       squaresY=5,
+        charuco_squares_x = 7
+        charuco_squares_y = 5
+        number_of_charuco_markers = charuco_squares_x - 1 * charuco_squares_y - 1
+        charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
+        CharucoTracker(tracked_object_names=charuco_ids, 
+                       squares_x=charuco_squares_x,
+                       squares_y=charuco_squares_y,
                        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)).demo()
 
     elif demo_tracker == "mediapipe_holistic_tracker":
@@ -28,8 +33,10 @@ if __name__ == "__main__":
                                  smooth_landmarks=True).demo()
 
     elif demo_tracker == "yolo_tracker":
-        YOLOPoseTracker(model_size="high_res").demo()
+        YOLOPoseTracker(model_size="nano").demo()
     elif demo_tracker == "SAM_tracker":
         SAMTracker().demo()
     elif demo_tracker == "yolo_object_tracker":
         YOLOObjectTracker(model_size="medium").demo()
+    else:
+        raise ValueError("Invalid tracker type")
