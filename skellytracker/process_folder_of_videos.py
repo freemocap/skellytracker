@@ -61,7 +61,7 @@ def process_folder_of_videos(
         )
     else:
         num_processes = min(
-            num_processes, len(video_paths)
+            num_processes, len(video_paths), cpu_count() - 1
         )
 
     file_name = file_name_dictionary[tracker_name]
