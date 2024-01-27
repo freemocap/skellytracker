@@ -21,6 +21,7 @@ from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeTrackingParams,
 )
+from skellytracker.utilities.get_video_paths import get_video_paths
 
 logger = logging.getLogger(__name__)
 
@@ -52,9 +53,15 @@ def process_folder_of_videos(
     :param num_processes: Number of processes to use, 1 to disable multiprocessing.
     :return: Array of tracking data
     """
+    video_paths = get_video_paths(synchronized_video_path)
+
     if num_processes is None:
         num_processes = min(
-            (cpu_count() - 1), len(list(synchronized_video_path.glob("*.mp4")))
+            (cpu_count() - 1), len(video_paths)
+        )
+    else:
+        num_processes = min(
+            num_processes, len(video_paths)
         )
 
     file_name = file_name_dictionary[tracker_name]
@@ -75,7 +82,7 @@ def process_folder_of_videos(
 
     tasks = [
         (tracker_name, tracking_params, video_path, annotated_video_path)
-        for video_path in synchronized_video_path.glob("*.mp4")
+        for video_path in video_paths
     ]
 
     if num_processes > 1:
