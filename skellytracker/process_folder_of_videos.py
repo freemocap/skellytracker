@@ -21,6 +21,10 @@ from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeTrackingParams,
 )
+
+
+from skellytracker.trackers.openpose_tracker.openpose_tracker import OpenPoseTracker
+
 from skellytracker.utilities.get_video_paths import get_video_paths
 
 logger = logging.getLogger(__name__)
@@ -162,6 +166,8 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     elif tracker_name == "BrightestPointTracker":
         tracker = BrightestPointTracker()
 
+    elif tracker_name = 'OpenPoseTracker':
+        
     else:
         raise ValueError("Invalid tracker type")
 
