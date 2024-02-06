@@ -7,7 +7,7 @@ import numpy as np
 
 import os
 class OpenPoseTracker(BaseTracker):
-    def __init__(self, openpose_exe_path, output_json_path, net_resolution="-1x320", number_people_max=1):
+    def __init__(self, openpose_exe_path, output_json_path, net_resolution="-1x640", number_people_max=1):
         """
         Initialize the OpenPoseTracker.
 
