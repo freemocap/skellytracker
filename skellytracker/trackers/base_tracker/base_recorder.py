@@ -21,7 +21,8 @@ class BaseRecorder(ABC):
 
     @abstractmethod
     def record(
-        self, tracked_objects: Dict[str, TrackedObject],
+        self,
+        tracked_objects: Dict[str, TrackedObject],
     ) -> None:
         """
         Record the tracked objects as they are created by the tracker.
@@ -56,3 +57,18 @@ class BaseRecorder(ABC):
             self.process_tracked_objects()
         logger.info(f"Saving recorded objects to {file_path}")
         np.save(file_path, self.recorded_objects_array)
+
+
+class BaseCumulativeRecorder(BaseRecorder):
+    """
+    A base class for recording data from cumulative trackers.
+    Throws a descriptive error for methods that do not apply to recording data from this type of tracker.
+    Trackers implementing this will only use the process_tracked_objects method to get data in the proper format.
+    """
+    def __init__(self):
+        super().__init__()
+
+    def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
+        raise NotImplementedError(
+            "This tracker does not support by frame recording, please use process_tracked_objects instead"
+        )
