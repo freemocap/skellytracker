@@ -20,13 +20,12 @@ class BaseRecorder(ABC):
 
     @abstractmethod
     def record(
-        self, tracked_objects: Dict[str, TrackedObject], annotated_image: np.ndarray
+        self, tracked_objects: Dict[str, TrackedObject],
     ) -> None:
         """
         Record the tracked objects as they are created by the tracker.
 
         :param tracked_object: A tracked objects dictionary.
-        :param annotated_image: Image array with tracking results annotated.
         :return: None
         """
         pass
