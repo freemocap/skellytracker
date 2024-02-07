@@ -195,6 +195,7 @@ class BaseCumulativeTracker(BaseTracker):
         output_video_filepath: Optional[Union[str, Path]] = None,
         save_data_bool: bool = False,
         use_tqdm: bool = True,
+        **kwargs,
     ) -> Union[np.ndarray, None]:
         """
         Run the tracker on a video.

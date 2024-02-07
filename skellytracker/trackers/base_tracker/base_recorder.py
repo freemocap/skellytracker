@@ -65,6 +65,7 @@ class BaseCumulativeRecorder(BaseRecorder):
     Throws a descriptive error for methods that do not apply to recording data from this type of tracker.
     Trackers implementing this will only use the process_tracked_objects method to get data in the proper format.
     """
+
     def __init__(self):
         super().__init__()
 
