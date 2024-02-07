@@ -27,7 +27,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
         # super().__init__(recorder=recorder)
         self.openpose_exe_path = Path(openpose_exe_path)
         self.output_json_path = Path(output_json_path)
-        self.net_resolution = net_resolution
+        self.net_resolution = net_resolution # TODO: this and num_people should be parameters for process_video, since we could use this one tracker to process videos with different parameters
         self.number_people_max = number_people_max
 
         super().__init__(
