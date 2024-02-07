@@ -50,6 +50,8 @@ class OpenPoseTracker(BaseCumulativeTracker):
         in a unique directory for each video.
         """
 
+        # TODO: Add some check that the openpose executable exists (and maybe do a cross platform search like we do for blender in fmc?)
+
         # Extract video name without extension to use as a unique folder name
         video_name = Path(input_video_filepath).stem
         unique_json_output_path = self.output_json_path / video_name
@@ -60,6 +62,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
         video_save_path = Path(output_video_folder) / f"{video_name}_openpose.avi"
 
         # Update the subprocess command to use the unique output directory
+        # TODO: subprocess call should probably be in a try/except with some form of error handling
         subprocess.run(
             [
                 "bin\OpenPoseDemo.exe",  # TODO: this is throwing the error `S607 Starting a process with a partial executable path`, needs to be something like usr/bin/OpenPoseDemo.exe, but I can't verify where it is (also does it need two backslashes to escape properly?)
