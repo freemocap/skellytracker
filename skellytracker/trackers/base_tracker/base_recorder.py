@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
-from typing import Dict
+from pathlib import Path
+from typing import Dict, Union
 
 import numpy as np
 
@@ -44,7 +45,7 @@ class BaseRecorder(ABC):
         self.recorded_objects = []
         self.recorded_objects_array = None
 
-    def save(self, file_path: str) -> None:
+    def save(self, file_path: Union[str, Path]) -> None:
         """
         Save the recorded objects to a file.
 
