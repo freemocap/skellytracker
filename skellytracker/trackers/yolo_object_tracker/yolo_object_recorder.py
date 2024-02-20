@@ -13,6 +13,6 @@ class YOLOObjectRecorder(BaseRecorder):
     def process_tracked_objects(self, **kwargs) -> np.ndarray:
         self.recorded_objects_array = np.zeros((len(self.recorded_objects), 4))
         for i, recorded_object in enumerate(self.recorded_objects):
-            self.recorded_objects_array[i, :] = recorded_object.extra["boxes_xywh"]
+            self.recorded_objects_array[i, :] = recorded_object.extra["boxes_xyxy"]
 
         return self.recorded_objects_array
