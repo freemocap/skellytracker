@@ -49,8 +49,22 @@ class YOLOMediapipeComboTracker(BaseTracker):
 
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
 
+        bounding_box_buffer_percentage = 25 #percent increase in bounding box size 
+
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
+
+            # Calculate the buffer
+            width_buffer = (box_right - box_left) * (bounding_box_buffer_percentage / 100.0)
+            height_buffer = (box_bottom - box_top) * (bounding_box_buffer_percentage / 100.0)
+
+            # Apply buffer, but set to original picture dimension if it goes out of bounds
+            box_left = max(int(box_left - width_buffer), 0)
+            box_top = max(int(box_top - height_buffer), 0)
+            box_right = min(int(box_right + width_buffer), image.shape[1])
+            box_bottom = min(int(box_bottom + height_buffer), image.shape[0])
+    
+
             cropped_image = image[
                 int(box_top) : int(box_bottom),
                 int(box_left) : int(box_right),
