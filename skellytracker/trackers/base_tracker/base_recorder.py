@@ -40,6 +40,15 @@ class BaseRecorder(ABC):
         """
         pass
 
+    @abstractmethod
+    def process_without_recording(self, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+        """
+        Process the recorded objects to be in a consistent array format across trackers.
+
+        :return: Array of tracked objects.
+        """
+        pass
+
     def clear_recorded_objects(self):
         logger.info("Clearing recorded objects from recorder")
         self.recorded_objects = []

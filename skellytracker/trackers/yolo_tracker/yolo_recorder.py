@@ -27,3 +27,21 @@ class YOLORecorder(BaseRecorder):
                 self.recorded_objects_array[i, j, 2] = np.NaN
 
         return self.recorded_objects_array
+    
+    def process_without_recording(self, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+        output_array = np.zeros(
+            (YOLOModelInfo.num_tracked_points, 3)
+        )
+
+        recorded_object = tracked_objects["tracked_person"]
+        if recorded_object:
+            for j in range(YOLOModelInfo.num_tracked_points):
+                output_array[j, 0] = recorded_object.extra[
+                    "landmarks"
+                ][0, j, 0]
+                output_array[j, 1] = recorded_object.extra[
+                    "landmarks"
+                ][0, j, 1]
+                output_array[j, 2] = np.NaN
+
+        return output_array
