@@ -60,10 +60,6 @@ class YOLOMediapipeComboTracker(BaseTracker):
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
 
-
-            # width_buffer = (box_right - box_left) * (bounding_box_buffer_percentage / 100.0)
-            # height_buffer = (box_bottom - box_top) * (bounding_box_buffer_percentage / 100.0)
-
             # Apply buffer, but set to original picture dimension if it goes out of bounds
             box_left = max(int(box_left - width_buffer), 0)
             box_top = max(int(box_top - height_buffer), 0)
