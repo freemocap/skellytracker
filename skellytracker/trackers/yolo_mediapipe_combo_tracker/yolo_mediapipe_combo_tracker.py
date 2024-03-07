@@ -1,6 +1,8 @@
 import cv2
 import numpy as np
+import copy
 import mediapipe as mp
+import torch
 from typing import Dict
 from ultralytics import YOLO
 
@@ -47,29 +49,34 @@ class YOLOMediapipeComboTracker(BaseTracker):
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         
         yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
-
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
 
-        bounding_box_buffer_percentage = 10 #percent increase in bounding box size 
+        bounding_box_buffer_percentage = 5 #percent increase in bounding box size 
+        
+        width_buffer = image.shape[1] * (bounding_box_buffer_percentage / 100.0)
+        height_buffer = image.shape[0] * (bounding_box_buffer_percentage / 100.0)
 
+        buffered_yolo_results = copy.deepcopy(yolo_results)
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
 
-            # Calculate the buffer
-            width_buffer = (box_right - box_left) * (bounding_box_buffer_percentage / 100.0)
-            height_buffer = (box_bottom - box_top) * (bounding_box_buffer_percentage / 100.0)
+
+            # width_buffer = (box_right - box_left) * (bounding_box_buffer_percentage / 100.0)
+            # height_buffer = (box_bottom - box_top) * (bounding_box_buffer_percentage / 100.0)
 
             # Apply buffer, but set to original picture dimension if it goes out of bounds
             box_left = max(int(box_left - width_buffer), 0)
             box_top = max(int(box_top - height_buffer), 0)
             box_right = min(int(box_right + width_buffer), image.shape[1])
             box_bottom = min(int(box_bottom + height_buffer), image.shape[0])
-    
 
             cropped_image = image[
                 int(box_top) : int(box_bottom),
                 int(box_left) : int(box_right),
             ]
+
+            buffered_yolo_results[0].boxes.xyxy[0] = torch.tensor([box_left, box_top, box_right, box_bottom])
+
         else:
             # eventually we should not even run mediapipe if no bbox is found
             box_left, box_top, box_right, box_bottom = 0, 0, 0, 0
@@ -96,7 +103,7 @@ class YOLOMediapipeComboTracker(BaseTracker):
             "landmarks"
         ] = mediapipe_results.right_hand_landmarks
 
-        bbox_image = yolo_results[0].plot()
+        bbox_image = buffered_yolo_results[0].plot()
 
         self.annotated_image = self.annotate_image(
             image=bbox_image, tracked_objects=self.tracked_objects
