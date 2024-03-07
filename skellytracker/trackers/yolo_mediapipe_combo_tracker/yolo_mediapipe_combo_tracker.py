@@ -51,16 +51,14 @@ class YOLOMediapipeComboTracker(BaseTracker):
         yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
 
-        bounding_box_buffer_percentage = 0 #percent increase in bounding box size 
+        bounding_box_buffer_percentage = 5 #percent increase in bounding box size 
         
-        # width_buffer = image.shape[1] * (bounding_box_buffer_percentage / 100.0)
-        # height_buffer = image.shape[0] * (bounding_box_buffer_percentage / 100.0)
+        width_buffer = image.shape[1] * (bounding_box_buffer_percentage / 100.0)
+        height_buffer = image.shape[0] * (bounding_box_buffer_percentage / 100.0)
 
+        buffered_yolo_results = copy.deepcopy(yolo_results)
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
-
-            width_buffer = (box_right - box_left) * (bounding_box_buffer_percentage / 100.0)
-            height_buffer = (box_bottom - box_top) * (bounding_box_buffer_percentage / 100.0)
 
             # Apply buffer, but set to original picture dimension if it goes out of bounds
             box_left = max(int(box_left - width_buffer), 0)
@@ -73,7 +71,7 @@ class YOLOMediapipeComboTracker(BaseTracker):
                 int(box_left) : int(box_right),
             ]
 
-            yolo_results[0].boxes.xyxy[0] = torch.tensor([box_left, box_top, box_right, box_bottom])
+            buffered_yolo_results[0].boxes.xyxy[0] = torch.tensor([box_left, box_top, box_right, box_bottom])
 
         else:
             # eventually we should not even run mediapipe if no bbox is found
@@ -101,7 +99,7 @@ class YOLOMediapipeComboTracker(BaseTracker):
             "landmarks"
         ] = mediapipe_results.right_hand_landmarks
 
-        bbox_image = yolo_results[0].plot()
+        bbox_image = buffered_yolo_results[0].plot()
 
         self.annotated_image = self.annotate_image(
             image=bbox_image, tracked_objects=self.tracked_objects
