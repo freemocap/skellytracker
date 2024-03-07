@@ -45,11 +45,12 @@ class YOLOMediapipeComboTracker(BaseTracker):
         self.model = YOLO(pytorch_model)
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+        
         yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
 
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
 
-        bounding_box_buffer_percentage = 25 #percent increase in bounding box size 
+        bounding_box_buffer_percentage = 10 #percent increase in bounding box size 
 
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
