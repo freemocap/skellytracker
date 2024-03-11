@@ -56,7 +56,6 @@ class YOLOMediapipeComboTracker(BaseTracker):
         width_buffer = image.shape[1] * (bounding_box_buffer_percentage / 100.0)
         height_buffer = image.shape[0] * (bounding_box_buffer_percentage / 100.0)
 
-        buffered_yolo_results = copy.deepcopy(yolo_results)
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
 
@@ -75,12 +74,15 @@ class YOLOMediapipeComboTracker(BaseTracker):
                 int(box_left) : int(box_right),
             ]
 
+            buffered_yolo_results = copy.deepcopy(yolo_results)
             buffered_yolo_results[0].boxes.xyxy[0] = torch.tensor([box_left, box_top, box_right, box_bottom])
 
         else:
             # eventually we should not even run mediapipe if no bbox is found
             box_left, box_top, box_right, box_bottom = 0, 0, 0, 0
             cropped_image = image
+
+            buffered_yolo_results = yolo_results
 
         cropped_rgb_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB)
 
