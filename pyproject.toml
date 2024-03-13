@@ -72,7 +72,7 @@ dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
 Homepage = "https://github.com/freemocap/skellytracker"
 
 [tool.bumpver]
-current_version = "v2024.01.1008"
+current_version = "v2024.03.1009"
 
 version_pattern = "vYYYY.0M.BUILD[-TAG]"
 commit_message  = "Bump version {old_version} -> {new_version}"
