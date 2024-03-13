@@ -23,9 +23,9 @@ class MediapipeModelInfo:
     )
     mediapipe_tracked_object_names = [
         "pose_landmarks",
-        "face_landmarks",
         "left_hand_landmarks",
         "right_hand_landmarks",
+        "face_landmarks",
     ]
 
 
