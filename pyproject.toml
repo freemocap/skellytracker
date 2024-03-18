@@ -57,8 +57,6 @@ keywords = [
 dependencies = [
     "opencv-contrib-python==4.8.*",
     "pydantic==1.*",
-    "mediapipe==0.10.9",
-    "ultralytics~=8.0.202",
 ]
 requires-python = ">=3.9,<3.12"
 
@@ -66,6 +64,9 @@ dynamic = ["version", "description"]
 
 [project.optional-dependencies]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
+mediapipe = ["mediapipe==0.10.9"]
+yolo = ["ultralytics~=8.0.202"]
+all = ["ultralytics~=8.0.202", "mediapipe==0.10.9"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
