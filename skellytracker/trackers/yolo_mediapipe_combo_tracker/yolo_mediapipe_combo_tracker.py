@@ -23,13 +23,13 @@ class YOLOMediapipeComboTracker(BaseTracker):
     def __init__(
         self,
         model_size: str = "nano",
-        model_complexity=2,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-        static_image_mode=False,
-        smooth_landmarks=True,
-        bounding_box_buffer_percentage=0,
-        buffer_size_method="buffer_by_image_size",
+        model_complexity: int = 2,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+        static_image_mode: bool = False,
+        smooth_landmarks: bool = True,
+        bounding_box_buffer_percentage: float = 0,
+        buffer_size_method: str = "buffer_by_image_size",
     ):
         super().__init__(
             tracked_object_names=MediapipeModelInfo.mediapipe_tracked_object_names,
@@ -216,5 +216,3 @@ class YOLOMediapipeComboTracker(BaseTracker):
 
 if __name__ == "__main__":
     YOLOMediapipeComboTracker().demo()
-    # image_path = Path("/Users/philipqueen/Downloads/DSC07372.jpg")
-    # YOLOMediapipeComboTracker().image_demo(image_path=image_path)
