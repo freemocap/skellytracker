@@ -10,11 +10,10 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from gui.gui import run_gui_window
+from RUN_ME import main
 
-def main():
-    run_gui_window()
 
 if __name__ == '__main__':
     logger.info(f"Running as a script")
-    main()
+    demo_tracker = "mediapipe_holistic_tracker"
+    main(demo_tracker=demo_tracker)
