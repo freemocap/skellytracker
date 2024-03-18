@@ -83,7 +83,7 @@ push            = true
 "skellytracker/__init__.py" = ["{version}"]
 
 [project.scripts]
-skellytracker = "skellytracker.__main__:cli"
+skellytracker = "skellytracker.__main__:cli_main"
 
 [tool.setuptools]
 py-modules = ["skellytracker"]
