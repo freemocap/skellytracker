@@ -38,7 +38,7 @@ def main(demo_tracker: str = "mediapipe_holistic_tracker"):
         ).demo()
 
     elif demo_tracker == "yolo_tracker":
-        YOLOPoseTracker(model_size="high_res").demo()
+        YOLOPoseTracker(model_size="nano").demo()
     elif demo_tracker == "SAM_tracker":
         SAMTracker().demo()
     elif demo_tracker == "yolo_object_tracker":

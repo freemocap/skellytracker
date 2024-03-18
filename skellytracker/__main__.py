@@ -16,7 +16,7 @@ from skellytracker.RUN_ME import main
 if __name__ == "__main__":
     logger.info(f"Running as a script")
     if len(sys.argv) > 1:
-        demo_tracker = sys.argv[1]
+        demo_tracker = str(sys.argv[1])
     else:
         demo_tracker = "mediapipe_holistic_tracker"
     main(demo_tracker=demo_tracker)
