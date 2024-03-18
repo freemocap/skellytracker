@@ -114,13 +114,19 @@ class YOLOMediapipeComboTracker(BaseTracker):
 
         return self.tracked_objects
 
-    def _get_buffer_bounding_box_total_image(image:np.ndarray, buffer_percentage:float):
+    def _get_buffer_bounding_box_total_image(
+        self,
+        image:np.ndarray, 
+        buffer_percentage:float):
         width_buffer = image.shape[1] * (buffer_percentage / 100.0)
         height_buffer = image.shape[0] * (buffer_percentage / 100.0)
 
         return width_buffer, height_buffer
     
-    def _get_buffer_bounding_box_box_size(box_xyxy:np.ndarray, buffer_percentage:float):
+    def _get_buffer_bounding_box_box_size(
+        self, 
+        box_xyxy:np.ndarray, 
+        buffer_percentage:float):
         box_left, box_top, box_right, box_bottom = box_xyxy
         width_buffer = (box_right - box_left) * (buffer_percentage/ 100.0)
         height_buffer = (box_bottom - box_top) * (buffer_percentage / 100.0)
