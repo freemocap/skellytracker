@@ -10,7 +10,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-from RUN_ME import main
+from skellytracker.RUN_ME import main
 
 
 if __name__ == "__main__":
