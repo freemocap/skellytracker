@@ -28,7 +28,8 @@ class YOLOMediapipeComboTracker(BaseTracker):
         min_tracking_confidence=0.5,
         static_image_mode=False,
         smooth_landmarks=True,
-        bounding_box_buffer_percentage=10,
+        bounding_box_buffer_percentage=0,
+        buffer_size_method = 'buffer_by_image_size'
     ):
         super().__init__(
             tracked_object_names=MediapipeModelInfo.mediapipe_tracked_object_names,
@@ -47,17 +48,21 @@ class YOLOMediapipeComboTracker(BaseTracker):
         pytorch_model = yolo_object_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
         self.bounding_box_buffer_percentage = bounding_box_buffer_percentage
+        self.buffer_size_method = buffer_size_method
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         
         yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
-
-        width_buffer = image.shape[1] * (self.bounding_box_buffer_percentage / 100.0)
-        height_buffer = image.shape[0] * (self.bounding_box_buffer_percentage / 100.0)
-
+        
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
+
+            match self.buffer_size_method:
+                case 'buffer_by_image_size':
+                    width_buffer, height_buffer = self._get_buffer_bounding_box_total_image(image, self.bounding_box_buffer_percentage)
+                case 'buffer_by_box_size':
+                    width_buffer, height_buffer = self._get_buffer_bounding_box_box_size(box_xyxy, self.bounding_box_buffer_percentage)
 
             # Apply buffer, but set to original picture dimension if it goes out of bounds
             box_left = max(int(box_left - width_buffer), 0)
@@ -108,6 +113,20 @@ class YOLOMediapipeComboTracker(BaseTracker):
         )
 
         return self.tracked_objects
+
+    def _get_buffer_bounding_box_total_image(image:np.ndarray, buffer_percentage:float):
+        width_buffer = image.shape[1] * (buffer_percentage / 100.0)
+        height_buffer = image.shape[0] * (buffer_percentage / 100.0)
+
+        return width_buffer, height_buffer
+    
+    def _get_buffer_bounding_box_box_size(box_xyxy:np.ndarray, buffer_percentage:float):
+        box_left, box_top, box_right, box_bottom = box_xyxy
+        width_buffer = (box_right - box_left) * (buffer_percentage/ 100.0)
+        height_buffer = (box_bottom - box_top) * (buffer_percentage / 100.0)
+
+        return width_buffer, height_buffer
+
 
     def _rescale_cropped_data(
         self,
