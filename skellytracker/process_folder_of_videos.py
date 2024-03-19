@@ -20,6 +20,7 @@ except:
     print("To use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
 except:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:
@@ -48,7 +49,7 @@ def process_folder_of_videos(
     synchronized_video_path: Path,
     output_folder_path: Optional[Path] = None,
     annotated_video_path: Optional[Path] = None,
-    num_processes: int = None,
+    num_processes: Optional[int] = None,
 ) -> np.ndarray:
     """
     Process a folder of synchronized videos with the given tracker.
@@ -176,6 +177,18 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     return tracker
 
+def get_tracker_params(tracker_name: str) -> BaseModel:
+    if tracker_name == "MediapipeHolisticTracker":
+        return MediapipeTrackingParams()
+    elif tracker_name == "YOLOMediapipeComboTracker":
+        return YOLOTrackingParams()
+    elif tracker_name == "YOLOPoseTracker":
+        return YOLOTrackingParams()
+    elif tracker_name == "BrightestPointTracker":
+        return BaseModel()
+    else:
+        raise ValueError("Invalid tracker type")
+
 
 if __name__ == "__main__":
     synchronized_video_path = Path(
@@ -186,7 +199,7 @@ if __name__ == "__main__":
 
     process_folder_of_videos(
         tracker_name=tracker_name,
-        tracking_params=MediapipeTrackingParams(),
+        tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
     )
