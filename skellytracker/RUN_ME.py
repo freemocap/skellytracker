@@ -5,9 +5,6 @@ from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import 
     BrightestPointTracker,
 )
 from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skellytracker.trackers.segment_anything_tracker.segment_anything_tracker import (
-    SAMTracker,
-)
 try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
         MediapipeHolisticTracker,
@@ -18,6 +15,9 @@ try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
     from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import (
         YOLOObjectTracker,
+    )
+    from skellytracker.trackers.segment_anything_tracker.segment_anything_tracker import (
+        SAMTracker,
     )
 except:
     print("To use yolo_tracker, install skellytracker[yolo]")

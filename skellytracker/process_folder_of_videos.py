@@ -2,7 +2,7 @@ import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 import sys
-from typing import Any, Optional, Type
+from typing import Optional
 import numpy as np
 from pydantic import BaseModel
 
@@ -11,17 +11,26 @@ from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
-from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
-    MediapipeHolisticTracker,
-)
-from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
-    YOLOMediapipeComboTracker,
-)
-from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-    MediapipeTrackingParams,
-)
 from skellytracker.utilities.get_video_paths import get_video_paths
+try:
+    from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+        YOLOMediapipeComboTracker,
+    )
+except:
+    print("To use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]")
+try:
+    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+except:
+    print("To use yolo_tracker, install skellytracker[yolo]")
+try:
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
+        MediapipeHolisticTracker,
+    )
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+        MediapipeTrackingParams,
+    )
+except:
+    print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
 logger = logging.getLogger(__name__)
 
