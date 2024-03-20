@@ -1,3 +1,4 @@
+from typing import Literal
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 
@@ -35,3 +36,7 @@ class MediapipeTrackingParams(BaseTrackingParams):
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = False
+    bounding_box_buffer_percentage: float = 10
+    buffer_size_method: Literal["buffer_by_box_size", "buffer_by_image_size"] = (
+        "buffer_by_box_size"
+    )
