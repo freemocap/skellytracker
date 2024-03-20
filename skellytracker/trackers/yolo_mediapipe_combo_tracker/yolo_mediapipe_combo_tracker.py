@@ -3,7 +3,7 @@ import numpy as np
 import copy
 import mediapipe as mp
 import torch
-from typing import Dict, Tuple
+from typing import Dict, Literal, Tuple
 from ultralytics import YOLO
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
@@ -28,8 +28,10 @@ class YOLOMediapipeComboTracker(BaseTracker):
         min_tracking_confidence: float = 0.5,
         static_image_mode: bool = False,
         smooth_landmarks: bool = True,
-        bounding_box_buffer_percentage: float = 0,
-        buffer_size_method: str = "buffer_by_image_size",
+        bounding_box_buffer_percentage: float = 10,
+        buffer_size_method: Literal[
+            "buffer_by_box_size", "buffer_by_image_size"
+        ] = "buffer_by_box_size",
     ):
         super().__init__(
             tracked_object_names=MediapipeModelInfo.mediapipe_tracked_object_names,
