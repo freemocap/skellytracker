@@ -36,6 +36,9 @@ class MediapipeTrackingParams(BaseTrackingParams):
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = False
+    yolo_model_size: Literal[
+        "nano", "small", "medium", "large", "extra_large", "high_res"
+    ] = "nano"
     bounding_box_buffer_percentage: float = 10
     buffer_size_method: Literal["buffer_by_box_size", "buffer_by_image_size"] = (
         "buffer_by_box_size"
