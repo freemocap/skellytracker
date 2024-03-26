@@ -154,7 +154,7 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             min_tracking_confidence=tracking_params.min_tracking_confidence,
             static_image_mode=True,  # yolo cropping must be run with static image mode due to changing size of bounding boxes
             bounding_box_buffer_percentage=tracking_params.bounding_box_buffer_percentage,
-            buffer_size_method=tracking_params.yolo_buffer_size_method,
+            buffer_size_method=tracking_params.buffer_size_method,
         )
 
     elif tracker_name == "YOLOPoseTracker":
