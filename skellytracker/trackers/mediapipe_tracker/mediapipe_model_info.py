@@ -25,10 +25,6 @@ class MediapipeModelInfo(ModelInfo):
         "left_ear_tragion",
     ]
     landmark_names = body_landmark_names + hand_landmark_names + face_landmark_names
-    body_connections = [connection for connection in mp_holistic.POSE_CONNECTIONS]
-    hand_connections = [connection for connection in mp_holistic.HAND_CONNECTIONS]
-    face_connections = [connection for connection in mp_holistic.FACEMESH_CONTOURS]
-    connections = body_connections + hand_connections + face_connections
     num_tracked_points_body = len(body_landmark_names)
     num_tracked_points_face = FACEMESH_NUM_LANDMARKS_WITH_IRISES
     num_tracked_points_left_hand = len(hand_landmark_names)
@@ -44,89 +40,7 @@ class MediapipeModelInfo(ModelInfo):
         "left_hand_landmarks",
         "right_hand_landmarks",
     ]
-    segment_names = [
-        "head",
-        "trunk",
-        "right_upper_arm",
-        "left_upper_arm",
-        "right_forearm",
-        "left_forearm",
-        "right_hand",
-        "left_hand",
-        "right_thigh",
-        "left_thigh",
-        "right_shin",
-        "left_shin",
-        "right_foot",
-        "left_foot",
-    ]
-    joint_connections = [  # TODO: seems like we probably have duplications on the connections here
-        ["left_ear", "right_ear"],
-        ["mid_chest_marker", "mid_hip_marker"],
-        ["right_shoulder", "right_elbow"],
-        ["left_shoulder", "left_elbow"],
-        ["right_elbow", "right_wrist"],
-        ["left_elbow", "left_wrist"],
-        ["right_wrist", "right_hand_marker"],
-        ["left_wrist", "left_hand_marker"],
-        ["right_hip", "right_knee"],
-        ["left_hip", "left_knee"],
-        ["right_knee", "right_ankle"],
-        ["left_knee", "left_ankle"],
-        ["right_back_of_foot_marker", "right_foot_index"],
-        ["left_back_of_foot_marker", "left_foot_index"],
-    ]
-    segment_COM_lengths = [
-        0.5,
-        0.5,
-        0.436,
-        0.436,
-        0.430,
-        0.430,
-        0.506,
-        0.506,
-        0.433,
-        0.433,
-        0.433,
-        0.433,
-        0.5,
-        0.5,
-    ]
-    segment_COM_percentages = [
-        0.081,
-        0.497,
-        0.028,
-        0.028,
-        0.016,
-        0.016,
-        0.006,
-        0.006,
-        0.1,
-        0.1,
-        0.0465,
-        0.0465,
-        0.0145,
-        0.0145,
-    ]
-    names_and_connections_dict = {
-        "body": {
-            "names": body_landmark_names,
-            "connections": body_connections,
-        },
-        "right_hand": {
-            "names": [f"right_hand_{name}" for name in hand_landmark_names],
-            "connections": hand_connections,
-        },
-        "left_hand": {
-            "names": [f"left_hand_{name}" for name in hand_landmark_names],
-            "connections": hand_connections,
-        },
-        "face": {
-            "names": face_landmark_names,
-            "connections": face_connections,
-        },
-    }
-    virtual_marker_definitions_dict = {
+    virtual_markers_definitions = {
         "head_center": {
             "marker_names": ["left_ear", "right_ear"],
             "marker_weights": [0.5, 0.5],
@@ -149,126 +63,124 @@ class MediapipeModelInfo(ModelInfo):
             "marker_weights": [0.5, 0.5],
         },
     }
-    skeleton_schema = {
-        "body": {
-            "point_names": body_landmark_names,
-            "connections": body_connections,
-            "virtual_marker_definitions": virtual_marker_definitions_dict,
-            "parent": "hips_center",
+    segment_connections = {
+        "head": {"proximal": "left_ear", "distal": "right_ear"},
+        "neck": {
+            "proximal": "head_center",
+            "distal": "neck_center",
         },
-        "hands": {
-            "right": {
-                "point_names": [name for name in hand_landmark_names],
-                "connections": hand_connections,
-                "parent": "right_wrist",
-            },
-            "left": {
-                "point_names": [name for name in hand_landmark_names],
-                "connections": hand_connections,
-                "parent": "left_wrist",
-            },
+        "spine": {
+            "proximal": "neck_center",
+            "distal": "hips_center",
         },
-        "face": {
-            "point_names": face_landmark_names,
-            "connections": face_connections,
-            "parent": "nose",
+        "right_shoulder": {"proximal": "neck_center", "distal": "right_shoulder"},
+        "left_shoulder": {"proximal": "neck_center", "distal": "left_shoulder"},
+        "right_upper_arm": {"proximal": "right_shoulder", "distal": "right_elbow"},
+        "left_upper_arm": {"proximal": "left_shoulder", "distal": "left_elbow"},
+        "right_forearm": {"proximal": "right_elbow", "distal": "right_wrist"},
+        "left_forearm": {"proximal": "left_elbow", "distal": "left_wrist"},
+        "right_hand": {"proximal": "right_wrist", "distal": "right_index"},
+        "left_hand": {"proximal": "left_wrist", "distal": "left_index"},
+        "right_pelvis": {"proximal": "hips_center", "distal": "right_hip"},
+        "left_pelvis": {"proximal": "hips_center", "distal": "left_hip"},
+        "right_thigh": {"proximal": "right_hip", "distal": "right_knee"},
+        "left_thigh": {"proximal": "left_hip", "distal": "left_knee"},
+        "right_shank": {"proximal": "right_knee", "distal": "right_ankle"},
+        "left_shank": {"proximal": "left_knee", "distal": "left_ankle"},
+        "right_foot": {"proximal": "right_ankle", "distal": "right_foot_index"},
+        "left_foot": {"proximal": "left_ankle", "distal": "left_foot_index"},
+        "right_heel": {"proximal": "right_ankle", "distal": "right_heel"},
+        "left_heel": {"proximal": "left_ankle", "distal": "left_heel"},
+        "right_foot_bottom": {"proximal": "right_heel", "distal": "right_foot_index"},
+        "left_foot_bottom": {"proximal": "left_heel", "distal": "left_foot_index"},
+    }
+    center_of_mass_definitions = {
+        "head": {
+            "segment_com_length": 0.5,
+            "segment_com_percentage": 0.081,
+        },
+        "spine": {
+            "segment_com_length": 0.5,
+            "segment_com_percentage": 0.497,
+        },
+        "right_upper_arm": {
+            "segment_com_length": 0.436,
+            "segment_com_percentage": 0.028,
+        },
+        "left_upper_arm": {
+            "segment_com_length": 0.436,
+            "segment_com_percentage": 0.028,
+        },
+        "right_forearm": {
+            "segment_com_length": 0.430,
+            "segment_com_percentage": 0.016,
+        },
+        "left_forearm": {
+            "segment_com_length": 0.430,
+            "segment_com_percentage": 0.016,
+        },
+        "right_hand": {
+            "segment_com_length": 0.506,
+            "segment_com_percentage": 0.006,
+        },
+        "left_hand": {
+            "segment_com_length": 0.506,
+            "segment_com_percentage": 0.006,
+        },
+        "right_thigh": {
+            "segment_com_length": 0.433,
+            "segment_com_percentage": 0.1,
+        },
+        "left_thigh": {
+            "segment_com_length": 0.433,
+            "segment_com_percentage": 0.1,
+        },
+        "right_shank": {
+            "segment_com_length": 0.433,
+            "segment_com_percentage": 0.0465,
+        },
+        "left_shank": {
+            "segment_com_length": 0.433,
+            "segment_com_percentage": 0.0465,
+        },
+        "right_foot": {
+            "segment_com_length": 0.5,
+            "segment_com_percentage": 0.0145,
+        },
+        "left_foot": {
+            "segment_com_length": 0.5,
+            "segment_com_percentage": 0.0145,
         },
     }
     joint_hierarchy = {
-        "hips_center": {"children": ["right_hip", "left_hip", "trunk_center"]},
-        "trunk_center": {"children": ["neck_center"]},
-        "neck_center": {"children": ["right_shoulder", "left_shoulder", "head_center"]},
-        "head_center": {
-            "children": [
-                "nose",
-                "mouth_right",
-                "mouth_left",
-                "right_eye",
-                "right_eye_inner",
-                "right_eye_outer",
-                "left_eye",
-                "left_eye_inner",
-                "left_eye_outer",
-                "right_ear",
-                "left_ear",
-            ]
-        },
-        "right_hip": {"children": ["right_knee"]},
-        "right_knee": {"children": ["right_ankle"]},
-        "right_ankle": {"children": ["right_foot_index", "right_heel"]},
-        "left_hip": {"children": ["left_knee"]},
-        "left_knee": {"children": ["left_ankle"]},
-        "left_ankle": {"children": ["left_foot_index", "left_heel"]},
-        "right_shoulder": {"children": ["right_elbow"]},
-        "right_elbow": {"children": ["right_wrist"]},
-        "right_wrist": {
-            "children": [
-                "right_thumb",
-                "right_index",
-                "right_pinky",
-                "right_hand_middle",
-                "right_hand_wrist",
-            ]
-        },
-        "right_hand_wrist": {
-            "children": [
-                "right_hand_thumb_cmc",
-                "right_hand_index_finger_mcp",
-                "right_hand_middle_finger_mcp",
-                "right_hand_ring_finger_mcp",
-                "right_hand_pinky_mcp",
-            ]
-        },
-        "right_hand_thumb_cmc": {"children": ["right_hand_thumb_mcp"]},
-        "left_shoulder": {"children": ["left_elbow"]},
-        "left_elbow": {"children": ["left_wrist"]},
-        "left_wrist": {
-            "children": [
-                "left_thumb",
-                "left_index",
-                "left_pinky",
-                "left_hand_middle",
-                "left_hand_wrist",
-            ]
-        },
-        "left_hand_wrist": {
-            "children": [
-                "left_hand_thumb_cmc",
-                "left_hand_index_finger_mcp",
-                "left_hand_middle_finger_mcp",
-                "left_hand_ring_finger_mcp",
-                "left_hand_pinky_mcp",
-            ]
-        },
-        "right_hand_thumb_mcp": {"children": ["right_hand_thumb_ip"]},
-        "right_hand_thumb_ip": {"children": ["right_hand_thumb_tip"]},
-        "right_hand_index_finger_mcp": {"children": ["right_hand_index_finger_pip"]},
-        "right_hand_index_finger_pip": {"children": ["right_hand_index_finger_dip"]},
-        "right_hand_index_finger_dip": {"children": ["right_hand_index_finger_tip"]},
-        "left_hand_thumb_cmc": {"children": ["left_hand_thumb_mcp"]},
-        "right_hand_middle_finger_mcp": {"children": ["right_hand_middle_finger_pip"]},
-        "right_hand_middle_finger_pip": {"children": ["right_hand_middle_finger_dip"]},
-        "right_hand_middle_finger_dip": {"children": ["right_hand_middle_finger_tip"]},
-        "right_hand_ring_finger_mcp": {"children": ["right_hand_ring_finger_pip"]},
-        "right_hand_ring_finger_pip": {"children": ["right_hand_ring_finger_dip"]},
-        "left_hand_thumb_mcp": {"children": ["left_hand_thumb_ip"]},
-        "right_hand_ring_finger_dip": {"children": ["right_hand_ring_finger_tip"]},
-        "left_hand_thumb_ip": {"children": ["left_hand_thumb_tip"]},
-        "right_hand_pinky_mcp": {"children": ["right_hand_pinky_pip"]},
-        "left_hand_index_finger_mcp": {"children": ["left_hand_index_finger_pip"]},
-        "right_hand_pinky_pip": {"children": ["right_hand_pinky_dip"]},
-        "right_hand_pinky_dip": {"children": ["right_hand_pinky_tip"]},
-        "left_hand_index_finger_pip": {"children": ["left_hand_index_finger_dip"]},
-        "left_hand_index_finger_dip": {"children": ["left_hand_index_finger_tip"]},
-        "left_hand_middle_finger_mcp": {"children": ["left_hand_middle_finger_pip"]},
-        "left_hand_middle_finger_pip": {"children": ["left_hand_middle_finger_dip"]},
-        "left_hand_middle_finger_dip": {"children": ["left_hand_middle_finger_tip"]},
-        "left_hand_ring_finger_mcp": {"children": ["left_hand_ring_finger_pip"]},
-        "left_hand_ring_finger_pip": {"children": ["left_hand_ring_finger_dip"]},
-        "left_hand_ring_finger_dip": {"children": ["left_hand_ring_finger_tip"]},
-        "left_hand_pinky_mcp": {"children": ["left_hand_pinky_pip"]},
-        "left_hand_pinky_pip": {"children": ["left_hand_pinky_dip"]},
-        "left_hand_pinky_dip": {"children": ["left_hand_pinky_tip"]},
+        "hips_center": ["left_hip", "right_hip", "trunk_center"],
+        "trunk_center": ["neck_center"],
+        "neck_center": ["left_shoulder", "right_shoulder", "head_center"],
+        "head_center": [
+            "nose",
+            "left_eye_inner",
+            "left_eye",
+            "left_eye_outer",
+            "right_eye_inner",
+            "right_eye",
+            "right_eye_outer",
+            "left_ear",
+            "right_ear",
+            "mouth_left",
+            "mouth_right",
+        ],
+        "left_shoulder": ["left_elbow"],
+        "left_elbow": ["left_wrist"],
+        "left_wrist": ["left_pinky", "left_index", "left_thumb"],
+        "right_shoulder": ["right_elbow"],
+        "right_elbow": ["right_wrist"],
+        "right_wrist": ["right_pinky", "right_index", "right_thumb"],
+        "left_hip": ["left_knee"],
+        "left_knee": ["left_ankle"],
+        "left_ankle": ["left_heel", "left_foot_index"],
+        "right_hip": ["right_knee"],
+        "right_knee": ["right_ankle"],
+        "right_ankle": ["right_heel", "right_foot_index"],
     }
 
 

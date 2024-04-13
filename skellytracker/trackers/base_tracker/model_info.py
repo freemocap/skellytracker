@@ -1,16 +1,11 @@
-from typing import Optional
+from typing import Dict, List, Optional
 
 
 class ModelInfo(dict):
-    landmark_names: Optional[list] = None
-    connections: Optional[list] = None
+    landmark_names: Optional[List[str]] = None
     num_tracked_points: Optional[int] = None
     tracked_object_names: Optional[list] = None
-    segment_names: Optional[list] = None
-    joint_connections: Optional[list] = None
-    segment_COM_lengths: Optional[list] = None
-    segment_COM_percentages: Optional[list] = None
-    names_and_connections_dict: Optional[dict] = None
-    virtual_marker_definitions_dict: Optional[dict] = None
-    skeleton_schema: Optional[dict] = None
-    joint_hierarchy: Optional[dict] = None
+    virtual_markers_definitions: Optional[Dict[str, Dict[str, List[str | float]]]] = None
+    segment_connections: Optional[Dict[str, Dict[str, str]]] = None
+    center_of_mass_definitions: Optional[Dict[str, Dict[str, float]]] = None
+    joint_hierarchy: Optional[Dict[str, List[str]]] = None
