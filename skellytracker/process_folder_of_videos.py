@@ -21,6 +21,7 @@ from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeTrackingParams,
 )
+from skellytracker.utilities.get_video_paths import get_video_paths
 
 logger = logging.getLogger(__name__)
 
@@ -52,10 +53,12 @@ def process_folder_of_videos(
     :param num_processes: Number of processes to use, 1 to disable multiprocessing.
     :return: Array of tracking data
     """
+    video_paths = get_video_paths(synchronized_video_path)
+
     if num_processes is None:
-        num_processes = min(
-            (cpu_count() - 1), len(list(synchronized_video_path.glob("*.mp4")))
-        )
+        num_processes = min((cpu_count() - 1), len(video_paths))
+    else:
+        num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
     file_name = file_name_dictionary[tracker_name]
     synchronized_video_path = Path(synchronized_video_path)
@@ -75,7 +78,7 @@ def process_folder_of_videos(
 
     tasks = [
         (tracker_name, tracking_params, video_path, annotated_video_path)
-        for video_path in synchronized_video_path.glob("*.mp4")
+        for video_path in video_paths
     ]
 
     if num_processes > 1:
@@ -145,10 +148,13 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     elif tracker_name == "YOLOMediapipeComboTracker":
         tracker = YOLOMediapipeComboTracker(
+            model_size=tracking_params.yolo_model_size,
             model_complexity=tracking_params.mediapipe_model_complexity,
             min_detection_confidence=tracking_params.min_detection_confidence,
             min_tracking_confidence=tracking_params.min_tracking_confidence,
             static_image_mode=True,  # yolo cropping must be run with static image mode due to changing size of bounding boxes
+            bounding_box_buffer_percentage=tracking_params.bounding_box_buffer_percentage,
+            buffer_size_method=tracking_params.buffer_size_method,
         )
 
     elif tracker_name == "YOLOPoseTracker":

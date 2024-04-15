@@ -1,7 +1,9 @@
 import cv2
 import numpy as np
+import copy
 import mediapipe as mp
-from typing import Dict
+import torch
+from typing import Dict, Literal, Tuple
 from ultralytics import YOLO
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
@@ -21,11 +23,15 @@ class YOLOMediapipeComboTracker(BaseTracker):
     def __init__(
         self,
         model_size: str = "nano",
-        model_complexity=2,
-        min_detection_confidence=0.5,
-        min_tracking_confidence=0.5,
-        static_image_mode=False,
-        smooth_landmarks=True,
+        model_complexity: int = 2,
+        min_detection_confidence: float = 0.5,
+        min_tracking_confidence: float = 0.5,
+        static_image_mode: bool = False,
+        smooth_landmarks: bool = True,
+        bounding_box_buffer_percentage: float = 10,
+        buffer_size_method: Literal[
+            "buffer_by_box_size", "buffer_by_image_size"
+        ] = "buffer_by_box_size",
     ):
         super().__init__(
             tracked_object_names=MediapipeModelInfo.tracked_object_names,
@@ -43,22 +49,52 @@ class YOLOMediapipeComboTracker(BaseTracker):
 
         pytorch_model = yolo_object_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
+        self.bounding_box_buffer_percentage = bounding_box_buffer_percentage
+        self.buffer_size_method = buffer_size_method
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
-        yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
 
+        yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
 
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
+
+            if self.buffer_size_method == "buffer_by_image_size":
+                width_buffer, height_buffer = self._get_buffer_bounding_box_total_image(
+                    image, self.bounding_box_buffer_percentage
+                )
+            elif self.buffer_size_method == "buffer_by_box_size":
+                width_buffer, height_buffer = self._get_buffer_bounding_box_box_size(
+                    box_xyxy, self.bounding_box_buffer_percentage
+                )
+            else:
+                raise ValueError(
+                    f"Unknown buffer_size_method: {self.buffer_size_method}"
+                )
+
+            # Apply buffer, but set to original picture dimension if it goes out of bounds
+            box_left = max(int(box_left - width_buffer), 0)
+            box_top = max(int(box_top - height_buffer), 0)
+            box_right = min(int(box_right + width_buffer), image.shape[1])
+            box_bottom = min(int(box_bottom + height_buffer), image.shape[0])
+
             cropped_image = image[
                 int(box_top) : int(box_bottom),
                 int(box_left) : int(box_right),
             ]
+
+            buffered_yolo_results = copy.deepcopy(yolo_results)
+            buffered_yolo_results[0].boxes.xyxy[0] = torch.tensor(
+                [box_left, box_top, box_right, box_bottom]
+            )
+
         else:
             # eventually we should not even run mediapipe if no bbox is found
             box_left, box_top, box_right, box_bottom = 0, 0, 0, 0
             cropped_image = image
+
+            buffered_yolo_results = yolo_results
 
         cropped_rgb_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB)
 
@@ -81,13 +117,30 @@ class YOLOMediapipeComboTracker(BaseTracker):
             "landmarks"
         ] = mediapipe_results.right_hand_landmarks
 
-        bbox_image = yolo_results[0].plot()
+        bbox_image = buffered_yolo_results[0].plot()
 
         self.annotated_image = self.annotate_image(
             image=bbox_image, tracked_objects=self.tracked_objects
         )
 
         return self.tracked_objects
+
+    def _get_buffer_bounding_box_total_image(
+        self, image: np.ndarray, buffer_percentage: float
+    ) -> Tuple[float, float]:
+        width_buffer = image.shape[1] * (buffer_percentage / 100.0)
+        height_buffer = image.shape[0] * (buffer_percentage / 100.0)
+
+        return width_buffer, height_buffer
+
+    def _get_buffer_bounding_box_box_size(
+        self, box_xyxy: np.ndarray, buffer_percentage: float
+    ) -> Tuple[float, float]:
+        box_left, box_top, box_right, box_bottom = box_xyxy
+        width_buffer = (box_right - box_left) * (buffer_percentage / 100.0)
+        height_buffer = (box_bottom - box_top) * (buffer_percentage / 100.0)
+
+        return width_buffer, height_buffer
 
     def _rescale_cropped_data(
         self,
@@ -165,5 +218,3 @@ class YOLOMediapipeComboTracker(BaseTracker):
 
 if __name__ == "__main__":
     YOLOMediapipeComboTracker().demo()
-    # image_path = Path("/Users/philipqueen/Downloads/DSC07372.jpg")
-    # YOLOMediapipeComboTracker().image_demo(image_path=image_path)

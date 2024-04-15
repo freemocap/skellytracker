@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Literal
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 
@@ -36,9 +36,9 @@ class MediapipeModelInfo(ModelInfo):
     )
     tracked_object_names = [
         "pose_landmarks",
-        "face_landmarks",
-        "left_hand_landmarks",
         "right_hand_landmarks",
+        "left_hand_landmarks",
+        "face_landmarks",
     ]
     virtual_markers_definitions = {
         "head_center": {
@@ -190,6 +190,13 @@ class MediapipeTrackingParams(BaseTrackingParams):
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = True
+    yolo_model_size: Literal[
+        "nano", "small", "medium", "large", "extra_large", "high_res"
+    ] = "nano"
+    bounding_box_buffer_percentage: float = 10
+    buffer_size_method: Literal["buffer_by_box_size", "buffer_by_image_size"] = (
+        "buffer_by_box_size"
+    )
 
 
 def mediapipe_body_names_match_expected(

@@ -158,6 +158,9 @@ cython_debug/
 # ML models
 *.pt
 
+# Data
+*.npy
+
 #image outputs
 *.jpg
 *.jpeg

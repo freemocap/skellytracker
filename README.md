@@ -1,20 +1,12 @@
-# skelly_tracker
+# skellytracker
 
-Currently, the bare bones of a tracking backend for freemocap.
+The tracking backend for freemocap. Collects different pose estimation tools and aggregates them using a consistent API. Can run pose estimation on images, webcams, and videos.
 
 ## Run skelly_tracker
 
-Currently, it is not pip installable. Download it by running `git clone https://github.com/freemocap/skelly_tracker`. 
+Installation: `pip install skellytracker`
+Then it can be run with `skellytracker`.
 
-Change directories to skelly_tracker with `cd skelly_tracker`, and install the requirements with `pip install .`.
+Running the basic `skellytracker` will open the first webcam port on your computer and run pose estimaiton in realtime with mediapipe holistic as a tracker. You can specify the tracker with `skellytracker TRACKER_NAME`, where `TRACKER_NAME` is the name of an available tracker. To view the names of all available trackers, see `RUN_ME.py`.
 
-Then it can be run with `skelly_tracker`.
-
-## Using skelly_tracker
-
-A GUI should pop up that looks like this: 
-
-<img width="591" alt="Image of skelly_tracker GUI" src="https://github.com/freemocap/skelly_tracker/assets/24758117/8767a7fb-2535-407c-99fb-40295ee5af93">
-
-
-Choose your image in the file dialog and click run to see the image annotated with the tracking information.
+It will take some time to initialize the tracker the first time you run it, as it will likely need to download the model.
