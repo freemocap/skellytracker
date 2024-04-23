@@ -37,6 +37,7 @@ file_name_dictionary = {
     "YOLOMediapipeComboTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "YOLOPoseTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "BrightestPointTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "OpenPoseTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
 
 }
 
