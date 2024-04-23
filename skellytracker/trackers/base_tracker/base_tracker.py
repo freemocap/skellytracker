@@ -25,8 +25,8 @@ class BaseTracker(ABC):
 
     def __init__(
         self,
-        tracked_object_names: List[str] = None,
-        recorder: BaseRecorder = None,
+        tracked_object_names: List[str] = [],
+        recorder: Optional[BaseRecorder] = None,
         **data: Any,
     ):
         self.recorder = recorder
@@ -74,7 +74,7 @@ class BaseTracker(ABC):
         :param output_video_filepath: Path to save annotated video to, does not save video if None.
         :param save_data_bool: Whether to save the data to a file.
         :param use_tqdm: Whether to use tqdm to show a progress bar
-        :return: Array of tracked keypoint data
+        :return: Array of tracked keypoint data if tracker has an associated recorder
         """
 
         cap = cv2.VideoCapture(str(input_video_filepath))
@@ -131,7 +131,7 @@ class BaseTracker(ABC):
             output_array = self.recorder.process_tracked_objects(image_size=image_size)
             if save_data_bool:
                 self.recorder.save(
-                    file_path=Path(input_video_filepath).with_suffix(".npy")
+                    file_path=str(Path(input_video_filepath).with_suffix(".npy"))
                 )
         else:
             output_array = None

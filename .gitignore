@@ -158,8 +158,12 @@ cython_debug/
 # ML models
 *.pt
 
+# Data
+*.npy
+
 #image outputs
 *.jpg
 *.jpeg
 
 skellytracker/utilities/quine_directory_printer/output/*
+recorded_objects.npy
