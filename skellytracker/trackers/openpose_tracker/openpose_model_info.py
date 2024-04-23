@@ -137,7 +137,7 @@ class OpenPoseModelInfo(ModelInfo):
     joint_hierarchy = {
         "hip_center": ["left_hip", "right_hip", "trunk_center"],
         "trunk_center": ["neck"],
-        "neck": ["left_shoulder, right_shoulder", "head_center"],
+        "neck": ["left_shoulder", "right_shoulder", "head_center"],
         "head_center": ["nose", "left_ear", "right_ear", "left_eye", "right_eye"],
         "left_shoulder": ["left_elbow"],
         "left_elbow": ["left_wrist"],
