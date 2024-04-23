@@ -40,7 +40,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
     def process_video(
         self,
         input_video_filepath: Union[str, Path],
-        output_video_folder: Union[str, Path],
+        output_video_filepath: Union[str, Path],
         save_data_bool: bool = False,
         use_tqdm: bool = True,
         **kwargs,
@@ -59,7 +59,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
             parents=True, exist_ok=True
         )  # Create the directory if it doesn't exist
 
-        video_save_path = Path(output_video_folder) / f"{video_name}_openpose.avi"
+        # video_save_path = Path(output_video_filepath) / f"{video_name}_openpose.avi"
 
         # Update the subprocess command to use the unique output directory
         # TODO: subprocess call should probably be in a try/except with some form of error handling
@@ -77,7 +77,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
                 "--number_people_max",
                 str(self.number_people_max),
                 "--write_video",
-                str(video_save_path),
+                str(output_video_filepath),
                 "--output_resolution",
                 "-1x-1",
             ],
@@ -97,8 +97,8 @@ if __name__ == "__main__":
         / "sesh_2022-09-19_16_16_50_in_class_jsm_synced_Cam1.mp4"
     )
 
-    output_video_folder = input_video_folder / "openpose_annotated_videos"
-    output_video_folder.mkdir(parents=True, exist_ok=True)
+    output_video_filepath = input_video_folder / "openpose_annotated_videos"
+    output_video_filepath.mkdir(parents=True, exist_ok=True)
 
     output_json_path = (
         input_video_folder / "output_data" / "raw_data" / "openpose_jsons"
@@ -113,4 +113,4 @@ if __name__ == "__main__":
         openpose_exe_path=str(openpose_exe_path),
         output_json_path=str(output_json_path),
     )
-    tracker.process_video(input_video_filepath, output_video_folder)
+    tracker.process_video(input_video_filepath, output_video_filepath)

@@ -37,8 +37,7 @@ file_name_dictionary = {
     "YOLOMediapipeComboTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "YOLOPoseTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "BrightestPointTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "OpenPoseTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-
+    "OpenPoseTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy"
 }
 
 
@@ -123,9 +122,14 @@ def process_single_video(
     :param annotated_video_path: Path to save annotated video to.
     :return: Array of tracking data
     """
-    video_name = (
-        video_path.stem + "_annotated.mp4"
-    )  # TODO: fix it so blender output doesn't require mediapipe addendum here
+    if tracker_name == "OpenPoseTracker":
+        video_name = (
+            video_path.stem + "_annotated.avi"
+        )
+    else:
+        video_name = (
+            video_path.stem + "_annotated.mp4"
+        )  # TODO: fix it so blender output doesn't require mediapipe addendum here
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
     logger.info(
         f"Processing video: {video_name} with tracker: {tracker.__class__.__name__}"
@@ -136,9 +140,9 @@ def process_single_video(
         save_data_bool=False,
     )
 
-    if output_array is None:
-        raise ValueError("Output array is None, verify that the tracker has an associated recorder")
-
+    # if output_array is None:
+    #     raise ValueError("Output array is None, verify that the tracker has an associated recorder")
+        # TODO: This doesn't apply when we deal with OpenPose (where no array is returned because we save)
     return output_array
 
 
