@@ -11,7 +11,7 @@ try:
         MediapipeHolisticTracker,
     )
 except:
-    print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
+    print("\n\nTo use mediapipe_holistic_tracker, install skellytracker[mediapipe]\n\n")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 except:
