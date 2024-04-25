@@ -15,7 +15,7 @@ except:
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
 except:
-    print("To use yolo_tracker, install skellytracker[yolo]")
+    print("\n\nTo use yolo_tracker, install skellytracker[yolo]\n\n")
 
 
 if __name__ == "__main__":

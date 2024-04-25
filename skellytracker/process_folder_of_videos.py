@@ -17,7 +17,7 @@ try:
         YOLOMediapipeComboTracker,
     )
 except:
-    print("To use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]")
+    print("\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
