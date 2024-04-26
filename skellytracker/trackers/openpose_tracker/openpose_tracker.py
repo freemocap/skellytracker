@@ -84,6 +84,19 @@ class OpenPoseTracker(BaseCumulativeTracker):
             shell=True,  # TODO: This is generally frowned upon if there's not a reason for it, see `S602 subprocess call with shell=True identified, security issue.`
         )
 
+        if self.recorder is not None:
+            output_array = self.recorder.process_tracked_objects(output_json_path = unique_json_output_path)
+            if save_data_bool:
+                self.recorder.save(
+                    file_path=str(Path(input_video_filepath).with_suffix(".npy"))
+                )
+        else:
+            output_array = None
+
+        return output_array
+            
+
+
 
 if __name__ == "__main__":
     # Example usage
