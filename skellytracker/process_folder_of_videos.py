@@ -140,9 +140,11 @@ def process_single_video(
         save_data_bool=False,
     )
 
-    # if output_array is None:
-    #     raise ValueError("Output array is None, verify that the tracker has an associated recorder")
-        # TODO: This doesn't apply when we deal with OpenPose (where no array is returned because we save)
+    if output_array is None:
+        raise ValueError("Output array is None, verify that the tracker has an associated recorder")
+
+    print(f"Output array shape: {output_array.shape}")
+
     return output_array
 
 
