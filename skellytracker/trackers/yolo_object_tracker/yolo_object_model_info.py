@@ -14,3 +14,4 @@ class YOLOObjectTrackingParams(BaseTrackingParams):
     model_size: str = "medium"
     person_only: bool = True
     confidence_threshold: float = 0.5
+    use_gpu: bool = True

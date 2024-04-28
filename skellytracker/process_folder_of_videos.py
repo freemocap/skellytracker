@@ -1,16 +1,17 @@
 import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-import sys
-from typing import Optional
+from typing import Optional, Union
 import numpy as np
 from pydantic import BaseModel
 
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
+
 from skellytracker.utilities.get_video_paths import get_video_paths
 try:
     from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
@@ -139,12 +140,17 @@ def process_single_video(
     return output_array
 
 
-def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
+def get_tracker(
+    tracker_name: str,
+    tracking_params: Union[
+        BaseTrackingParams, MediapipeTrackingParams, YOLOTrackingParams
+    ],
+) -> BaseTracker:
     """
     Returns a tracker object based on the given tracker_type and tracking_params.
 
     :param tracker_type (str): The type of tracker to be created.
-    :param tracking_params (BaseModel): The tracking parameters to be used for creating the tracker.
+    :param tracking_params (Union[BaseTrackingParams, MediapipeTrackingParams, YOLOTrackingParams],): The tracking parameters to be used for creating the tracker.
     :return BaseTracker: The tracker object based on the given tracker_type and tracking_params.
     :raise ValueError: If an invalid tracker_type is provided.
     """
@@ -169,7 +175,7 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     elif tracker_name == "YOLOPoseTracker":
         tracker = YOLOPoseTracker(
-            model_size="medium",
+            model_size=tracking_params.model_size,
         )
 
     elif tracker_name == "BrightestPointTracker":

@@ -1,3 +1,4 @@
+from torch import cuda, backends, Tensor
 import numpy as np
 from typing import Dict
 from ultralytics import YOLO
@@ -9,15 +10,22 @@ from skellytracker.trackers.yolo_tracker.yolo_recorder import YOLORecorder
 
 
 class YOLOPoseTracker(BaseTracker):
-    def __init__(self, model_size: str = "nano"):
+    def __init__(self, model_size: str = "nano", use_gpu: bool = True):
         super().__init__(tracked_object_names=[], recorder=YOLORecorder())
 
         pytorch_model = YOLOModelInfo.model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
+        if cuda.is_available() and use_gpu:
+            self.device = "0"
+            cuda.set_device(int(self.device))
+        elif backends.mps.is_available() and use_gpu:
+            self.device = "mps"
+        else:
+            self.device = "cpu"
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # "max_det=1" argument to limit to single person tracking for now
-        results = self.model(image, max_det=1, verbose=False)
+        results = self.model(image, max_det=1, verbose=True, device=self.device)
 
         self.unpack_results(results)
 
@@ -29,7 +37,10 @@ class YOLOPoseTracker(BaseTracker):
         return results[-1].plot()
 
     def unpack_results(self, results):
-        tracked_person = np.asarray(results[-1].keypoints.xy)
+        if self.device == "mps":
+            tracked_person = np.asarray(Tensor.cpu(results[-1].keypoints.xy))
+        else:
+            tracked_person = np.asarray(results[-1].keypoints.xy)
         self.tracked_objects["tracked_person"] = TrackedObject(
             object_id="tracked_person"
         )
