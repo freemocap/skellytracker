@@ -11,17 +11,28 @@ from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackin
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
-from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
-    MediapipeHolisticTracker,
-)
-from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
-    YOLOMediapipeComboTracker,
-)
-from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
-from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-    MediapipeTrackingParams,
-)
+
+from skellytracker.utilities.get_video_paths import get_video_paths
+try:
+    from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+        YOLOMediapipeComboTracker,
+    )
+except:
+    print("\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n")
+try:
+    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
+except:
+    print("To use yolo_tracker, install skellytracker[yolo]")
+try:
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
+        MediapipeHolisticTracker,
+    )
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+        MediapipeTrackingParams,
+    )
+except:
+    print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
 logger = logging.getLogger(__name__)
 
@@ -53,10 +64,12 @@ def process_folder_of_videos(
     :param num_processes: Number of processes to use, 1 to disable multiprocessing.
     :return: Array of tracking data
     """
+    video_paths = get_video_paths(synchronized_video_path)
+
     if num_processes is None:
-        num_processes = min(
-            (cpu_count() - 1), len(list(synchronized_video_path.glob("*.mp4")))
-        )
+        num_processes = min((cpu_count() - 1), len(video_paths))
+    else:
+        num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
     file_name = file_name_dictionary[tracker_name]
     synchronized_video_path = Path(synchronized_video_path)
@@ -76,7 +89,7 @@ def process_folder_of_videos(
 
     tasks = [
         (tracker_name, tracking_params, video_path, annotated_video_path)
-        for video_path in synchronized_video_path.glob("*.mp4")
+        for video_path in video_paths
     ]
 
     if num_processes > 1:
@@ -151,10 +164,13 @@ def get_tracker(
 
     elif tracker_name == "YOLOMediapipeComboTracker":
         tracker = YOLOMediapipeComboTracker(
+            model_size=tracking_params.yolo_model_size,
             model_complexity=tracking_params.mediapipe_model_complexity,
             min_detection_confidence=tracking_params.min_detection_confidence,
             min_tracking_confidence=tracking_params.min_tracking_confidence,
             static_image_mode=True,  # yolo cropping must be run with static image mode due to changing size of bounding boxes
+            bounding_box_buffer_percentage=tracking_params.bounding_box_buffer_percentage,
+            buffer_size_method=tracking_params.buffer_size_method,
         )
 
     elif tracker_name == "YOLOPoseTracker":
@@ -170,6 +186,18 @@ def get_tracker(
 
     return tracker
 
+def get_tracker_params(tracker_name: str) -> BaseModel:
+    if tracker_name == "MediapipeHolisticTracker":
+        return MediapipeTrackingParams()
+    elif tracker_name == "YOLOMediapipeComboTracker":
+        return YOLOTrackingParams()
+    elif tracker_name == "YOLOPoseTracker":
+        return YOLOTrackingParams()
+    elif tracker_name == "BrightestPointTracker":
+        return BaseModel()
+    else:
+        raise ValueError("Invalid tracker type")
+
 
 if __name__ == "__main__":
     synchronized_video_path = Path(
@@ -180,7 +208,7 @@ if __name__ == "__main__":
 
     process_folder_of_videos(
         tracker_name=tracker_name,
-        tracking_params=MediapipeTrackingParams(),
+        tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
     )

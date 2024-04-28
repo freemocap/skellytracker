@@ -99,7 +99,7 @@ class BaseTracker(ABC):
         if use_tqdm:
             iterator = tqdm(
                 range(number_of_frames),
-                desc=f"processing video: {input_video_filepath.name}",
+                desc=f"processing video: {Path(input_video_filepath).name}",
                 total=number_of_frames,
                 colour="magenta",
                 unit="frames",

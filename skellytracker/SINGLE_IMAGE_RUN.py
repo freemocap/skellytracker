@@ -5,30 +5,30 @@ from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import 
     BrightestPointTracker,
 )
 from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
-    MediapipeHolisticTracker,
-)
-from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import (
-    YOLOObjectTracker,
-)
-from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+
+try:
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
+        MediapipeHolisticTracker,
+    )
+except:
+    print("\n\nTo use mediapipe_holistic_tracker, install skellytracker[mediapipe]\n\n")
+try:
+    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+except:
+    print("\n\nTo use yolo_tracker, install skellytracker[yolo]\n\n")
+
 
 if __name__ == "__main__":
-    demo_tracker = "yolo_tracker"
-    image_path = Path("bus.jpg")
+    demo_tracker = "brightest_point_tracker"
+    image_path = Path("/Path/To/Your/Image.jpg")
 
     if demo_tracker == "brightest_point_tracker":
         BrightestPointTracker().image_demo(image_path=image_path)
 
     elif demo_tracker == "charuco_tracker":
-        charuco_squares_x = 7
-        charuco_squares_y = 5
-        number_of_charuco_markers = charuco_squares_x - 1 * charuco_squares_y - 1
-        charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
         CharucoTracker(
-            tracked_object_names=charuco_ids,
-            squares_x=charuco_squares_x,
-            squares_y=charuco_squares_y,
+            squaresX=7,
+            squaresY=5,
             dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
         ).image_demo(image_path=image_path)
 
@@ -43,9 +43,3 @@ if __name__ == "__main__":
 
     elif demo_tracker == "yolo_tracker":
         YOLOPoseTracker(model_size="high_res").image_demo(image_path=image_path)
-
-    elif demo_tracker == "yolo_object_tracker":
-        YOLOObjectTracker(model_size="nano").image_demo(image_path=image_path)
-
-    else:
-        raise ValueError("Invalid tracker type")
