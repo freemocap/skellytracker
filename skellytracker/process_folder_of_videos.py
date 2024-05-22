@@ -27,10 +27,10 @@ logger = logging.getLogger(__name__)
 
 # TODO: figure out how we want to handle prefixes or suffixes here.
 file_name_dictionary = {
-    "MediapipeHolisticTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "YOLOMediapipeComboTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "YOLOPoseTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "BrightestPointTracker": "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "MediapipeHolisticTracker": "mediapipe2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "YOLOMediapipeComboTracker": "mediapipe2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "YOLOPoseTracker": "yolo2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "BrightestPointTracker": "brightest_point2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
 }
 
 
