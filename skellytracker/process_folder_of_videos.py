@@ -40,7 +40,7 @@ def process_folder_of_videos(
     synchronized_video_path: Path,
     output_folder_path: Optional[Path] = None,
     annotated_video_path: Optional[Path] = None,
-    num_processes: int = None,
+    num_processes: Optional[int] = None,
 ) -> np.ndarray:
     """
     Process a folder of synchronized videos with the given tracker.
