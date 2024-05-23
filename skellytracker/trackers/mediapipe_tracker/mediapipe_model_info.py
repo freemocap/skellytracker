@@ -10,6 +10,7 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 # https://imgur.com/a/aD74j
 # Winter, D.A. (2005) Biomechanics and Motor Control of Human Movement. 3rd Edition, John Wiley & Sons, Inc., Hoboken.
 class MediapipeModelInfo(ModelInfo):
+    model_name = "mediapipe"
     body_landmark_names = [
         landmark.name.lower() for landmark in mp_holistic.PoseLandmark
     ]
