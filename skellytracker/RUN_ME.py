@@ -50,6 +50,7 @@ def main(demo_tracker: str = "mediapipe_holistic_tracker"):
         SAMTracker().demo()
     elif demo_tracker == "yolo_object_tracker":
         YOLOObjectTracker(model_size="medium").demo()
-        
+
+
 if __name__ == "__main__":
     main(demo_tracker="mediapipe_holistic_tracker")

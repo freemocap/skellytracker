@@ -35,11 +35,12 @@ except:
 
 logger = logging.getLogger(__name__)
 
+# TODO: figure out how we want to handle prefixes or suffixes here.
 file_name_dictionary = {
     "MediapipeHolisticTracker": "mediapipe2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "YOLOMediapipeComboTracker": "mediapipe2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
     "YOLOPoseTracker": "yolo2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "BrightestPointTracker": "brightestPoint2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
+    "BrightestPointTracker": "brightest_point2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
 }
 
 
@@ -125,7 +126,7 @@ def process_single_video(
     :return: Array of tracking data
     """
     video_name = (
-        video_path.stem + "_mediapipe.mp4"
+        video_path.stem + "_annotated.mp4"
     )  # TODO: fix it so blender output doesn't require mediapipe addendum here
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
     logger.info(
@@ -136,6 +137,10 @@ def process_single_video(
         output_video_filepath=annotated_video_path / video_name,
         save_data_bool=False,
     )
+
+    if output_array is None:
+        raise ValueError("Output array is None, verify that the tracker has an associated recorder")
+
     return output_array
 
 
