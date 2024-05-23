@@ -2,6 +2,7 @@ from typing import Dict, List, Optional
 
 
 class ModelInfo(dict):
+    model_name: str
     landmark_names: List[str]
     num_tracked_points: int
     tracked_object_names: Optional[list] = None
