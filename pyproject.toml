@@ -67,7 +67,7 @@ dynamic = ["version", "description"]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
 mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
-all = ["ultralytics~=8.0.202", "mediapipe==0.10.9"]
+all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
