@@ -12,7 +12,7 @@ class YOLOModelInfo(ModelInfo):
         "large": "yolov8l-pose.pt",
         "extra_large": "yolov8x-pose.pt",
         "high_res": "yolov8x-pose-p6.pt",
-    }
+    } # TODO: rename to tracker_dictionary to avoid pydantic 2 conflict?
     landmark_names = [
         "nose",
         "left_eye",
@@ -143,4 +143,4 @@ class YOLOModelInfo(ModelInfo):
 
 
 class YOLOTrackingParams(BaseTrackingParams):
-    model_size: str = "medium"
+    model_size: str = "medium" # TODO: rename to tracker_model_size to avoid pydantic 2 conflict?
