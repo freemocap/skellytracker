@@ -42,7 +42,7 @@ logger = logging.getLogger(__name__)
 
 
 def process_folder_of_videos(
-    tracker_name: str,
+    model_info: ModelInfo,
     tracking_params: BaseModel,
     synchronized_video_path: Path,
     output_folder_path: Optional[Path] = None,
@@ -53,7 +53,7 @@ def process_folder_of_videos(
     Process a folder of synchronized videos with the given tracker.
     Tracked data will be saved to a .npy file with the shape (numCams, numFrames, numTrackedPoints, pixelXYZ).
 
-    :param tracker_name: Name of tracker to use.
+    :param model_info: Model info for tracker.
     :param tracking_params: Tracking parameters to use.
     :param synchronized_video_path: Path to folder of synchronized videos.
     :param output_folder_path: Path to save tracked data to.
@@ -68,7 +68,7 @@ def process_folder_of_videos(
     else:
         num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
-    file_name = tracker_name + "_" + BASE_2D_FILE_NAME
+    file_name = model_info.name + "_" + BASE_2D_FILE_NAME
     synchronized_video_path = Path(synchronized_video_path)
     if output_folder_path is None:
         output_folder_path = (
@@ -85,7 +85,7 @@ def process_folder_of_videos(
         annotated_video_path.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        (tracker_name, tracking_params, video_path, annotated_video_path)
+        (model_info.tracker_name, tracking_params, video_path, annotated_video_path)
         for video_path in video_paths
     ]
 
