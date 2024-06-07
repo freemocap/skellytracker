@@ -30,7 +30,7 @@ class YOLOObjectTracker(BaseTracker):
             self.classes = None
 
     def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
-        results = self.model(image, classes=self.classes, max_det=1, verbose=False, conf=self.confidence_threshold)
+        results = self.model(image, classes=self.classes, device="cpu", max_det=1, verbose=False, conf=self.confidence_threshold)
 
         box_xyxy = np.asarray(results[0].boxes.xyxy.cpu()).flatten()  # if on GPU, need to copy to CPU before np array conversion
 
