@@ -2,36 +2,43 @@ import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 import sys
-from typing import Any, Optional, Type
+from typing import Optional
 import numpy as np
 from pydantic import BaseModel
 
 
+from skellytracker.system.constants import BASE_2D_FILE_NAME
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.model_info import ModelInfo
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
-from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
-    MediapipeHolisticTracker,
-)
-from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
-    YOLOMediapipeComboTracker,
-)
-from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-    MediapipeTrackingParams,
-)
 from skellytracker.utilities.get_video_paths import get_video_paths
 
-logger = logging.getLogger(__name__)
+try:
+    from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+        YOLOMediapipeComboTracker,
+    )
+except:
+    print(
+        "\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n"
+    )
+try:
+    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
+except:
+    print("To use yolo_tracker, install skellytracker[yolo]")
+try:
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
+        MediapipeHolisticTracker,
+    )
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+        MediapipeTrackingParams,
+    )
+except:
+    print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
-# TODO: figure out how we want to handle prefixes or suffixes here.
-file_name_dictionary = {
-    "MediapipeHolisticTracker": "mediapipe_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "YOLOMediapipeComboTracker": "mediapipe_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "YOLOPoseTracker": "yolo_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-    "BrightestPointTracker": "brightest_point_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy",
-}
+logger = logging.getLogger(__name__)
 
 
 def process_folder_of_videos(
@@ -46,7 +53,7 @@ def process_folder_of_videos(
     Process a folder of synchronized videos with the given tracker.
     Tracked data will be saved to a .npy file with the shape (numCams, numFrames, numTrackedPoints, pixelXYZ).
 
-    :param tracker_name: Tracker to use.
+    :param tracker_name: Name of tracker to use.
     :param tracking_params: Tracking parameters to use.
     :param synchronized_video_path: Path to folder of synchronized videos.
     :param output_folder_path: Path to save tracked data to.
@@ -61,7 +68,7 @@ def process_folder_of_videos(
     else:
         num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
-    file_name = file_name_dictionary[tracker_name]
+    file_name = tracker_name + "_" + BASE_2D_FILE_NAME
     synchronized_video_path = Path(synchronized_video_path)
     if output_folder_path is None:
         output_folder_path = (
@@ -116,7 +123,7 @@ def process_single_video(
     :return: Array of tracking data
     """
     video_name = (
-        video_path.stem + "_annotated.mp4"
+        video_path.stem + "_mediapipe.mp4"
     )  # TODO: fix it so blender output doesn't require mediapipe addendum here
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
     logger.info(
@@ -127,10 +134,6 @@ def process_single_video(
         output_video_filepath=annotated_video_path / video_name,
         save_data_bool=False,
     )
-
-    if output_array is None:
-        raise ValueError("Output array is None, verify that the tracker has an associated recorder")
-
     return output_array
 
 
@@ -176,6 +179,19 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     return tracker
 
 
+def get_tracker_params(tracker_name: str) -> BaseModel:
+    if tracker_name == "MediapipeHolisticTracker":
+        return MediapipeTrackingParams()
+    elif tracker_name == "YOLOMediapipeComboTracker":
+        return YOLOTrackingParams()
+    elif tracker_name == "YOLOPoseTracker":
+        return YOLOTrackingParams()
+    elif tracker_name == "BrightestPointTracker":
+        return BaseModel()
+    else:
+        raise ValueError("Invalid tracker type")
+
+
 if __name__ == "__main__":
     synchronized_video_path = Path(
         "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
@@ -185,7 +201,7 @@ if __name__ == "__main__":
 
     process_folder_of_videos(
         tracker_name=tracker_name,
-        tracking_params=MediapipeTrackingParams(),
+        tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
     )

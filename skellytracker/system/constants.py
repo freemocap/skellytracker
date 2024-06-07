@@ -1,0 +1,1 @@
+BASE_2D_FILE_NAME = "2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy"

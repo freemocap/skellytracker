@@ -3,7 +3,8 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 
 class YOLOModelInfo(ModelInfo):
-    model_name = "yolo"
+    name = "yolo"
+    tracker_name = "YOLOPoseTracker"
     num_tracked_points = 17
     model_dictionary = {
         "nano": "yolov8n-pose.pt",

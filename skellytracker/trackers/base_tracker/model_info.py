@@ -2,7 +2,8 @@ from typing import Dict, List, Optional
 
 
 class ModelInfo(dict):
-    model_name: str # TODO: rename to tracker_name to avoid pydantic 2 conflict?
+    name: str
+    tracker_name: str
     landmark_names: List[str]
     num_tracked_points: int
     tracked_object_names: Optional[list] = None
