@@ -50,7 +50,6 @@ class BrightestPointTracker(BaseTracker):
         # Process each bright patch separately
         patch_list = []
         for patch in bright_patches:
-            # Calculate the centroid of the bright patch
             patch_moments = cv2.moments(patch)
             if patch_moments["m00"] != 0:  # Avoid division by zero
                 centroid_x = int(patch_moments["m10"] / patch_moments["m00"])
@@ -64,26 +63,18 @@ class BrightestPointTracker(BaseTracker):
                     )
                 )
 
-        patch_list.sort(key=lambda patch: patch.area)
+        largest_patches = sorted(patch_list, key=lambda patch: patch.area, reverse=True)[:self.num_points]
 
-        patch_list = patch_list[-self.num_points :]
-
-        i = 0
-        while len(patch_list) > 0:
-            largest_patch = patch_list.pop()
+        for i, patch in enumerate(largest_patches):
             self.tracked_objects[f"brightest_point_{i}"].pixel_x = (
-                largest_patch.centroid_x
+                patch.centroid_x
             )
             self.tracked_objects[f"brightest_point_{i}"].pixel_y = (
-                largest_patch.centroid_y
+                patch.centroid_y
             )
             self.tracked_objects[f"brightest_point_{i}"].extra[
                 "thresholded_image"
             ] = thresholded_image
-
-            i += 1
-
-        self.raw_image = image.copy()
 
         self.annotated_image = self.annotate_image(
             image=image, tracked_objects=self.tracked_objects
@@ -94,24 +85,18 @@ class BrightestPointTracker(BaseTracker):
     def annotate_image(
         self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs
     ) -> np.ndarray:
-        # Copy the original image for annotation
         annotated_image = image.copy()
 
-        # Draw a red 'X' over the largest bright patch
-        for key, tracked_object in self.tracked_objects.items():
-            if "brightest_point" in key:
-                if (
-                    tracked_object.pixel_x is not None
-                    and tracked_object.pixel_y is not None
-                ):
-                    cv2.drawMarker(
-                        img=annotated_image,
-                        position=(tracked_object.pixel_x, tracked_object.pixel_y),
-                        color=(0, 0, 255),
-                        markerType=cv2.MARKER_CROSS,
-                        markerSize=20,
-                        thickness=2,
-                    )
+        for key, tracked_object in tracked_objects.items():
+            if "brightest_point" in key and tracked_object.pixel_x is not None and tracked_object.pixel_y is not None:
+                cv2.drawMarker(
+                    img=annotated_image,
+                    position=(tracked_object.pixel_x, tracked_object.pixel_y),
+                    color=(0, 0, 255),
+                    markerType=cv2.MARKER_CROSS,
+                    markerSize=20,
+                    thickness=2,
+                )
 
         return annotated_image
 
