@@ -9,7 +9,7 @@ from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 class BrightestPointRecorder(BaseRecorder):
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
         for tracked_object in tracked_objects.values():
-            if tracked_object.object_id == "brightest_point":
+            if "brightest_point" in tracked_object.object_id:
                 self.recorded_objects.append(deepcopy(tracked_object))
 
     def process_tracked_objects(self, **kwargs) -> np.ndarray:
