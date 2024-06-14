@@ -1,5 +1,4 @@
 import math
-import cv2
 import pytest
 import numpy as np
 
@@ -54,7 +53,7 @@ def test_process_image(test_image):
 @pytest.mark.usefixtures("test_image")
 def test_annotate_image(test_image):
     tracker = YOLOPoseTracker(model_size="nano")
-    tracked_objects = tracker.process_image(test_image)
+    tracker.process_image(test_image)
 
     assert tracker.annotated_image is not None
 

@@ -21,7 +21,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
     def process_tracked_objects(self, **kwargs) -> np.ndarray:
         image_size = kwargs.get("image_size")
         if image_size is None:
-            raise ValueError("image_size must be provided to process tracked objects")
+            raise ValueError(f"image_size must be provided to process tracked objects from {__class__.__name__}")
         self.recorded_objects_array = np.zeros(
             (
                 len(self.recorded_objects),

@@ -66,29 +66,30 @@ class MediapipeHolisticTracker(BaseTracker):
     def annotate_image(
         self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs
     ) -> np.ndarray:
+        annotated_image = image.copy()
         # Draw the pose, face, and hand landmarks on the image
         self.mp_drawing.draw_landmarks(
-            image,
+            annotated_image,
             tracked_objects["pose_landmarks"].extra["landmarks"],
             self.mp_holistic.POSE_CONNECTIONS,
         )
         self.mp_drawing.draw_landmarks(
-            image,
+            annotated_image,
             tracked_objects["face_landmarks"].extra["landmarks"],
             self.mp_holistic.FACEMESH_TESSELATION,
         )
         self.mp_drawing.draw_landmarks(
-            image,
+            annotated_image,
             tracked_objects["left_hand_landmarks"].extra["landmarks"],
             self.mp_holistic.HAND_CONNECTIONS,
         )
         self.mp_drawing.draw_landmarks(
-            image,
+            annotated_image,
             tracked_objects["right_hand_landmarks"].extra["landmarks"],
             self.mp_holistic.HAND_CONNECTIONS,
         )
 
-        return image
+        return annotated_image
 
 
 if __name__ == "__main__":
