@@ -57,8 +57,6 @@ class MediapipeHolisticTracker(BaseTracker):
             "landmarks"
         ] = results.right_hand_landmarks
 
-        self.raw_image = image.copy()
-
         self.annotated_image = self.annotate_image(
             image=image, tracked_objects=self.tracked_objects
         )

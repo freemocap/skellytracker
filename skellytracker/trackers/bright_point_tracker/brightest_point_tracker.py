@@ -53,8 +53,6 @@ class BrightestPointTracker(BaseTracker):
             self.tracked_objects["brightest_point"].pixel_y = largest_patch_centroid[1]
             self.tracked_objects["brightest_point"].extra["thresholded_image"] = thresholded_image
 
-        self.raw_image = image.copy()
-
         self.annotated_image = self.annotate_image(image=image,
                                                    tracked_objects=self.tracked_objects)
 
