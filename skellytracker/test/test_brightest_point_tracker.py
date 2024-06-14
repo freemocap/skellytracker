@@ -16,7 +16,15 @@ def sample_image():
     cv2.circle(image, (70, 70), 15, (255, 255, 255), -1)  # Brighter spot
     return image
 
-def test_process_image(sample_image):
+def test_process_image_with_one_brightest_point(sample_image):
+    tracker = BrightestPointTracker(num_points=1, luminance_threshold=200)
+    tracked_objects = tracker.process_image(sample_image)
+    
+    assert len(tracked_objects) == 1
+    assert tracked_objects["brightest_point_0"].pixel_x == 70
+    assert tracked_objects["brightest_point_0"].pixel_y == 70
+
+def test_process_image_with_two_brightest_points(sample_image):
     tracker = BrightestPointTracker(num_points=2, luminance_threshold=200)
     tracked_objects = tracker.process_image(sample_image)
     
@@ -25,6 +33,22 @@ def test_process_image(sample_image):
     assert tracked_objects["brightest_point_0"].pixel_y == 70
     assert tracked_objects["brightest_point_1"].pixel_x == 30
     assert tracked_objects["brightest_point_1"].pixel_y == 30
+
+def test_process_image_with_five_brightest_points(sample_image):
+    tracker = BrightestPointTracker(num_points=5, luminance_threshold=200)
+    tracked_objects = tracker.process_image(sample_image)
+    
+    assert len(tracked_objects) == 5
+    assert tracked_objects["brightest_point_0"].pixel_x == 70
+    assert tracked_objects["brightest_point_0"].pixel_y == 70
+    assert tracked_objects["brightest_point_1"].pixel_x == 30
+    assert tracked_objects["brightest_point_1"].pixel_y == 30
+    assert tracked_objects["brightest_point_2"].pixel_x is None
+    assert tracked_objects["brightest_point_2"].pixel_y is None
+    assert tracked_objects["brightest_point_3"].pixel_x is None
+    assert tracked_objects["brightest_point_3"].pixel_y is None
+    assert tracked_objects["brightest_point_4"].pixel_x is None
+    assert tracked_objects["brightest_point_4"].pixel_y is None
 
 def test_annotate_image(sample_image):
     tracker = BrightestPointTracker(num_points=2, luminance_threshold=200)

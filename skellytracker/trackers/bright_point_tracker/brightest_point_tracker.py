@@ -27,7 +27,8 @@ class BrightPatch(BaseModel):
 class BrightestPointTracker(BaseTracker):
     def __init__(self, num_points: int = 1, luminance_threshold: int = 200):
         super().__init__(
-            tracked_object_names=[f"brightest_point_{i}" for i in range(num_points)], recorder=BrightestPointRecorder()
+            tracked_object_names=[f"brightest_point_{i}" for i in range(num_points)],
+            recorder=BrightestPointRecorder(),
         )
 
         self.num_points = num_points
@@ -63,18 +64,18 @@ class BrightestPointTracker(BaseTracker):
                     )
                 )
 
-        largest_patches = sorted(patch_list, key=lambda patch: patch.area, reverse=True)[:self.num_points]
+        largest_patches = sorted(
+            patch_list, key=lambda patch: patch.area, reverse=True
+        )[: self.num_points]
 
         for i, patch in enumerate(largest_patches):
-            self.tracked_objects[f"brightest_point_{i}"].pixel_x = (
-                patch.centroid_x
-            )
-            self.tracked_objects[f"brightest_point_{i}"].pixel_y = (
-                patch.centroid_y
-            )
-            self.tracked_objects[f"brightest_point_{i}"].extra[
-                "thresholded_image"
-            ] = thresholded_image
+            self.tracked_objects[f"brightest_point_{i}"].pixel_x = patch.centroid_x
+            self.tracked_objects[f"brightest_point_{i}"].pixel_y = patch.centroid_y
+            self.tracked_objects[f"brightest_point_{i}"].extra["thresholdedimage"] = thresholded_image
+
+        for i in range(len(largest_patches), self.num_points):
+            self.tracked_objects[f"brightest_point_{i}"].pixel_x = None # TODO: Is this the right value for missing data?
+            self.tracked_objects[f"brightest_point_{i}"].pixel_y = None
 
         self.annotated_image = self.annotate_image(
             image=image, tracked_objects=self.tracked_objects
@@ -88,7 +89,11 @@ class BrightestPointTracker(BaseTracker):
         annotated_image = image.copy()
 
         for key, tracked_object in tracked_objects.items():
-            if "brightest_point" in key and tracked_object.pixel_x is not None and tracked_object.pixel_y is not None:
+            if (
+                "brightest_point" in key
+                and tracked_object.pixel_x is not None
+                and tracked_object.pixel_y is not None
+            ):
                 cv2.drawMarker(
                     img=annotated_image,
                     position=(tracked_object.pixel_x, tracked_object.pixel_y),
