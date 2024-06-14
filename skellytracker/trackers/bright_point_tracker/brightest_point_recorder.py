@@ -8,15 +8,22 @@ from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 class BrightestPointRecorder(BaseRecorder):
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
-        for tracked_object in tracked_objects.values():
-            if "brightest_point" in tracked_object.object_id:
-                self.recorded_objects.append(deepcopy(tracked_object))
+        self.recorded_objects.append(
+            [
+                (tracked_object.pixel_x, tracked_object.pixel_y)
+                for tracked_object in tracked_objects.values()
+                if "brightest_point" in tracked_object.object_id
+            ]
+        )
 
     def process_tracked_objects(self, **kwargs) -> np.ndarray:
-        self.recorded_objects_array = np.zeros((len(self.recorded_objects), 1, 3))
+        num_frames = len(self.recorded_objects)
+        num_points = len(self.recorded_objects[0]) if num_frames > 0 else 0
+
+        self.recorded_objects_array = np.zeros((num_frames, num_points, 2))
         for i, recorded_object in enumerate(self.recorded_objects):
-            self.recorded_objects_array[i, 0, 0] = recorded_object.pixel_x
-            self.recorded_objects_array[i, 0, 1] = recorded_object.pixel_y
-            self.recorded_objects_array[i, 0, 2] = recorded_object.depth_z
+            for j, (pixel_x, pixel_y) in enumerate(recorded_object):
+                self.recorded_objects_array[i, j, 0] = pixel_x
+                self.recorded_objects_array[i, j, 1] = pixel_y
 
         return self.recorded_objects_array
