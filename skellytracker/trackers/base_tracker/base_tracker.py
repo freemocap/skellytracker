@@ -65,7 +65,7 @@ class BaseTracker(ABC):
         output_video_filepath: Optional[Union[str, Path]] = None,
         save_data_bool: bool = False,
         use_tqdm: bool = True,
-    ) -> np.ndarray:
+    ) -> Optional[np.ndarray]:
         """
         Run the tracker on a video.
 
@@ -73,7 +73,7 @@ class BaseTracker(ABC):
         :param output_video_filepath: Path to save annotated video to, does not save video if None.
         :param save_data_bool: Whether to save the data to a file.
         :param use_tqdm: Whether to use tqdm to show a progress bar
-        :return: Array of tracked keypoint data
+        :return: Array of tracked keypoint data, if save_data_bool is True
         """
 
         cap = cv2.VideoCapture(str(input_video_filepath))
@@ -130,7 +130,7 @@ class BaseTracker(ABC):
             output_array = self.recorder.process_tracked_objects(image_size=image_size)
             if save_data_bool:
                 self.recorder.save(
-                    file_path=Path(input_video_filepath).with_suffix(".npy")
+                    file_path=str(Path(input_video_filepath).with_suffix(".npy"))
                 )
         else:
             output_array = None
