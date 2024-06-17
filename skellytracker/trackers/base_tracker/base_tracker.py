@@ -25,8 +25,8 @@ class BaseTracker(ABC):
 
     def __init__(
         self,
-        tracked_object_names: List[str] = None,
-        recorder: BaseRecorder = None,
+        tracked_object_names: List[str] = [],
+        recorder: Optional[BaseRecorder] = None,
         **data: Any,
     ):
         self.recorder = recorder
@@ -118,6 +118,8 @@ class BaseTracker(ABC):
             if self.recorder is not None:
                 self.recorder.record(self.tracked_objects)
             if video_handler is not None:
+                if self.annotated_image is None:
+                    self.annotated_image = frame
                 video_handler.add_frame(self.annotated_image)
 
             ret, frame = cap.read()
