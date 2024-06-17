@@ -7,6 +7,7 @@ from skellytracker import __package_name__
 BASE_FOLDER_NAME = f"{__package_name__}_data"
 LOGS_INFO_AND_SETTINGS_FOLDER_NAME = "logs_info_and_settings"
 LOG_FILE_FOLDER_NAME = "logs"
+FIGSHARE_TEST_IMAGE_URL = "https://figshare.com/ndownloader/files/47043898"
 
 def get_base_folder_path():
     base_folder =  Path().home() / BASE_FOLDER_NAME
