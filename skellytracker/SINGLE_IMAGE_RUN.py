@@ -23,7 +23,7 @@ if __name__ == "__main__":
     image_path = Path("/Path/To/Your/Image.jpg")
 
     if demo_tracker == "brightest_point_tracker":
-        BrightestPointTracker().image_demo(image_path=image_path)
+        BrightestPointTracker(num_points=2).image_demo(image_path=image_path)
 
     elif demo_tracker == "charuco_tracker":
         CharucoTracker(

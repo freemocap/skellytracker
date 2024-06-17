@@ -26,7 +26,7 @@ except:
 def main(demo_tracker: str = "mediapipe_holistic_tracker"):
 
     if demo_tracker == "brightest_point_tracker":
-        BrightestPointTracker().demo()
+        BrightestPointTracker(num_points=2).demo()
 
     elif demo_tracker == "charuco_tracker":
         CharucoTracker(
