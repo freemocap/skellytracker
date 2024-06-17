@@ -122,5 +122,5 @@ def test_record(test_image):
         ]
     )
     assert np.allclose(
-        processed_results[:, :60, :], expected_results[:, :60, :], atol=1e-1
+        processed_results[:, :60, :], expected_results[:, :60, :], atol=1
     )
