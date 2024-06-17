@@ -44,8 +44,6 @@ class CharucoTracker(BaseTracker):
                     self.tracked_objects[object_id].pixel_x = corner[0][0]
                     self.tracked_objects[object_id].pixel_y = corner[0][1]
 
-        self.raw_image = image.copy()
-
         self.annotated_image = self.annotate_image(image=image,
                                                    tracked_objects=self.tracked_objects)
 

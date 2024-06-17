@@ -31,7 +31,6 @@ class BaseTracker(ABC):
     ):
         self.recorder = recorder
         self.annotated_image = None
-        self.raw_image = None
         self.tracked_objects: Dict[str, TrackedObject] = {}
 
         for name in tracked_object_names:
