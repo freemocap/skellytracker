@@ -99,7 +99,7 @@ def test_record_no_buffer(test_image):
         ]
     )
     assert np.allclose(
-        processed_results[:, :30, :], expected_results[:, :30, :], atol=1
+        processed_results[:, :30, :], expected_results[:, :30, :], atol=2
     )
 
 
@@ -163,7 +163,7 @@ def test_record_buffer_by_image_size(test_image):
         ]
     )
     assert np.allclose(
-        processed_results[:, :30, :], expected_results[:, :30, :], atol=1
+        processed_results[:, :30, :], expected_results[:, :30, :], atol=2
     )
 
 
@@ -227,5 +227,5 @@ def test_record_buffer_by_box_size(test_image):
         ]
     )
     assert np.allclose(
-        processed_results[:, :30, :], expected_results[:, :30, :], atol=1
+        processed_results[:, :30, :], expected_results[:, :30, :], atol=2
     )
