@@ -27,38 +27,31 @@ class CharucoTracker(BaseTracker):
             dictionary=dictionary,
         )
 
+        # Following most recent charuco detection documentation: https://docs.opencv.org/4.x/df/d4a/tutorial_charuco_detection.html
+        self.charuco_detector = cv2.aruco.CharucoDetector(self.board)
+
         self.dictionary = dictionary
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        # Detect Aruco markers
-        corners, ids, _ = cv2.aruco.detectMarkers(gray_image, self.dictionary)
+        charuco_corners, charuco_ids, _marker_corners, _marker_ids = self.charuco_detector.detectBoard(gray_image)
 
-        # If any markers were found
-        if len(corners) > 0:
-            # Refine the detected markers
-            ret, charuco_corners, charuco_ids = cv2.aruco.interpolateCornersCharuco(
-                corners, ids, gray_image, self.board
-            )
+        self.tracked_objects.clear()
 
-            # If any Charuco corners were found
-            if (
-                ret
-                and charuco_corners is not None
-                and charuco_ids is not None
-                and len(charuco_corners) > 3
-            ):
-                # Clear previous tracked objects
-                self.tracked_objects.clear()
-
-                # Create a TrackedObject for each corner
-                for i, corner in enumerate(charuco_corners):
-                    object_id = str(i)
-                    self.tracked_objects[object_id] = TrackedObject(object_id=object_id)
-                    self.tracked_objects[object_id].pixel_x = corner[0][0]
-                    self.tracked_objects[object_id].pixel_y = corner[0][1]
+        # If any Charuco corners were found
+        if (
+            charuco_corners is not None
+            and charuco_ids is not None
+            and len(charuco_corners) > 3
+        ):
+            # Create a TrackedObject for each corner
+            for id, corner in zip(charuco_ids, charuco_corners):
+                object_id = str(id).strip("[]")
+                self.tracked_objects[object_id] = TrackedObject(object_id=object_id)
+                self.tracked_objects[object_id].pixel_x = corner[0][0]
+                self.tracked_objects[object_id].pixel_y = corner[0][1]
 
         self.annotated_image = self.annotate_image(
             image=image, tracked_objects=self.tracked_objects
@@ -83,8 +76,17 @@ class CharucoTracker(BaseTracker):
                     (int(tracked_object.pixel_x), int(tracked_object.pixel_y)),
                     (0, 0, 255),
                     markerType=cv2.MARKER_CROSS,
-                    markerSize=20,
+                    markerSize=30,
                     thickness=2,
+                )
+                cv2.putText(
+                    annotated_image,
+                    tracked_object.object_id,
+                    (int(tracked_object.pixel_x), int(tracked_object.pixel_y)),
+                    cv2.FONT_HERSHEY_SIMPLEX,
+                    2,
+                    (255, 0, 0),
+                    2,
                 )
 
         return annotated_image
