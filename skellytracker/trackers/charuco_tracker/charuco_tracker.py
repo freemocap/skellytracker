@@ -5,6 +5,7 @@ import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
+from skellytracker.trackers.charuco_tracker.charuco_recorder import CharucoRecorder
 
 
 class CharucoTracker(BaseTracker):
@@ -19,7 +20,7 @@ class CharucoTracker(BaseTracker):
         square_length: float = 1,
         marker_length: float = 0.8,
     ):
-        super().__init__(recorder=None, tracked_object_names=tracked_object_names)
+        super().__init__(recorder=CharucoRecorder(), tracked_object_names=tracked_object_names)
         self.board = cv2.aruco.CharucoBoard(
             size=(squares_x, squares_y),
             squareLength=square_length,
@@ -30,6 +31,7 @@ class CharucoTracker(BaseTracker):
         # Following most recent charuco detection documentation: https://docs.opencv.org/4.x/df/d4a/tutorial_charuco_detection.html
         self.charuco_detector = cv2.aruco.CharucoDetector(self.board)
 
+        self.tracked_object_names = tracked_object_names
         self.dictionary = dictionary
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
@@ -38,7 +40,7 @@ class CharucoTracker(BaseTracker):
 
         charuco_corners, charuco_ids, _marker_corners, _marker_ids = self.charuco_detector.detectBoard(gray_image)
 
-        self.tracked_objects.clear()
+        self.reinitialize_tracked_objects()
 
         # If any Charuco corners were found
         if (
@@ -90,12 +92,21 @@ class CharucoTracker(BaseTracker):
                 )
 
         return annotated_image
+    
+    def reinitialize_tracked_objects(self) -> None:
+        """
+        Reinitialize tracked objects to clear previous frames data
+
+        Unlike self.tracked_objects.clear(), this will ensure every tracked object has a value for each frame, even if its empty
+        """
+        for name in self.tracked_object_names:
+            self.tracked_objects[name] = TrackedObject(object_id=name)
 
 
 if __name__ == "__main__":
     charuco_squares_x_in = 7
     charuco_squares_y_in = 5
-    number_of_charuco_markers = charuco_squares_x_in - 1 * charuco_squares_y_in - 1
+    number_of_charuco_markers = (charuco_squares_x_in - 1) * (charuco_squares_y_in - 1)
     charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     CharucoTracker(
