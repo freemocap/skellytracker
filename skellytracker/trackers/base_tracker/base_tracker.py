@@ -25,8 +25,8 @@ class BaseTracker(ABC):
 
     def __init__(
         self,
+        recorder: BaseRecorder,
         tracked_object_names: List[str] = [],
-        recorder: Optional[BaseRecorder] = None,
         **data: Any,
     ):
         self.recorder = recorder
