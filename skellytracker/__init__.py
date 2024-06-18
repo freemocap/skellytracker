@@ -27,10 +27,12 @@ from skellytracker.system.logging_configuration import configure_logging
 
 try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 except:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:

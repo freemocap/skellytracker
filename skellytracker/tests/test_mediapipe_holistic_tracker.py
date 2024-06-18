@@ -1,5 +1,3 @@
-import math
-import cv2
 import pytest
 import numpy as np
 

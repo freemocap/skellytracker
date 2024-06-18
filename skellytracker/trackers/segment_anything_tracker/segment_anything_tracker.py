@@ -6,8 +6,8 @@ from ultralytics import SAM
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
 class SAMTracker(BaseTracker):
-    def __init__(self, model_size: str="nano"):
-        super().__init__(tracked_object_names=["segmentation"])
+    def __init__(self):
+        super().__init__(recorder=None,tracked_object_names=["segmentation"])
 
         self.model = SAM('sam_b.pt')
 

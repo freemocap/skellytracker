@@ -7,7 +7,7 @@ from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
 class MMPoseTracker(BaseTracker):
     def __init__(self, config_file, checkpoint_file):
-        super().__init__(tracked_object_names=["human_pose"])
+        super().__init__(recorder=None, tracked_object_names=["human_pose"])
         self.model = init_pose_model(config_file, checkpoint_file, device='cuda:0')
 
     def process_image(self, image, **kwargs):
