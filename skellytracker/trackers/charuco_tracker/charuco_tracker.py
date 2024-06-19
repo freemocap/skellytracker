@@ -20,7 +20,9 @@ class CharucoTracker(BaseTracker):
         square_length: float = 1,
         marker_length: float = 0.8,
     ):
-        super().__init__(recorder=CharucoRecorder(), tracked_object_names=tracked_object_names)
+        super().__init__(
+            recorder=CharucoRecorder(), tracked_object_names=tracked_object_names
+        )
         self.board = cv2.aruco.CharucoBoard(
             size=(squares_x, squares_y),
             squareLength=square_length,
@@ -38,7 +40,9 @@ class CharucoTracker(BaseTracker):
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
-        charuco_corners, charuco_ids, _marker_corners, _marker_ids = self.charuco_detector.detectBoard(gray_image)
+        charuco_corners, charuco_ids, _marker_corners, _marker_ids = (
+            self.charuco_detector.detectBoard(gray_image)
+        )
 
         self.reinitialize_tracked_objects()
 
@@ -86,13 +90,13 @@ class CharucoTracker(BaseTracker):
                     tracked_object.object_id,
                     (int(tracked_object.pixel_x), int(tracked_object.pixel_y)),
                     cv2.FONT_HERSHEY_SIMPLEX,
-                    2,
+                    1,
                     (255, 0, 0),
                     2,
                 )
 
         return annotated_image
-    
+
     def reinitialize_tracked_objects(self) -> None:
         """
         Reinitialize tracked objects to clear previous frames data
