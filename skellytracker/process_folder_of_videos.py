@@ -1,13 +1,13 @@
 import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-import sys
 from typing import Optional
 import numpy as np
 from pydantic import BaseModel
 
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.bright_point_tracker.brightest_point_model_info import BrightestPointTrackingParams
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
@@ -173,7 +173,9 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
         )
 
     elif tracker_name == "BrightestPointTracker":
-        tracker = BrightestPointTracker()
+        tracker = BrightestPointTracker(
+            num_points=tracking_params.num_points
+        )
 
     else:
         raise ValueError("Invalid tracker type")
@@ -188,16 +190,18 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
     elif tracker_name == "YOLOPoseTracker":
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
-        return BaseModel()
+        return BrightestPointTrackingParams(
+            num_points=2
+        )
     else:
         raise ValueError("Invalid tracker type")
 
 
 if __name__ == "__main__":
     synchronized_video_path = Path(
-        "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+        "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos/"
     )
-    tracker_name = "YOLOMediapipeComboTracker"
+    tracker_name = "MediapipeHolisticTracker"
     num_processes = None
 
     process_folder_of_videos(
