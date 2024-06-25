@@ -96,7 +96,7 @@ class BrightestPointTracker(BaseTracker):
             ):
                 cv2.drawMarker(
                     img=annotated_image,
-                    position=(tracked_object.pixel_x, tracked_object.pixel_y),
+                    position=(int(tracked_object.pixel_x), int(tracked_object.pixel_y)),
                     color=(0, 0, 255),
                     markerType=cv2.MARKER_CROSS,
                     markerSize=20,
