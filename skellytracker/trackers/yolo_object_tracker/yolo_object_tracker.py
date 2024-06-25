@@ -24,21 +24,23 @@ class YOLOObjectTracker(BaseTracker):
         pytorch_model = yolo_object_model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
         self.confidence_threshold = confidence_threshold
+        # TODO: When we expose this in freemocap, replace this with an int/list[int] to decide which class to track
+        # TODO: Will also need to parameterize the "max_det" and setup tracker to take multiple tracked objects
         if person_only:
             self.classes = 0  # 0 is the YOLO class for person detection
         else:
-            self.classes = None
+            self.classes = None  # None includes all classes
 
     def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
         results = self.model(image, classes=self.classes, max_det=1, verbose=False, conf=self.confidence_threshold)
 
-        box_xyxy = np.asarray(results[0].boxes.xyxy).flatten()
+        box_xyxy = np.asarray(results[0].boxes.xyxy.cpu()).flatten()  # On GPU, need to copy to CPU before np array conversion
 
         if box_xyxy.size > 0:
             self.tracked_objects["object"].pixel_x = (box_xyxy[0] + box_xyxy[2]) / 0.5
             self.tracked_objects["object"].pixel_y = (box_xyxy[1] + box_xyxy[3]) / 0.5
 
-        self.tracked_objects["object"].extra["boxes_xywy"] = box_xyxy
+        self.tracked_objects["object"].extra["boxes_xyxy"] = box_xyxy
         self.tracked_objects["object"].extra["original_image_shape"] = results[
             0
         ].boxes.orig_shape

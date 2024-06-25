@@ -16,7 +16,7 @@ class CharucoTracker(BaseTracker):
                  squareLength: float = 1,
                  markerLength: float = .8,
                  ):
-        super().__init__(tracked_object_names=tracked_object_names)
+        super().__init__(recorder=None, tracked_object_names=tracked_object_names)
         self.board = cv2.aruco.CharucoBoard_create(squares_x, squares_y, squareLength, markerLength, dictionary)
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
@@ -43,8 +43,6 @@ class CharucoTracker(BaseTracker):
                     self.tracked_objects[object_id] = TrackedObject(object_id=object_id)
                     self.tracked_objects[object_id].pixel_x = corner[0][0]
                     self.tracked_objects[object_id].pixel_y = corner[0][1]
-
-        self.raw_image = image.copy()
 
         self.annotated_image = self.annotate_image(image=image,
                                                    tracked_objects=self.tracked_objects)

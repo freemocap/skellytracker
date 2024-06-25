@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 
@@ -20,7 +20,7 @@ class BaseRecorder(ABC):
 
     @abstractmethod
     def record(
-        self, tracked_objects: Dict[str, TrackedObject], annotated_image: np.ndarray
+        self, tracked_objects: Dict[str, TrackedObject], annotated_image: Optional[np.ndarray] = None
     ) -> None:
         """
         Record the tracked objects as they are created by the tracker.
@@ -53,6 +53,8 @@ class BaseRecorder(ABC):
         :return: None
         """
         if self.recorded_objects_array is None:
-            self.process_tracked_objects()
+            recorded_objects_array = self.process_tracked_objects()
+        else:
+            recorded_objects_array = self.recorded_objects_array
         logger.info(f"Saving recorded objects to {file_path}")
-        np.save(file_path, self.recorded_objects_array)
+        np.save(file_path, recorded_objects_array)

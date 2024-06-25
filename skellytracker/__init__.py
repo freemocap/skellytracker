@@ -1,7 +1,7 @@
 """Top-level package for skellytracker"""
 
 __package_name__ = "skellytracker"
-__version__ = "v2024.04.1014"
+__version__ = "v2024.06.1015"
 
 __author__ = """Skelly FreeMoCap"""
 __email__ = "info@freemocap.org"
@@ -20,15 +20,19 @@ base_package_path = Path(__file__).parent
 print(f"adding base_package_path: {base_package_path} : to sys.path")
 sys.path.insert(0, str(base_package_path))  # add parent directory to sys.path
 
+print(f"sys path: {sys.path}")
+
 from skellytracker.system.default_paths import get_log_file_path
 from skellytracker.system.logging_configuration import configure_logging
 
 try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import MediapipeHolisticTracker
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 except:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:
@@ -38,4 +42,4 @@ except:
 
 
 
-configure_logging(log_file_path=get_log_file_path())
+configure_logging(log_file_path=str(get_log_file_path()))
