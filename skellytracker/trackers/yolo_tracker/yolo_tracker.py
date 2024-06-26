@@ -49,9 +49,9 @@ class YOLOPoseTracker(BaseTracker):
                 object_id=f"tracked_person_{i}"
             )
             # add averages of all tracked points as pixel x and y
-            self.tracked_objects[f"tracked_person_{i}"].pixel_x = np.mean(tracked_person[:, 0])
-            self.tracked_objects[f"tracked_person_{i}"].pixel_y = np.mean(tracked_person[:, 1])
-            self.tracked_objects[f"tracked_person_{i}"].extra["landmarks"] = tracked_person
+            self.tracked_objects[f"tracked_person_{i}"].pixel_x = np.mean(tracked_person[i, :, 0])
+            self.tracked_objects[f"tracked_person_{i}"].pixel_y = np.mean(tracked_person[i, :, 1])
+            self.tracked_objects[f"tracked_person_{i}"].extra["landmarks"] = tracked_person[i, :, :]
 
         for i in range(tracked_person.shape[0], self.max_det):
             # reinitialize tracked objects that weren't filled

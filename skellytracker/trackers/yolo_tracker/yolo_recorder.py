@@ -28,8 +28,7 @@ class YOLORecorder(BaseRecorder):
 
         for i, recorded_object in enumerate(self.recorded_objects):
             for j, tracked_object in enumerate(recorded_object):
-                landmarks = tracked_object.extra["landmarks"][0, :, :]
-                self.recorded_objects_array[i, j, :, :] = landmarks
+                self.recorded_objects_array[i, j, :, :] = tracked_object.extra["landmarks"]
 
         self.recorded_objects_array = self.recorded_objects_array.reshape(
             num_frames, num_tracked_objects * num_points, 2
