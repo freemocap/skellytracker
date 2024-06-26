@@ -18,26 +18,20 @@ class YOLORecorder(BaseRecorder):
         )
 
     def process_tracked_objects(self, **kwargs) -> np.ndarray:
-        recorded_object_arrays = []
+        num_frames = len(self.recorded_objects)
+        num_tracked_objects = len(self.recorded_objects[0])
+        num_points = YOLOModelInfo.num_tracked_points
+
+        self.recorded_objects_array = np.zeros(
+            (num_frames, num_tracked_objects, num_points, 2)
+        )
+
         for i, recorded_object in enumerate(self.recorded_objects):
-            frame_data_arrays = []
-            for tracked_object in recorded_object:
-                tracked_object_data_array = np.zeros((len(self.recorded_objects), YOLOModelInfo.num_tracked_points, 2))
-                for j in range(YOLOModelInfo.num_tracked_points):
-                    tracked_object_data_array[i, j, 0] = tracked_object.extra[
-                        "landmarks"
-                    ][0, j, 0]
-                    tracked_object_data_array[i, j, 1] = tracked_object.extra[
-                        "landmarks"
-                    ][0, j, 1]
+            for j, tracked_object in enumerate(recorded_object):
+                landmarks = tracked_object.extra["landmarks"][0, :, :]
+                self.recorded_objects_array[i, j, :, :] = landmarks
 
-                frame_data_arrays.append(tracked_object_data_array)
-
-            recorded_object_data_array = np.concatenate(frame_data_arrays, axis=1)
-            print(f"shape of recorded_object_data_array: {recorded_object_data_array.shape}")
-
-            recorded_object_arrays.append(recorded_object_data_array)
-
-        self.recorded_objects_array = np.concatenate(recorded_object_arrays, axis=0)
-        print(f"shape of recorded_objects_array: {self.recorded_objects_array.shape}")
+        self.recorded_objects_array = self.recorded_objects_array.reshape(
+            num_frames, num_tracked_objects * num_points, 2
+        )
         return self.recorded_objects_array
