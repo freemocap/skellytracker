@@ -33,101 +33,52 @@ class MediapipeHolisticRecorder(BaseRecorder):
         )
 
         for i, recorded_object_list in enumerate(self.recorded_objects):
-            frame_data = {}
+            frame_data = {
+                name: np.full((self.num_tracked_points_by_name(name), 3), np.nan)
+                for name in MediapipeModelInfo.mediapipe_tracked_object_names
+            }
             for recorded_object in recorded_object_list:
-                if recorded_object.object_id == "pose_landmarks":
-                    num_tracked_points = MediapipeModelInfo.num_tracked_points_body
-                elif recorded_object.object_id == "face_landmarks":
-                    num_tracked_points = MediapipeModelInfo.num_tracked_points_face
-                elif recorded_object.object_id == "left_hand_landmarks":
-                    num_tracked_points = MediapipeModelInfo.num_tracked_points_left_hand
-                elif recorded_object.object_id == "right_hand_landmarks":
-                    num_tracked_points = (
-                        MediapipeModelInfo.num_tracked_points_right_hand
-                    )
-                else:
-                    raise ValueError(
-                        f"Invalid tracked object ID for mediapipe holistic tracker: {recorded_object.object_id}"
-                    )
-                tracked_object_array = np.zeros((num_tracked_points, 3))
                 if recorded_object.extra["landmarks"] is not None:
                     for j, landmark_data in enumerate(
                         recorded_object.extra["landmarks"].landmark
                     ):
-                        tracked_object_array[j, 0] = landmark_data.x * image_size[0]
-                        tracked_object_array[j, 1] = landmark_data.y * image_size[1]
-                        tracked_object_array[j, 2] = (
+                        frame_data[recorded_object.object_id][j, 0] = landmark_data.x * image_size[0]
+                        frame_data[recorded_object.object_id][j, 1] = landmark_data.y * image_size[1]
+                        frame_data[recorded_object.object_id][j, 2] = (
                             landmark_data.z * image_size[0]
                         )  # multiply depth by image width, per MediaPipe documentation
-                else:
-                    tracked_object_array[:] = np.nan
 
-                frame_data[recorded_object.object_id] = tracked_object_array
-                print(tracked_object_array.shape)
+            for name in MediapipeModelInfo.mediapipe_tracked_object_names:
+                if name not in frame_data:
+                    frame_data[name] = np.full(
+                        self.num_tracked_points_by_name(name), np.nan
+                    )
 
             self.recorded_objects_array[i] = np.concatenate(
                 # this order matters, do not change
                 (
                     frame_data["pose_landmarks"],
-                    frame_data["face_landmarks"],
-                    frame_data["left_hand_landmarks"],
                     frame_data["right_hand_landmarks"],
+                    frame_data["left_hand_landmarks"],
+                    frame_data["face_landmarks"],
                 ),
                 axis=0,
             )
 
         return self.recorded_objects_array
-        
-    # def process_tracked_objects(self, **kwargs) -> np.ndarray:
-    #     image_size = kwargs.get("image_size")
-    #     if image_size is None:
-    #         raise ValueError(f"image_size must be provided to process tracked objects from {__class__.__name__}")
-    #     self.recorded_objects_array = np.zeros(
-    #         (
-    #             len(self.recorded_objects),
-    #             MediapipeModelInfo.num_tracked_points_total,
-    #             3,
-    #         )
-    #     )
 
-    #     for i, recorded_object_list in enumerate(self.recorded_objects):
-    #         landmark_number = 0
-    #         for recorded_object in recorded_object_list:
-    #             if recorded_object.extra["landmarks"] is not None:
-    #                 for landmark_data in recorded_object.extra["landmarks"].landmark:
-    #                     self.recorded_objects_array[i, landmark_number, 0] = (
-    #                         landmark_data.x * image_size[0]
-    #                     )
-    #                     self.recorded_objects_array[i, landmark_number, 1] = (
-    #                         landmark_data.y * image_size[1]
-    #                     )
-    #                     self.recorded_objects_array[i, landmark_number, 2] = (
-    #                         landmark_data.z * image_size[0]
-    #                     )  # * image width per mediapipe docs
-    #                     landmark_number += 1
-    #             else:
-    #                 if recorded_object.object_id == "pose_landmarks":
-    #                     number = MediapipeModelInfo.num_tracked_points_body
-    #                 elif recorded_object.object_id == "face_landmarks":
-    #                     number = MediapipeModelInfo.num_tracked_points_face
-    #                 elif recorded_object.object_id == "left_hand_landmarks":
-    #                     number = MediapipeModelInfo.num_tracked_points_left_hand
-    #                 else:
-    #                     number = MediapipeModelInfo.num_tracked_points_right_hand
-    #                 for _ in range(number):
-    #                     self.recorded_objects_array[i, landmark_number, :] = np.NaN
-    #                     landmark_number += 1
+    def num_tracked_points_by_name(self, name: str) -> int:
+        if name == "pose_landmarks":
+            num_tracked_points = MediapipeModelInfo.num_tracked_points_body
+        elif name == "face_landmarks":
+            num_tracked_points = MediapipeModelInfo.num_tracked_points_face
+        elif name == "left_hand_landmarks":
+            num_tracked_points = MediapipeModelInfo.num_tracked_points_left_hand
+        elif name == "right_hand_landmarks":
+            num_tracked_points = MediapipeModelInfo.num_tracked_points_right_hand
+        else:
+            raise ValueError(
+                f"Invalid tracked object ID for mediapipe holistic tracker: {name}"
+            )
 
-    #     return self.recorded_objects_array
-    
-if __name__ == "__main__":
-    array_1 = np.zeros((4, 3))
-    array_2 = np.full((3, 3), np.nan)
-
-    output = np.concatenate((array_1, array_2), axis=0)
-
-    print(output)
-
-    print(output.shape)
-
-    print(output[5, :])
+        return num_tracked_points
