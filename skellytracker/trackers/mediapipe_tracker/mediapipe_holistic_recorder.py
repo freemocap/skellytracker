@@ -42,8 +42,12 @@ class MediapipeHolisticRecorder(BaseRecorder):
                     for j, landmark_data in enumerate(
                         recorded_object.extra["landmarks"].landmark
                     ):
-                        frame_data[recorded_object.object_id][j, 0] = landmark_data.x * image_size[0]
-                        frame_data[recorded_object.object_id][j, 1] = landmark_data.y * image_size[1]
+                        frame_data[recorded_object.object_id][j, 0] = (
+                            landmark_data.x * image_size[0]
+                        )
+                        frame_data[recorded_object.object_id][j, 1] = (
+                            landmark_data.y * image_size[1]
+                        )
                         frame_data[recorded_object.object_id][j, 2] = (
                             landmark_data.z * image_size[0]
                         )  # multiply depth by image width, per MediaPipe documentation

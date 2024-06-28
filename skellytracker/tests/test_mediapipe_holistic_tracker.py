@@ -133,12 +133,34 @@ def test_record_orders_correctly(test_image):
         image_size=test_image.shape[:2]
     )
     body_points = MediapipeModelInfo.num_tracked_points_body
-    body_and_face_points = body_points + MediapipeModelInfo.num_tracked_points_face
-    body_face_and_left_hand_points = (
-        body_and_face_points
+    body_and_right_hand_points = body_points + MediapipeModelInfo.num_tracked_points_right_hand
+    body_and_both_hand_points = (
+        body_and_right_hand_points
         + MediapipeModelInfo.num_tracked_points_left_hand
     )
     assert np.allclose(processed_results[0, 0, :], [724.9490356445312, 80.74257552623749, -993.9854431152344], atol=1), "Body points are not ordered correctly"
-    assert np.allclose(processed_results[0, body_points, :], [253.68976593017578, 234.29851055145264, 0.0001452891228836961], atol=1), "Face points are not ordered correctly"
-    assert np.allclose(processed_results[0, body_and_face_points, :], [722.2523498535156, 89.31869745254517, -16.427509784698486], atol=1), "Left hand points are not ordered correctly"
-    assert np.allclose(processed_results[0, body_face_and_left_hand_points, :], [696.8218994140625, 81.22638165950775, -25.49912452697754], atol=1), "Right hand points are not ordered correctly"
+    assert np.allclose(processed_results[0, body_points, :], [253.68976593017578, 234.29851055145264, 0.0001452891228836961], atol=1), "Right hand points are not ordered correctly"
+    assert np.allclose(processed_results[0, body_and_right_hand_points, :], [831.35, 290.14, 0.00027009], atol=1), "Left hand points are not ordered correctly"
+    assert np.allclose(processed_results[0, body_and_both_hand_points, :], [688.53, 86.099, -14.351], atol=1), "Face points are not ordered correctly"
+
+@pytest.mark.usefixtures("test_image")
+def test_record_missing_data(test_image):
+    tracker = MediapipeHolisticTracker(model_complexity=0)
+    tracked_objects = tracker.process_image(test_image)
+    for object in tracked_objects.values():
+        if object.object_id == "right_hand_landmarks":
+            object.extra["landmarks"] = None
+    tracker.recorder.record(tracked_objects=tracked_objects)
+
+    processed_results = tracker.recorder.process_tracked_objects(
+        image_size=test_image.shape[:2]
+    )
+
+    print(processed_results[:, :33, :].tolist())
+    print("\n\n\n")
+    print(processed_results[:, 33:75, :].tolist())
+
+    assert not np.all(np.isnan(processed_results[:, :33, :])), "Body points incorrectly converted to NaN"
+    assert np.all(np.isnan(processed_results[:, 33:54, :])), "Right hand points incorrectly converted to NaN"
+    assert not np.all(np.isnan(processed_results[:, 54:75, :])), "Left hand points incorrectly converted to NaN"
+    assert not np.all(np.isnan(processed_results[:, 75:, :])), "Face points incorrectly converted to NaN"
