@@ -6,6 +6,7 @@ from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
+    MediapipeTrackedObjectNames
 )
 
 
@@ -61,10 +62,10 @@ class MediapipeHolisticRecorder(BaseRecorder):
             self.recorded_objects_array[i] = np.concatenate(
                 # this order matters, do not change
                 (
-                    frame_data["pose_landmarks"],
-                    frame_data["right_hand_landmarks"],
-                    frame_data["left_hand_landmarks"],
-                    frame_data["face_landmarks"],
+                    frame_data[MediapipeTrackedObjectNames.pose],
+                    frame_data[MediapipeTrackedObjectNames.right_hand],
+                    frame_data[MediapipeTrackedObjectNames.left_hand],
+                    frame_data[MediapipeTrackedObjectNames.face],
                 ),
                 axis=0,
             )
@@ -72,14 +73,14 @@ class MediapipeHolisticRecorder(BaseRecorder):
         return self.recorded_objects_array
 
     def num_tracked_points_by_name(self, name: str) -> int:
-        if name == "pose_landmarks":
+        if name == MediapipeTrackedObjectNames.pose:
             num_tracked_points = MediapipeModelInfo.num_tracked_points_body
-        elif name == "face_landmarks":
-            num_tracked_points = MediapipeModelInfo.num_tracked_points_face
-        elif name == "left_hand_landmarks":
-            num_tracked_points = MediapipeModelInfo.num_tracked_points_left_hand
-        elif name == "right_hand_landmarks":
+        elif name == MediapipeTrackedObjectNames.right_hand:
             num_tracked_points = MediapipeModelInfo.num_tracked_points_right_hand
+        elif name == MediapipeTrackedObjectNames.left_hand:
+            num_tracked_points = MediapipeModelInfo.num_tracked_points_left_hand
+        elif name == MediapipeTrackedObjectNames.face:
+            num_tracked_points = MediapipeModelInfo.num_tracked_points_face
         else:
             raise ValueError(
                 f"Invalid tracked object ID for mediapipe holistic tracker: {name}"

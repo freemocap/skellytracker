@@ -10,6 +10,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_recorder import
 )
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
+    MediapipeTrackedObjectNames
 )
 
 
@@ -44,18 +45,19 @@ class MediapipeHolisticTracker(BaseTracker):
         results = self.holistic.process(rgb_image)
 
         # Update the tracking data
-        self.tracked_objects["pose_landmarks"].extra[
+        self.tracked_objects[MediapipeTrackedObjectNames.pose].extra[
             "landmarks"
         ] = results.pose_landmarks
-        self.tracked_objects["face_landmarks"].extra[
-            "landmarks"
-        ] = results.face_landmarks
-        self.tracked_objects["left_hand_landmarks"].extra[
-            "landmarks"
-        ] = results.left_hand_landmarks
-        self.tracked_objects["right_hand_landmarks"].extra[
+        self.tracked_objects[MediapipeTrackedObjectNames.right_hand].extra[
             "landmarks"
         ] = results.right_hand_landmarks
+        self.tracked_objects[MediapipeTrackedObjectNames.left_hand].extra[
+            "landmarks"
+        ] = results.left_hand_landmarks
+        self.tracked_objects[MediapipeTrackedObjectNames.face].extra[
+            "landmarks"
+        ] = results.face_landmarks
+
 
         self.annotated_image = self.annotate_image(
             image=image, tracked_objects=self.tracked_objects
@@ -70,23 +72,23 @@ class MediapipeHolisticTracker(BaseTracker):
         # Draw the pose, face, and hand landmarks on the image
         self.mp_drawing.draw_landmarks(
             annotated_image,
-            tracked_objects["pose_landmarks"].extra["landmarks"],
+            tracked_objects[MediapipeTrackedObjectNames.pose].extra["landmarks"],
             self.mp_holistic.POSE_CONNECTIONS,
         )
         self.mp_drawing.draw_landmarks(
             annotated_image,
-            tracked_objects["face_landmarks"].extra["landmarks"],
+            tracked_objects[MediapipeTrackedObjectNames.right_hand].extra["landmarks"],
+            self.mp_holistic.HAND_CONNECTIONS,
+        )
+        self.mp_drawing.draw_landmarks(
+            annotated_image,
+            tracked_objects[MediapipeTrackedObjectNames.left_hand].extra["landmarks"],
+            self.mp_holistic.HAND_CONNECTIONS,
+        )
+        self.mp_drawing.draw_landmarks(
+            annotated_image,
+            tracked_objects[MediapipeTrackedObjectNames.face].extra["landmarks"],
             self.mp_holistic.FACEMESH_TESSELATION,
-        )
-        self.mp_drawing.draw_landmarks(
-            annotated_image,
-            tracked_objects["left_hand_landmarks"].extra["landmarks"],
-            self.mp_holistic.HAND_CONNECTIONS,
-        )
-        self.mp_drawing.draw_landmarks(
-            annotated_image,
-            tracked_objects["right_hand_landmarks"].extra["landmarks"],
-            self.mp_holistic.HAND_CONNECTIONS,
         )
 
         return annotated_image

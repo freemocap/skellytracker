@@ -11,6 +11,12 @@ mediapipe_hand_landmark_names = [
     landmark.name.lower() for landmark in mp_holistic.HandLandmark
 ]
 
+class MediapipeTrackedObjectNames:
+    pose = "pose_landmarks"
+    right_hand = "right_hand_landmarks"
+    left_hand = "left_hand_landmarks"
+    face = "face_landmarks"
+
 
 class MediapipeModelInfo:
     num_tracked_points_body = len(mediapipe_body_landmark_names)
@@ -23,10 +29,10 @@ class MediapipeModelInfo:
         + FACEMESH_NUM_LANDMARKS_WITH_IRISES
     )
     mediapipe_tracked_object_names = [
-        "pose_landmarks",
-        "right_hand_landmarks",
-        "left_hand_landmarks",
-        "face_landmarks",
+        MediapipeTrackedObjectNames.pose,
+        MediapipeTrackedObjectNames.right_hand,
+        MediapipeTrackedObjectNames.left_hand,
+        MediapipeTrackedObjectNames.face,
     ]
 
 
