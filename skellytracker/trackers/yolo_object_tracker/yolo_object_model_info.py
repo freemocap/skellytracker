@@ -2,11 +2,11 @@ from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackin
 
 
 yolo_object_model_dictionary = {
-    "nano": "yolov8n.pt",
-    "small": "yolov8s.pt",
-    "medium": "yolov8m.pt",
-    "large": "yolov8l.pt",
-    "extra_large": "yolov8x.pt",
+    "nano": "yolov10n.pt",
+    "small": "yolov10s.pt",
+    "medium": "yolov10m.pt",
+    "large": "yolov10l.pt",
+    "extra_large": "yolov10x.pt",
 }
 
 
