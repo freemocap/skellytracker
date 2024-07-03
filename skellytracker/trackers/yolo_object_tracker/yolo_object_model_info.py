@@ -7,6 +7,11 @@ yolo_object_model_dictionary = {
     "medium": "yolov10m.pt",
     "large": "yolov10l.pt",
     "extra_large": "yolov10x.pt",
+    "tiny9": "yolov9t.pt",
+    "small9": "yolov9s.pt",
+    "medium9": "yolov9m.pt",
+    "complex9": "yolov9c.pt",  # not sure what c actually stands for
+    "extensive9": "yolov9e.pt",
     "nano8": "yolov8n.pt",
     "small8": "yolov8s.pt",
     "medium8": "yolov8m.pt",
