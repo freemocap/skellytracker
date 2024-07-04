@@ -65,7 +65,7 @@ requires-python = ">=3.9,<3.13"
 dynamic = ["version", "description"]
 
 [project.optional-dependencies]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
 all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
