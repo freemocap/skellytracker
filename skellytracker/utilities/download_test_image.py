@@ -10,6 +10,7 @@ from skellytracker.system.default_paths import FIGSHARE_TEST_IMAGE_URL
 
 logger = logging.getLogger(__name__)
 
+
 def download_test_image(test_image_url: str = FIGSHARE_TEST_IMAGE_URL) -> np.ndarray:
     try:
         logger.info(f"Downloading test image from {test_image_url}...")

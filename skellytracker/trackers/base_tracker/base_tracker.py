@@ -10,8 +10,8 @@ from tqdm import tqdm
 from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.base_tracker.video_handler import VideoHandler
-from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
-from skellytracker.trackers.webcam_demo_viewer.webcam_demo_viewer import (
+from skellytracker.trackers.demo_viewers.image_demo_viewer import ImageDemoViewer
+from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
 )
 

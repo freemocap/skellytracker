@@ -21,5 +21,6 @@ def cli_main():
         demo_tracker = "mediapipe_holistic_tracker"
     main(demo_tracker=demo_tracker)
 
+
 if __name__ == "__main__":
     cli_main()

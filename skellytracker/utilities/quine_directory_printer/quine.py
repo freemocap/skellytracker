@@ -34,12 +34,19 @@ class Quine:
         The source code is enclosed in ```python ``` code blocks.
     """
 
-    def __init__(self, base_directory: str, excluded_directories: List[str], included_extensions: List[str]):
+    def __init__(
+        self,
+        base_directory: str,
+        excluded_directories: List[str],
+        included_extensions: List[str],
+    ):
         self.base_directory = base_directory
         self.excluded_directories = excluded_directories
         self.included_extensions = included_extensions
 
-    def write_to_file(self, root_directory: str, file_name: str, output_file: object) -> None:
+    def write_to_file(
+        self, root_directory: str, file_name: str, output_file: object
+    ) -> None:
         """
         Writes the content of the file to the output markdown file.
 
@@ -69,15 +76,24 @@ class Quine:
         current_time = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         file_name = f"quine_{current_time}.md"
         output_dir = Path().cwd() / "output"  # Output directory
-        output_dir.mkdir(parents=True, exist_ok=True)  # Create the output directory if it doesn't exist
+        output_dir.mkdir(
+            parents=True, exist_ok=True
+        )  # Create the output directory if it doesn't exist
         file_path = output_dir / file_name  # Output file path
         with open(file_path, "w") as output_file:
             for root_directory, directories, files in os.walk(self.base_directory):
-                directories[:] = [directory for directory in directories if directory not in self.excluded_directories]
+                directories[:] = [
+                    directory
+                    for directory in directories
+                    if directory not in self.excluded_directories
+                ]
                 if root_directory != ".":
                     output_file.write(f"# {os.path.relpath(root_directory, '..')}\n\n")
                 for file_name in files:
-                    if any(file_name.endswith(extension) for extension in self.included_extensions):
+                    if any(
+                        file_name.endswith(extension)
+                        for extension in self.included_extensions
+                    ):
                         self.write_to_file(root_directory, file_name, output_file)
 
 
@@ -86,11 +102,14 @@ if __name__ == "__main__":
     base_directory_in = r"C:\Users\jonma\github_repos\freemocap_organization\skelly_tracker\skelly_tracker\trackers"
     quine = Quine(
         base_directory=base_directory_in,
-        excluded_directories=["__pycache__",
-                              ".git",
-                              "output",
-                              # "mediapipe_tracker",
-                              # "charuco_tracker",
-                              "mmpose_tracker"],
-        included_extensions=[".py"])
+        excluded_directories=[
+            "__pycache__",
+            ".git",
+            "output",
+            # "mediapipe_tracker",
+            # "charuco_tracker",
+            "mmpose_tracker",
+        ],
+        included_extensions=[".py"],
+    )
     quine.generate_quine()
