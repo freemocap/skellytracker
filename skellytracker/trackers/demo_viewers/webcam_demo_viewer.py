@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 import cv2
 
 logger = logging.getLogger(__name__)
@@ -18,7 +19,7 @@ class WebcamDemoViewer:
         self,
         tracker,
         recorder=None,
-        window_title: str = None,
+        window_title: Optional[str] = None,
         default_exposure: int = DEFAULT_EXPOSURE,
     ):
         """
