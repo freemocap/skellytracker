@@ -10,7 +10,7 @@ try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
         MediapipeHolisticTracker,
     )
-except:
+except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
@@ -20,7 +20,7 @@ try:
     from skellytracker.trackers.segment_anything_tracker.segment_anything_tracker import (
         SAMTracker,
     )
-except:
+except ModuleNotFoundError:
     print("To use yolo_tracker, install skellytracker[yolo]")
 
 
