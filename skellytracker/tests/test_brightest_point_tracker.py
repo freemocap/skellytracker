@@ -66,11 +66,16 @@ def test_annotate_image(sample_image):
     bright_point_0 = tracked_objects["brightest_point_0"]
     bright_point_1 = tracked_objects["brightest_point_1"]
 
+    assert bright_point_0.pixel_x is not None
+    assert bright_point_0.pixel_y is not None
+    assert bright_point_1.pixel_x is not None
+    assert bright_point_1.pixel_y is not None
+
     assert tracker.annotated_image[
-        bright_point_0.pixel_y, bright_point_0.pixel_x
+        int(bright_point_0.pixel_y), int(bright_point_0.pixel_x)
     ].tolist() == [0, 0, 255]
     assert tracker.annotated_image[
-        bright_point_1.pixel_y, bright_point_1.pixel_x
+        int(bright_point_1.pixel_y), int(bright_point_1.pixel_x)
     ].tolist() == [0, 0, 255]
 
 

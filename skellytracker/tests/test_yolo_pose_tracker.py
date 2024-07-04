@@ -92,7 +92,9 @@ def test_record(test_image):
             ]
         ]
     )
-    assert np.allclose(processed_results[:, :, :2], expected_results[:, :, :2], atol=1e-2)
+    assert np.allclose(
+        processed_results[:, :, :2], expected_results[:, :, :2], atol=1e-2
+    )
     assert np.isnan(processed_results[:, :, 2]).all()
 
 
@@ -112,6 +114,10 @@ def test_unpack_empty_results():
     tracked_person = tracker.tracked_objects["tracked_person"]
     assert tracked_person.pixel_x is None
     assert tracked_person.pixel_y is None
-    assert tracked_person.extra["landmarks"].shape == (1, YOLOModelInfo.num_tracked_points, 2)
+    assert tracked_person.extra["landmarks"].shape == (
+        1,
+        YOLOModelInfo.num_tracked_points,
+        2,
+    )
     assert np.isnan(tracked_person.extra["landmarks"][0, :, 0]).all()
     assert np.isnan(tracked_person.extra["landmarks"][0, :, 1]).all()
