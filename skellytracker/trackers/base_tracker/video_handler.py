@@ -24,10 +24,8 @@ class VideoHandler:
         :param codec: The codec to use for the output video.
         """
         self.output_path = output_path
-        fourcc = cv2.VideoWriter_fourcc(*codec)
-        self.video_writer = cv2.VideoWriter(
-            str(output_path), fourcc, fps, frame_size
-        )
+        fourcc = cv2.VideoWriter.fourcc(*codec)
+        self.video_writer = cv2.VideoWriter(str(output_path), fourcc, fps, frame_size)
 
     def add_frame(self, frame: np.ndarray) -> None:
         """
