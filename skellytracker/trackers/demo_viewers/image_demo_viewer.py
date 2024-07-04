@@ -22,7 +22,7 @@ class ImageDemoViewer:
         """
         image = cv2.imread(str(image_path))
 
-        tracked_results = self.tracker.process_image(image)
+        self.tracker.process_image(image)
 
         annotated_image = self.tracker.annotated_image
 

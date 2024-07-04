@@ -1,6 +1,4 @@
-import cv2
 import numpy as np
-from typing import Dict
 from ultralytics import SAM
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker

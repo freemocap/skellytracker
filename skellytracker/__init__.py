@@ -11,6 +11,8 @@ __repo_url__ = (
 )
 __repo_issues_url__ = f"{__repo_url__}/issues"
 
+# ruff: noqa: F401, E402
+
 import sys
 from pathlib import Path
 

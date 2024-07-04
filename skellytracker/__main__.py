@@ -6,15 +6,15 @@ base_package_path = Path(__file__).parent.parent
 print(f"adding base_package_path: {base_package_path} : to sys.path")
 sys.path.insert(0, str(base_package_path))  # add parent directory to sys.path
 
-import logging
+import logging  # noqa: E402
+
+from skellytracker.RUN_ME import main  # noqa: E402
 
 logger = logging.getLogger(__name__)
 
-from skellytracker.RUN_ME import main
-
 
 def cli_main():
-    logger.info(f"Running as a script")
+    logger.info("Running as a script")
     if len(sys.argv) > 1:
         demo_tracker = str(sys.argv[1])
     else:

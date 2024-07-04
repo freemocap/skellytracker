@@ -10,11 +10,11 @@ try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
         MediapipeHolisticTracker,
     )
-except:
+except ModuleNotFoundError:
     print("\n\nTo use mediapipe_holistic_tracker, install skellytracker[mediapipe]\n\n")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-except:
+except ModuleNotFoundError:
     print("\n\nTo use yolo_tracker, install skellytracker[yolo]\n\n")
 
 
