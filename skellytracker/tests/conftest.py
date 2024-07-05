@@ -11,6 +11,6 @@ def pytest_sessionstart(session):
     SessionInfo.test_image = download_test_image()
 
 
-@pytest.fixture
+@pytest.fixture()
 def test_image():
     return SessionInfo.test_image

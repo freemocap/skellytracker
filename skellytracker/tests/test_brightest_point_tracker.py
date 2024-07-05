@@ -8,7 +8,7 @@ from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import 
 )
 
 
-@pytest.fixture
+@pytest.fixture()
 def sample_image():
     """
     Create a sample image with bright spots for testing.

@@ -187,7 +187,7 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
     if tracker_name == "MediapipeHolisticTracker":
         return MediapipeTrackingParams()
     elif tracker_name == "YOLOMediapipeComboTracker":
-        return YOLOTrackingParams()
+        return YOLOTrackingParams()  # TODO: figure out how to reference both tracking params in a stable way
     elif tracker_name == "YOLOPoseTracker":
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":

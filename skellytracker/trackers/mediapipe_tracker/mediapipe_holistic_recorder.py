@@ -57,7 +57,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
                     else:
                         number = MediapipeModelInfo.num_tracked_points_right_hand
                     for _ in range(number):
-                        self.recorded_objects_array[i, landmark_number, :] = np.NaN
+                        self.recorded_objects_array[i, landmark_number, :] = np.nan
                         landmark_number += 1
 
         return self.recorded_objects_array
