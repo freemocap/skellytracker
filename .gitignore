@@ -157,6 +157,7 @@ cython_debug/
 
 # ML models
 *.pt
+*.task
 
 # Data
 *.npy
