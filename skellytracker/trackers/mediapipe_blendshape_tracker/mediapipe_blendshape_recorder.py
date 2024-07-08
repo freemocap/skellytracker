@@ -29,7 +29,7 @@ class MediapipeBlendshapeRecorder(BaseRecorder):
         )
 
         for i, tracked_objects in enumerate(self.recorded_objects):
-            if blendshapes := tracked_objects[0].extra.get("blendshapes", None):
+            if blendshapes := tracked_objects[0].extra.get("blendshapes"):
                 self.recorded_objects_array[i, :, 0] = blendshapes
 
         return self.recorded_objects_array
