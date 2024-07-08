@@ -12,6 +12,8 @@ from mediapipe.framework.formats import landmark_pb2
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
+from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_model_info import MediapipeBlendshapeModelInfo
+from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_recorder import MediapipeBlendshapeRecorder
 
 
 class MediapipeBlendshapeTracker(BaseTracker):
@@ -20,8 +22,8 @@ class MediapipeBlendshapeTracker(BaseTracker):
         model_path: Union[Path, str, None] = None,
     ):
         super().__init__(
-            tracked_object_names=["face"],
-            recorder=None,
+            tracked_object_names=MediapipeBlendshapeModelInfo.tracked_object_names,
+            recorder=MediapipeBlendshapeRecorder(),
         )
 
         # If model_path not provided, try default model path, and if that doesn't work download model
@@ -48,26 +50,24 @@ class MediapipeBlendshapeTracker(BaseTracker):
 
         self.tracked_objects["face"].extra[
             "blendshapes"
-        ] = results.face_blendshapes[0]  # TODO: assumes we're only interested in 1 face, but docs say this works for multiple faces??
+        ] = [blendshape.score for blendshape in results.face_blendshapes[0]]  # TODO: assumes we're only interested in 1 face, but docs say this works for multiple faces??
 
-        print(f"blendshape scores: {[blendshape.score for blendshape in results.face_blendshapes[0]]}")
         print(f"blendshape names: {[blendshape.category_name for blendshape in results.face_blendshapes[0]]}")
+        print(f"blendshape scores: {[blendshape.score for blendshape in results.face_blendshapes[0]]}")
         self.annotated_image = self.annotate_image(
-            image=image, tracked_objects=self.tracked_objects
+            image=image, tracked_objects=self.tracked_objects, face_landmarks=results.face_landmarks[0]
         )
 
         return self.tracked_objects
 
     def annotate_image(
-        self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs
+        self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], face_landmarks: object, **kwargs
     ) -> np.ndarray:
         annotated_image = image.copy()
-    
-        face_blendshapes = self.tracked_objects["face"].extra["blendshapes"]
 
         face_landmarks_proto = landmark_pb2.NormalizedLandmarkList()
         face_landmarks_proto.landmark.extend([
-        landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in face_blendshapes
+        landmark_pb2.NormalizedLandmark(x=landmark.x, y=landmark.y, z=landmark.z) for landmark in face_landmarks
         ])
 
         solutions.drawing_utils.draw_landmarks(
