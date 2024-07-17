@@ -29,6 +29,7 @@ class MediapipeBlendshapeTracker(BaseTracker):
             tracked_object_names=MediapipeBlendshapeModelInfo.tracked_object_names,
             recorder=MediapipeBlendshapeRecorder(),
         )
+        self.model_info = MediapipeBlendshapeModelInfo
 
         # If model_path not provided, try default model path, and if that doesn't work download model
         if model_path is None:
@@ -127,7 +128,7 @@ class MediapipeBlendshapeTracker(BaseTracker):
             r.raise_for_status()
             model_path.write_bytes(r.content)
         return model_path
-
+    
 
 if __name__ == "__main__":
     MediapipeBlendshapeTracker().demo()
