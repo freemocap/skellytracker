@@ -1,37 +1,79 @@
 import argparse
 from pathlib import Path
+from typing import Generator, Union
 import pandas as pd
 
-from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import MediapipeBlendshapeTracker
+from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import (
+    MediapipeBlendshapeTracker,
+)
 
-def main(input_video_filepath: str, output_video_filepath: str, output_csv_filepath: str):
+
+def create_timestamp_generator() -> Generator[str, None, None]:
+    """
+    Create a generator that generates timestamps in the format "00:00:00:00.000", with leading values rolling over before 30
+    """
+    count = 1
+    refresh_value = 30
+    while True:
+        parts = [(count // (refresh_value**i)) % refresh_value for i in range(4)]
+        yield f"{parts[3]:02d}:{parts[2]:02d}:{parts[1]:02d}:{parts[0]:02d}.{count % 1000:03d}"
+        count += 1
+
+
+def main(
+    input_video_filepath: Union[str, Path],
+    output_video_filepath: Union[str, Path],
+    output_csv_filepath: Union[str, Path],
+):
     tracker = MediapipeBlendshapeTracker()
-    output_array = tracker.process_video(input_video_filepath=Path(input_video_filepath), Path(output_video_filepath), save_data_bool=True)
+    output_array = tracker.process_video(
+        input_video_filepath=Path(input_video_filepath),
+        output_video_filepath=Path(output_video_filepath),
+        save_data_bool=True,
+    )
+    if output_array is None:
+        raise ValueError("output_array is None, aborting")
 
-    # create a dataframe consistent with livelink blendshape csv data
-    df = pd.DataFrame(output_array)
+    output_array = output_array.reshape(
+        output_array.shape[0], -1
+    )  # ensure output array is 2D
 
-    # name columns based on blendshape names
-    df.columns = tracker.model_info.landmark_names
+    df = pd.DataFrame(
+        output_array,
+        columns=[
+            name[0].upper() + name[1:] for name in tracker.model_info.landmark_names
+        ],
+    ).drop(
+        columns=["_neutral"]
+    )  # TODO: check if including neutral and having different count matter
 
-    # remove _neutral column
-    df = df.drop(columns=["_neutral"])
+    timestamp_generator = create_timestamp_generator()
+    df.insert(0, "Timestamp", [next(timestamp_generator) for _ in range(len(df))])
 
-    # add BlendShapeCount count as first column
-    df.insert(0, "BlendShapeCount", tracker.model_info.num_tracked_points - 1)
-
-    # TODO: eventually add timestamp column as first column, mocking timestamps like 00:00:00:01.001, 00:00:00:02.002, ..., 00:00:00:30.030, 00:00:01:00.031, ...
+    df.insert(
+        1, "BlendShapeCount", tracker.model_info.num_tracked_points - 1
+    )  # -1 for _neutral
 
     df.to_csv(Path(output_csv_filepath), index=False)
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Process a video file and save the output video and CSV data.")
-    
-    parser.add_argument("input_video_filepath", type=str, help="Path to the input video file.")
-    parser.add_argument("output_video_filepath", type=str, help="Path to save the output video file to.")
-    parser.add_argument("output_csv_filepath", type=str, help="Path to savethe output CSV file to.")
-    
+    parser = argparse.ArgumentParser(
+        description="Process a video file and save the output video and CSV data."
+    )
+
+    parser.add_argument(
+        "-i", "--input", type=Path, required=True, help="Path to the input video file."
+    )
+    parser.add_argument(
+        "-o", "--output-video", type=Path, required=True, help="Path to save the output video file to."
+    )
+    parser.add_argument(
+        "-c", "--output-csv", type=Path, required=True, help="Path to save the output CSV file to."
+    )
+
     args = parser.parse_args()
-    
-    main(args.input_video_filepath, args.output_video_filepath, args.output_csv_filepath)
+
+    main(
+        args.input, args.output_video, args.output_csv
+    )
