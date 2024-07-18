@@ -12,12 +12,15 @@ from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import 
     BrightestPointTracker,
 )
 from skellytracker.utilities.get_video_paths import get_video_paths
+
 try:
     from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
         YOLOMediapipeComboTracker,
     )
 except:
-    print("\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n")
+    print(
+        "\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n"
+    )
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
@@ -169,7 +172,8 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     elif tracker_name == "YOLOPoseTracker":
         tracker = YOLOPoseTracker(
-            model_size="medium",
+            model_size=tracking_params.model_size,
+            max_tracked_objects=tracking_params.max_tracked_objects,
         )
 
     elif tracker_name == "BrightestPointTracker":
@@ -180,13 +184,14 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     return tracker
 
+
 def get_tracker_params(tracker_name: str) -> BaseModel:
     if tracker_name == "MediapipeHolisticTracker":
         return MediapipeTrackingParams()
     elif tracker_name == "YOLOMediapipeComboTracker":
         return YOLOTrackingParams()
     elif tracker_name == "YOLOPoseTracker":
-        return YOLOTrackingParams()
+        return YOLOTrackingParams(model_size="nano", max_tracked_objects=2)
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
     else:
@@ -195,9 +200,9 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
 
 if __name__ == "__main__":
     synchronized_video_path = Path(
-        "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+        "/Users/philipqueen/freemocap_data/recording_sessions/session_2024-06-27_15_16_32/recording_15_22_35_gmt-4__multiperson_no_contact/synchronized_videos/"
     )
-    tracker_name = "YOLOMediapipeComboTracker"
+    tracker_name = "YOLOPoseTracker"
     num_processes = None
 
     process_folder_of_videos(

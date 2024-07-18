@@ -104,7 +104,7 @@ bus_image = cv2.cvtColor(bus_image, cv2.COLOR_BGR2RGB)
 # TODO: get a multiperson image that can be used on CI runners
 def test_record_multiperson(test_image=bus_image):
     max_det = 2
-    tracker = YOLOPoseTracker(model_size="nano", max_det=max_det)
+    tracker = YOLOPoseTracker(model_size="nano", max_tracked_objects=max_det)
     tracked_objects = tracker.process_image(test_image)
     tracker.recorder.record(tracked_objects=tracked_objects)
     assert len(tracker.recorder.recorded_objects) == 1

@@ -8,21 +8,19 @@ from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 from skellytracker.trackers.yolo_tracker.yolo_recorder import YOLORecorder
 
 class YOLOPoseTracker(BaseTracker):
-    def __init__(self, model_size: str = "nano", max_det: int = 1):
-        self.tracked_object_names = ["tracked_person_" + str(i) for i in range(max_det)]
+    def __init__(self, model_size: str = "nano", max_tracked_objects: int = 1):
+        self.tracked_object_names = ["tracked_person_" + str(i) for i in range(max_tracked_objects)]
         super().__init__(tracked_object_names=self.tracked_object_names, recorder=YOLORecorder())
 
         pytorch_model = YOLOModelInfo.model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
 
-        self.max_det = max_det
+        self.max_tracked_objects = max_tracked_objects
 
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
-        # "max_det=1" argument to limit to single person tracking for now
-        results = self.model(image, max_det=self.max_det, verbose=False)
+        results = self.model(image, max_det=self.max_tracked_objects, verbose=False)
 
         self.unpack_results(results)
-        print(f"YOLO results: {results[-1].keypoints}")
 
         self.annotated_image = self.annotate_image(image=image, results=results, **kwargs)
 
@@ -36,7 +34,7 @@ class YOLOPoseTracker(BaseTracker):
 
         if tracked_person.size == 0:
             # reinitialize tracked objects
-            for i in range(self.max_det):
+            for i in range(self.max_tracked_objects):
                 self.tracked_objects[f"tracked_person_{i}"] = TrackedObject(
                     object_id=f"tracked_person_{i}"
                 )
@@ -53,7 +51,7 @@ class YOLOPoseTracker(BaseTracker):
             self.tracked_objects[f"tracked_person_{i}"].pixel_y = np.mean(tracked_person[i, :, 1])
             self.tracked_objects[f"tracked_person_{i}"].extra["landmarks"] = tracked_person[i, :, :]
 
-        for i in range(tracked_person.shape[0], self.max_det):
+        for i in range(tracked_person.shape[0], self.max_tracked_objects):
             # reinitialize tracked objects that weren't filled
             self.tracked_objects[f"tracked_person_{i}"] = TrackedObject(
                 object_id=f"tracked_person_{i}"
@@ -68,4 +66,4 @@ class YOLOPoseTracker(BaseTracker):
 if __name__ == "__main__":
     # YOLOPoseTracker().demo()
     from pathlib import Path
-    YOLOPoseTracker(max_det=10).image_demo(Path("/Users/philipqueen/Downloads/bus.jpg"))
+    YOLOPoseTracker(max_tracked_objects=10).image_demo(Path("/Users/philipqueen/Downloads/bus.jpg"))

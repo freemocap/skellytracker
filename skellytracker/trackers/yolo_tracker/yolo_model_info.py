@@ -82,3 +82,4 @@ class YOLOModelInfo:
 
 class YOLOTrackingParams(BaseTrackingParams):
     model_size: str = "medium"
+    max_tracked_objects: int = 1
