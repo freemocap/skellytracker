@@ -21,8 +21,7 @@ class BaseRecorder(ABC):
 
     @abstractmethod
     def record(
-        self,
-        tracked_objects: Dict[str, TrackedObject],
+        self, tracked_objects: Dict[str, TrackedObject]
     ) -> None:
         """
         Record the tracked objects as they are created by the tracker.
