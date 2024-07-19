@@ -36,6 +36,9 @@ try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
         MediapipeTrackingParams,
     )
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+        MediapipeModelInfo,
+    )
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
     
@@ -45,6 +48,9 @@ try:
     )
     from skellytracker.trackers.openpose_tracker.openpose_model_info import (
             OpenPoseTrackingParams,
+    )
+    from skellytracker.trackers.openpose_tracker.openpose_model_info import (
+            OpenPoseModelInfo,
     )
 except:
     print("To use openpose_tracker, install skellytracker[openpose]")
@@ -222,14 +228,18 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
 
 if __name__ == "__main__":
 
-    synchronized_video_path = Path(
-        "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
-    )
+    # synchronized_video_path = Path(
+    #     "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+    # )
+
+    # synchronized_video_path = Path(
+    #     r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_test_data\synchronized_videos'
+    # )
     # tracker_name = "YOLOMediapipeComboTracker"
     # num_processes = None
 
     # process_folder_of_videos(
-    #     tracker_name=tracker_name,
+    #     model_info=MediapipeModelInfo(),
     #     tracking_params=MediapipeTrackingParams(),
     #     synchronized_video_path=synchronized_video_path,
     #     num_processes=num_processes,
@@ -238,11 +248,11 @@ if __name__ == "__main__":
     tracker_name = "OpenPoseTracker"
     num_processes = 1
     
-    input_video_folder = Path(r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_sample_data')
+    input_video_folder = Path(r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_test_data')
     input_video_filepath = input_video_folder/'synchronized_videos'
     
-    output_video_folder = input_video_folder/'openpose_annotated_videos'
-    output_video_folder.mkdir(parents=True, exist_ok=True)
+    # output_video_folder = input_video_folder/'openpose_annotated_videos'
+    # output_video_folder.mkdir(parents=True, exist_ok=True)
 
     output_json_path = input_video_folder/'output_data'/'raw_data'/'openpose_jsons'
     output_json_path.mkdir(parents=True, exist_ok=True)
@@ -250,7 +260,8 @@ if __name__ == "__main__":
     openpose_exe_path = r'C:\openpose'
 
     process_folder_of_videos(
-        tracker_name=tracker_name,
+        model_info=OpenPoseModelInfo(),
+        # tracker_name=tracker_name,
         # tracking_params=get_tracker_params(tracker_name=tracker_name),
         tracking_params=OpenPoseTrackingParams(
            openpose_exe_path=str(openpose_exe_path),
