@@ -39,8 +39,15 @@ try:
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
     
-   try:
-      ###insert openpose tracking here
+try:
+    from skellytracker.trackers.openpose_tracker.openpose_tracker import (
+          OpenPoseTracker,
+    )
+    from skellytracker.trackers.openpose_tracker.openpose_model_info import (
+            OpenPoseTrackingParams,
+    )
+except:
+    print("To use openpose_tracker, install skellytracker[openpose]")
 
 logger = logging.getLogger(__name__)
 
@@ -207,6 +214,8 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
+    elif tracker_name == 'OpenPoseTracker':
+        return OpenPoseTrackingParams()
     else:
         raise ValueError("Invalid tracker type")
 
