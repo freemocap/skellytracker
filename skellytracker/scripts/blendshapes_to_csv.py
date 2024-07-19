@@ -40,19 +40,17 @@ def main(
 
     df = pd.DataFrame(
         output_array,
-        columns=[
-            name[0].upper() + name[1:] for name in tracker.model_info.landmark_names
-        ],
+        columns=tracker.model_info.landmark_names,
     ).drop(
         columns=["_neutral"]
-    )  # TODO: check if including neutral and having different count matter
+    )
 
     timestamp_generator = create_timestamp_generator()
     df.insert(0, "Timestamp", [next(timestamp_generator) for _ in range(len(df))])
 
     df.insert(
-        1, "BlendShapeCount", tracker.model_info.num_tracked_points - 1
-    )  # -1 for _neutral
+        1, "BlendShapeCount", tracker.model_info.num_tracked_points
+    )
 
     df.to_csv(Path(output_csv_filepath), index=False)
 
