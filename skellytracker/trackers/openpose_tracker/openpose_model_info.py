@@ -4,6 +4,8 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 
 class OpenPoseModelInfo(ModelInfo):
+    name = "openpose"
+    tracker_name = "OpenPoseTracker"
 
 
     landmark_names = [
