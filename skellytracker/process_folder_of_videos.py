@@ -251,13 +251,11 @@ if __name__ == "__main__":
 
     process_folder_of_videos(
         tracker_name=tracker_name,
-        tracking_params=get_tracker_params(tracker_name=tracker_name),
-        synchronized_video_path=synchronized_video_path,
-
-        #tracking_params=OpenPoseTrackingParams(
-        #    openpose_exe_path=str(openpose_exe_path),
-        #    output_json_path=str(output_json_path),
-        #),
-        #synchronized_video_path=input_video_filepath,
+        # tracking_params=get_tracker_params(tracker_name=tracker_name),
+        tracking_params=OpenPoseTrackingParams(
+           openpose_exe_path=str(openpose_exe_path),
+           output_json_path=str(output_json_path),
+        ),
+        synchronized_video_path=input_video_filepath,
         num_processes=num_processes,
     )
