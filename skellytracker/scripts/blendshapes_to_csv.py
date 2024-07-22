@@ -61,17 +61,21 @@ if __name__ == "__main__":
     )
 
     parser.add_argument(
-        "-i", "--input", type=Path, required=True, help="Path to the input video file."
+        "-i", "--input", type=Path, help="Path to the input video file."
     )
     parser.add_argument(
-        "-o", "--output-video", type=Path, required=True, help="Path to save the output video file to."
+        "-o", "--output-video", type=Path, help="Path to save the output video file to."
     )
     parser.add_argument(
-        "-c", "--output-csv", type=Path, required=True, help="Path to save the output CSV file to."
+        "-c", "--output-csv", type=Path, help="Path to save the output CSV file to."
     )
 
     args = parser.parse_args()
 
+    input_path = args.input or Path(input("Enter the path to the video to be processed: "))
+    output_video_path = args.output_video or Path(input("Enter the path to save output video to: "))
+    output_csv_path = args.output_csv or Path(input("Enter the path to save the output CSV file to: "))
+
     main(
-        args.input, args.output_video, args.output_csv
+        input_path, output_video_path, output_csv_path
     )
