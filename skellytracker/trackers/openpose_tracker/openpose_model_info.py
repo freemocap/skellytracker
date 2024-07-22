@@ -159,5 +159,7 @@ class OpenPoseTrackingParams(BaseTrackingParams):
     output_json_path: str
     net_resolution: str = "-1x320"
     number_people_max: int = 1
+    track_hands: bool = True
+    track_face: bool = True
     write_video: bool = True
-    openpose_output_resolution: str = "-1x-1"
+    output_resolution: str = "-1x-1"

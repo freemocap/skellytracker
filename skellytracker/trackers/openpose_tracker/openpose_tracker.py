@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Union
 from skellytracker.trackers.base_tracker.base_tracker import BaseCumulativeTracker
 from skellytracker.trackers.openpose_tracker.openpose_recorder import OpenPoseRecorder
-import os
+
 
 class OpenPoseTracker(BaseCumulativeTracker):
     def __init__(
@@ -33,6 +33,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
         number_people_max: int = 1,
         track_hands: bool = True,
         track_faces: bool = True,
+        output_resolution: str = "-1x-1",
         save_data_bool: bool = False,
         use_tqdm: bool = True,  # TODO: this is unused, replace with an openpose flag or remove
         **kwargs,
@@ -57,23 +58,25 @@ class OpenPoseTracker(BaseCumulativeTracker):
         unique_json_output_path.mkdir(parents=True, exist_ok=True)
 
         # Full path to the OpenPose executable
-        openpose_executable_path = self.openpose_root_folder_path / "bin" / "OpenPoseDemo.exe"
+        openpose_executable_path = (
+            self.openpose_root_folder_path / "bin" / "OpenPoseDemo.exe"
+        )
 
         openpose_command = [
-                    str(openpose_executable_path),  # Full path to the OpenPose executable
-                    "--video",
-                    str(input_video_filepath),
-                    "--write_json",
-                    str(unique_json_output_path),
-                    "--net_resolution",
-                    net_resolution,
-                    "--number_people_max",
-                    str(number_people_max),
-                    "--write_video",
-                    str(output_video_filepath),
-                    "--output_resolution",
-                    "-1x-1",
-                ]
+            str(openpose_executable_path),  # Full path to the OpenPose executable
+            "--video",
+            str(input_video_filepath),
+            "--write_json",
+            str(unique_json_output_path),
+            "--net_resolution",
+            str(net_resolution),
+            "--number_people_max",
+            str(number_people_max),
+            "--write_video",
+            str(output_video_filepath),
+            "--output_resolution",
+            str(output_resolution),
+        ]
 
         if track_hands:
             openpose_command.append("--hand")
@@ -82,21 +85,20 @@ class OpenPoseTracker(BaseCumulativeTracker):
 
         # Update the subprocess command to use the unique output directory
         try:
-            result = subprocess.run(
+            subprocess.run(
                 openpose_command,
                 shell=False,
-                cwd=self.openpose_root_folder_path  # Set the current working directory for the subprocess
+                cwd=self.openpose_root_folder_path,  # Set the current working directory for the subprocess
+                check=True,
             )
-
-            if result.returncode != 0:
-                raise subprocess.CalledProcessError(result.returncode, result.args)
-
         except subprocess.CalledProcessError as e:
             print(f"Error: {e}")
             return None
 
         if self.recorder is not None:
-            output_array = self.recorder.process_tracked_objects(output_json_path=unique_json_output_path)
+            output_array = self.recorder.process_tracked_objects(
+                output_json_path=unique_json_output_path
+            )
             if save_data_bool:
                 self.recorder.save(
                     file_path=str(Path(input_video_filepath).with_suffix(".npy"))
@@ -105,8 +107,6 @@ class OpenPoseTracker(BaseCumulativeTracker):
             output_array = None
 
         return output_array
-            
-
 
 
 if __name__ == "__main__":
