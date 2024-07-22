@@ -155,7 +155,7 @@ class OpenPoseModelInfo(ModelInfo):
 
 
 class OpenPoseTrackingParams(BaseTrackingParams):
-    openpose_exe_path: str
+    openpose_root_folder_path: str
     output_json_path: str
     net_resolution: str = "-1x320"
     number_people_max: int = 1
