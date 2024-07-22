@@ -10,8 +10,6 @@ class OpenPoseTracker(BaseCumulativeTracker):
         self,
         openpose_root_folder_path: Union[str, Path],
         output_json_path: Union[str, Path],
-        net_resolution: str = "-1x640",
-        number_people_max: int = 1,
     ):
         """
         Initialize the OpenPoseTracker.
@@ -19,30 +17,39 @@ class OpenPoseTracker(BaseCumulativeTracker):
         :param recorder: An instance of OpenPoseRecorder for handling the output.
         :param openpose_root_folder_path: Path to the OpenPose root folder.
         :param output_json_path: Directory where JSON files will be saved.
-        :param net_resolution: Network resolution for OpenPose processing.
-        :param number_people_max: Maximum number of people to detect.
         """
-        self.openpose_root_folder_path = Path(openpose_root_folder_path)
-        self.output_json_path = Path(output_json_path)
-        self.net_resolution = net_resolution
-        self.number_people_max = number_people_max
-
         super().__init__(
             tracked_object_names=[],
             recorder=OpenPoseRecorder(json_directory_path=output_json_path),
         )
+        self.openpose_root_folder_path = Path(openpose_root_folder_path)
+        self.output_json_path = Path(output_json_path)
 
     def process_video(
         self,
         input_video_filepath: Union[str, Path],
         output_video_filepath: Union[str, Path],
+        net_resolution: str = "-1x640",
+        number_people_max: int = 1,
+        track_hands: bool = True,
+        track_faces: bool = True,
         save_data_bool: bool = False,
-        use_tqdm: bool = True,
+        use_tqdm: bool = True,  # TODO: this is unused, replace with an openpose flag or remove
         **kwargs,
     ):
         """
         Run the OpenPose demo on a video file to generate JSON outputs
         in a unique directory for each video.
+
+        :param input_video_filepath: Path to the input video file.
+        :param output_video_filepath: Path to the output video file.
+        :param net_resolution: Network resolution for OpenPose processing.
+        :param number_people_max: Maximum number of people to detect.
+        :param track_hands: Whether to track hands.
+        :param track_faces: Whether to track faces.
+        :param save_data_bool: Whether to save the data.
+        :param use_tqdm: Whether to use tqdm progress bar.
+        :return: The output array, or None if recorder isn't initialized in tracker.
         """
         # Extract video name without extension to use as a unique folder name
         video_name = Path(input_video_filepath).stem
@@ -52,26 +59,31 @@ class OpenPoseTracker(BaseCumulativeTracker):
         # Full path to the OpenPose executable
         openpose_executable_path = self.openpose_root_folder_path / "bin" / "OpenPoseDemo.exe"
 
-        # Update the subprocess command to use the unique output directory
-        try:
-            result = subprocess.run(
-                [
+        openpose_command = [
                     str(openpose_executable_path),  # Full path to the OpenPose executable
                     "--video",
                     str(input_video_filepath),
                     "--write_json",
                     str(unique_json_output_path),
                     "--net_resolution",
-                    self.net_resolution,
-                    "--hand",
-                    "--face",
+                    net_resolution,
                     "--number_people_max",
-                    str(self.number_people_max),
+                    str(number_people_max),
                     "--write_video",
                     str(output_video_filepath),
                     "--output_resolution",
                     "-1x-1",
-                ],
+                ]
+
+        if track_hands:
+            openpose_command.append("--hand")
+        if track_faces:
+            openpose_command.append("--face")
+
+        # Update the subprocess command to use the unique output directory
+        try:
+            result = subprocess.run(
+                openpose_command,
                 shell=False,
                 cwd=self.openpose_root_folder_path  # Set the current working directory for the subprocess
             )
