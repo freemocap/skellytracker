@@ -13,6 +13,7 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
+
 from skellytracker.utilities.get_video_paths import get_video_paths
 
 try:
@@ -34,6 +35,9 @@ try:
     )
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
         MediapipeTrackingParams,
+    )
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+        MediapipeModelInfo,
     )
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
@@ -193,6 +197,14 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     elif tracker_name == "BrightestPointTracker":
         tracker = BrightestPointTracker()
 
+    elif tracker_name == 'OpenPoseTracker':
+        tracker = OpenPoseTracker(
+            openpose_exe_path=tracking_params.openpose_exe_path,
+            output_json_path=tracking_params.output_json_path,
+            net_resolution=tracking_params.net_resolution,
+            number_people_max=tracking_params.number_people_max,
+        )
+        
     else:
         raise ValueError("Invalid tracker type")
 
