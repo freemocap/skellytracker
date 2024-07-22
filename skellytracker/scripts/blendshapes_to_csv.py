@@ -20,7 +20,7 @@ def create_timestamp_generator() -> Generator[str, None, None]:
         count += 1
 
 
-def main(
+def blendshapes_to_csv(
     input_video_filepath: Union[str, Path],
     output_video_filepath: Union[str, Path],
     output_csv_filepath: Union[str, Path],
@@ -41,21 +41,17 @@ def main(
     df = pd.DataFrame(
         output_array,
         columns=tracker.model_info.landmark_names,
-    ).drop(
-        columns=["_neutral"]
-    )
+    ).drop(columns=["_neutral"])
 
     timestamp_generator = create_timestamp_generator()
     df.insert(0, "Timestamp", [next(timestamp_generator) for _ in range(len(df))])
 
-    df.insert(
-        1, "BlendShapeCount", tracker.model_info.num_tracked_points
-    )
+    df.insert(1, "BlendShapeCount", tracker.model_info.num_tracked_points)
 
     df.to_csv(Path(output_csv_filepath), index=False)
 
 
-if __name__ == "__main__":
+def main():
     parser = argparse.ArgumentParser(
         description="Process a video file and save the output video and CSV data."
     )
@@ -72,10 +68,18 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    input_path = args.input or Path(input("Enter the path to the video to be processed: "))
-    output_video_path = args.output_video or Path(input("Enter the path to save output video to: "))
-    output_csv_path = args.output_csv or Path(input("Enter the path to save the output CSV file to: "))
+    input_path = args.input or input("Enter the path to the video to be processed: ")
 
-    main(
-        input_path, output_video_path, output_csv_path
+    output_video_path = args.output_video or input(
+        "Enter the path to save output video to: "
     )
+
+    output_csv_path = args.output_csv or input(
+        "Enter the path to save the output CSV file to: "
+    )
+
+    blendshapes_to_csv(input_path, output_video_path, output_csv_path)
+
+
+if __name__ == "__main__":
+    main()
