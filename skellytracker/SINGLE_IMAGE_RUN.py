@@ -28,7 +28,7 @@ if __name__ == "__main__":
     elif demo_tracker == "charuco_tracker":
         charuco_squares_x = 7
         charuco_squares_y = 5
-        number_of_charuco_markers = charuco_squares_x - 1 * charuco_squares_y - 1
+        number_of_charuco_markers = (charuco_squares_x - 1) * (charuco_squares_y - 1)
         charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
         CharucoTracker(
             tracked_object_names=charuco_ids,
