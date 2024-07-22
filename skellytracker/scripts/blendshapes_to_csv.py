@@ -1,6 +1,6 @@
 import argparse
 from pathlib import Path
-from typing import Generator, Union
+from typing import Generator
 import pandas as pd
 
 from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import (
@@ -21,9 +21,9 @@ def create_timestamp_generator() -> Generator[str, None, None]:
 
 
 def blendshapes_to_csv(
-    input_video_filepath: Union[str, Path],
-    output_video_filepath: Union[str, Path],
-    output_csv_filepath: Union[str, Path],
+    input_video_filepath: Path,
+    output_video_filepath: Path,
+    output_csv_filepath: Path,
 ):
     tracker = MediapipeBlendshapeTracker()
     output_array = tracker.process_video(
@@ -68,15 +68,26 @@ def main():
 
     args = parser.parse_args()
 
-    input_path = args.input or input("Enter the path to the video to be processed: ")
+    input_path = args.input or Path(input("Enter the path to the video to be processed: "))
 
-    output_video_path = args.output_video or input(
+    output_video_path = args.output_video or Path(input(
         "Enter the path to save output video to: "
-    )
+    ))
 
-    output_csv_path = args.output_csv or input(
+    output_csv_path = args.output_csv or Path(input(
         "Enter the path to save the output CSV file to: "
-    )
+    ))
+
+    if not input_path.exists():
+        raise ValueError(f"Input video path does not exist: {input_path}")
+
+    if output_video_path.suffix != ".mp4":
+        print("Output video path must be a .mp4 file, changing extension to .mp4")
+        output_video_path = output_video_path.with_suffix(".mp4")
+
+    if output_csv_path.suffix != ".csv":
+        print("Output CSV path must be a .csv file, changing extension to .csv")
+        output_csv_path = output_csv_path.with_suffix(".csv")
 
     blendshapes_to_csv(input_path, output_video_path, output_csv_path)
 
