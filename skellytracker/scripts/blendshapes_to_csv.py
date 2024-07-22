@@ -53,7 +53,9 @@ def blendshapes_to_csv(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Process a video file and save the output video and CSV data."
+        prog="skellytracker_blendshapes",
+        description="Process a video file to extract MediaPipe blendshapes and save the output video and CSV data."
+        epilog="Thank you for using skellytracker!",
     )
 
     parser.add_argument(
