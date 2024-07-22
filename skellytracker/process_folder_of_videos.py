@@ -199,7 +199,7 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     elif tracker_name == 'OpenPoseTracker':
         tracker = OpenPoseTracker(
-            openpose_exe_path=tracking_params.openpose_exe_path,
+            openpose_root_folder_path=tracking_params.openpose_root_folder_path,
             output_json_path=tracking_params.output_json_path,
             net_resolution=tracking_params.net_resolution,
             number_people_max=tracking_params.number_people_max,
@@ -257,14 +257,14 @@ if __name__ == "__main__":
     output_json_path = input_video_folder/'output_data'/'raw_data'/'openpose_jsons'
     output_json_path.mkdir(parents=True, exist_ok=True)
 
-    openpose_exe_path = r'C:\openpose'
+    openpose_root_folder_path = r'C:\openpose'
 
     process_folder_of_videos(
         model_info=OpenPoseModelInfo(),
         # tracker_name=tracker_name,
         # tracking_params=get_tracker_params(tracker_name=tracker_name),
         tracking_params=OpenPoseTrackingParams(
-           openpose_exe_path=str(openpose_exe_path),
+           openpose_root_folder_path=str(openpose_root_folder_path),
            output_json_path=str(output_json_path),
         ),
         synchronized_video_path=input_video_filepath,
