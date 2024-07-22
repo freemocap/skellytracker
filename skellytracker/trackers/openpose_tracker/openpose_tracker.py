@@ -9,7 +9,12 @@ class OpenPoseTracker(BaseCumulativeTracker):
     def __init__(
         self,
         openpose_root_folder_path: Union[str, Path],
-        output_json_path: Union[str, Path],
+        output_json_folder_path: Union[str, Path],
+        net_resolution: str = "-1x640",
+        number_people_max: int = 1,
+        track_hands: bool = True,
+        track_faces: bool = True,
+        output_resolution: str = "-1x-1",
     ):
         """
         Initialize the OpenPoseTracker.
@@ -17,23 +22,28 @@ class OpenPoseTracker(BaseCumulativeTracker):
         :param recorder: An instance of OpenPoseRecorder for handling the output.
         :param openpose_root_folder_path: Path to the OpenPose root folder.
         :param output_json_path: Directory where JSON files will be saved.
+        :param net_resolution: Network resolution for OpenPose processing.
+        :param number_people_max: Maximum number of people to detect.
+        :param track_hands: Whether to track hands.
+        :param track_faces: Whether to track faces.
+        :param output_resolution: Output resolution for video.
         """
         super().__init__(
             tracked_object_names=[],
-            recorder=OpenPoseRecorder(json_directory_path=output_json_path),
+            recorder=OpenPoseRecorder(json_directory_path=output_json_folder_path),
         )
         self.openpose_root_folder_path = Path(openpose_root_folder_path)
-        self.output_json_path = Path(output_json_path)
+        self.output_json_folder_path = Path(output_json_folder_path)
+        self.net_resolution = net_resolution
+        self.number_people_max = number_people_max
+        self.track_hands = track_hands
+        self.track_faces = track_faces
+        self.output_resolution = output_resolution
 
     def process_video(
         self,
         input_video_filepath: Union[str, Path],
         output_video_filepath: Union[str, Path],
-        net_resolution: str = "-1x640",
-        number_people_max: int = 1,
-        track_hands: bool = True,
-        track_faces: bool = True,
-        output_resolution: str = "-1x-1",
         save_data_bool: bool = False,
         use_tqdm: bool = True,  # TODO: this is unused, replace with an openpose flag or remove
         **kwargs,
@@ -44,17 +54,13 @@ class OpenPoseTracker(BaseCumulativeTracker):
 
         :param input_video_filepath: Path to the input video file.
         :param output_video_filepath: Path to the output video file.
-        :param net_resolution: Network resolution for OpenPose processing.
-        :param number_people_max: Maximum number of people to detect.
-        :param track_hands: Whether to track hands.
-        :param track_faces: Whether to track faces.
         :param save_data_bool: Whether to save the data.
         :param use_tqdm: Whether to use tqdm progress bar.
         :return: The output array, or None if recorder isn't initialized in tracker.
         """
         # Extract video name without extension to use as a unique folder name
         video_name = Path(input_video_filepath).stem
-        unique_json_output_path = self.output_json_path / video_name
+        unique_json_output_path = self.output_json_folder_path / video_name
         unique_json_output_path.mkdir(parents=True, exist_ok=True)
 
         # Full path to the OpenPose executable
@@ -69,18 +75,18 @@ class OpenPoseTracker(BaseCumulativeTracker):
             "--write_json",
             str(unique_json_output_path),
             "--net_resolution",
-            str(net_resolution),
+            str(self.net_resolution),
             "--number_people_max",
-            str(number_people_max),
+            str(self.number_people_max),
             "--write_video",
             str(output_video_filepath),
             "--output_resolution",
-            str(output_resolution),
+            str(self.output_resolution),
         ]
 
-        if track_hands:
+        if self.track_hands:
             openpose_command.append("--hand")
-        if track_faces:
+        if self.track_faces:
             openpose_command.append("--face")
 
         # Update the subprocess command to use the unique output directory
@@ -135,6 +141,6 @@ if __name__ == "__main__":
     # output_video_filepath = r'C:\path\to\output\video.mp4'
     tracker = OpenPoseTracker(
         openpose_root_folder_path=str(openpose_root_folder_path),
-        output_json_path=str(output_json_path),
+        output_json_folder_path=str(output_json_path),
     )
     tracker.process_video(input_video_filepath, output_video_filepath)
