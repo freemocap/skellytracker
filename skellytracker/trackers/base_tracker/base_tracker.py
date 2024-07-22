@@ -128,6 +128,20 @@ class BaseTracker(ABC):
         if video_handler is not None:
             video_handler.close()
 
+        output_array = self.process_and_save_tracked_objects(
+            input_video_filepath, save_data_bool, image_size
+        )
+
+        self.cleanup()
+
+        return output_array
+
+    def process_and_save_tracked_objects(
+        self,
+        input_video_filepath: Union[str, Path],
+        save_data_bool: bool,
+        image_size: tuple,
+    ) -> Optional[np.ndarray]:
         if self.recorder is not None:
             output_array = self.recorder.process_tracked_objects(image_size=image_size)
             if save_data_bool:
@@ -136,8 +150,16 @@ class BaseTracker(ABC):
                 )
         else:
             output_array = None
-
         return output_array
+
+    def cleanup(self) -> None:
+        """
+        Run any cleanup code for the tracker, including clearing the recorded objects.
+
+        Can be overridden by subclasses if any tracker needs a specific cleanup.
+        """
+        if self.recorder is not None:
+            self.recorder.clear_recorded_objects()
 
     def demo(self) -> None:
         """
