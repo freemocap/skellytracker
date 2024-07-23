@@ -193,9 +193,11 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     elif tracker_name == 'OpenPoseTracker':
         tracker = OpenPoseTracker(
             openpose_root_folder_path=tracking_params.openpose_root_folder_path,
-            output_json_path=tracking_params.output_json_path,
+            output_json_folder_path=tracking_params.output_json_path,
             net_resolution=tracking_params.net_resolution,
             number_people_max=tracking_params.number_people_max,
+            track_faces=tracking_params.track_face,
+            track_hands=tracking_params.track_hands,
         )
         
     else:
@@ -259,6 +261,8 @@ if __name__ == "__main__":
         tracking_params=OpenPoseTrackingParams(
            openpose_root_folder_path=str(openpose_root_folder_path),
            output_json_path=str(output_json_path),
+           track_hands=False,
+           track_face=False
         ),
         synchronized_video_path=input_video_filepath,
         num_processes=num_processes,
