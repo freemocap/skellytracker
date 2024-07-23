@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
+from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder, BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.base_tracker.video_handler import VideoHandler
 from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
@@ -26,7 +26,7 @@ class BaseTracker(ABC):
     def __init__(
         self,
         tracked_object_names: List[str] = [],
-        recorder: Optional[BaseRecorder] = None,
+        recorder: Optional[BaseCumulativeRecorder] = None,
         **data: Any,
     ):
         self.recorder = recorder

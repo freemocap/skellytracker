@@ -13,7 +13,6 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
-
 from skellytracker.utilities.get_video_paths import get_video_paths
 
 try:
@@ -36,9 +35,6 @@ try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
         MediapipeTrackingParams,
     )
-    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-        MediapipeModelInfo,
-    )
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
     
@@ -47,10 +43,7 @@ try:
           OpenPoseTracker,
     )
     from skellytracker.trackers.openpose_tracker.openpose_model_info import (
-            OpenPoseTrackingParams,
-    )
-    from skellytracker.trackers.openpose_tracker.openpose_model_info import (
-            OpenPoseModelInfo,
+            OpenPoseTrackingParams, OpenPoseModelInfo
     )
 except:
     print("To use openpose_tracker, install skellytracker[openpose]")
@@ -157,7 +150,7 @@ def process_single_video(
         input_video_filepath=video_path,
         output_video_filepath=annotated_video_path / video_name,
         save_data_bool=False,
-    )
+    )  # TODO: raise a custom error here if output_array is None?
     return output_array
 
 

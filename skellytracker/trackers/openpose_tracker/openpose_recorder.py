@@ -2,9 +2,10 @@ import json
 from typing import Union
 import numpy as np
 from pathlib import Path
-from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder
 import re
 from tqdm import tqdm
+
+from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder
 
 
 class OpenPoseRecorder(BaseCumulativeRecorder):
