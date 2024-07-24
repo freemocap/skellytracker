@@ -6,8 +6,6 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 class OpenPoseModelInfo(ModelInfo):
     name = "openpose"
     tracker_name = "OpenPoseTracker"
-
-
     landmark_names = [
         "nose",
         "neck",
@@ -35,14 +33,10 @@ class OpenPoseModelInfo(ModelInfo):
         "right_small_toe", 
         "right_heel"
     ]
-
-
-
     num_tracked_points = len(landmark_names)
-
+    hand_markers = 21
+    face_markers = 70
     tracked_object_names = ["pose_landmarks"]
-
-
     virtual_markers_definitions = {
         "head_center": {
             "marker_names": ["left_ear", "right_ear"],
@@ -58,7 +52,6 @@ class OpenPoseModelInfo(ModelInfo):
             "marker_weights": [0.25, 0.25, 0.25, 0.25],
         },
     }
-
     segment_connections = {
         "head": {"proximal": "left_ear", "distal": "right_ear"},
         "neck": {"proximal": "head_center", "distal": "neck"},
@@ -82,8 +75,6 @@ class OpenPoseModelInfo(ModelInfo):
         "right_foot_bottom": {"proximal": "right_heel", "distal": "right_big_toe"},
         "left_foot_bottom": {"proximal": "left_heel", "distal": "left_big_toe"},
     }
-
-
     center_of_mass_definitions = { #NOTE: using forearm/hand definition from Winter tables, as we don't have hand definitions here  
         "head": {
             "segment_com_length": .5,
@@ -133,9 +124,7 @@ class OpenPoseModelInfo(ModelInfo):
             "segment_com_length": 0.5,
             "segment_com_percentage": 0.0145,
         },
-    }
-
-        
+    }        
     joint_hierarchy = {
         "hip_center": ["left_hip", "right_hip", "trunk_center"],
         "trunk_center": ["neck"],

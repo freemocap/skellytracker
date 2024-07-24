@@ -31,6 +31,8 @@ class OpenPoseTracker(BaseCumulativeTracker):
         super().__init__(
             tracked_object_names=[],
             recorder=OpenPoseRecorder(json_directory_path=output_json_folder_path),
+            track_hands=track_hands,
+            track_faces=track_faces,
         )
         self.openpose_root_folder_path = Path(openpose_root_folder_path)
         self.output_json_folder_path = Path(output_json_folder_path)
@@ -39,6 +41,18 @@ class OpenPoseTracker(BaseCumulativeTracker):
         self.track_hands = track_hands
         self.track_faces = track_faces
         self.output_resolution = output_resolution
+
+    def set_track_hands(self, track_hands: bool):
+        self._track_hands = track_hands
+        self.recorder.track_hands = track_hands
+
+    def set_track_faces(self, track_faces: bool):
+        self._track_faces = track_faces
+        self.recorder.track_faces = track_faces
+
+    def set_json_output_path(self, output_json_folder_path: Union[str, Path]):
+        self.output_json_folder_path = Path(output_json_folder_path)
+        self.recorder.json_directory_path = self.output_json_folder_path
 
     def process_video(
         self,
