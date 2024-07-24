@@ -6,7 +6,7 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 class OpenPoseModelInfo(ModelInfo):
     name = "openpose"
     tracker_name = "OpenPoseTracker"
-    landmark_names = [
+    body_landmark_names = [
         "nose",
         "neck",
         "right_shoulder",
@@ -33,9 +33,18 @@ class OpenPoseModelInfo(ModelInfo):
         "right_small_toe", 
         "right_heel"
     ]
-    num_tracked_points = len(landmark_names)
-    hand_markers = 21
-    face_markers = 70
+    landmark_names = body_landmark_names
+    num_tracked_points_body = len(body_landmark_names)
+    num_tracked_points_face = 70
+    num_tracked_points_left_hand = 21
+    num_tracked_points_right_hand = 21
+
+    num_tracked_points = (
+        num_tracked_points_body
+        + num_tracked_points_left_hand
+        + num_tracked_points_right_hand
+        + num_tracked_points_face
+    )
     tracked_object_names = ["pose_landmarks"]
     virtual_markers_definitions = {
         "head_center": {
