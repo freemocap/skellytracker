@@ -53,7 +53,7 @@ class BaseRecorder(ABC):
         :return: None
         """
         if self.recorded_objects_array is None:
-            self.process_tracked_objects()
+            self.recorded_objects_array = self.process_tracked_objects()
         logger.info(f"Saving recorded objects to {file_path}")
         np.save(file_path, self.recorded_objects_array)
 
