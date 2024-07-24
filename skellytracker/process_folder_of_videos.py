@@ -41,10 +41,6 @@ try:
     from skellytracker.trackers.openpose_tracker.openpose_tracker import (
         OpenPoseTracker,
     )
-    from skellytracker.trackers.openpose_tracker.openpose_model_info import (
-        OpenPoseTrackingParams,
-        OpenPoseModelInfo,
-    )
 except:
     print("To use openpose_tracker, install skellytracker[openpose]")
 
