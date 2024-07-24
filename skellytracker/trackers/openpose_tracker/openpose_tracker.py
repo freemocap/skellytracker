@@ -132,27 +132,13 @@ class OpenPoseTracker(BaseCumulativeTracker):
 if __name__ == "__main__":
     # Example usage
 
-    input_video_folder = Path(
-        r"C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_sample_data"
-    )
-    input_video_filepath = (
-        input_video_folder
-        / "synchronized_videos"
-        / "sesh_2022-09-19_16_16_50_in_class_jsm_synced_Cam1.mp4"
-    )
-
-    output_video_filepath = input_video_folder / "openpose_annotated_videos"
-    output_video_filepath.mkdir(parents=True, exist_ok=True)
-
-    output_json_path = (
-        input_video_folder / "output_data" / "raw_data" / "openpose_jsons"
-    )
-    output_json_path.mkdir(parents=True, exist_ok=True)
 
     openpose_root_folder_path = r"C:\openpose"
-    # output_json_path = r'C:\openpose\output_json'
-    # input_video_filepath = r'C:\path\to\input\video.mp4'
-    # output_video_filepath = r'C:\path\to\output\video.mp4'
+    output_json_path = Path(r'C:\openpose\output_json')
+    output_json_path.mkdir(parents=True, exist_ok=True)
+    input_video_filepath = r'C:\path\to\input\video.mp4'
+    output_video_filepath = r'C:\path\to\output\video.mp4'
+
     tracker = OpenPoseTracker(
         openpose_root_folder_path=str(openpose_root_folder_path),
         output_json_folder_path=str(output_json_path),
