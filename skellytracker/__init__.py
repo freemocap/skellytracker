@@ -20,8 +20,6 @@ base_package_path = Path(__file__).parent
 print(f"adding base_package_path: {base_package_path} : to sys.path")
 sys.path.insert(0, str(base_package_path))  # add parent directory to sys.path
 
-print(f"sys path: {sys.path}")
-
 from skellytracker.system.default_paths import get_log_file_path
 from skellytracker.system.logging_configuration import configure_logging
 

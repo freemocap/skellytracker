@@ -70,6 +70,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
                 axis=0,
             )
 
+
         return self.recorded_objects_array
 
     def num_tracked_points_by_name(self, name: str) -> int:
