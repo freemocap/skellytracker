@@ -26,7 +26,7 @@ class BaseTracker(ABC):
     def __init__(
         self,
         tracked_object_names: List[str] = [],
-        recorder: Optional[BaseCumulativeRecorder] = None,
+        recorder: Optional[BaseRecorder] = None,
         **data: Any,
     ):
         self.recorder = recorder
@@ -170,8 +170,8 @@ class BaseCumulativeTracker(BaseTracker):
 
     def __init__(
         self,
-        tracked_object_names: List[str] = None,
-        recorder: BaseRecorder = None,
+        tracked_object_names: List[str] = [],
+        recorder: Optional[BaseCumulativeRecorder] = None,
         **data: Any,
     ):
         super().__init__(
