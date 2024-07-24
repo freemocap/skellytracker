@@ -11,4 +11,4 @@ class TrackedObject:
     pixel_x: Optional[float] = None
     pixel_y: Optional[float] = None
     depth_z: Optional[float] = None
-    extra: Optional[Dict[str, Any]] = field(default_factory=dict)
+    extra: Dict[str, Any] = field(default_factory=dict)
