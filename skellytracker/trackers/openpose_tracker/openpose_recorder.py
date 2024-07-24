@@ -62,12 +62,13 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
         self, person_data: Dict[str, np.ndarray]
     ) -> (
         np.ndarray
-    ):  # TODO: type hint person_data - is this an ndarray yet or something else?
+    ):
         """Extract and organize keypoints from person data."""
 
         body_markers = OpenPoseModelInfo.num_tracked_points
         hand_markers = OpenPoseModelInfo.hand_markers
         face_markers = OpenPoseModelInfo.face_markers
+
         # Initialize a full array of NaNs for keypoints
         keypoints_array = np.full(
             (body_markers + (2 * hand_markers) + face_markers, 3), np.nan

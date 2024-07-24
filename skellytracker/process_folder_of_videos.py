@@ -1,7 +1,6 @@
 import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-import sys
 from typing import Optional
 import numpy as np
 from pydantic import BaseModel
@@ -37,13 +36,14 @@ try:
     )
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
-    
+
 try:
     from skellytracker.trackers.openpose_tracker.openpose_tracker import (
-          OpenPoseTracker,
+        OpenPoseTracker,
     )
     from skellytracker.trackers.openpose_tracker.openpose_model_info import (
-            OpenPoseTrackingParams, OpenPoseModelInfo
+        OpenPoseTrackingParams,
+        OpenPoseModelInfo,
     )
 except:
     print("To use openpose_tracker, install skellytracker[openpose]")
@@ -134,9 +134,7 @@ def process_single_video(
     """
 
     if tracker_name == "OpenPoseTracker":
-        video_name = (
-            video_path.stem + "_openpose.avi"
-        )
+        video_name = video_path.stem + "_openpose.avi"
     else:
         video_name = (
             video_path.stem + "_mediapipe.mp4"
@@ -190,7 +188,7 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     elif tracker_name == "BrightestPointTracker":
         tracker = BrightestPointTracker()
 
-    elif tracker_name == 'OpenPoseTracker':
+    elif tracker_name == "OpenPoseTracker":
         tracker = OpenPoseTracker(
             openpose_root_folder_path=tracking_params.openpose_root_folder_path,
             output_json_folder_path=tracking_params.output_json_path,
@@ -198,8 +196,9 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             number_people_max=tracking_params.number_people_max,
             track_faces=tracking_params.track_face,
             track_hands=tracking_params.track_hands,
+            output_resolution=tracking_params.output_resolution,
         )
-        
+
     else:
         raise ValueError("Invalid tracker type")
 
@@ -215,55 +214,27 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
-    elif tracker_name == 'OpenPoseTracker':
-        return OpenPoseTrackingParams()
+    elif tracker_name == "OpenPoseTracker":
+        raise ValueError(
+            "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
+        )
     else:
         raise ValueError("Invalid tracker type")
 
 
 if __name__ == "__main__":
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 
-    # synchronized_video_path = Path(
-    #     "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
-    # )
+    synchronized_video_path = Path(
+        "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+    )
 
-    # synchronized_video_path = Path(
-    #     r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_test_data\synchronized_videos'
-    # )
-    # tracker_name = "YOLOMediapipeComboTracker"
-    # num_processes = None
-
-    # process_folder_of_videos(
-    #     model_info=MediapipeModelInfo(),
-    #     tracking_params=MediapipeTrackingParams(),
-    #     synchronized_video_path=synchronized_video_path,
-    #     num_processes=num_processes,
-    # )
-
-    tracker_name = "OpenPoseTracker"
-    num_processes = 1
-    
-    input_video_folder = Path(r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_test_data')
-    input_video_filepath = input_video_folder/'synchronized_videos'
-    
-    # output_video_folder = input_video_folder/'openpose_annotated_videos'
-    # output_video_folder.mkdir(parents=True, exist_ok=True)
-
-    output_json_path = input_video_folder/'output_data'/'raw_data'/'openpose_jsons'
-    output_json_path.mkdir(parents=True, exist_ok=True)
-
-    openpose_root_folder_path = r'C:\openpose'
+    tracker_name = "YOLOMediapipeComboTracker"
+    num_processes = None
 
     process_folder_of_videos(
-        model_info=OpenPoseModelInfo(),
-        # tracker_name=tracker_name,
-        # tracking_params=get_tracker_params(tracker_name=tracker_name),
-        tracking_params=OpenPoseTrackingParams(
-           openpose_root_folder_path=str(openpose_root_folder_path),
-           output_json_path=str(output_json_path),
-           track_hands=False,
-           track_face=False
-        ),
-        synchronized_video_path=input_video_filepath,
+        model_info=MediapipeModelInfo(),
+        tracking_params=get_tracker_params(tracker_name=tracker_name),
+        synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
     )
