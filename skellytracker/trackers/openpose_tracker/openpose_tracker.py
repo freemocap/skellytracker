@@ -30,7 +30,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
         """
         super().__init__(
             tracked_object_names=[],
-            recorder=OpenPoseRecorder(json_directory_path=output_json_folder_path),
+            recorder=OpenPoseRecorder(),
             track_hands=track_hands,
             track_faces=track_faces,
         )

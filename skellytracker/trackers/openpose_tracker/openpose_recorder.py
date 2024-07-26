@@ -14,12 +14,10 @@ from skellytracker.trackers.openpose_tracker.openpose_model_info import (
 class OpenPoseRecorder(BaseCumulativeRecorder):
     def __init__(
         self,
-        json_directory_path: Union[Path, str],
         track_hands: bool = False,
         track_faces: bool = False,
     ):
         super().__init__()
-        self.json_directory_path = Path(json_directory_path)
         self.track_hands = track_hands
         self.track_faces = track_faces
 
@@ -38,9 +36,9 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
 
         num_markers = OpenPoseModelInfo.num_tracked_points
         if self.track_hands:
-            num_markers += OpenPoseModelInfo.hand_markers * 2
+            num_markers += OpenPoseModelInfo.num_tracked_points_right_hand + OpenPoseModelInfo.num_tracked_points_left_hand
         if self.track_faces:
-            num_markers += OpenPoseModelInfo.face_markers
+            num_markers += OpenPoseModelInfo.num_tracked_points_face
 
         # Initialize a single camera array since we're only processing one video at a time
         data_array = np.full((num_frames, num_markers, 3), np.nan)
@@ -66,12 +64,12 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
         """Extract and organize keypoints from person data."""
 
         body_markers = OpenPoseModelInfo.num_tracked_points
-        hand_markers = OpenPoseModelInfo.hand_markers
-        face_markers = OpenPoseModelInfo.face_markers
+        hand_markers = OpenPoseModelInfo.num_tracked_points_left_hand + OpenPoseModelInfo.num_tracked_points_right_hand
+        face_markers = OpenPoseModelInfo.num_tracked_points_face
 
         # Initialize a full array of NaNs for keypoints
         keypoints_array = np.full(
-            (body_markers + (2 * hand_markers) + face_markers, 3), np.nan
+            (body_markers + (hand_markers) + face_markers, 3), np.nan
         )
 
         # Populate the array with available data
@@ -87,12 +85,12 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
                 person_data["hand_left_keypoints_2d"], (-1, 3)
             )[:hand_markers, :]
             keypoints_array[
-                body_markers + hand_markers : body_markers + 2 * hand_markers, :
+                body_markers + hand_markers : body_markers + hand_markers, :
             ] = np.reshape(person_data["hand_right_keypoints_2d"], (-1, 3))[
                 :hand_markers, :
             ]
         if "face_keypoints_2d" in person_data:
-            keypoints_array[body_markers + 2 * hand_markers :, :] = np.reshape(
+            keypoints_array[body_markers + hand_markers :, :] = np.reshape(
                 person_data["face_keypoints_2d"], (-1, 3)
             )[:face_markers, :]
 
