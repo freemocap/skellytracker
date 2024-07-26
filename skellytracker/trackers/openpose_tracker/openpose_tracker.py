@@ -138,7 +138,7 @@ if __name__ == "__main__":
     # Example usage
     openpose_root_folder_path = r"C:\openpose"
     input_video_filepath = r'C:\path\to\input\video.mp4'
-    output_video_filepath = r'C:\path\to\output\video.mp4'
+    output_video_filepath = r'C:\path\to\output\video.avi'
 
     tracker = OpenPoseTracker(
         openpose_root_folder_path=str(openpose_root_folder_path),
