@@ -1,6 +1,6 @@
 import subprocess
 from pathlib import Path
-from typing import Union
+from typing import Optional, Union
 from skellytracker.trackers.base_tracker.base_tracker import BaseCumulativeTracker
 from skellytracker.trackers.openpose_tracker.openpose_recorder import OpenPoseRecorder
 
@@ -9,7 +9,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
     def __init__(
         self,
         openpose_root_folder_path: Union[str, Path],
-        output_json_folder_path: Union[str, Path],
+        output_json_folder_path: Optional[Union[str, Path]] = None,
         net_resolution: str = "-1x640",
         number_people_max: int = 1,
         track_hands: bool = True,
@@ -21,7 +21,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
 
         :param recorder: An instance of OpenPoseRecorder for handling the output.
         :param openpose_root_folder_path: Path to the OpenPose root folder.
-        :param output_json_path: Directory where JSON files will be saved.
+        :param output_json_folder_path: Path to the output JSON folder.
         :param net_resolution: Network resolution for OpenPose processing.
         :param number_people_max: Maximum number of people to detect.
         :param track_hands: Whether to track hands.
@@ -35,7 +35,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
             track_faces=track_faces,
         )
         self.openpose_root_folder_path = Path(openpose_root_folder_path)
-        self.output_json_folder_path = Path(output_json_folder_path)
+        self.output_json_folder_path = output_json_folder_path
         self.net_resolution = net_resolution
         self.number_people_max = number_people_max
         self.track_hands = track_hands
@@ -52,7 +52,6 @@ class OpenPoseTracker(BaseCumulativeTracker):
 
     def set_json_output_path(self, output_json_folder_path: Union[str, Path]):
         self.output_json_folder_path = Path(output_json_folder_path)
-        self.recorder.json_directory_path = self.output_json_folder_path
 
     def process_video(
         self,
@@ -74,7 +73,13 @@ class OpenPoseTracker(BaseCumulativeTracker):
         """
         # Extract video name without extension to use as a unique folder name
         video_name = Path(input_video_filepath).stem
-        unique_json_output_path = self.output_json_folder_path / video_name
+
+        if self.output_json_folder_path is None:
+            self.output_json_folder_path = Path(input_video_filepath).parent.parent / "output_data" / "raw_data" / "openpose_jsons"
+
+        Path(self.output_json_folder_path).mkdir(parents=True, exist_ok=True)
+
+        unique_json_output_path = Path(self.output_json_folder_path) / video_name
         unique_json_output_path.mkdir(parents=True, exist_ok=True)
 
         # Full path to the OpenPose executable
@@ -131,16 +136,11 @@ class OpenPoseTracker(BaseCumulativeTracker):
 
 if __name__ == "__main__":
     # Example usage
-
-
     openpose_root_folder_path = r"C:\openpose"
-    output_json_path = Path(r'C:\openpose\output_json')
-    output_json_path.mkdir(parents=True, exist_ok=True)
     input_video_filepath = r'C:\path\to\input\video.mp4'
     output_video_filepath = r'C:\path\to\output\video.mp4'
 
     tracker = OpenPoseTracker(
         openpose_root_folder_path=str(openpose_root_folder_path),
-        output_json_folder_path=str(output_json_path),
     )
     tracker.process_video(input_video_filepath, output_video_filepath)
