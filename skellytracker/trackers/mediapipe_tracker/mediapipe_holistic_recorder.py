@@ -39,25 +39,21 @@ class MediapipeHolisticRecorder(BaseRecorder):
                 for name in MediapipeModelInfo.mediapipe_tracked_object_names
             }
             for recorded_object in recorded_object_list:
-                if recorded_object.extra["landmarks"] is not None:
-                    for j, landmark_data in enumerate(
-                        recorded_object.extra["landmarks"].landmark
-                    ):
-                        frame_data[recorded_object.object_id][j, 0] = (
-                            landmark_data.x * image_size[0]
-                        )
-                        frame_data[recorded_object.object_id][j, 1] = (
-                            landmark_data.y * image_size[1]
-                        )
-                        frame_data[recorded_object.object_id][j, 2] = (
-                            landmark_data.z * image_size[0]
-                        )  # multiply depth by image width, per MediaPipe documentation
+                if recorded_object.extra["landmarks"] is None:
+                    continue
 
-            for name in MediapipeModelInfo.mediapipe_tracked_object_names:
-                if name not in frame_data:
-                    frame_data[name] = np.full(
-                        self.num_tracked_points_by_name(name), np.nan
+                for j, landmark_data in enumerate(
+                    recorded_object.extra["landmarks"].landmark
+                ):
+                    frame_data[recorded_object.object_id][j, 0] = (
+                        landmark_data.x * image_size[0]
                     )
+                    frame_data[recorded_object.object_id][j, 1] = (
+                        landmark_data.y * image_size[1]
+                    )
+                    frame_data[recorded_object.object_id][j, 2] = (
+                        landmark_data.z * image_size[0]
+                    )  # multiply depth by image width, per MediaPipe documentation
 
             self.recorded_objects_array[i] = np.concatenate(
                 # this order matters, do not change

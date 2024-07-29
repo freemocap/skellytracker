@@ -156,10 +156,6 @@ def test_record_missing_data(test_image):
         image_size=test_image.shape[:2]
     )
 
-    print(processed_results[:, :33, :].tolist())
-    print("\n\n\n")
-    print(processed_results[:, 33:75, :].tolist())
-
     assert not np.all(np.isnan(processed_results[:, :33, :])), "Body points incorrectly converted to NaN"
     assert np.all(np.isnan(processed_results[:, 33:54, :])), "Right hand points incorrectly converted to NaN"
     assert not np.all(np.isnan(processed_results[:, 54:75, :])), "Left hand points incorrectly converted to NaN"
