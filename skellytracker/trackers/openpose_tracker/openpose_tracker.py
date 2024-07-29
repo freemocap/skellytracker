@@ -140,7 +140,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
 if __name__ == "__main__":
     # Example usage
     openpose_root_folder_path = r"C:\openpose"
-    input_video_filepath = r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_test_data\synchronized_videos\sesh_2022-09-19_16_16_50_in_class_jsm_synced_Cam1.mp4'
+    input_video_filepath = r'C:\path\to\input\video.mp4'
     output_video_filepath = r'C:\path\to\output\video.avi'
 
     tracker = OpenPoseTracker(
