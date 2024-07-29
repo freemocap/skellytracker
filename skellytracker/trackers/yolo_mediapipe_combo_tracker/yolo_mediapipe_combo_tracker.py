@@ -13,6 +13,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_recorder import
 )
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
+    MediapipeTrackedObjectNames
 )
 from skellytracker.trackers.yolo_object_tracker.yolo_object_model_info import (
     yolo_object_model_dictionary,
@@ -104,18 +105,19 @@ class YOLOMediapipeComboTracker(BaseTracker):
         self._rescale_cropped_data(
             image, box_left, box_top, box_right, box_bottom, mediapipe_results
         )
-        self.tracked_objects["pose_landmarks"].extra[
+        self.tracked_objects[MediapipeTrackedObjectNames.pose].extra[
             "landmarks"
         ] = mediapipe_results.pose_landmarks
-        self.tracked_objects["face_landmarks"].extra[
-            "landmarks"
-        ] = mediapipe_results.face_landmarks
-        self.tracked_objects["left_hand_landmarks"].extra[
-            "landmarks"
-        ] = mediapipe_results.left_hand_landmarks
-        self.tracked_objects["right_hand_landmarks"].extra[
+        self.tracked_objects[MediapipeTrackedObjectNames.right_hand].extra[
             "landmarks"
         ] = mediapipe_results.right_hand_landmarks
+        self.tracked_objects[MediapipeTrackedObjectNames.left_hand].extra[
+            "landmarks"
+        ] = mediapipe_results.left_hand_landmarks
+        self.tracked_objects[MediapipeTrackedObjectNames.face].extra[
+            "landmarks"
+        ] = mediapipe_results.face_landmarks
+
 
         bbox_image = buffered_yolo_results[0].plot()
 
@@ -194,23 +196,23 @@ class YOLOMediapipeComboTracker(BaseTracker):
         # Draw the pose, face, and hand landmarks on the image
         self.mp_drawing.draw_landmarks(
             image,
-            tracked_objects["pose_landmarks"].extra["landmarks"],
+            tracked_objects[MediapipeTrackedObjectNames.pose].extra["landmarks"],
             self.mp_holistic.POSE_CONNECTIONS,
         )
         self.mp_drawing.draw_landmarks(
             image,
-            tracked_objects["face_landmarks"].extra["landmarks"],
+            tracked_objects[MediapipeTrackedObjectNames.right_hand].extra["landmarks"],
+            self.mp_holistic.HAND_CONNECTIONS,
+        )
+        self.mp_drawing.draw_landmarks(
+            image,
+            tracked_objects[MediapipeTrackedObjectNames.left_hand].extra["landmarks"],
+            self.mp_holistic.HAND_CONNECTIONS,
+        )
+        self.mp_drawing.draw_landmarks(
+            image,
+            tracked_objects[MediapipeTrackedObjectNames.face].extra["landmarks"],
             self.mp_holistic.FACEMESH_TESSELATION,
-        )
-        self.mp_drawing.draw_landmarks(
-            image,
-            tracked_objects["left_hand_landmarks"].extra["landmarks"],
-            self.mp_holistic.HAND_CONNECTIONS,
-        )
-        self.mp_drawing.draw_landmarks(
-            image,
-            tracked_objects["right_hand_landmarks"].extra["landmarks"],
-            self.mp_holistic.HAND_CONNECTIONS,
         )
 
         return image

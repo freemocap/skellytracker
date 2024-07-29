@@ -151,7 +151,7 @@ class BaseTracker(ABC):
         )
         camera_viewer.run()
 
-    def image_demo(self, image_path: Path) -> None:
+    def image_demo(self, image_path: Union[Path, str]) -> None:
         """
         Run tracker on single image
 
@@ -159,4 +159,4 @@ class BaseTracker(ABC):
         """
 
         image_viewer = ImageDemoViewer(self, self.__class__.__name__)
-        image_viewer.run(image_path=image_path)
+        image_viewer.run(image_path=Path(image_path))
