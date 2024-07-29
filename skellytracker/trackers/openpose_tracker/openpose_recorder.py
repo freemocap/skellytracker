@@ -43,7 +43,7 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
                 f"Invalid number of frames in {json_directory}: expected {num_frames} != {len(frame_indices)} frames in file"
             )
 
-        num_markers = OpenPoseModelInfo.num_tracked_points
+        num_markers = OpenPoseModelInfo.num_tracked_points_body
         if self.track_hands:
             num_markers += (
                 OpenPoseModelInfo.num_tracked_points_right_hand
@@ -71,7 +71,7 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
     def extract_keypoints(self, person_data: Dict[str, np.ndarray]) -> np.ndarray:
         """Extract and organize keypoints from person data."""
 
-        body_markers = OpenPoseModelInfo.num_tracked_points
+        body_markers = OpenPoseModelInfo.num_tracked_points_body
         hand_markers = (
             OpenPoseModelInfo.num_tracked_points_left_hand
             + OpenPoseModelInfo.num_tracked_points_right_hand
@@ -92,11 +92,11 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
             "hand_left_keypoints_2d" in person_data
             and "hand_right_keypoints_2d" in person_data
         ):
-            keypoints_array[body_markers : body_markers + hand_markers, :] = np.reshape(
+            keypoints_array[body_markers : body_markers + OpenPoseModelInfo.num_tracked_points_left_hand, :] = np.reshape(
                 person_data["hand_left_keypoints_2d"], (-1, 3)
             )[:hand_markers, :]
             keypoints_array[
-                body_markers + hand_markers : body_markers + hand_markers, :
+                body_markers + OpenPoseModelInfo.num_tracked_points_left_hand : body_markers + OpenPoseModelInfo.num_tracked_points_left_hand + OpenPoseModelInfo.num_tracked_points_right_hand, :
             ] = np.reshape(person_data["hand_right_keypoints_2d"], (-1, 3))[
                 :hand_markers, :
             ]
