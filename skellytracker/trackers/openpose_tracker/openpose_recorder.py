@@ -31,12 +31,24 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
         json_directory = Path(json_directory)
         files = list(Path(json_directory).glob("*.json"))
         num_frames = len(files)
-        frame_indices = [self.extract_frame_index(f.name) for f in files]
+        frame_indices = [
+            index
+            for f in files
+            if (index := self.extract_frame_index(f.name)) is not None
+        ]
         frame_indices.sort()
+
+        if len(frame_indices) != num_frames:
+            raise ValueError(
+                f"Invalid number of frames in {json_directory}: expected {num_frames} != {len(frame_indices)} frames in file"
+            )
 
         num_markers = OpenPoseModelInfo.num_tracked_points
         if self.track_hands:
-            num_markers += OpenPoseModelInfo.num_tracked_points_right_hand + OpenPoseModelInfo.num_tracked_points_left_hand
+            num_markers += (
+                OpenPoseModelInfo.num_tracked_points_right_hand
+                + OpenPoseModelInfo.num_tracked_points_left_hand
+            )
         if self.track_faces:
             num_markers += OpenPoseModelInfo.num_tracked_points_face
 
@@ -56,15 +68,14 @@ class OpenPoseRecorder(BaseCumulativeRecorder):
 
         return data_array
 
-    def extract_keypoints(
-        self, person_data: Dict[str, np.ndarray]
-    ) -> (
-        np.ndarray
-    ):
+    def extract_keypoints(self, person_data: Dict[str, np.ndarray]) -> np.ndarray:
         """Extract and organize keypoints from person data."""
 
         body_markers = OpenPoseModelInfo.num_tracked_points
-        hand_markers = OpenPoseModelInfo.num_tracked_points_left_hand + OpenPoseModelInfo.num_tracked_points_right_hand
+        hand_markers = (
+            OpenPoseModelInfo.num_tracked_points_left_hand
+            + OpenPoseModelInfo.num_tracked_points_right_hand
+        )
         face_markers = OpenPoseModelInfo.num_tracked_points_face
 
         # Initialize a full array of NaNs for keypoints
