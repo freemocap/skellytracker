@@ -10,7 +10,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
         self,
         openpose_root_folder_path: Union[str, Path],
         output_json_folder_path: Optional[Union[str, Path]] = None,
-        net_resolution: str = "-1x640",
+        net_resolution: str = "-1x320",
         number_people_max: int = 1,
         track_hands: bool = True,
         track_faces: bool = True,
@@ -30,7 +30,10 @@ class OpenPoseTracker(BaseCumulativeTracker):
         """
         super().__init__(
             tracked_object_names=[],
-            recorder=OpenPoseRecorder(),
+            recorder=OpenPoseRecorder(
+                track_hands=track_hands,
+                track_faces=track_faces,
+            ),
             track_hands=track_hands,
             track_faces=track_faces,
         )
@@ -137,7 +140,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
 if __name__ == "__main__":
     # Example usage
     openpose_root_folder_path = r"C:\openpose"
-    input_video_filepath = r'C:\path\to\input\video.mp4'
+    input_video_filepath = r'C:\Users\aaron\FreeMocap_Data\recording_sessions\freemocap_test_data\synchronized_videos\sesh_2022-09-19_16_16_50_in_class_jsm_synced_Cam1.mp4'
     output_video_filepath = r'C:\path\to\output\video.avi'
 
     tracker = OpenPoseTracker(
