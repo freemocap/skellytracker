@@ -1,6 +1,7 @@
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
+from typing import Optional
 
 
 class OpenPoseModelInfo(ModelInfo):
@@ -154,7 +155,7 @@ class OpenPoseModelInfo(ModelInfo):
 
 class OpenPoseTrackingParams(BaseTrackingParams):
     openpose_root_folder_path: str
-    output_json_path: str
+    output_json_path: Optional[str] = None
     net_resolution: str = "-1x320"
     number_people_max: int = 1
     track_hands: bool = True
