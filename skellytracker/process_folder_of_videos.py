@@ -1,7 +1,6 @@
 import logging
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-import sys
 from typing import Optional
 import numpy as np
 from pydantic import BaseModel
@@ -37,6 +36,13 @@ try:
     )
 except:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
+
+try:
+    from skellytracker.trackers.openpose_tracker.openpose_tracker import (
+        OpenPoseTracker,
+    )
+except:
+    print("To use openpose_tracker, install skellytracker[openpose]")
 
 logger = logging.getLogger(__name__)
 
@@ -122,9 +128,14 @@ def process_single_video(
     :param annotated_video_path: Path to save annotated video to.
     :return: Array of tracking data
     """
-    video_name = (
-        video_path.stem + "_mediapipe.mp4"
-    )  # TODO: fix it so blender output doesn't require mediapipe addendum here
+
+    if tracker_name == "OpenPoseTracker":
+        video_name = video_path.stem + "_openpose.avi"
+    else:
+        video_name = (
+            video_path.stem + "_mediapipe.mp4"
+        )  # TODO: fix it so blender output doesn't require mediapipe addendum here
+
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
     logger.info(
         f"Processing video: {video_name} with tracker: {tracker.__class__.__name__}"
@@ -133,7 +144,7 @@ def process_single_video(
         input_video_filepath=video_path,
         output_video_filepath=annotated_video_path / video_name,
         save_data_bool=False,
-    )
+    )  # TODO: raise a custom error here if output_array is None?
     return output_array
 
 
@@ -173,6 +184,17 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
     elif tracker_name == "BrightestPointTracker":
         tracker = BrightestPointTracker()
 
+    elif tracker_name == "OpenPoseTracker":
+        tracker = OpenPoseTracker(
+            openpose_root_folder_path=tracking_params.openpose_root_folder_path,
+            output_json_folder_path=tracking_params.output_json_path,
+            net_resolution=tracking_params.net_resolution,
+            number_people_max=tracking_params.number_people_max,
+            track_faces=tracking_params.track_face,
+            track_hands=tracking_params.track_hands,
+            output_resolution=tracking_params.output_resolution,
+        )
+
     else:
         raise ValueError("Invalid tracker type")
 
@@ -188,19 +210,26 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
+    elif tracker_name == "OpenPoseTracker":
+        raise ValueError(
+            "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
+        )
     else:
         raise ValueError("Invalid tracker type")
 
 
 if __name__ == "__main__":
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
+
     synchronized_video_path = Path(
-        "/Users/philipqueen/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+        "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
+
     tracker_name = "YOLOMediapipeComboTracker"
     num_processes = None
 
     process_folder_of_videos(
-        tracker_name=tracker_name,
+        model_info=MediapipeModelInfo(),
         tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
