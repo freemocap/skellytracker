@@ -1,9 +1,8 @@
 import logging
+import numpy as np
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
-import sys
 from typing import Optional
-import numpy as np
 from pydantic import BaseModel
 
 
@@ -12,16 +11,19 @@ from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import 
     BrightestPointTracker,
 )
 from skellytracker.utilities.get_video_paths import get_video_paths
+
 try:
     from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
         YOLOMediapipeComboTracker,
     )
-except:
-    print("\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n")
+except ModuleNotFoundError:
+    print(
+        "\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n"
+    )
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
-except:
+except ModuleNotFoundError:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
@@ -30,7 +32,7 @@ try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
         MediapipeTrackingParams,
     )
-except:
+except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
 logger = logging.getLogger(__name__)
@@ -113,7 +115,7 @@ def process_single_video(
     tracking_params: BaseModel,
     video_path: Path,
     annotated_video_path: Path,
-) -> np.ndarray:
+) -> Optional[np.ndarray]:
     """
     Process a single video with the given tracker.
     Tracked data will be saved to a .npy file with the shape (numCams, numFrames, numTrackedPoints, pixelXYZ).
@@ -180,11 +182,12 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     return tracker
 
+
 def get_tracker_params(tracker_name: str) -> BaseModel:
     if tracker_name == "MediapipeHolisticTracker":
         return MediapipeTrackingParams()
     elif tracker_name == "YOLOMediapipeComboTracker":
-        return YOLOTrackingParams()
+        return YOLOTrackingParams()  # TODO: figure out how to reference both tracking params in a stable way
     elif tracker_name == "YOLOPoseTracker":
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":

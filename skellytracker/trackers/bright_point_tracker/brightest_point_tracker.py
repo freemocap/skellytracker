@@ -71,10 +71,14 @@ class BrightestPointTracker(BaseTracker):
         for i, patch in enumerate(largest_patches):
             self.tracked_objects[f"brightest_point_{i}"].pixel_x = patch.centroid_x
             self.tracked_objects[f"brightest_point_{i}"].pixel_y = patch.centroid_y
-            self.tracked_objects[f"brightest_point_{i}"].extra["thresholdedimage"] = thresholded_image
+            self.tracked_objects[f"brightest_point_{i}"].extra[
+                "thresholdedimage"
+            ] = thresholded_image
 
         for i in range(len(largest_patches), self.num_points):
-            self.tracked_objects[f"brightest_point_{i}"].pixel_x = None # TODO: Is this the right value for missing data?
+            self.tracked_objects[f"brightest_point_{i}"].pixel_x = (
+                None  # TODO: Is this the right value for missing data?
+            )
             self.tracked_objects[f"brightest_point_{i}"].pixel_y = None
 
         self.annotated_image = self.annotate_image(

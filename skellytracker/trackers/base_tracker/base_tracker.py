@@ -10,8 +10,8 @@ from tqdm import tqdm
 from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.base_tracker.video_handler import VideoHandler
-from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
-from skellytracker.trackers.webcam_demo_viewer.webcam_demo_viewer import (
+from skellytracker.trackers.demo_viewers.image_demo_viewer import ImageDemoViewer
+from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
 )
 
@@ -26,7 +26,7 @@ class BaseTracker(ABC):
     def __init__(
         self,
         recorder: BaseRecorder,
-        tracked_object_names: List[str] = [],
+        tracked_object_names: List[str],
         **data: Any,
     ):
         self.recorder = recorder
@@ -112,7 +112,7 @@ class BaseTracker(ABC):
                 logger.error(
                     f"Failed to load an image from: {str(input_video_filepath)}"
                 )
-                raise Exception
+                raise ValueError("Failed to load an image from: " + str(input_video_filepath))
 
             self.process_image(frame)
             if self.recorder is not None:

@@ -8,11 +8,13 @@ class SessionInfo:
     test_image: np.ndarray
     charuco_test_image: np.ndarray
 
+
 def pytest_sessionstart(session):
     SessionInfo.test_image = download_test_image()
     SessionInfo.charuco_test_image = download_test_image(test_image_url=FIGSHARE_CHARUCO_TEST_IMAGE_URL)
 
-@pytest.fixture
+
+@pytest.fixture()
 def test_image():
     return SessionInfo.test_image
 
