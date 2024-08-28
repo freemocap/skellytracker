@@ -55,7 +55,7 @@ class YOLOMediapipeComboTracker(BaseTracker):
     def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
 
         yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
-        box_xyxy = np.asarray(yolo_results[0].boxes.xyxy).flatten()
+        box_xyxy = np.asarray(yolo_results[0].boxes.xyxy.cpu()).flatten()
 
         if box_xyxy.size > 0:
             box_left, box_top, box_right, box_bottom = box_xyxy
