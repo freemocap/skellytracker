@@ -113,7 +113,7 @@ class OpenPoseTracker(BaseCumulativeTracker):
 
         # Update the subprocess command to use the unique output directory
         try:
-            subprocess.run(
+            subprocess.run(  # noqa: S603
                 openpose_command,
                 shell=False,
                 cwd=self.openpose_root_folder_path,  # Set the current working directory for the subprocess

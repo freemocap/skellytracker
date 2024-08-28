@@ -171,8 +171,8 @@ class BaseCumulativeTracker(BaseTracker):
 
     def __init__(
         self,
-        tracked_object_names: List[str] = [],
-        recorder: Optional[BaseCumulativeRecorder] = None,
+        tracked_object_names: List[str],
+        recorder: BaseCumulativeRecorder,
         **data: Any,
     ):
         super().__init__(

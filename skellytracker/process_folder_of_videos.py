@@ -3,7 +3,6 @@ import numpy as np
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Optional
-import numpy as np
 from pydantic import BaseModel
 
 
@@ -44,7 +43,7 @@ try:
     from skellytracker.trackers.openpose_tracker.openpose_tracker import (
         OpenPoseTracker,
     )
-except:
+except ModuleNotFoundError:
     print("To use openpose_tracker, install skellytracker[openpose]")
 
 logger = logging.getLogger(__name__)
