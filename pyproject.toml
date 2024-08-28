@@ -74,7 +74,7 @@ all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
 Homepage = "https://github.com/freemocap/skellytracker"
 
 [tool.bumpver]
-current_version = "v2024.08.1017"
+current_version = "v2024.08.1018"
 
 version_pattern = "vYYYY.0M.BUILD[-TAG]"
 commit_message  = "Bump version {old_version} -> {new_version}"
