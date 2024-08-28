@@ -7,7 +7,7 @@ import numpy as np
 from tqdm import tqdm
 
 
-from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
+from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder, BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.base_tracker.video_handler import VideoHandler
 from skellytracker.trackers.demo_viewers.image_demo_viewer import ImageDemoViewer
@@ -65,7 +65,7 @@ class BaseTracker(ABC):
         output_video_filepath: Optional[Union[str, Path]] = None,
         save_data_bool: bool = False,
         use_tqdm: bool = True,
-    ) -> Optional[np.ndarray]:
+    ) -> Union[np.ndarray, None]:
         """
         Run the tracker on a video.
 
@@ -73,7 +73,7 @@ class BaseTracker(ABC):
         :param output_video_filepath: Path to save annotated video to, does not save video if None.
         :param save_data_bool: Whether to save the data to a file.
         :param use_tqdm: Whether to use tqdm to show a progress bar
-        :return: Array of tracked keypoint data, if save_data_bool is True
+        :return: Array of tracked keypoint data if tracker has an associated recorder
         """
 
         cap = cv2.VideoCapture(str(input_video_filepath))
@@ -160,3 +160,56 @@ class BaseTracker(ABC):
 
         image_viewer = ImageDemoViewer(self, self.__class__.__name__)
         image_viewer.run(image_path=image_path)
+
+
+class BaseCumulativeTracker(BaseTracker):
+    """
+    A base class for tracking algorithms that run cumulatively, i.e are not able to process videos frame by frame.
+    Throws a descriptive error for the abstract methods of BaseTracker that do not apply to this type of tracker.
+    Trackers inheriting from this will need to overwrite the `process_video` method.
+    """
+
+    def __init__(
+        self,
+        tracked_object_names: List[str],
+        recorder: BaseCumulativeRecorder,
+        **data: Any,
+    ):
+        super().__init__(
+            tracked_object_names=tracked_object_names, recorder=recorder, **data
+        )
+
+    def process_image(self, **kwargs) -> None:
+        raise NotImplementedError(
+            "This tracker does not support processing individual images, please use process_video instead."
+        )
+
+    def annotate_image(self, **kwargs) -> None:
+        raise NotImplementedError(
+            "This tracker does not support processing individual images, please use process_video instead."
+        )
+
+    @abstractmethod
+    def process_video(
+        self,
+        input_video_filepath: Union[str, Path],
+        output_video_filepath: Optional[Union[str, Path]] = None,
+        save_data_bool: bool = False,
+        use_tqdm: bool = True,
+        **kwargs,
+    ) -> Union[np.ndarray, None]:
+        """
+        Run the tracker on a video.
+
+        :param input_video_filepath: Path to video file.
+        :param output_video_filepath: Path to save annotated video to, does not save video if None.
+        :param save_data_bool: Whether to save the data to a file.
+        :param use_tqdm: Whether to use tqdm to show a progress bar
+        :return: Array of tracked keypoint data
+        """
+        pass
+
+    def image_demo(self, image_path: Path) -> None:
+        raise NotImplementedError(
+            "This tracker does not support processing individual images, please use process_video instead."
+        )

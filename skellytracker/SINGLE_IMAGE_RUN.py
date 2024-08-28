@@ -30,6 +30,7 @@ if __name__ == "__main__":
         charuco_squares_y = 5
         number_of_charuco_markers = (charuco_squares_x - 1) * (charuco_squares_y - 1)
         charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
+
         CharucoTracker(
             tracked_object_names=charuco_ids,
             squares_x=charuco_squares_x,

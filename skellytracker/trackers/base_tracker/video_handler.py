@@ -25,7 +25,9 @@ class VideoHandler:
         """
         self.output_path = output_path
         fourcc = cv2.VideoWriter.fourcc(*codec)
-        self.video_writer = cv2.VideoWriter(str(output_path), fourcc, fps, frame_size)
+        self.video_writer = cv2.VideoWriter(
+            str(output_path), fourcc, fps, frame_size
+        )
 
     def add_frame(self, frame: np.ndarray) -> None:
         """

@@ -14,7 +14,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
         self.recorded_objects.append(
             [
                 deepcopy(tracked_objects[tracked_object_name])
-                for tracked_object_name in MediapipeModelInfo.mediapipe_tracked_object_names
+                for tracked_object_name in MediapipeModelInfo.tracked_object_names
             ]
         )
 
@@ -27,7 +27,7 @@ class MediapipeHolisticRecorder(BaseRecorder):
         self.recorded_objects_array = np.zeros(
             (
                 len(self.recorded_objects),
-                MediapipeModelInfo.num_tracked_points_total,
+                MediapipeModelInfo.num_tracked_points,
                 3,
             )
         )
