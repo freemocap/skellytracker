@@ -57,21 +57,24 @@ keywords = [
 dependencies = [
     "opencv-contrib-python==4.8.*",
     "pydantic==2.*",
-    "mediapipe==0.10.9",
-    "ultralytics~=8.0.202",
+    "numpy<2",
+    "tqdm==4.*",
 ]
-requires-python = ">=3.9,<3.12"
+requires-python = ">=3.9,<3.13"
 
 dynamic = ["version", "description"]
 
 [project.optional-dependencies]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest"]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
+mediapipe = ["mediapipe==0.10.14"]
+yolo = ["ultralytics~=8.0.202"]
+all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
 
 [tool.bumpver]
-current_version = "v2024.03.1013"
+current_version = "v2024.06.1016"
 
 version_pattern = "vYYYY.0M.BUILD[-TAG]"
 commit_message  = "Bump version {old_version} -> {new_version}"
@@ -81,6 +84,12 @@ push            = true
 
 [tool.bumpver.file_patterns]
 "skellytracker/__init__.py" = ["{version}"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S101"]
+
+[tool.ruff.lint]
+extend-select = ["B", "S", "C4", "ISC", "PERF"]
 
 [project.scripts]
 skellytracker = "skellytracker.__main__:cli_main"

@@ -7,11 +7,11 @@ import numpy as np
 from tqdm import tqdm
 
 
-from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
+from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder, BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.base_tracker.video_handler import VideoHandler
-from skellytracker.trackers.image_demo_viewer.image_demo_viewer import ImageDemoViewer
-from skellytracker.trackers.webcam_demo_viewer.webcam_demo_viewer import (
+from skellytracker.trackers.demo_viewers.image_demo_viewer import ImageDemoViewer
+from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
 )
 
@@ -25,13 +25,12 @@ class BaseTracker(ABC):
 
     def __init__(
         self,
-        tracked_object_names: List[str] = [],
-        recorder: Optional[BaseRecorder] = None,
+        recorder: BaseRecorder,
+        tracked_object_names: List[str],
         **data: Any,
     ):
         self.recorder = recorder
         self.annotated_image = None
-        self.raw_image = None
         self.tracked_objects: Dict[str, TrackedObject] = {}
 
         for name in tracked_object_names:
@@ -113,12 +112,14 @@ class BaseTracker(ABC):
                 logger.error(
                     f"Failed to load an image from: {str(input_video_filepath)}"
                 )
-                raise Exception
+                raise ValueError("Failed to load an image from: " + str(input_video_filepath))
 
             self.process_image(frame)
             if self.recorder is not None:
                 self.recorder.record(self.tracked_objects)
             if video_handler is not None:
+                if self.annotated_image is None:
+                    self.annotated_image = frame
                 video_handler.add_frame(self.annotated_image)
 
             ret, frame = cap.read()
@@ -159,3 +160,56 @@ class BaseTracker(ABC):
 
         image_viewer = ImageDemoViewer(self, self.__class__.__name__)
         image_viewer.run(image_path=image_path)
+
+
+class BaseCumulativeTracker(BaseTracker):
+    """
+    A base class for tracking algorithms that run cumulatively, i.e are not able to process videos frame by frame.
+    Throws a descriptive error for the abstract methods of BaseTracker that do not apply to this type of tracker.
+    Trackers inheriting from this will need to overwrite the `process_video` method.
+    """
+
+    def __init__(
+        self,
+        tracked_object_names: List[str] = [],
+        recorder: Optional[BaseCumulativeRecorder] = None,
+        **data: Any,
+    ):
+        super().__init__(
+            tracked_object_names=tracked_object_names, recorder=recorder, **data
+        )
+
+    def process_image(self, **kwargs) -> None:
+        raise NotImplementedError(
+            "This tracker does not support processing individual images, please use process_video instead."
+        )
+
+    def annotate_image(self, **kwargs) -> None:
+        raise NotImplementedError(
+            "This tracker does not support processing individual images, please use process_video instead."
+        )
+
+    @abstractmethod
+    def process_video(
+        self,
+        input_video_filepath: Union[str, Path],
+        output_video_filepath: Optional[Union[str, Path]] = None,
+        save_data_bool: bool = False,
+        use_tqdm: bool = True,
+        **kwargs,
+    ) -> Union[np.ndarray, None]:
+        """
+        Run the tracker on a video.
+
+        :param input_video_filepath: Path to video file.
+        :param output_video_filepath: Path to save annotated video to, does not save video if None.
+        :param save_data_bool: Whether to save the data to a file.
+        :param use_tqdm: Whether to use tqdm to show a progress bar
+        :return: Array of tracked keypoint data
+        """
+        pass
+
+    def image_demo(self, image_path: Path) -> None:
+        raise NotImplementedError(
+            "This tracker does not support processing individual images, please use process_video instead."
+        )
