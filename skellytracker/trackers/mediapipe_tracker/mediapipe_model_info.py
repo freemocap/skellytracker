@@ -191,7 +191,7 @@ class MediapipeTrackingParams(BaseTrackingParams):
     mediapipe_model_complexity: int = 2
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
-    static_image_mode: bool = True
+    static_image_mode: bool = False
     yolo_model_size: Literal[
         "nano", "small", "medium", "large", "extra_large", "high_res"
     ] = "nano"
