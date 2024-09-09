@@ -93,6 +93,7 @@ extend-select = ["B", "S", "C4", "ISC", "PERF"]
 
 [project.scripts]
 skellytracker = "skellytracker.__main__:cli_main"
+skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
 
 [tool.setuptools]
 py-modules = ["skellytracker"]
