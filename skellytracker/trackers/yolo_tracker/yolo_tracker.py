@@ -21,7 +21,9 @@ class YOLOPoseTracker(BaseTracker):
 
         self.unpack_results(results)
 
-        self.annotated_image = self.annotate_image(image=image, results=results, **kwargs)
+        self.annotated_image = self.annotate_image(
+            image=image, results=results, **kwargs
+        )
 
         return self.tracked_objects
 
@@ -35,8 +37,12 @@ class YOLOPoseTracker(BaseTracker):
         )
         if tracked_person.size != 0:
             # add averages of all tracked points as pixel x and y
-            self.tracked_objects["tracked_person"].pixel_x = np.mean(tracked_person[:, 0])
-            self.tracked_objects["tracked_person"].pixel_y = np.mean(tracked_person[:, 1])
+            self.tracked_objects["tracked_person"].pixel_x = float(
+                np.mean(tracked_person[:, 0])
+            )
+            self.tracked_objects["tracked_person"].pixel_y = float(
+                np.mean(tracked_person[:, 1])
+            )
             self.tracked_objects["tracked_person"].extra["landmarks"] = tracked_person
         else:
             self.tracked_objects["tracked_person"].pixel_x = None

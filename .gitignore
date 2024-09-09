@@ -167,3 +167,4 @@ cython_debug/
 *.jpeg
 
 skellytracker/utilities/quine_directory_printer/output/*
+recorded_objects.npy

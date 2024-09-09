@@ -1,5 +1,4 @@
 from typing import Dict
-from copy import deepcopy
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder

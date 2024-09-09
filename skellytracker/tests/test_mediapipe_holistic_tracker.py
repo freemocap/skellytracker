@@ -48,7 +48,7 @@ def test_record(test_image):
     assert processed_results is not None
     assert processed_results.shape == (
         1,
-        MediapipeModelInfo.num_tracked_points_total,
+        MediapipeModelInfo.num_tracked_points,
         3,
     )
 
