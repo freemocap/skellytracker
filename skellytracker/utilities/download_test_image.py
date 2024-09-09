@@ -1,5 +1,4 @@
 import logging
-from pathlib import Path
 
 import cv2
 import numpy as np
@@ -9,6 +8,7 @@ from skellytracker.system.default_paths import FIGSHARE_TEST_IMAGE_URL
 
 
 logger = logging.getLogger(__name__)
+
 
 def download_test_image(test_image_url: str = FIGSHARE_TEST_IMAGE_URL) -> np.ndarray:
     try:
@@ -20,7 +20,7 @@ def download_test_image(test_image_url: str = FIGSHARE_TEST_IMAGE_URL) -> np.nda
         image_array = np.frombuffer(r.content, np.uint8)
         image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
 
-        logger.info(f"Test image downloaded successfully.")
+        logger.info("Test image downloaded successfully.")
         return image
 
     except requests.exceptions.RequestException as e:

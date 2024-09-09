@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 import logging
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, Union, Optional
 
 import numpy as np
 
@@ -26,7 +27,6 @@ class BaseRecorder(ABC):
         Record the tracked objects as they are created by the tracker.
 
         :param tracked_object: A tracked objects dictionary.
-        :param annotated_image: Image array with tracking results annotated.
         :return: None
         """
         pass
@@ -45,7 +45,7 @@ class BaseRecorder(ABC):
         self.recorded_objects = []
         self.recorded_objects_array = None
 
-    def save(self, file_path: str) -> None:
+    def save(self, file_path: Union[str, Path]) -> None:
         """
         Save the recorded objects to a file.
 
@@ -58,3 +58,19 @@ class BaseRecorder(ABC):
             recorded_objects_array = self.recorded_objects_array
         logger.info(f"Saving recorded objects to {file_path}")
         np.save(file_path, recorded_objects_array)
+
+
+class BaseCumulativeRecorder(BaseRecorder):
+    """
+    A base class for recording data from cumulative trackers.
+    Throws a descriptive error for methods that do not apply to recording data from this type of tracker.
+    Trackers implementing this will only use the process_tracked_objects method to get data in the proper format.
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
+        raise NotImplementedError(
+            "This tracker does not support by frame recording, please use process_tracked_objects instead"
+        )

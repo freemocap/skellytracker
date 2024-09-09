@@ -58,7 +58,7 @@ def test_record_no_buffer(test_image):
     assert processed_results is not None
     assert processed_results.shape == (
         1,
-        MediapipeModelInfo.num_tracked_points_total,
+        MediapipeModelInfo.num_tracked_points,
         3,
     )
 
@@ -122,7 +122,7 @@ def test_record_buffer_by_image_size(test_image):
     assert processed_results is not None
     assert processed_results.shape == (
         1,
-        MediapipeModelInfo.num_tracked_points_total,
+        MediapipeModelInfo.num_tracked_points,
         3,
     )
 
@@ -186,7 +186,7 @@ def test_record_buffer_by_box_size(test_image):
     assert processed_results is not None
     assert processed_results.shape == (
         1,
-        MediapipeModelInfo.num_tracked_points_total,
+        MediapipeModelInfo.num_tracked_points,
         3,
     )
 

@@ -10,11 +10,11 @@ try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
         MediapipeHolisticTracker,
     )
-except:
+except ModuleNotFoundError:
     print("\n\nTo use mediapipe_holistic_tracker, install skellytracker[mediapipe]\n\n")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-except:
+except ModuleNotFoundError:
     print("\n\nTo use yolo_tracker, install skellytracker[yolo]\n\n")
 
 
@@ -26,9 +26,15 @@ if __name__ == "__main__":
         BrightestPointTracker(num_points=2).image_demo(image_path=image_path)
 
     elif demo_tracker == "charuco_tracker":
+        charuco_squares_x = 7
+        charuco_squares_y = 5
+        number_of_charuco_markers = (charuco_squares_x - 1) * (charuco_squares_y - 1)
+        charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
+
         CharucoTracker(
-            squaresX=7,
-            squaresY=5,
+            tracked_object_names=charuco_ids,
+            squares_x=charuco_squares_x,
+            squares_y=charuco_squares_y,
             dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
         ).image_demo(image_path=image_path)
 

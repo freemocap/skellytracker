@@ -24,6 +24,6 @@ class YOLORecorder(BaseRecorder):
                 self.recorded_objects_array[i, j, 1] = recorded_object.extra[
                     "landmarks"
                 ][0, j, 1]
-                self.recorded_objects_array[i, j, 2] = np.NaN
+                self.recorded_objects_array[i, j, 2] = np.nan
 
         return self.recorded_objects_array

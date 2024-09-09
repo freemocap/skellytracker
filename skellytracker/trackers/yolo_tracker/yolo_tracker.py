@@ -21,7 +21,9 @@ class YOLOPoseTracker(BaseTracker):
 
         self.unpack_results(results)
 
-        self.annotated_image = self.annotate_image(image=image, results=results, **kwargs)
+        self.annotated_image = self.annotate_image(
+            image=image, results=results, **kwargs
+        )
 
         return self.tracked_objects
 

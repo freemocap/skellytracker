@@ -7,6 +7,7 @@ class TrackedObject:
     """
     A dataclass for storing information about a tracked object in a single image/frame
     """
+
     object_id: str
     pixel_x: Optional[float] = None
     pixel_y: Optional[float] = None
