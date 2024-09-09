@@ -63,7 +63,6 @@ class MediapipeBlendshapeTracker(BaseTracker):
             blendshape.score for blendshape in results.face_blendshapes[0]
         ]  # TODO: assumes we're only interested in 1 face, but docs say this works for multiple faces??
 
-        print(type(results.face_landmarks[0][0]))
         self.annotated_image = self.annotate_image(
             image=image,
             tracked_objects=self.tracked_objects,
