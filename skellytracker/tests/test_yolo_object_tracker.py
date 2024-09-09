@@ -49,7 +49,7 @@ def test_yolo_object_model_dictionary():
     for key in yolo_object_model_dictionary.keys():
         try:
             YOLOObjectTracker(model_size=key)
-        except KeyError:
+        except KeyError:  # noqa: PERF203
             print(f"Invalid model size: {key}")
         except FileNotFoundError:
             print(f"Invalid model size (.pt file not found): {key}")
