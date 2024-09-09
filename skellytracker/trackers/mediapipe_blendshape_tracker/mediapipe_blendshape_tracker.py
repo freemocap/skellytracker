@@ -33,7 +33,7 @@ class MediapipeBlendshapeTracker(BaseTracker):
 
         # If model_path not provided, try default model path, and if that doesn't work download model
         if model_path is None:
-            model_path = self.download_mediapipe_blendshape_model()
+            model_path = self.get_or_download_mediapipe_blendshape_model()
 
         base_options = mp_python.BaseOptions(
             model_asset_path=str(model_path)
@@ -114,7 +114,7 @@ class MediapipeBlendshapeTracker(BaseTracker):
 
         return annotated_image
 
-    def download_mediapipe_blendshape_model(self) -> Path:
+    def get_or_download_mediapipe_blendshape_model(self) -> Path:
         model_path = Path(
             "face_landmarker_v2_with_blendshapes.task"
         )  # TODO: make this path absolute to skellytracker install
