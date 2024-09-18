@@ -33,12 +33,13 @@ try:
     )
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
         MediapipeModelInfo,
+        MediapipeTrackingParams
     )
 except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 try:
     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo, YOLOTrackingParams
 except ModuleNotFoundError:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:
@@ -49,6 +50,10 @@ except ModuleNotFoundError:
     print(
         "To use yolo_mediapipe_combo_tracker, install skellytracker[mediapipe, yolo] or skellytracker[all]"
     )
+from skellytracker.trackers.openpose_tracker.openpose_tracker import OpenPoseTracker
+from skellytracker.trackers.openpose_tracker.openpose_model_info import OpenPoseModelInfo, OpenPoseTrackingParams
+
+from skellytracker.tracker_manager import TrackerNames
 
 
 configure_logging(log_file_path=str(get_log_file_path()))
