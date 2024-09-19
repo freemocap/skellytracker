@@ -2,6 +2,7 @@ from typing import List, Literal
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 
+from skellytracker.tracker_manager import TrackerNames
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
@@ -10,7 +11,7 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 # https://imgur.com/a/aD74j
 # Winter, D.A. (2005) Biomechanics and Motor Control of Human Movement. 3rd Edition, John Wiley & Sons, Inc., Hoboken.
 class MediapipeModelInfo(ModelInfo):
-    name = "mediapipe"
+    name = TrackerNames.MEDIAPIPE.value
     tracker_name = "MediapipeHolisticTracker"
     body_landmark_names = [
         landmark.name.lower() for landmark in mp_holistic.PoseLandmark

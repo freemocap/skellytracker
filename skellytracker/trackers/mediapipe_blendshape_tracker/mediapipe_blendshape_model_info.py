@@ -1,5 +1,8 @@
+from skellytracker.tracker_manager import TrackerNames
+
+
 class MediapipeBlendshapeModelInfo:
-    name = "mediapipe_blendshape"
+    name = TrackerNames.MEDIAPIPE_BLENDSHAPES.value
     tracker_name = "MediapipeBlendshapeTracker"
     landmark_names = [
         "_neutral",

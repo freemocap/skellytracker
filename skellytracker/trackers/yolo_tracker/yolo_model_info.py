@@ -1,9 +1,10 @@
+from skellytracker.tracker_manager import TrackerNames
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 
 class YOLOModelInfo(ModelInfo):
-    name = "yolo"
+    name = TrackerNames.YOLO.value
     tracker_name = "YOLOPoseTracker"
     num_tracked_points = 17
     model_dictionary = {

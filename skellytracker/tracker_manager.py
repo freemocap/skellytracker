@@ -5,7 +5,6 @@ class TrackerNames(Enum):
     MEDIAPIPE = "mediapipe"
     YOLO = "yolo"
     OPENPOSE = "openpose"
-    MEDIAPIPE_BLENDSHAPES = "mediapipe_blendshapes"
-    YOLO_MEDIAPIPE_COMBO = "yolo_mediapipe_combo"
+    MEDIAPIPE_BLENDSHAPES = "mediapipe_blendshape"
     CHARUCO = "charuco"
     BRIGHTEST_POINT = "brightest_point"
