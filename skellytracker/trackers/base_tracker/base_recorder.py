@@ -40,6 +40,18 @@ class BaseRecorder(ABC):
         """
         pass
 
+    def process_single_frame(self, tracked_objects: Dict[str, TrackedObject], **kwargs) -> np.ndarray:
+        """
+        Clear any recorded objects, record and process the current tracked objects, and return the processed datawithout the number of frames dimension.
+
+        :return: Processed data without the number of frames dimension
+        """
+        self.clear_recorded_objects()
+        self.record(tracked_objects=tracked_objects)
+        output_array = self.process_tracked_objects()
+        return output_array[-1, :, :]
+
+
     def clear_recorded_objects(self):
         logger.info("Clearing recorded objects from recorder")
         self.recorded_objects = []
