@@ -6,7 +6,7 @@ from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
-    MediapipeTrackedObjectNames
+    MediapipeTrackedObjectNames,
 )
 
 
@@ -42,13 +42,13 @@ class MediapipeHolisticRecorder(BaseRecorder):
                 if recorded_object.extra["landmarks"] is None:
                     continue
 
-                landmarks = np.array([
-                    (landmark.x * image_size[0], 
-                    landmark.y * image_size[1], 
-                    landmark.z * image_size[0])
-                    for landmark in recorded_object.extra["landmarks"].landmark
-                ])
-                frame_data[recorded_object.object_id][:len(landmarks)] = landmarks
+                landmarks = np.array(
+                    [
+                        (landmark.x, landmark.y, landmark.z)
+                        for landmark in recorded_object.extra["landmarks"].landmark
+                    ]
+                )
+                frame_data[recorded_object.object_id][: len(landmarks)] = landmarks
 
             self.recorded_objects_array[i] = np.concatenate(
                 # this order matters, do not change
@@ -61,6 +61,8 @@ class MediapipeHolisticRecorder(BaseRecorder):
                 axis=0,
             )
 
+        # change from normalized image coordinates to pixel coordinates
+        self.recorded_objects_array *= np.array([image_size[0], image_size[1], image_size[0]])  # multiply z by image width per mediapipe docs
 
         return self.recorded_objects_array
 
