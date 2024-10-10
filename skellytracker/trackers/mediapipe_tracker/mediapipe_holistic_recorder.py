@@ -42,18 +42,13 @@ class MediapipeHolisticRecorder(BaseRecorder):
                 if recorded_object.extra["landmarks"] is None:
                     continue
 
-                for j, landmark_data in enumerate(
-                    recorded_object.extra["landmarks"].landmark
-                ):
-                    frame_data[recorded_object.object_id][j, 0] = (
-                        landmark_data.x * image_size[0]
-                    )
-                    frame_data[recorded_object.object_id][j, 1] = (
-                        landmark_data.y * image_size[1]
-                    )
-                    frame_data[recorded_object.object_id][j, 2] = (
-                        landmark_data.z * image_size[0]
-                    )  # multiply depth by image width, per MediaPipe documentation
+                landmarks = np.array([
+                    (landmark.x * image_size[0], 
+                    landmark.y * image_size[1], 
+                    landmark.z * image_size[0])
+                    for landmark in recorded_object.extra["landmarks"].landmark
+                ])
+                frame_data[recorded_object.object_id][:len(landmarks)] = landmarks
 
             self.recorded_objects_array[i] = np.concatenate(
                 # this order matters, do not change
