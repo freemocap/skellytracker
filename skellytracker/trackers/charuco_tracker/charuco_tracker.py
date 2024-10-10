@@ -10,6 +10,7 @@ from skellytracker.trackers.charuco_tracker.charuco_recorder import CharucoRecor
 
 default_aruco_dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
+
 class CharucoTracker(BaseTracker):
     def __init__(
         self,
@@ -36,7 +37,9 @@ class CharucoTracker(BaseTracker):
         self.tracked_object_names = tracked_object_names
         self.dictionary = dictionary
 
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(
+        self, image: np.ndarray, annotate_image: bool = True, **kwargs
+    ) -> Dict[str, TrackedObject]:
         # Convert the image to grayscale
         gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
 
@@ -59,9 +62,10 @@ class CharucoTracker(BaseTracker):
                 self.tracked_objects[object_id].pixel_x = corner[0][0]
                 self.tracked_objects[object_id].pixel_y = corner[0][1]
 
-        self.annotated_image = self.annotate_image(
-            image=image, tracked_objects=self.tracked_objects
-        )
+        if annotate_image:
+            self.annotated_image = self.annotate_image(
+                image=image, tracked_objects=self.tracked_objects
+            )
 
         return self.tracked_objects
 

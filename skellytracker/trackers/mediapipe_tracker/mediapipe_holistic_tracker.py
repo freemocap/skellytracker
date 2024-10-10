@@ -36,7 +36,9 @@ class MediapipeHolisticTracker(BaseTracker):
             smooth_landmarks=smooth_landmarks,
         )
 
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(
+        self, image: np.ndarray, annotate_image: bool = True, **kwargs
+    ) -> Dict[str, TrackedObject]:
         # Convert the image to RGB
         rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
@@ -57,9 +59,10 @@ class MediapipeHolisticTracker(BaseTracker):
             "landmarks"
         ] = results.right_hand_landmarks
 
-        self.annotated_image = self.annotate_image(
-            image=image, tracked_objects=self.tracked_objects
-        )
+        if annotate_image:
+            self.annotated_image = self.annotate_image(
+                image=image, tracked_objects=self.tracked_objects
+            )
 
         return self.tracked_objects
 
