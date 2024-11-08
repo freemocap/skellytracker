@@ -8,7 +8,7 @@ from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.charuco_tracker.charuco_recorder import CharucoRecorder
 
 
-default_aruco_dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
+DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
 class CharucoTracker(BaseTracker):
     def __init__(
@@ -16,7 +16,7 @@ class CharucoTracker(BaseTracker):
         tracked_object_names: List[str],
         squares_x: int,
         squares_y: int,
-        dictionary: cv2.aruco.Dictionary = default_aruco_dictionary,
+        dictionary: cv2.aruco.Dictionary = DEFAULT_ARUCO_DICTIONARY,
         square_length: float = 1,
         marker_length: float = 0.8,
     ):
@@ -108,8 +108,8 @@ class CharucoTracker(BaseTracker):
 
 
 if __name__ == "__main__":
-    charuco_squares_x_in = 7
-    charuco_squares_y_in = 5
+    charuco_squares_x_in = 5
+    charuco_squares_y_in = 3
     number_of_charuco_markers = (charuco_squares_x_in - 1) * (charuco_squares_y_in - 1)
     charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
