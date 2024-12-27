@@ -1,9 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from typing import List
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
@@ -13,27 +14,19 @@ logger = logging.getLogger(__name__)
 
 TrackedPointId = str
 
+@dataclass
+class BaseObservation(ABC):
+    pass
 
-class BaseObservation(ABC, BaseModel):
-    """
-    An abstract class for storing information about a tracked object in a single image/frame
-    """
-    tracked_point_id: TrackedPointId
-    frame_number: int
-    timestamp: int
-    pixel_x: float | None = None
-    pixel_y: float | None = None
-    # add more fields as needed
+Observations = list[BaseObservation]
 
-
-Observations = dict[TrackedPointId, BaseObservation]
-
-
-class BaseImageAnnotatorConfig(ABC, BaseModel):
+@dataclass
+class BaseImageAnnotatorConfig(ABC):
     pass
 
 
-class BaseImageAnnotator(ABC, BaseModel):
+@dataclass
+class BaseImageAnnotator(ABC):
     config: BaseImageAnnotatorConfig
 
     @classmethod
@@ -52,15 +45,17 @@ class BaseImageAnnotator(ABC, BaseModel):
         pass
 
 
-class BaseDetectorConfig(BaseModel, ABC):
+@dataclass
+class BaseDetectorConfig(ABC):
     pass
 
-
-class BaseTrackerConfig(BaseModel, ABC):
+@dataclass
+class BaseTrackerConfig(ABC):
     detector_config: BaseDetectorConfig
     annotator_config: BaseImageAnnotatorConfig | None = None
 
-class BaseDetector(ABC, BaseModel):
+@dataclass
+class BaseDetector(ABC):
     config: BaseDetectorConfig
 
     @classmethod
@@ -72,8 +67,9 @@ class BaseDetector(ABC, BaseModel):
         pass
 
 
-class BaseRecorder(ABC, BaseModel):
-    observations: List[BaseObservation] = []
+@dataclass
+class BaseRecorder(ABC):
+    observations: List[BaseObservation] = field(default_factory=list)
 
     @abstractmethod
     def add_observations(self, observations: Observations):
@@ -84,11 +80,11 @@ class BaseRecorder(ABC, BaseModel):
 
 
 
-
-class BaseTracker(ABC, BaseModel):
+@dataclass
+class BaseTracker(ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
-    recorder: BaseRecorder
+    observations: Observations = field(default_factory=dict)
     annotator: BaseImageAnnotator | None = None
 
     @classmethod
@@ -102,7 +98,7 @@ class BaseTracker(ABC, BaseModel):
     def demo(self) -> None:
         camera_viewer = WebcamDemoViewer(
             tracker=self,
-            recorder=self.recorder,
+            recorder=self.observations,
             window_title=self.__class__.__name__
         )
         camera_viewer.run()

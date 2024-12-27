@@ -1,13 +1,15 @@
-from typing import Dict, List
+from dataclasses import field, dataclass
+from typing import List
 
 import cv2
 import numpy as np
 from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig, BaseObservation, \
-    TrackedPointId, BaseDetectorConfig, BaseImageAnnotatorConfig, BaseDetector, BaseRecorder
+    BaseDetectorConfig, BaseImageAnnotatorConfig, BaseDetector
 
 DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
+
 
 class CharucoObservation(BaseObservation):
     charuco_ids: List[int]
@@ -15,7 +17,9 @@ class CharucoObservation(BaseObservation):
     marker_ids: List[int]
     marker_corners: np.ndarray
 
+
 CharucoObservations = list[CharucoObservation]
+
 
 class CharucoDetectorConfig(BaseDetectorConfig):
     squares_x: int = 5
@@ -77,6 +81,7 @@ class CharucoObservationFactory(BaseModel):
             marker_corners=marker_corners_out,
         )
 
+
 class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     marker_type: int = cv2.MARKER_CROSS
     marker_size: int = 30
@@ -88,9 +93,14 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     text_thickness: int = 2
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
+
 class CharucoTrackerConfig(BaseTrackerConfig):
     detector_config: CharucoDetectorConfig
     annotator_config: CharucoAnnotatorConfig
+    @classmethod
+    def create(cls):
+        return cls(detector_config=CharucoDetectorConfig(),
+                   annotator_config=CharucoAnnotatorConfig())
 
 class CharucoImageAnnotator(BaseModel):
     config: CharucoAnnotatorConfig
@@ -131,8 +141,9 @@ class CharucoImageAnnotator(BaseModel):
 
         return annotated_image
 
+@dataclass
 class CharucoDetector(BaseDetector):
-    detector_config: CharucoDetectorConfig
+    config: CharucoDetectorConfig
     detector: cv2.aruco.CharucoDetector
     observation_factory: CharucoObservationFactory
 
@@ -146,7 +157,7 @@ class CharucoDetector(BaseDetector):
         )
 
         return cls(
-            detector_config=config,
+            config=config,
             detector=cv2.aruco.CharucoDetector(board),
             observation_factory=CharucoObservationFactory.create(config),
         )
@@ -158,32 +169,28 @@ class CharucoDetector(BaseDetector):
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         return self.observation_factory.create_observation(*self.detector.detectBoard(grey_image))
 
-
-
-
+@dataclass
 class CharucoTracker(BaseTracker):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: CharucoTrackerConfig
     detector: CharucoDetector
     annotator: CharucoImageAnnotator
-    observations: CharucoObservations = []
+    observations: CharucoObservations  = field(default_factory=list)
 
     @classmethod
-    def create(cls, config: CharucoTrackerConfig):
+    def create(cls, config: CharucoTrackerConfig|None = None):
+        if config is None:
+            config = CharucoTrackerConfig.create()
         return cls(
             config=config,
             detector=CharucoDetector.create(config.detector_config),
             annotator=CharucoImageAnnotator.create(config.annotator_config),
         )
 
-
-    def process_image(self, image: np.ndarray, annotate_image: bool = True) -> np.ndarray|None:
+    def process_image(self, image: np.ndarray, annotate_image: bool = True) -> np.ndarray | None:
         self.observations.append(self.detector.detect(image))
         if annotate_image:
             return self.annotator.annotate_image(image, self.observations)
 
 
-
-
 if __name__ == "__main__":
-    CharucoTracker().demo()
+    CharucoTracker.create().demo()
