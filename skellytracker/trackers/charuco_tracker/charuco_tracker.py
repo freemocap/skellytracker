@@ -2,120 +2,188 @@ from typing import Dict, List
 
 import cv2
 import numpy as np
+from pydantic import BaseModel, ConfigDict
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
-from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
-from skellytracker.trackers.charuco_tracker.charuco_recorder import CharucoRecorder
-
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig, BaseObservation, \
+    TrackedPointId, BaseDetectorConfig, BaseImageAnnotatorConfig, BaseDetector, BaseRecorder
 
 DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
-class CharucoTracker(BaseTracker):
-    def __init__(
-        self,
-        tracked_object_names: List[str],
-        squares_x: int,
-        squares_y: int,
-        dictionary: cv2.aruco.Dictionary = DEFAULT_ARUCO_DICTIONARY,
-        square_length: float = 1,
-        marker_length: float = 0.8,
-    ):
-        super().__init__(
-            recorder=CharucoRecorder(), tracked_object_names=tracked_object_names
-        )
-        self.board = cv2.aruco.CharucoBoard(
-            size=(squares_x, squares_y),
-            squareLength=square_length,
-            markerLength=marker_length,
-            dictionary=dictionary,
-        )
+class CharucoObservation(BaseObservation):
+    charuco_ids: List[int]
+    charuco_corners: np.ndarray
+    marker_ids: List[int]
+    marker_corners: np.ndarray
 
-        # Following most recent charuco detection documentation: https://docs.opencv.org/4.x/df/d4a/tutorial_charuco_detection.html
-        self.charuco_detector = cv2.aruco.CharucoDetector(self.board)
+CharucoObservations = list[CharucoObservation]
 
-        self.tracked_object_names = tracked_object_names
-        self.dictionary = dictionary
+class CharucoDetectorConfig(BaseDetectorConfig):
+    squares_x: int = 5
+    squares_y: int = 3
+    aruco_dictionary: cv2.aruco.Dictionary = DEFAULT_ARUCO_DICTIONARY
+    square_length: float = 1
+    marker_length: float = 0.8
 
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
-        # Convert the image to grayscale
-        gray_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    @property
+    def charuco_corner_ids(self) -> List[int]:
+        return list(range((self.squares_x - 1) * (self.squares_y - 1)))
 
-        charuco_corners, charuco_ids, _marker_corners, _marker_ids = (
-            self.charuco_detector.detectBoard(gray_image)
-        )
+    @property
+    def aruco_marker_ids(self) -> List[int]:
+        return list(range(self.squares_x * self.squares_y))
 
-        self.reinitialize_tracked_objects()
+    @property
+    def charuco_corner_names(self) -> List[str]:
+        return [f"CharucoCorner_{index}" for index in self.charuco_corner_ids]
 
-        # If any Charuco corners were found
-        if (
-            charuco_corners is not None
-            and charuco_ids is not None
-            and len(charuco_corners) > 3
-        ):
-            # Create a TrackedObject for each corner
-            for id, corner in zip(charuco_ids, charuco_corners):
-                object_id = str(id).strip("[]")
-                self.tracked_objects[object_id] = TrackedObject(object_id=object_id)
-                self.tracked_objects[object_id].pixel_x = corner[0][0]
-                self.tracked_objects[object_id].pixel_y = corner[0][1]
+    @property
+    def aruco_marker_names(self) -> List[str]:
+        return [f"ArucoMarker_{index}" for index in self.aruco_marker_ids]
 
-        self.annotated_image = self.annotate_image(
-            image=image, tracked_objects=self.tracked_objects
+
+class CharucoObservationFactory(BaseModel):
+    corner_ids: List[int]
+    marker_ids: List[int]
+
+    @classmethod
+    def create(cls, config: CharucoDetectorConfig):
+        return cls(
+            corner_ids=config.charuco_corner_ids,
+            marker_ids=config.aruco_marker_ids,
         )
 
-        return self.tracked_objects
+    def create_observation(
+            self,
+            charuco_corner_ids: List[int],
+            charuco_corners_in: np.ndarray,
+            aruco_marker_ids: List[int],
+            aruco_marker_corners_in: np.ndarray
+    ) -> CharucoObservation:
+        charuco_corners_out = np.ndarray((len(self.corner_ids), 2), np.float32)
+        charuco_corners_out[:] = np.nan
+        marker_corners_out = np.ndarray((len(self.marker_ids), 2), np.float32)
+        marker_corners_out[:] = np.nan
+
+        for corner_id, corner in zip(charuco_corner_ids, charuco_corners_in):
+            charuco_corners_out[corner_id] = corner
+
+        for marker_id, corner in zip(aruco_marker_ids, aruco_marker_corners_in):
+            marker_corners_out[marker_id] = corner
+
+        return CharucoObservation(
+            charuco_ids=self.corner_ids,
+            charuco_corners=charuco_corners_out,
+            marker_ids=self.marker_ids,
+            marker_corners=marker_corners_out,
+        )
+
+class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
+    marker_type: int = cv2.MARKER_CROSS
+    marker_size: int = 30
+    marker_thickness: int = 2
+    marker_color: tuple[int, int, int] = (0, 0, 255)
+
+    text_color: tuple[int, int, int] = (255, 0, 0)
+    text_size: float = 1
+    text_thickness: int = 2
+    text_font: int = cv2.FONT_HERSHEY_SIMPLEX
+
+class CharucoTrackerConfig(BaseTrackerConfig):
+    detector_config: CharucoDetectorConfig
+    annotator_config: CharucoAnnotatorConfig
+
+class CharucoImageAnnotator(BaseModel):
+    config: CharucoAnnotatorConfig
+
+    @classmethod
+    def create(cls, config: CharucoAnnotatorConfig):
+        return cls(config=config)
 
     def annotate_image(
-        self, image: np.ndarray, tracked_objects: Dict[str, TrackedObject], **kwargs
+            self, image: np.ndarray, observations: CharucoObservations,
     ) -> np.ndarray:
         # Copy the original image for annotation
         annotated_image = image.copy()
 
         # Draw a marker for each tracked corner
-        for tracked_object in tracked_objects.values():
+        for observation in observations:
             if (
-                tracked_object.pixel_x is not None
-                and tracked_object.pixel_y is not None
+                    observation.pixel_x is not None
+                    and observation.pixel_y is not None
             ):
                 cv2.drawMarker(
                     annotated_image,
-                    (int(tracked_object.pixel_x), int(tracked_object.pixel_y)),
-                    (0, 0, 255),
-                    markerType=cv2.MARKER_CROSS,
-                    markerSize=30,
-                    thickness=2,
+                    (int(observation.pixel_x), int(observation.pixel_y)),
+                    self.config.marker_color,
+                    markerType=self.config.marker_type,
+                    markerSize=self.config.marker_size,
+                    thickness=self.config.marker_thickness,
                 )
                 cv2.putText(
                     annotated_image,
-                    tracked_object.object_id,
-                    (int(tracked_object.pixel_x), int(tracked_object.pixel_y)),
-                    cv2.FONT_HERSHEY_SIMPLEX,
-                    1,
-                    (255, 0, 0),
-                    2,
+                    observation.id,
+                    (int(observation.pixel_x), int(observation.pixel_y)),
+                    self.config.text_font,
+                    self.config.text_size,
+                    self.config.text_color,
+                    self.config.text_thickness,
                 )
 
         return annotated_image
 
-    def reinitialize_tracked_objects(self) -> None:
-        """
-        Reinitialize tracked objects to clear previous frames data
+class CharucoDetector(BaseDetector):
+    detector_config: CharucoDetectorConfig
+    detector: cv2.aruco.CharucoDetector
+    observation_factory: CharucoObservationFactory
 
-        Unlike self.tracked_objects.clear(), this will ensure every tracked object has a value for each frame, even if its empty
-        """
-        for name in self.tracked_object_names:
-            self.tracked_objects[name] = TrackedObject(object_id=name)
+    @classmethod
+    def create(cls, config: CharucoDetectorConfig):
+        board = cv2.aruco.CharucoBoard(
+            size=(config.squares_x, config.squares_y),
+            squareLength=config.square_length,
+            markerLength=config.marker_length,
+            dictionary=config.aruco_dictionary,
+        )
+
+        return cls(
+            detector_config=config,
+            detector=cv2.aruco.CharucoDetector(board),
+            observation_factory=CharucoObservationFactory.create(config),
+        )
+
+    def detect(self, image: np.ndarray) -> CharucoObservation:
+        if len(image.shape) == 2:
+            grey_image = image
+        else:
+            grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        return self.observation_factory.create_observation(*self.detector.detectBoard(grey_image))
+
+
+
+
+class CharucoTracker(BaseTracker):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    config: CharucoTrackerConfig
+    detector: CharucoDetector
+    annotator: CharucoImageAnnotator
+    observations: CharucoObservations = []
+
+    @classmethod
+    def create(cls, config: CharucoTrackerConfig):
+        return cls(
+            config=config,
+            detector=CharucoDetector.create(config.detector_config),
+            annotator=CharucoImageAnnotator.create(config.annotator_config),
+        )
+
+
+    def process_image(self, image: np.ndarray, annotate_image: bool = True) -> np.ndarray|None:
+        self.observations.append(self.detector.detect(image))
+        if annotate_image:
+            return self.annotator.annotate_image(image, self.observations)
+
+
 
 
 if __name__ == "__main__":
-    charuco_squares_x_in = 5
-    charuco_squares_y_in = 3
-    number_of_charuco_markers = (charuco_squares_x_in - 1) * (charuco_squares_y_in - 1)
-    charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
-
-    CharucoTracker(
-        tracked_object_names=charuco_ids,
-        squares_x=charuco_squares_x_in,
-        squares_y=charuco_squares_y_in,
-        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
-    ).demo()
+    CharucoTracker().demo()
