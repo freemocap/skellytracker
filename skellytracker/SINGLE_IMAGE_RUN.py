@@ -4,7 +4,7 @@ from pathlib import Path
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
-from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
+from skellytracker.trackers.charuco_tracker.charuco_tracker_main import CharucoTracker
 
 try:
     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (

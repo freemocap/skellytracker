@@ -71,13 +71,16 @@ class BaseDetector(ABC):
 class BaseRecorder(ABC):
     observations: List[BaseObservation] = field(default_factory=list)
 
-    @abstractmethod
-    def add_observations(self, observations: Observations):
-        for tracked_point_id, observation in observations.items():
-            if tracked_point_id not in self.observations:
-                self.observations[tracked_point_id] = []
-            self.observations[tracked_point_id].append(observation)
+    def add_observations(self, observation: BaseObservation):
+        self.observations.append(observation)
 
+
+@dataclass
+class BaseObservationFactory(ABC):
+
+    @abstractmethod
+    def create_observation(self, **kwargs) -> BaseObservation:
+        pass
 
 
 @dataclass
@@ -91,9 +94,11 @@ class BaseTracker(ABC):
     def create(cls, config: BaseTrackerConfig):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
-    @abstractmethod
-    def process_image(self, image: np.ndarray, annotate_image: bool = True):
-        pass
+    def process_image(self, image: np.ndarray, annotate_image: bool = True) -> np.ndarray:
+        self.observations.append(self.detector.detect(image))
+        if annotate_image:
+            return self.annotator.annotate_image(image, self.observations)
+        return image
 
     def demo(self) -> None:
         camera_viewer = WebcamDemoViewer(
