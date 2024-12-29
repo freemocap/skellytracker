@@ -37,7 +37,7 @@ if __name__ == "__main__":
             squares_y=charuco_squares_y,
             dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
         ).image_demo(image_path=image_path)
-
+    #
     elif demo_tracker == "mediapipe_holistic_tracker":
         MediapipeHolisticTracker(
             model_complexity=2,
