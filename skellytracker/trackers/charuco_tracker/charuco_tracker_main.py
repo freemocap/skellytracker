@@ -4,12 +4,14 @@
 from dataclasses import field, dataclass
 
 import cv2
+import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
 from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservations
 
+DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
 
 class CharucoTrackerConfig(BaseTrackerConfig):

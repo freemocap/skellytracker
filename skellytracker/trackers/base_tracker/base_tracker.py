@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 import numpy as np
+from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
