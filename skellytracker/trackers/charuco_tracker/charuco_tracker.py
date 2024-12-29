@@ -1,3 +1,6 @@
+# Charuco Detector docs https://docs.opencv.org/4.10.0/d9/df5/classcv_1_1aruco_1_1CharucoDetector.html
+# Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
+
 from dataclasses import field, dataclass
 from typing import List
 
@@ -85,13 +88,13 @@ class CharucoObservationFactory:
 
 
 class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
-    marker_type: int = cv2.MARKER_CROSS
-    marker_size: int = 30
+    marker_type: int = cv2.MARKER_DIAMOND
+    marker_size: int = 10
     marker_thickness: int = 2
     marker_color: tuple[int, int, int] = (0, 0, 255)
 
-    text_color: tuple[int, int, int] = (255, 0, 0)
-    text_size: float = 1
+    text_color: tuple[int, int, int] = (255, 255, 0)
+    text_size: float = .5
     text_thickness: int = 2
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
@@ -121,27 +124,24 @@ class CharucoImageAnnotator(BaseModel):
     ) -> np.ndarray:
         # Copy the original image for annotation
         annotated_image = image.copy()
-
+        image_height, image_width = image.shape[:2]
+        text_offset = int(image_height * 0.01)
         if show_tracks is not None:
             show_tracks = min(show_tracks, len(observations))
         else:
             show_tracks = len(observations)
 
+        # Reverse the observations list so that the most recent observations are drawn last (on top)
+        observations = observations[::-1]
+
         # Draw a marker for each tracked corner
-        for obs_count, observation in enumerate(observations[-show_tracks:]):
+        for obs_count, observation in enumerate(observations[:show_tracks]):
+            obs_count_scale = 1 - (obs_count / show_tracks)
+            marker_color = tuple(int(element * obs_count_scale) for element in self.config.marker_color)
+            marker_thickness = max(1, int(self.config.marker_thickness * obs_count_scale))
+            marker_size = max(1, int(self.config.marker_size * obs_count_scale))
+
             for corner_id, corner in observation.charuco_corners.items():
-                if obs_count == 0:
-                    marker_color = self.config.marker_color
-                    marker_thickness = self.config.marker_thickness
-                    marker_size = self.config.marker_size
-                else:
-                    obs_count_scale = 1 - (obs_count / show_tracks)
-                    marker_color = tuple(element * obs_count_scale for element in self.config.marker_color)
-                    marker_thickness = max(1,int(self.config.marker_thickness * obs_count_scale))
-                    marker_size = max(1, int(self.config.marker_size * obs_count_scale))
-
-
-
                 if corner is not None:
                     cv2.drawMarker(
                         annotated_image,
@@ -154,35 +154,59 @@ class CharucoImageAnnotator(BaseModel):
                     if obs_count == 0:
                         cv2.putText(
                             annotated_image,
-                            f"ID: {corner_id}",
-                            (int(corner[0]), int(corner[1])),
+                            f"Corner#{corner_id}",
+                            (int(corner[0]) + text_offset, int(corner[1]) + text_offset),
                             self.config.text_font,
                             self.config.text_size,
                             self.config.text_color,
                             self.config.text_thickness,
                         )
+                        for aruco_id, aruco_bounding_box in observation.aruco_marker_corners.items():
+                            if aruco_bounding_box is not None:
+                                cv2.polylines(
+                                    annotated_image,
+                                    [np.array(aruco_bounding_box, dtype=np.int32)],
+                                    isClosed=True,
+                                    color=(255, 125, 0),
+                                    thickness=1,
+                                )
+                                cv2.putText(
+                                    annotated_image,
+                                    f"Aruco#{aruco_id}",
+                                    (int(aruco_bounding_box[0][0]) + text_offset,
+                                     int(aruco_bounding_box[0][1]) + text_offset),
+                                    self.config.text_font,
+                                    self.config.text_size,
+                                    (255, 125, 0),
+                                    1,
+                                )
 
         # List undetected markers
-        undetected_markers = [
-            marker_id for marker_id, corners in observations[-1].aruco_marker_corners.items() if corners is None
-        ]
-        undetected_text = "Undetected markers: " + ", ".join(map(str, undetected_markers))
-
-        # Put the undetected markers text in the upper right corner
-        text_size, _ = cv2.getTextSize(undetected_text, self.config.text_font, self.config.text_size,
-                                       self.config.text_thickness)
-        text_x = annotated_image.shape[1] - text_size[0] - 10
-        text_y = text_size[1] + 10
-        cv2.putText(
-            annotated_image,
-            undetected_text,
-            (text_x, text_y),
-            self.config.text_font,
-            self.config.text_size,
-            self.config.text_color,
-            self.config.text_thickness,
-        )
-
+        undetected_markers = []
+        for key, value in observations[0].charuco_corners.items():
+            if value is None:
+                undetected_markers.append(key)
+        if len(undetected_markers) > 0:
+            cv2.putText(
+                annotated_image,
+                "Undetected Corners:",
+                (image_width - 200, 20),
+                self.config.text_font,
+                self.config.text_size,
+                self.config.text_color,
+                self.config.text_thickness,
+            )
+            for undetected_marker_number, marker_id in enumerate(undetected_markers):
+                v_offset = undetected_marker_number * 20
+                cv2.putText(
+                    annotated_image,
+                    f"ID: {marker_id}",
+                    (image_width - 200, 40 + v_offset),
+                    self.config.text_font,
+                    self.config.text_size,
+                    self.config.text_color,
+                    self.config.text_thickness,
+                )
         return annotated_image
 
 
@@ -190,7 +214,7 @@ class CharucoImageAnnotator(BaseModel):
 class CharucoDetector(BaseDetector):
     config: CharucoDetectorConfig
     board: cv2.aruco.CharucoBoard
-    detector: cv2.aruco.CharucoDetector  # https://docs.opencv.org/4.10.0/d9/df5/classcv_1_1aruco_1_1CharucoDetector.html
+    detector: cv2.aruco.CharucoDetector
     observation_factory: CharucoObservationFactory
 
     @classmethod
@@ -252,39 +276,5 @@ class CharucoTracker(BaseTracker):
         return image
 
 
-# def save_aruco_dictionary(dictionary: cv2.aruco.Dictionary,
-#                           marker_size: int = 200,
-#                           markers_per_row: int = 5,
-#                           output_path: str = 'aruco_markers.png') -> None:
-#     """
-#     Save an image displaying each of the markers in the ArUco dictionary labeled by their ID.
-#
-#     :param dictionary: The ArUco dictionary to display.
-#     :param marker_size: Size of each marker in pixels.
-#     :param markers_per_row: Number of markers per row.
-#     :param output_path: Path to save the output image.
-#     """
-#     num_markers = len(dictionary.bytesList)
-#     rows = (num_markers + markers_per_row - 1) // markers_per_row
-#     image_width = markers_per_row * marker_size
-#     image_height = rows * marker_size
-#
-#     output_image = np.ones((image_height, image_width), dtype=np.uint8) * 255
-#
-#     for i in range(num_markers):
-#         marker_id = i
-#         marker_image = cv2.aruco.drawMarker(dictionary, marker_id, marker_size)
-#         row = i // markers_per_row
-#         col = i % markers_per_row
-#         x = col * marker_size
-#         y = row * marker_size
-#         output_image[y:y + marker_size, x:x + marker_size] = marker_image
-#
-#         cv2.putText(output_image, str(marker_id), (x + 10, y + marker_size - 10),
-#                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1, cv2.LINE_AA)
-#
-#     cv2.imwrite(output_path, output_image)
-
 if __name__ == "__main__":
-    # Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
     CharucoTracker.create().demo()
