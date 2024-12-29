@@ -62,7 +62,7 @@ class BaseDetector(ABC):
         raise NotImplementedError("Must implement a method to create a detector from a config.")
 
     @abstractmethod
-    def detect(self, image: np.ndarray) -> Observations:
+    def detect(self, image: np.ndarray) -> BaseObservation:
         pass
 
 
