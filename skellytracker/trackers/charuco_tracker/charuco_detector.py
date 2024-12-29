@@ -5,7 +5,8 @@ import cv2
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
-from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservation, CharucoObservationFactory
+from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservation, CharucoObservationFactory, \
+    CharucoDetection
 
 DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
@@ -19,10 +20,6 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     @property
     def charuco_corner_ids(self) -> List[int]:
         return list(range((self.squares_x - 1) * (self.squares_y - 1)))
-
-    @property
-    def charuco_corner_names(self) -> List[str]:
-        return [f"CharucoCorner_{index}" for index in self.charuco_corner_ids]
 
 
 @dataclass
@@ -58,9 +55,16 @@ class CharucoDetector(BaseDetector):
         return list(self.board.getObjPoints())  # type: ignore
 
     def detect(self, image: np.ndarray) -> CharucoObservation:
+
+        result = self._get_detection_result(image)
+
+        return self.observation_factory.create_observation(result)
+
+    def _get_detection_result(self, image: np.ndarray) -> CharucoDetection:
         if len(image.shape) == 2:
             grey_image = image
         else:
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        result = self.detector.detectBoard(grey_image)
-        return self.observation_factory.create_observation(*result)
+
+
+        return CharucoDetection(*self.detector.detectBoard(grey_image))
