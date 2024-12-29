@@ -15,10 +15,6 @@ logger = logging.getLogger(__name__)
 TrackedPointId = str
 
 @dataclass
-class BaseDetection(ABC):
-    pass
-
-@dataclass
 class BaseObservation(ABC):
     pass
 
@@ -99,7 +95,6 @@ class BaseTracker(ABC):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
     def process_image(self, image: np.ndarray, annotate_image: bool = True) -> np.ndarray:
-
         self.observations.append(self.detector.detect(image))
         if annotate_image:
             return self.annotator.annotate_image(image, self.observations)
