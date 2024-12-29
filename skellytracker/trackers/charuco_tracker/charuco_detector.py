@@ -6,8 +6,8 @@ import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservation, CharucoObservationFactory
-from skellytracker.trackers.charuco_tracker.charuco_tracker_main import DEFAULT_ARUCO_DICTIONARY
 
+DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
 class CharucoDetectorConfig(BaseDetectorConfig):
     squares_x: int = 5
