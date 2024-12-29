@@ -7,6 +7,7 @@ from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoO
 
 
 class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
+    show_tracks: int | None = 15
     marker_type: int = cv2.MARKER_DIAMOND
     marker_size: int = 10
     marker_thickness: int = 2
@@ -29,14 +30,14 @@ class CharucoImageAnnotator(BaseModel):
             self,
             image: np.ndarray,
             observations: CharucoObservations,
-            show_tracks: int | None = 10,
+
     ) -> np.ndarray:
         # Copy the original image for annotation
         annotated_image = image.copy()
         image_height, image_width = image.shape[:2]
         text_offset = int(image_height * 0.01)
-        if show_tracks is not None:
-            show_tracks = min(show_tracks, len(observations))
+        if self.config.show_tracks is not None:
+            show_tracks = min(self.config.show_tracks, len(observations))
         else:
             show_tracks = len(observations)
 
