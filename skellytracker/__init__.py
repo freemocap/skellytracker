@@ -16,6 +16,8 @@ __repo_issues_url__ = f"{__repo_url__}/issues"
 import sys
 from pathlib import Path
 
+from skellytracker.trackers.charuco_tracker import CharucoTracker
+
 print(f"Thank you for using {__package_name__}!")
 print(f"This is printing from: {__file__}")
 print(f"Source code for this package is available at: {__repo_url__}")
@@ -50,5 +52,12 @@ from skellytracker.system.logging_configuration import configure_logging
 #         "To use yolo_mediapipe_combo_tracker, install skellytracker[mediapipe, yolo] or skellytracker[all]"
 #     )
 
+class SkellyTrackerTypes:
+    DUMMY = None
+    CHARUCO = CharucoTracker
+
+__all__ = [
+    "SkellyTrackerTypes",
+]
 
 configure_logging(log_file_path=str(get_log_file_path()))
