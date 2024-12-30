@@ -33,9 +33,10 @@ class CharucoImageAnnotator(BaseImageAnnotator):
     def annotate_image(
             self,
             image: np.ndarray,
-            latest_observation: CharucoObservation,
-
+            latest_observation: CharucoObservation|None = None
     ) -> np.ndarray:
+        if latest_observation is None:
+            return image
         # Copy the original image for annotation
         annotated_image = image.copy()
         image_height, image_width = image.shape[:2]
