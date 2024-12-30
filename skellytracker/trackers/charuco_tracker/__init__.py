@@ -1,1 +1,1 @@
-from .charuco_tracker_main import CharucoTracker
+from .charuco_tracker_main import CharucoTracker, CharucoTrackerConfig
