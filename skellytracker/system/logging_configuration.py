@@ -37,6 +37,3 @@ def configure_logging(log_file_path: Optional[str] = ""):
         logging.root.setLevel(logging.DEBUG)
         logger = logging.getLogger(__name__)
         logger.info(f"Added logging handlers: {handlers}")
-    else:
-        logger = logging.getLogger(__name__)
-        logger.info("Logging already configured!")
