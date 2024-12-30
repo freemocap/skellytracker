@@ -1,9 +1,11 @@
+from dataclasses import field, dataclass
+
 import cv2
 import numpy as np
 from pydantic import BaseModel
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig
-from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservations
+from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
+from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservations, CharucoObservation
 
 
 class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
@@ -19,8 +21,10 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-class CharucoImageAnnotator(BaseModel):
+@dataclass
+class CharucoImageAnnotator(BaseImageAnnotator):
     config: CharucoAnnotatorConfig
+    observations: CharucoObservations  = field(default_factory=CharucoObservations)
 
     @classmethod
     def create(cls, config: CharucoAnnotatorConfig):
@@ -29,24 +33,24 @@ class CharucoImageAnnotator(BaseModel):
     def annotate_image(
             self,
             image: np.ndarray,
-            observations: CharucoObservations,
+            latest_observation: CharucoObservation,
 
     ) -> np.ndarray:
         # Copy the original image for annotation
         annotated_image = image.copy()
         image_height, image_width = image.shape[:2]
         text_offset = int(image_height * 0.01)
-        if self.config.show_tracks is not None:
-            show_tracks = min(self.config.show_tracks, len(observations))
-        else:
-            show_tracks = len(observations)
 
-        # Reverse the observations list so that the most recent observations are drawn last (on top)
-        observations = observations[::-1]
+        self.observations.append(latest_observation)
+        if self.config.show_tracks is None or self.config.show_tracks < 1:
+            self.observations = [latest_observation]
+        elif len(self.observations) > self.config.show_tracks:
+            self.observations = self.observations[-self.config.show_tracks:]
 
         # Draw a marker for each tracked corner
-        for obs_count, observation in enumerate(observations[:show_tracks]):
-            obs_count_scale = 1 - (obs_count / show_tracks)
+        for obs_count, observation in enumerate(self.observations[::-1]):
+            obs_count_scale = 1 - (obs_count / len(self.observations))
+
             marker_color = tuple(int(element * obs_count_scale) for element in self.config.marker_color)
             marker_thickness = max(1, int(self.config.marker_thickness * obs_count_scale))
             marker_size = max(1, int(self.config.marker_size * obs_count_scale))
@@ -93,7 +97,7 @@ class CharucoImageAnnotator(BaseModel):
 
         # List undetected markers
         undetected_markers = []
-        for key, value in observations[0].charuco_corners.items():
+        for key, value in latest_observation.charuco_corners.items():
             if value is None:
                 undetected_markers.append(key)
         if len(undetected_markers) > 0:

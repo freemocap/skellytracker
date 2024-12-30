@@ -68,9 +68,7 @@ class WebcamDemoViewer:
                 logger.error("Error: Failed to read frame.")
                 break
 
-            image_size = (frame.shape[1], frame.shape[0])
-
-            annotated_image = self.tracker.process_image(frame)
+            annotated_image, observation = self.tracker.process_image(frame, annotate_image=True)
 
 
             key = cv2.waitKey(1) & 0xFF

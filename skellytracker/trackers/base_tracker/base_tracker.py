@@ -28,20 +28,14 @@ class BaseImageAnnotatorConfig(ABC):
 @dataclass
 class BaseImageAnnotator(ABC):
     config: BaseImageAnnotatorConfig
+    observations: Observations = field(default_factory=list) #for plotting trails, etc.
 
     @classmethod
     def create(cls, config: BaseImageAnnotatorConfig):
         raise NotImplementedError("Must implement a method to create an image annotator from a config.")
 
     @abstractmethod
-    def annotate_image(self, image: np.ndarray, observations: Observations) -> np.ndarray:
-        """
-        Annotate the input image with the results of the tracking algorithm.
-
-        :param image: An input image.
-        :param observations: A dictionary of observations.
-        :return: Annotated image
-        """
+    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
         pass
 
 
@@ -63,7 +57,7 @@ class BaseDetector(ABC):
         raise NotImplementedError("Must implement a method to create a detector from a config.")
 
     @abstractmethod
-    def detect(self, image: np.ndarray) -> Observations:
+    def detect(self, image: np.ndarray) -> BaseObservation:
         pass
 
 
@@ -94,11 +88,11 @@ class BaseTracker(ABC):
     def create(cls, config: BaseTrackerConfig):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
-    def process_image(self, image: np.ndarray, annotate_image: bool = True) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
-        self.observations.append(self.detector.detect(image))
+    def process_image(self, image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
+        latest_observation = self.detector.detect(image)
         if annotate_image:
-            return self.annotator.annotate_image(image, self.observations), self.observations[-1]
-        return self.observations[-1]
+            return self.annotator.annotate_image(image, latest_observation), latest_observation
+        return latest_observation
 
 
     def demo(self) -> None:
