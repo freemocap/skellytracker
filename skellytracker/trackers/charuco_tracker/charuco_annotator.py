@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from pydantic import BaseModel
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig
+from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservations
 
 
@@ -18,7 +18,7 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-class CharucoImageAnnotator(BaseModel):
+class CharucoImageAnnotator(BaseImageAnnotator):
     config: CharucoAnnotatorConfig
 
     @classmethod
