@@ -24,7 +24,7 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
 @dataclass
 class CharucoImageAnnotator(BaseImageAnnotator):
     config: CharucoAnnotatorConfig
-    observations: CharucoObservations  = field(default_factory=CharucoObservations)
+    observations: dict[int, CharucoObservations]  = field(default_factory=dict)
 
     @classmethod
     def create(cls, config: CharucoAnnotatorConfig):
@@ -33,7 +33,9 @@ class CharucoImageAnnotator(BaseImageAnnotator):
     def annotate_image(
             self,
             image: np.ndarray,
-            latest_observation: CharucoObservation|None = None
+            latest_observation: CharucoObservation|None = None,
+            camera_id: int = 0,
+
     ) -> np.ndarray:
         if latest_observation is None:
             return image
@@ -42,15 +44,17 @@ class CharucoImageAnnotator(BaseImageAnnotator):
         image_height, image_width = image.shape[:2]
         text_offset = int(image_height * 0.01)
 
-        self.observations.append(latest_observation)
+        if not camera_id in self.observations:
+            self.observations[camera_id] = []
+        self.observations[camera_id].append(latest_observation)
         if self.config.show_tracks is None or self.config.show_tracks < 1:
-            self.observations = [latest_observation]
-        elif len(self.observations) > self.config.show_tracks:
-            self.observations = self.observations[-self.config.show_tracks:]
+            self.observations[camera_id] = [latest_observation]
+        elif len(self.observations[camera_id]) > self.config.show_tracks:
+            self.observations[camera_id] = self.observations[camera_id][-self.config.show_tracks:]
 
         # Draw a marker for each tracked corner
-        for obs_count, observation in enumerate(self.observations[::-1]):
-            obs_count_scale = 1 - (obs_count / len(self.observations))
+        for obs_count, observation in enumerate(self.observations[camera_id][::-1]):
+            obs_count_scale = 1 - (obs_count / len(self.observations[camera_id]))
 
             marker_color = tuple(int(element * obs_count_scale) for element in self.config.marker_color)
             marker_thickness = max(1, int(self.config.marker_thickness * obs_count_scale))

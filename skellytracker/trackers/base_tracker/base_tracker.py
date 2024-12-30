@@ -35,7 +35,7 @@ class BaseImageAnnotator(ABC):
         raise NotImplementedError("Must implement a method to create an image annotator from a config.")
 
     @abstractmethod
-    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
+    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation, camera_id:int=0) -> np.ndarray:
         pass
 
 
@@ -91,7 +91,7 @@ class BaseTracker(ABC):
     def process_image(self, image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
         latest_observation = self.detector.detect(image)
         if annotate_image:
-            return self.annotator.annotate_image(image, latest_observation), latest_observation
+            return self.annotator.annotate_image(image=image, latest_observation=latest_observation), latest_observation
         return latest_observation
 
 
