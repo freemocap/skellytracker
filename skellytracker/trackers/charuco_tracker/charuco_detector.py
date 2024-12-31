@@ -20,6 +20,23 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     def charuco_corner_ids(self) -> List[int]:
         return list(range((self.squares_x - 1) * (self.squares_y - 1)))
 
+    @property
+    def charuco_corners_in_object_coordinates(self) -> List[np.ndarray]:
+        """
+        Returns the corners of the Charuco board in object coordinates,
+        where the z coordinate is 0 for all corners.
+        so, for a 5x3 board, this would return a list of 8 corners, each with a shape of (8, 3), e.g.:
+        [[0,0,0],
+        [0,1,0],
+        [1,0,0],
+        [1,1,0],
+        [2,0,0],
+        [2,1,0],
+        [0,3,0],
+        [1,3,0]]
+        """
+        return [np.array([[x, y, 0] for x in range(self.squares_x - 1) for y in range(self.squares_y - 1)])]
+
 
 @dataclass
 class CharucoDetector(BaseDetector):
@@ -58,5 +75,4 @@ class CharucoDetector(BaseDetector):
             grey_image = image
         else:
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        result = self.detector.detectBoard(grey_image)
-        return self.observation_factory.create_observation(*result)
+        return self.observation_factory.create_observation(*self.detector.detectBoard(grey_image))

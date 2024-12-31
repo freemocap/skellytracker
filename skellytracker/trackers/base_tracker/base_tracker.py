@@ -18,7 +18,7 @@ TrackedPointId = str
 class BaseObservation(ABC):
     pass
 
-Observations = list[BaseObservation]
+BaseObservations = list[BaseObservation]
 
 @dataclass
 class BaseImageAnnotatorConfig(ABC):
@@ -28,7 +28,7 @@ class BaseImageAnnotatorConfig(ABC):
 @dataclass
 class BaseImageAnnotator(ABC):
     config: BaseImageAnnotatorConfig
-    observations: Observations = field(default_factory=list) #for plotting trails, etc.
+    observations: BaseObservations = field(default_factory=list) #for plotting trails, etc.
 
     @classmethod
     def create(cls, config: BaseImageAnnotatorConfig):
@@ -81,7 +81,7 @@ class BaseObservationFactory(ABC):
 class BaseTracker(ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
-    observations: Observations = field(default_factory=dict)
+    observations: BaseObservations = field(default_factory=dict)
     annotator: BaseImageAnnotator | None = None
 
     @classmethod

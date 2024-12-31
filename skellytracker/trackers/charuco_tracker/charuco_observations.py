@@ -1,9 +1,7 @@
-from collections import deque
 from dataclasses import dataclass
-from typing import List
+from typing import List, Tuple, Dict, Optional
 
 import numpy as np
-
 from skellytracker.trackers.base_tracker.base_tracker import BaseObservation, BaseObservationFactory
 
 
@@ -30,35 +28,42 @@ class CharucoObservationFactory(BaseObservationFactory):
         charuco_corners_out = {id: None for id in self.charuco_corner_ids}
         aruco_marker_corners_out = {id: None for id in self.aruco_marker_ids}
 
-        if detected_charuco_corner_ids is None or len(detected_charuco_corner_ids) == 0:
-            detected_charuco_corner_ids = None
-            detected_charuco_corners = None
-        elif len(detected_charuco_corner_ids) == 1:
-            detected_charuco_corner_ids = list(detected_charuco_corner_ids[0])
-            detected_charuco_corners = list(detected_charuco_corners[0])
-        elif len(detected_charuco_corner_ids) > 1:
-            detected_charuco_corner_ids = list(np.squeeze(detected_charuco_corner_ids))
-            detected_charuco_corners = list(np.squeeze(detected_charuco_corners))
+        charuco_corners_out = {id_: None for id_ in self.charuco_corner_ids}
+        aruco_marker_corners_out = {id_: None for id_ in self.aruco_marker_ids}
 
-        if detected_aruco_marker_ids is None or len(detected_aruco_marker_ids) == 0:
-            detected_aruco_marker_ids = None
-            detected_aruco_marker_corners = None
-        elif len(detected_aruco_marker_ids) == 1:
-            detected_aruco_marker_ids = list(detected_aruco_marker_ids[0])
-            detected_aruco_marker_corners = list(detected_aruco_marker_corners[0])
-        elif len(detected_aruco_marker_ids) > 1:
-            detected_aruco_marker_ids = list(np.squeeze(detected_aruco_marker_ids))
-            detected_aruco_marker_corners = list(np.squeeze(detected_aruco_marker_corners))
+        (formatted_aruco_corners,
+         formatted_aruco_ids,
+         formatted_charuco_ids,
+         formatted_charuco_corners) = self._format_input_data(
+             detected_aruco_marker_corners,
+             detected_aruco_marker_ids,
+             detected_charuco_corner_ids,
+             detected_charuco_corners
+         )
 
-        if detected_charuco_corner_ids is not None:
-            for corner_id, corner in zip(detected_charuco_corner_ids, detected_charuco_corners):
+        if formatted_charuco_ids:
+            for corner_id, corner in zip(formatted_charuco_ids, formatted_charuco_corners):
                 charuco_corners_out[corner_id] = corner
 
-        if detected_aruco_marker_ids is not None:
-            for marker_id, corner in zip(detected_aruco_marker_ids, detected_aruco_marker_corners):
+        if formatted_aruco_ids:
+            for marker_id, corner in zip(formatted_aruco_ids, formatted_aruco_corners):
                 aruco_marker_corners_out[marker_id] = corner
 
         return CharucoObservation(
             charuco_corners=charuco_corners_out,
             aruco_marker_corners=aruco_marker_corners_out,
         )
+
+    def _format_input_data(self, detected_aruco_marker_corners, detected_aruco_marker_ids,
+                           detected_charuco_corner_ids, detected_charuco_corners):
+        def format_data(ids, corners):
+            if not ids or len(ids) == 0:
+                return None, None
+            if len(ids) == 1:
+                return list(ids[0]), list(corners[0])
+            return list(np.squeeze(ids)), list(np.squeeze(corners))
+
+        formatted_charuco_ids, formatted_charuco_corners = format_data(detected_charuco_corner_ids, detected_charuco_corners)
+        formatted_aruco_ids, formatted_aruco_corners = format_data(detected_aruco_marker_ids, detected_aruco_marker_corners)
+
+        return formatted_aruco_corners, formatted_aruco_ids, formatted_charuco_ids, formatted_charuco_corners
