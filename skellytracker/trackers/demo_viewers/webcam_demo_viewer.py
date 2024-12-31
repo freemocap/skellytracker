@@ -45,7 +45,7 @@ class WebcamDemoViewer:
         self.recorder = recorder
         self.default_exposure = default_exposure
         if window_title is None:
-            window_title = f"{tracker.__class__.__name__}"
+            window_title = f"SkellyTracker - {tracker.__class__.__name__}"
         self.window_title = window_title
 
     def _set_auto_exposure_mode(self, cap):
