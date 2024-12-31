@@ -7,9 +7,9 @@ from skellytracker.trackers.base_tracker.base_tracker import BaseObservation, Ba
 
 @dataclass
 class CharucoObservation(BaseObservation):
-    charuco_corners: dict[int, tuple[float, float] | None]
+    charuco_corners_image: dict[int, tuple[float, float] | None]
     aruco_marker_corners: dict[int, list[tuple[float, float]] | None]
-
+    charuco_corners_object: List[np.ndarray]
 
 CharucoObservations = list[CharucoObservation]
 
@@ -18,6 +18,7 @@ CharucoObservations = list[CharucoObservation]
 class CharucoObservationFactory(BaseObservationFactory):
     charuco_corner_ids: List[int]
     aruco_marker_ids: List[int]
+    charuco_corner_object_coordinates: List[np.ndarray]
 
     def create_observation(self,
                            detected_charuco_corners: np.ndarray,
@@ -25,11 +26,9 @@ class CharucoObservationFactory(BaseObservationFactory):
                            detected_aruco_marker_corners: np.ndarray,
                            detected_aruco_marker_ids: list[list[int]],
                            ) -> CharucoObservation:
+
         charuco_corners_out = {id: None for id in self.charuco_corner_ids}
         aruco_marker_corners_out = {id: None for id in self.aruco_marker_ids}
-
-        charuco_corners_out = {id_: None for id_ in self.charuco_corner_ids}
-        aruco_marker_corners_out = {id_: None for id_ in self.aruco_marker_ids}
 
         (formatted_aruco_corners,
          formatted_aruco_ids,
@@ -50,8 +49,9 @@ class CharucoObservationFactory(BaseObservationFactory):
                 aruco_marker_corners_out[marker_id] = corner
 
         return CharucoObservation(
-            charuco_corners=charuco_corners_out,
+            charuco_corners_image=charuco_corners_out,
             aruco_marker_corners=aruco_marker_corners_out,
+            charuco_corners_object=self.charuco_corner_object_coordinates
         )
 
     def _format_input_data(self, detected_aruco_marker_corners, detected_aruco_marker_ids,

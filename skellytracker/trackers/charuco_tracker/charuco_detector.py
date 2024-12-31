@@ -59,7 +59,8 @@ class CharucoDetector(BaseDetector):
             board=board,
             detector=detector,
             observation_factory=CharucoObservationFactory(charuco_corner_ids=config.charuco_corner_ids,
-                                                          aruco_marker_ids=list(board.getIds())),
+                                                          aruco_marker_ids=list(board.getIds()),
+                                                          charuco_corner_object_coordinates=config.charuco_corners_in_object_coordinates),
         )
 
     @property

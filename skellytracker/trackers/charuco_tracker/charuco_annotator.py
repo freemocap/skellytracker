@@ -60,7 +60,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
             marker_thickness = max(1, int(self.config.marker_thickness * obs_count_scale))
             marker_size = max(1, int(self.config.marker_size * obs_count_scale))
 
-            for corner_id, corner in observation.charuco_corners.items():
+            for corner_id, corner in observation.charuco_corners_image.items():
                 if corner is not None:
                     cv2.drawMarker(
                         annotated_image,
@@ -102,7 +102,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
 
         # List undetected markers
         undetected_markers = []
-        for key, value in latest_observation.charuco_corners.items():
+        for key, value in latest_observation.charuco_corners_image.items():
             if value is None:
                 undetected_markers.append(key)
         if len(undetected_markers) > 0:
