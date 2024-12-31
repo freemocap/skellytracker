@@ -1,6 +1,7 @@
 import subprocess
 from pathlib import Path
 from typing import Optional, Union
+
 from skellytracker.trackers.base_tracker.base_tracker import BaseCumulativeTracker
 from skellytracker.trackers.openpose_tracker.openpose_recorder import OpenPoseRecorder
 

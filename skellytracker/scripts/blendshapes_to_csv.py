@@ -1,6 +1,7 @@
 import argparse
 from pathlib import Path
 from typing import Generator
+
 import pandas as pd
 
 from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import (

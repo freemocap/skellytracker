@@ -1,7 +1,8 @@
 from dataclasses import dataclass
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple
 
 import numpy as np
+
 from skellytracker.trackers.base_tracker.base_tracker import BaseObservation, BaseObservationFactory
 
 
@@ -10,6 +11,7 @@ class CharucoObservation(BaseObservation):
     charuco_corners_image: dict[int, tuple[float, float] | None]
     aruco_marker_corners: dict[int, list[tuple[float, float]] | None]
     charuco_corners_object: List[np.ndarray]
+    image_size: Tuple[int, ...]
 
 CharucoObservations = list[CharucoObservation]
 
@@ -25,6 +27,7 @@ class CharucoObservationFactory(BaseObservationFactory):
                            detected_charuco_corner_ids: list[list[int]],
                            detected_aruco_marker_corners: np.ndarray,
                            detected_aruco_marker_ids: list[list[int]],
+                           image_size: Tuple[int, ...]
                            ) -> CharucoObservation:
 
         charuco_corners_out = {id: None for id in self.charuco_corner_ids}
@@ -51,13 +54,14 @@ class CharucoObservationFactory(BaseObservationFactory):
         return CharucoObservation(
             charuco_corners_image=charuco_corners_out,
             aruco_marker_corners=aruco_marker_corners_out,
-            charuco_corners_object=self.charuco_corner_object_coordinates
+            charuco_corners_object=self.charuco_corner_object_coordinates,
+            image_size=image_size
         )
 
     def _format_input_data(self, detected_aruco_marker_corners, detected_aruco_marker_ids,
                            detected_charuco_corner_ids, detected_charuco_corners):
         def format_data(ids, corners):
-            if not ids or len(ids) == 0:
+            if ids is None or len(ids) == 0:
                 return None, None
             if len(ids) == 1:
                 return list(ids[0]), list(corners[0])

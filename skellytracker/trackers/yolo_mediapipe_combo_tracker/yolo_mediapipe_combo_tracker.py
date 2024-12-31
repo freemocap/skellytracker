@@ -1,13 +1,14 @@
-import cv2
-import numpy as np
 import copy
-import mediapipe as mp
-import torch
 from typing import Dict, Literal, Tuple
+
+import cv2
+import mediapipe as mp
+import numpy as np
+import torch
+from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from ultralytics import YOLO
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
-from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_recorder import (
     MediapipeHolisticRecorder,
 )

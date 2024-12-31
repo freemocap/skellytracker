@@ -1,7 +1,7 @@
+from typing import Optional
+
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 from skellytracker.trackers.base_tracker.model_info import ModelInfo
-
-from typing import Optional
 
 
 class OpenPoseModelInfo(ModelInfo):

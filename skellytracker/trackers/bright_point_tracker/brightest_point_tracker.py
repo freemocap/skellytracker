@@ -4,9 +4,9 @@ from typing import Dict
 import cv2
 import numpy as np
 from pydantic import BaseModel
+from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
-from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.bright_point_tracker.brightest_point_recorder import (
     BrightestPointRecorder,
 )

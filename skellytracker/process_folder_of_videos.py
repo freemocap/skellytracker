@@ -1,10 +1,10 @@
 import logging
-import numpy as np
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel
 
+import numpy as np
+from pydantic import BaseModel
 
 from skellytracker.system.constants import BASE_2D_FILE_NAME
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker

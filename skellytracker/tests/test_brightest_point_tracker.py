@@ -1,7 +1,6 @@
 import cv2
-import pytest
 import numpy as np
-
+import pytest
 
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,

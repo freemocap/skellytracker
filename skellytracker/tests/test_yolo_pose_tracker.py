@@ -1,7 +1,7 @@
 import math
-import pytest
-import numpy as np
 
+import numpy as np
+import pytest
 
 from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker

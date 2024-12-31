@@ -1,9 +1,10 @@
-import numpy as np
 from typing import Dict
+
+import numpy as np
+from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from ultralytics import YOLO
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
-from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 from skellytracker.trackers.yolo_tracker.yolo_recorder import YOLORecorder
 

@@ -1,5 +1,6 @@
-import cv2
 from pathlib import Path
+
+import cv2
 
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,

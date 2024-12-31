@@ -1,10 +1,9 @@
-from abc import ABC, abstractmethod
 import logging
+from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Union, Optional
 
 import numpy as np
-
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 logger = logging.getLogger(__name__)

@@ -76,4 +76,5 @@ class CharucoDetector(BaseDetector):
             grey_image = image
         else:
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return self.observation_factory.create_observation(*self.detector.detectBoard(grey_image))
+        return self.observation_factory.create_observation(*self.detector.detectBoard(grey_image),
+                                                           image_size=image.shape[:2])

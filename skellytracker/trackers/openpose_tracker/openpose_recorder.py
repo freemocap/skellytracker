@@ -1,8 +1,9 @@
 import json
-from typing import Dict, Union
-import numpy as np
-from pathlib import Path
 import re
+from pathlib import Path
+from typing import Dict, Union
+
+import numpy as np
 from tqdm import tqdm
 
 from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder

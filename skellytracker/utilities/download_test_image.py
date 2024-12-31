@@ -6,7 +6,6 @@ import requests
 
 from skellytracker.system.default_paths import FIGSHARE_TEST_IMAGE_URL
 
-
 logger = logging.getLogger(__name__)
 
 

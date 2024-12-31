@@ -1,17 +1,17 @@
+from pathlib import Path
+from typing import Dict, Union
+
 import cv2
-import requests
 import mediapipe as mp
 import numpy as np
-
-from typing import Dict, Union
-from pathlib import Path
-from mediapipe.tasks import python as mp_python
-from mediapipe.tasks.python import vision
+import requests
 from mediapipe import solutions
 from mediapipe.framework.formats import landmark_pb2
+from mediapipe.tasks import python as mp_python
+from mediapipe.tasks.python import vision
+from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
-from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_model_info import (
     MediapipeBlendshapeModelInfo,
 )

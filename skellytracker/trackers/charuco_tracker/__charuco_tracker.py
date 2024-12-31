@@ -3,13 +3,10 @@
 
 from dataclasses import field, dataclass
 
-import numpy as np
-
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
-from skellytracker.trackers.charuco_tracker.charuco_camera_calibrator import CameraCalibrationEstimate
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
-from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservations, CharucoObservation
+from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservations
 
 
 class CharucoTrackerConfig(BaseTrackerConfig):

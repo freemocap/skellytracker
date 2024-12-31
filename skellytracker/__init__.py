@@ -13,14 +13,13 @@ __repo_issues_url__ = f"{__repo_url__}/issues"
 
 # ruff: noqa: F401, E402
 
-import sys
-from enum import Enum
-from pathlib import Path
-
-from skellytracker.trackers.charuco_tracker import CharucoTracker
 
 from skellytracker.system.default_paths import get_log_file_path
 from skellytracker.system.logging_configuration import configure_logging
+from skellytracker.trackers.skelly_tracker_types import SkellyTrackerTypes
+__all__ = [
+    "SkellyTrackerTypes",
+]
 #
 # try:
 #     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
@@ -45,12 +44,5 @@ from skellytracker.system.logging_configuration import configure_logging
 #         "To use yolo_mediapipe_combo_tracker, install skellytracker[mediapipe, yolo] or skellytracker[all]"
 #     )
 
-class SkellyTrackerTypes(Enum):
-    DUMMY = None
-    CHARUCO = CharucoTracker
-
-__all__ = [
-    "SkellyTrackerTypes",
-]
 
 configure_logging(log_file_path=str(get_log_file_path()))

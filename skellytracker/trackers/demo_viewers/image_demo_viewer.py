@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Optional
+
 import cv2
 
 # Constants for key actions

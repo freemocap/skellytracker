@@ -1,6 +1,5 @@
-import pytest
 import numpy as np
-
+import pytest
 
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,

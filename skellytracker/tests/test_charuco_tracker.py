@@ -1,7 +1,6 @@
 import cv2
-import pytest
 import numpy as np
-
+import pytest
 
 from skellytracker.trackers.charuco_tracker.__charuco_tracker import CharucoTracker
 

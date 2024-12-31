@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 from typing import List
 
 import numpy as np
-from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
@@ -35,7 +34,7 @@ class BaseImageAnnotator(ABC):
         raise NotImplementedError("Must implement a method to create an image annotator from a config.")
 
     @abstractmethod
-    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation, camera_id:int=0) -> np.ndarray:
+    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
         pass
 
 
