@@ -51,7 +51,14 @@ class CharucoTracker(BaseTracker):
                                                                                           )
         latest_observation = self.detector.detect(image)
         self.camera_calibration_estimator.add_observation(latest_observation)
+        if self.camera_calibration_estimator.charuco_observations:
+            if len(self.camera_calibration_estimator.charuco_observations) == 30:
+                self.camera_calibration_estimator.update_calibration_estimate()
         if annotate_image:
+            if self.camera_calibration_estimator and self.camera_calibration_estimator.mean_reprojection_error:
+                image = self.camera_calibration_estimator.draw_board_axes(image=image,
+                                                                          observation=latest_observation,)
+
             return self.annotator.annotate_image(image=image,
                                                  latest_observation=latest_observation), latest_observation
 

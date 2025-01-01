@@ -21,6 +21,7 @@ KEY_PAUSE_P = ord("p")
 KEY_QUIT_Q = ord("q")
 KEY_QUIT_ESC = 27
 
+
 class ExposureModes(float, Enum):
     AUTO = 0.75  # Default value to activate auto exposure mode
     MANUAL = 0.25  # Default value to activate manual exposure mode
@@ -67,13 +68,13 @@ class WebcamDemoViewer:
         x0 = 6
         number_of_lines = text.count("\n") + 1
         longest_line = max(text.split("\n"), key=len)
-        rect_horizontal_edge_length = len(longest_line)*10
-        rect_vertical_edge_length = dy*number_of_lines + 10
-        rect_upper_left_coordinates = (int(x0/2), int(y0/2))
-        rect_lower_right_coordinates = (int(x0/2) + rect_vertical_edge_length, int(x0/2) + rect_horizontal_edge_length)
+        rect_horizontal_edge_length = len(longest_line) * 10
+        rect_vertical_edge_length = dy * number_of_lines + 10
+        rect_upper_left_coordinates = (int(x0 / 2), int(y0 / 2))
+        rect_lower_right_coordinates = (
+        int(x0 / 2) + rect_vertical_edge_length, int(x0 / 2) + rect_horizontal_edge_length)
         rect_color_and_transparency = (25, 25, 25, .2)
         # cv2.rectangle(image, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color_and_transparency, -1)
-
 
         for i, line in enumerate(text.split("\n")):
             y = y0 + i * dy
@@ -129,6 +130,10 @@ class WebcamDemoViewer:
 
                 annotation_tik = time.perf_counter()
                 if show_overlay:
+                    if not observation.charuco_empty and  self.tracker.camera_calibration_estimator and self.tracker.camera_calibration_estimator.mean_reprojection_error:
+                        image = self.tracker.camera_calibration_estimator.draw_board_axes(image=image,
+                                                                                          observation=observation, )
+
                     annotated_image = self.tracker.annotator.annotate_image(image, observation)
                 else:
                     annotated_image = image
