@@ -34,7 +34,6 @@ class WebcamDemoViewer:
     def __init__(
             self,
             tracker,
-            recorder=None,
             window_title: Optional[str] = None,
             default_exposure: int = DEFAULT_EXPOSURE,
     ):
@@ -42,7 +41,6 @@ class WebcamDemoViewer:
         Initialize with a tracker and optional window title and default exposure.
         """
         self.tracker = tracker
-        self.recorder = recorder
         self.default_exposure = default_exposure
         if window_title is None:
             window_title = f"SkellyTracker - {tracker.__class__.__name__}"
@@ -84,6 +82,7 @@ class WebcamDemoViewer:
     def draw_doubled_text(self, image, text, x, y, font_scale, color, thickness):
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness + 2)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
+
     def run(self):
         """
         Run the camera viewer.

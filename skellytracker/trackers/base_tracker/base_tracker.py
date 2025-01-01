@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import List
 
 import numpy as np
+import cv2
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
@@ -37,6 +38,16 @@ class BaseImageAnnotator(ABC):
     def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
         pass
 
+    @staticmethod
+    def draw_doubled_text(image: np.ndarray,
+                          text: str,
+                          x: int,
+                          y: int,
+                          font_scale: float,
+                          color: tuple[int, int, int],
+                          thickness:int):
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 2)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
 @dataclass
 class BaseDetectorConfig(ABC):
@@ -69,8 +80,8 @@ class BaseRecorder(ABC):
 
 
 @dataclass
-class BaseObservationFactory(ABC):
-
+class BaseObservationManager(ABC):
+    observations: List[BaseObservation] = field(default_factory=list)
     @abstractmethod
     def create_observation(self, **kwargs) -> BaseObservation:
         pass
@@ -80,7 +91,7 @@ class BaseObservationFactory(ABC):
 class BaseTracker(ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
-    observations: BaseObservations = field(default_factory=dict)
+
     annotator: BaseImageAnnotator | None = None
 
     @classmethod
@@ -97,7 +108,6 @@ class BaseTracker(ABC):
     def demo(self) -> None:
         camera_viewer = WebcamDemoViewer(
             tracker=self,
-            recorder=self.observations,
             window_title=self.__class__.__name__
         )
         camera_viewer.run()

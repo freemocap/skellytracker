@@ -16,10 +16,8 @@ __repo_issues_url__ = f"{__repo_url__}/issues"
 
 from skellytracker.system.default_paths import get_log_file_path
 from skellytracker.system.logging_configuration import configure_logging
-from skellytracker.trackers.skelly_tracker_types import SkellyTrackerTypes
-__all__ = [
-    "SkellyTrackerTypes",
-]
+
+
 #
 # try:
 #     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (

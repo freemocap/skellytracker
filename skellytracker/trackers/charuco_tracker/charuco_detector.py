@@ -1,11 +1,11 @@
 from dataclasses import dataclass
-from typing import List
+from typing import List, Dict
 
 import cv2
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
-from skellytracker.trackers.charuco_tracker.charuco_observations import CharucoObservation, CharucoObservationFactory
+from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
 DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
 
@@ -21,7 +21,7 @@ class CharucoDetectorConfig(BaseDetectorConfig):
         return list(range((self.squares_x - 1) * (self.squares_y - 1)))
 
     @property
-    def charuco_corners_in_object_coordinates(self) -> List[np.ndarray]:
+    def charuco_corners_in_object_coordinates(self) -> Dict[int, list[float]]:
         """
         Returns the corners of the Charuco board in object coordinates,
         where the z coordinate is 0 for all corners.
@@ -35,7 +35,10 @@ class CharucoDetectorConfig(BaseDetectorConfig):
         [0,3,0],
         [1,3,0]]
         """
-        return [np.array([[x, y, 0] for x in range(self.squares_x - 1) for y in range(self.squares_y - 1)])]
+        points = [[x, y, 0] for x in range(self.squares_x - 1) for y in range(self.squares_y - 1)]
+        return {corner_id: points[corner_id] for corner_id in self.charuco_corner_ids}
+
+
 
 
 @dataclass
@@ -43,7 +46,6 @@ class CharucoDetector(BaseDetector):
     config: CharucoDetectorConfig
     board: cv2.aruco.CharucoBoard
     detector: cv2.aruco.CharucoDetector
-    observation_factory: CharucoObservationFactory
 
     @classmethod
     def create(cls, config: CharucoDetectorConfig):
@@ -58,9 +60,6 @@ class CharucoDetector(BaseDetector):
             config=config,
             board=board,
             detector=detector,
-            observation_factory=CharucoObservationFactory(charuco_corner_ids=config.charuco_corner_ids,
-                                                          aruco_marker_ids=list(board.getIds()),
-                                                          charuco_corner_object_coordinates=config.charuco_corners_in_object_coordinates),
         )
 
     @property
@@ -76,5 +75,9 @@ class CharucoDetector(BaseDetector):
             grey_image = image
         else:
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return self.observation_factory.create_observation(*self.detector.detectBoard(grey_image),
-                                                           image_size=image.shape[:2])
+        return CharucoObservation.from_detect_board_results(
+            *self.detector.detectBoard(grey_image),
+            image_size=(int(image.shape[0]), int(image.shape[1])),
+            all_charuco_ids=self.config.charuco_corner_ids,
+            all_aruco_ids=self.aruco_marker_ids,
+        )
