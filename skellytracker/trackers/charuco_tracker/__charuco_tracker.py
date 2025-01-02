@@ -39,7 +39,7 @@ class CharucoTracker(BaseTracker):
 
     @property
     def  aruco_corners_in_object_coordinates(self):
-        return self.detector.board.getObjPoints(),  # type: ignore
+        return self.detector.board.getObjPoints()  # type: ignore
 
     @property
     def charuco_corner_ids(self ):
