@@ -46,12 +46,17 @@ class CameraCalibrationEstimator:
     distortion_coefficients: np.ndarray[..., 1]
     camera_matrix: np.ndarray[3, 3]
 
+    charuco_observations: CharucoObservations = field(default_factory=list)
     object_points_views: list[np.ndarray[..., 3]] = field(default_factory=list)
     image_points_views: list[np.ndarray[..., 2]] = field(default_factory=list)
     rotation_vectors: list[np.ndarray[..., 3]] = field(default_factory=list)
     translation_vectors: list[np.ndarray[..., 3]] = field(default_factory=list)
-    mean_reprojection_error: float | None = None
-    error: CameraCalibrationError | None = None
+
+    mean_reprojection_errors: list[float] = field(default_factory=list)
+    camera_calibration_residuals: list[float] = field(default_factory=list)
+
+
+    collect_observations: bool = True
 
     @classmethod
     def create_initial(cls,
@@ -64,6 +69,7 @@ class CameraCalibrationEstimator:
         camera_matrix = np.eye(3)
         camera_matrix[0, 2] = image_size[0] / 2  # x_center
         camera_matrix[1, 2] = image_size[1] / 2  # y_center
+
 
         if not number_of_distortion_coefficients in [4, 5, 8, 12, 14]:
             raise ValueError("Invalid number of distortion coefficients. Must be 4, 5, 8, 12, or 14.")
@@ -82,7 +88,6 @@ class CameraCalibrationEstimator:
                    distortion_coefficients=np.zeros(number_of_distortion_coefficients),
                    )
 
-    charuco_observations: CharucoObservations = field(default_factory=list)
 
     def add_observation(self, observation: CharucoObservation):
         if observation.charuco_empty or len(observation.detected_charuco_corner_ids) < MIN_CHARUCO_CORNERS:
@@ -108,7 +113,7 @@ class CameraCalibrationEstimator:
                              f"#Charuco corners: {len(self.charuco_corner_ids)}")
 
         # https://docs.opencv.org/4.10.0/d9/d0c/group__calib3d.html#ga687a1ab946686f0d85ae0363b5af1d7b
-        (self.mean_reprojection_error,
+        (residual,
          self.camera_matrix,
          self.distortion_coefficients,
          self.rotation_vectors,
@@ -119,19 +124,36 @@ class CameraCalibrationEstimator:
                                                          distCoeffs=self.distortion_coefficients,
                                                          )
 
-        if not self.mean_reprojection_error:
+
+        if not residual:
             raise ValueError(f"Camera Calibration failed! Check your input data:",
                              f"object_points_views: {self.object_points_views}",
                              f"image_points_views: {self.image_points_views}",
                              f"camera_matrix: {self.camera_matrix}",
                              f"distortion_coefficients: {self.distortion_coefficients}",
                              )
+        self.camera_calibration_residuals.append(residual)
+        self._update_reprojection_error()
+        self._drop_suboptimal_views()
+
+
+    def _drop_suboptimal_views(self, ratio_to_keep: float = 0.5):
+        if len(self.reprojection_error_by_view) < 2:
+            return
+        sorted_indices = np.argsort(self.reprojection_error_by_view)
+        number_of_views_to_keep = int(len(sorted_indices) * ratio_to_keep)
+        self.object_points_views = [self.object_points_views[i] for i in sorted_indices[:number_of_views_to_keep]]
+        self.image_points_views = [self.image_points_views[i] for i in sorted_indices[:number_of_views_to_keep]]
+        self.rotation_vectors = [self.rotation_vectors[i] for i in sorted_indices[:number_of_views_to_keep]]
+        self.translation_vectors = [self.translation_vectors[i] for i in sorted_indices[:number_of_views_to_keep]]
+        self.reprojection_error_by_view = [self.reprojection_error_by_view[i] for i in sorted_indices[:number_of_views_to_keep]]
+        self.charuco_observations = [self.charuco_observations[i] for i in sorted_indices[:number_of_views_to_keep]]
 
     def get_board_pose(self, object_points: np.ndarray[..., 3], image_points: np.ndarray[..., 2]) -> tuple[
         np.ndarray[..., 3], np.ndarray[..., 3]]:
         if len(object_points) < 6:
             raise ValueError("You must have at least 4 object points to estimate the board pose.")
-        if not self.mean_reprojection_error:
+        if len(self.camera_calibration_residuals) == 0:
             raise ValueError("You must first calibrate the camera to get the board pose.")
         if len(object_points) != len(image_points):
             raise ValueError("The number of object and image points must be the same")
@@ -145,7 +167,7 @@ class CameraCalibrationEstimator:
         return rotation_vector, translation_vector
 
     def draw_board_axes(self, image: np.ndarray, observation: CharucoObservation) -> np.ndarray:
-        if not self.mean_reprojection_error:
+        if len(self.camera_calibration_residuals) == 0:
             raise ValueError("You must first calibrate the camera to draw the board axes.")
         if observation.detected_charuco_corners_image_coordinates.shape[0] < 6:
             return image
@@ -153,7 +175,7 @@ class CameraCalibrationEstimator:
             object_points=observation.detected_charuco_corners_in_object_coordinates,
             image_points=observation.detected_charuco_corners_image_coordinates
             )
-        axis_length = 1
+        axis_length = 5
         return cv2.drawFrameAxes(image,
                                  self.camera_matrix,
                                  self.distortion_coefficients,
@@ -161,28 +183,24 @@ class CameraCalibrationEstimator:
                                  translation_vector,
                                  axis_length)
 
-    #     self._update_reprojection_error()
-    #
-    # def _update_reprojection_error(self) -> CameraCalibrationError:
-    #     if len(self.image_points_views) != len(self.object_points_views):
-    #         raise ValueError("The number of image and object points must be the same")
-    #     if len(self.image_points_views) == 0:
-    #         raise ValueError("No image points provided")
-    #     error = None
-    #     jacobian = None
-    #     reprojection_error_by_view = []
-    #     for view_index in range(len(estimate.image_points_views)):
-    #         projected_image_points, jacobian = cv2.projectPoints(estimate.object_points_views[view_index],
-    #                                                              estimate.rotation_vectors[view_index],
-    #                                                              estimate.translation_vectors[view_index],
-    #                                                              estimate.camera_matrix,
-    #                                                              estimate.distortion_coefficients)
-    #
-    #         reprojection_error_by_view.append(cv2.norm(estimate.image_points_views[view_index],
-    #                                                    projected_image_points, cv2.NORM_L2) / len(
-    #             projected_image_points))
-    #
-    #     mean_error = np.mean(reprojection_error_by_view) if reprojection_error_by_view else -1
-    #     return CameraCalibrationError(mean_reprojection_error=mean_error,
-    #                                   reprojection_error_by_view=reprojection_error_by_view,
-    #                                   jacobian=[jacobian])
+
+    def _update_reprojection_error(self):
+        if len(self.image_points_views) != len(self.object_points_views):
+            raise ValueError("The number of image and object points must be the same")
+        if len(self.image_points_views) == 0:
+            raise ValueError("No image points provided")
+        error = None
+        jacobian = None
+        self.reprojection_error_by_view = []
+        for view_index in range(len(self.image_points_views)):
+            projected_image_points, jacobian = cv2.projectPoints(self.object_points_views[view_index],
+                                                                 self.rotation_vectors[view_index],
+                                                                 self.translation_vectors[view_index],
+                                                                 self.camera_matrix,
+                                                                 self.distortion_coefficients)
+
+            self.reprojection_error_by_view.append(np.mean(np.abs(self.image_points_views[view_index] - np.squeeze(projected_image_points))))
+
+        self.mean_reprojection_errors.append(np.mean(self.reprojection_error_by_view) if self.reprojection_error_by_view else -1)
+
+        print(f"Mean reprojection errors: {self.mean_reprojection_errors}")
