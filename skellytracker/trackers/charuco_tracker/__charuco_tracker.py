@@ -7,7 +7,6 @@ import numpy as np
 
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
-from skellytracker.trackers.charuco_tracker.camera_calibration_estimator import CameraCalibrationEstimator
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
@@ -24,7 +23,6 @@ class CharucoTracker(BaseTracker):
     config: CharucoTrackerConfig
     detector: CharucoDetector
     annotator: CharucoImageAnnotator
-    camera_calibration_estimator: CameraCalibrationEstimator | None = None
 
     @classmethod
     def create(cls, config: CharucoTrackerConfig | None = None):
@@ -57,15 +55,7 @@ class CharucoTracker(BaseTracker):
                       annotate_image: bool = False) -> tuple[np.ndarray, CharucoObservation] | CharucoObservation:
 
         latest_observation = self.detector.detect(image)
-        if self.camera_calibration_estimator.collect_observations:
-            self.camera_calibration_estimator.add_observation(latest_observation)
-            if len(self.camera_calibration_estimator.charuco_observations) == 30:
-                self.camera_calibration_estimator.update_calibration_estimate()
         if annotate_image:
-            if self.camera_calibration_estimator and len(self.camera_calibration_estimator.mean_reprojection_errors) > 0:
-                image = self.camera_calibration_estimator.draw_board_axes(image=image,
-                                                                          observation=latest_observation,)
-
             return self.annotator.annotate_image(image=image,
                                                  latest_observation=latest_observation), latest_observation
 

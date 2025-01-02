@@ -130,10 +130,6 @@ class WebcamDemoViewer:
 
                 annotation_tik = time.perf_counter()
                 if show_overlay:
-                    if not observation.charuco_empty and  self.tracker.camera_calibration_estimator and len(self.tracker.camera_calibration_estimator.mean_reprojection_errors) > 0:
-                        image = self.tracker.camera_calibration_estimator.draw_board_axes(image=image,
-                                                                                          observation=observation, )
-
                     annotated_image = self.tracker.annotator.annotate_image(image, observation)
                 else:
                     annotated_image = image
