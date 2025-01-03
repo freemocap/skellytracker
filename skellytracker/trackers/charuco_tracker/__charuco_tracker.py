@@ -59,7 +59,7 @@ class CharucoTracker(BaseTracker):
         if annotate_image:
             return self.annotator.annotate_image(image=image,
                                                  latest_observation=latest_observation), latest_observation
-
+        print(latest_observation.to_serializable_dict())
         return latest_observation
 
 
