@@ -1,3 +1,4 @@
+import json
 from dataclasses import dataclass
 
 import numpy as np
@@ -74,5 +75,24 @@ class CharucoObservation(BaseObservation):
             corner_dict[corner_id[0]] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
 
+    def to_serializable_dict(self) -> dict:
+        return {
+            "all_charuco_ids": self.all_charuco_ids,
+            "all_charuco_corners_in_object_coordinates": self.all_charuco_corners_in_object_coordinates.tolist(),
+            "detected_charuco_corner_ids": self.detected_charuco_corner_ids,
+            "detected_charuco_corners_image_coordinates": self.detected_charuco_corners_image_coordinates.tolist(),
+            "detected_charuco_corners_in_object_coordinates": self.detected_charuco_corners_in_object_coordinates.tolist(),
+            "all_aruco_ids": self.all_aruco_ids,
+            "all_aruco_corners_in_object_coordinates": self.all_aruco_corners_in_object_coordinates.tolist(),
+            "detected_aruco_marker_ids": self.detected_aruco_marker_ids,
+            "detected_aruco_marker_corners": [corner.tolist() for corner in self.detected_aruco_marker_corners],
+            "image_size": self.image_size
+        }
+
+    def to_json_string(self) -> str:
+        return json.dumps(self.to_serializable_dict(), indent=4)
+
+    def to_json_bytes(self) -> bytes:
+        return self.to_json_string().encode("utf-8")
 
 CharucoObservations = list[CharucoObservation]
