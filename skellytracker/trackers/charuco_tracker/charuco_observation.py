@@ -19,8 +19,6 @@ class CharucoObservation(BaseObservation):
     detected_aruco_marker_ids: list[list[int]]
     detected_aruco_marker_corners: tuple[np.ndarray[..., 2]]
 
-
-
     image_size: tuple[int, int]
 
     @classmethod
@@ -79,13 +77,12 @@ class CharucoObservation(BaseObservation):
         return {
             "all_charuco_ids": self.all_charuco_ids,
             "all_charuco_corners_in_object_coordinates": self.all_charuco_corners_in_object_coordinates.tolist(),
-            "detected_charuco_corner_ids": self.detected_charuco_corner_ids,
-            "detected_charuco_corners_image_coordinates": self.detected_charuco_corners_image_coordinates.tolist(),
-            "detected_charuco_corners_in_object_coordinates": self.detected_charuco_corners_in_object_coordinates.tolist(),
-            "all_aruco_ids": self.all_aruco_ids,
+            "detected_charuco_corner_ids": self.detected_charuco_corner_ids if self.detected_charuco_corner_ids is not None else None,
+            "detected_charuco_corners_image_coordinates": self.detected_charuco_corners_image_coordinates.tolist() if self.detected_charuco_corners_image_coordinates is not None else None,
+            "detected_charuco_corners_in_object_coordinates": self.detected_charuco_corners_in_object_coordinates.tolist() if self.detected_charuco_corners_in_object_coordinates is not None else None,
             "all_aruco_corners_in_object_coordinates": self.all_aruco_corners_in_object_coordinates.tolist(),
-            "detected_aruco_marker_ids": self.detected_aruco_marker_ids,
-            "detected_aruco_marker_corners": [corner.tolist() for corner in self.detected_aruco_marker_corners],
+            "detected_aruco_marker_ids": self.detected_aruco_marker_ids if self.detected_aruco_marker_ids is not None else None,
+            "detected_aruco_marker_corners": [corner.tolist() for corner in self.detected_aruco_marker_corners] if self.detected_aruco_marker_corners is not None else None,
             "image_size": self.image_size
         }
 

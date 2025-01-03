@@ -1,16 +1,17 @@
 # Charuco Detector docs https://docs.opencv.org/4.10.0/d9/df5/classcv_1_1aruco_1_1CharucoDetector.html
 # Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
 
+import logging
 from dataclasses import dataclass, field
 
 import numpy as np
 
-
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
-from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
+from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class CharucoTrackerConfig(BaseTrackerConfig):
