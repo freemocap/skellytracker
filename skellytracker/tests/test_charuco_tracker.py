@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 
 
-from skellytracker.trackers.charuco_tracker.charuco_tracker_main import CharucoTracker
+from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
 
 
 @pytest.mark.usefixtures("charuco_test_image")

@@ -1,9 +1,9 @@
 import logging
 from typing import Optional
-
 import cv2
 
 logger = logging.getLogger(__name__)
+
 
 # Constants for key actions
 KEY_INCREASE_EXPOSURE = ord("w")
@@ -16,11 +16,11 @@ class WebcamDemoViewer:
     DEFAULT_EXPOSURE = -7
 
     def __init__(
-            self,
-            tracker,
-            recorder=None,
-            window_title: Optional[str] = None,
-            default_exposure: int = DEFAULT_EXPOSURE,
+        self,
+        tracker,
+        recorder=None,
+        window_title: Optional[str] = None,
+        default_exposure: int = DEFAULT_EXPOSURE,
     ):
         """
         Initialize with a tracker and optional window title and default exposure.
@@ -70,8 +70,10 @@ class WebcamDemoViewer:
 
             image_size = (frame.shape[1], frame.shape[0])
 
-            annotated_image = self.tracker.process_image(frame)
-
+            self.tracker.process_image(frame)
+            annotated_image = self.tracker.annotated_image
+            if self.recorder is not None:
+                self.recorder.record(tracked_objects=self.tracker.tracked_objects)
 
             key = cv2.waitKey(1) & 0xFF
             if key == KEY_QUIT:
@@ -96,3 +98,6 @@ class WebcamDemoViewer:
         cap.release()
         cv2.destroyAllWindows()
 
+        if self.recorder is not None:
+            self.recorder.process_tracked_objects(image_size=image_size)
+            self.recorder.save("recorded_objects.npy")
