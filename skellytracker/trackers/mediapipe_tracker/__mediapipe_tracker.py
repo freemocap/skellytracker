@@ -1,0 +1,63 @@
+import logging
+from dataclasses import dataclass, field
+
+import numpy as np
+
+from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
+from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, MediapipeImageAnnotator
+from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
+from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
+
+logger = logging.getLogger(__name__)
+
+@dataclass
+class MediapipeTrackerConfig(BaseTrackerConfig):
+    detector_config: MediapipeDetectorConfig = field(default_factory = MediapipeDetectorConfig)
+    annotator_config: MediapipeAnnotatorConfig = field(default_factory = MediapipeAnnotatorConfig)
+
+
+@dataclass
+class MediapipeTracker(BaseTracker):
+    config: MediapipeTrackerConfig
+    detector: MediapipeDetector
+    annotator: MediapipeImageAnnotator
+
+    @classmethod
+    def create(cls, config: MediapipeTrackerConfig | None = None):
+        if config is None:
+            config = MediapipeTrackerConfig()
+        detector = MediapipeDetector.create(config.detector_config)
+
+        return cls(
+            config=config,
+            detector=detector,
+            annotator=MediapipeImageAnnotator.create(config.annotator_config),
+
+        )
+
+    # @property
+    # def  aruco_corners_in_object_coordinates(self):
+    #     return self.detector.board.getObjPoints()  # type: ignore
+    #
+    # @property
+    # def charuco_corner_ids(self ):
+    #     return self.config.detector_config.charuco_corner_ids
+    #
+    # @property
+    # def charuco_corners_in_object_coordinates(self):
+    #     return self.detector.board.getChessboardCorners()
+
+
+    def process_image(self,
+                      image: np.ndarray,
+                      annotate_image: bool = False) -> tuple[np.ndarray, MediapipeObservation] | MediapipeObservation:
+
+        latest_observation = self.detector.detect(image)
+        if annotate_image:
+            return self.annotator.annotate_image(image=image,
+                                                 latest_observation=latest_observation), latest_observation
+        return latest_observation
+
+
+if __name__ == "__main__":
+    MediapipeTracker.create().demo()

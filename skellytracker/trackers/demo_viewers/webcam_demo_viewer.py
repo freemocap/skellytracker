@@ -186,7 +186,7 @@ class WebcamDemoViewer:
                 overlay_string += (
                     "Controls:\n"
                     f"'SPACE'/'{chr(KEY_PAUSE_P)}': pause\n"
-                    f"'{chr(KEY_SHOW_INFO)}': {'show info' if not show_info else "hide info"}\n"
+                    f"'{chr(KEY_SHOW_INFO)}': {'show info' if not show_info else 'hide info'}\n"
                     f"'{chr(KEY_SHOW_OVERLAY)}': show overlay\n"
                     f"'{chr(KEY_SET_AUTO_EXPOSURE)}': auto-exposure\n"
                     f"'{chr(KEY_INCREASE_EXPOSURE)}'/'{chr(KEY_DECREASE_EXPOSURE)}': exposure +/-\n"
