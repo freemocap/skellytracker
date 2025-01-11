@@ -35,19 +35,6 @@ class MediapipeTracker(BaseTracker):
 
         )
 
-    # @property
-    # def  aruco_corners_in_object_coordinates(self):
-    #     return self.detector.board.getObjPoints()  # type: ignore
-    #
-    # @property
-    # def charuco_corner_ids(self ):
-    #     return self.config.detector_config.charuco_corner_ids
-    #
-    # @property
-    # def charuco_corners_in_object_coordinates(self):
-    #     return self.detector.board.getChessboardCorners()
-
-
     def process_image(self,
                       image: np.ndarray,
                       annotate_image: bool = False) -> tuple[np.ndarray, MediapipeObservation] | MediapipeObservation:

@@ -3,7 +3,6 @@ from dataclasses import dataclass
 from typing import NamedTuple
 
 import numpy as np
-import mediapipe as mp
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
