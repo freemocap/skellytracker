@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from enum import Enum
 
 import cv2
 import numpy as np
@@ -7,13 +8,17 @@ import mediapipe as mp
 from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
 
+class MediapipeModelComplexity(int, Enum):
+    LITE = 0
+    FULL = 1
+    HEAVY = 2
 
 class MediapipeDetectorConfig(BaseDetectorConfig):
-    model_complexity = 2
-    min_detection_confidence = 0.5
-    min_tracking_confidence = 0.5
-    static_image_mode = False
-    smooth_landmarks = True
+    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY.value
+    min_detection_confidence:float = 0.5
+    min_tracking_confidence:float = 0.5
+    static_image_mode:bool = False
+    smooth_landmarks:bool = True
 
 
 @dataclass
