@@ -10,9 +10,9 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 
 class MediapipeModelComplexity(int, Enum):
-    LITE = 0 #BlazePose Lite model, fast
-    FULL = 1 #BlazePose Full model
-    HEAVY = 2 #BlazePose Heavy model
+    LITE = 0 #BlazePose Lite model, fastest
+    FULL = 1 #BlazePose Full model, balanced
+    HEAVY = 2 #BlazePose Heavy model, most accurate
 
 
 class MediapipeDetectorConfig(BaseDetectorConfig):

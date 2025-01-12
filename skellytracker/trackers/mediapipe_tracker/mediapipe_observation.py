@@ -140,8 +140,11 @@ class MediapipeObservation(BaseObservation):
 
         return landmark_array
 
-    def all_points_2d(self, face_type: str = "contour") -> dict[str, tuple]:
-        all_points2d_by_name = {}
+    def all_points(self, face_type: str = "contour", dimensions:int=2) -> dict[str, tuple]:
+        if not dimensions in [2, 3]:
+            raise ValueError(f"Invalid dimensions: {dimensions}")
+
+        all_points_by_name = {}
         body_xyz = self.body_points_xyz.copy()
         right_hand_xyz = self.right_hand_points_xyz.copy()
         left_hand_xyz = self.left_hand_points_xyz.copy()
@@ -153,18 +156,18 @@ class MediapipeObservation(BaseObservation):
             raise ValueError(f"Invalid face type: {face_type}")
 
         for index, point_name in enumerate(self.body_landmark_names):
-            all_points2d_by_name[point_name] = tuple(body_xyz[index, :2])
+            all_points_by_name[point_name] = tuple(body_xyz[index, :dimensions])
 
         for index, point_name in enumerate(self.right_hand_landmark_names):
-            all_points2d_by_name[point_name] = right_hand_xyz[index, :2]
+            all_points_by_name[point_name] = right_hand_xyz[index, :dimensions]
 
         for index, point_name in enumerate(self.left_hand_landmark_names):
-            all_points2d_by_name[point_name] = left_hand_xyz[index, :2]
+            all_points_by_name[point_name] = left_hand_xyz[index, :dimensions]
 
         for index, point_name in enumerate(self.face_contour_landmark_names):
-            all_points2d_by_name[point_name] = face_xyz[index, :2]
+            all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
-        return all_points2d_by_name
+        return all_points_by_name
 
     def to_serializable_dict(self) -> dict:
         d = {
