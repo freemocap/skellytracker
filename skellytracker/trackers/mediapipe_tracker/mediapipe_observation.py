@@ -140,18 +140,18 @@ class MediapipeObservation(BaseObservation):
 
         return landmark_array
 
-    def all_points(self, face_type: str = "contour", dimensions:int=2) -> dict[str, tuple]:
+    def all_points(self, dimensions:int, face_type: str = "contour",  scale_by:float=1.0) -> dict[str, tuple]:
         if not dimensions in [2, 3]:
             raise ValueError(f"Invalid dimensions: {dimensions}")
 
         all_points_by_name = {}
-        body_xyz = self.body_points_xyz.copy()
-        right_hand_xyz = self.right_hand_points_xyz.copy()
-        left_hand_xyz = self.left_hand_points_xyz.copy()
+        body_xyz = self.body_points_xyz.copy()* scale_by
+        right_hand_xyz = self.right_hand_points_xyz.copy() * scale_by
+        left_hand_xyz = self.left_hand_points_xyz.copy()* scale_by
         if face_type == "tesselation":
-            face_xyz = self.face_tesselation_points_xyz.copy()
+            face_xyz = self.face_tesselation_points_xyz.copy()* scale_by
         elif face_type == "contour":
-            face_xyz = self.face_contour_points_xyz.copy()
+            face_xyz = self.face_contour_points_xyz.copy()* scale_by
         else:
             raise ValueError(f"Invalid face type: {face_type}")
 
