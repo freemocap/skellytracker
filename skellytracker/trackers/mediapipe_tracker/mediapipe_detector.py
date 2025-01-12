@@ -10,13 +10,13 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 
 class MediapipeModelComplexity(int, Enum):
-    LITE = 0
-    FULL = 1
-    HEAVY = 2
+    LITE = 0 #BlazePose Lite model, fast
+    FULL = 1 #BlazePose Full model
+    HEAVY = 2 #BlazePose Heavy model
 
 
 class MediapipeDetectorConfig(BaseDetectorConfig):
-    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY.value
+    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.LITE.value
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = False
