@@ -31,13 +31,6 @@ class MediapipeObservation(BaseObservation):
             image_size=image_size
         )
 
-    @property
-    def charuco_empty(self):
-        return self.detected_charuco_corner_ids is None
-
-    @property
-    def aruco_empty(self):
-        return self.detected_aruco_marker_ids is None
 
     @property
     def body_landmark_names(self) -> list[str]:
@@ -64,42 +57,42 @@ class MediapipeObservation(BaseObservation):
         return self.num_body_points + (2 * self.num_single_hand_points) + self.num_face_points
 
     @property
-    def pose_trajectories(self) -> np.ndarray[..., 3]:  # TODO: not sure how to type these array sizes, seems like it doesn't like the `self` reference
+    def body_points_xyz(self) -> np.ndarray[..., 3]:  # TODO: not sure how to type these array sizes, seems like it doesn't like the `self` reference
         if self.pose_landmarks is None:
             return np.full((self.num_body_points, 3), np.nan)
 
         return self.landmarks_to_array(self.pose_landmarks)
 
     @property
-    def right_hand_trajectories(self) -> np.ndarray[..., 3]:
+    def right_hand_points_xyz(self) -> np.ndarray[..., 3]:
         if self.right_hand_landmarks is None:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
         return self.landmarks_to_array(self.right_hand_landmarks)
 
     @property
-    def left_hand_trajectories(self) -> np.ndarray[..., 3]:
+    def left_hand_points_xyz(self) -> np.ndarray[..., 3]:
         if self.left_hand_landmarks is None:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
         return self.landmarks_to_array(self.left_hand_landmarks)
 
     @property
-    def face_trajectories(self) -> np.ndarray[..., 3]:
+    def face_points_xyz(self) -> np.ndarray[..., 3]:
         if self.face_landmarks is None:
             return np.full((self.num_face_points, 3), np.nan)
 
         return self.landmarks_to_array(self.face_landmarks)
 
     @property
-    def all_holistic_trajectories(self) -> np.ndarray[533, 3]:
+    def all_points_xyz(self) -> np.ndarray[533, 3]:
         return np.concatenate(
             # this order matters, do not change
             (
-                self.pose_trajectories,
-                self.right_hand_trajectories,
-                self.left_hand_trajectories,
-                self.face_trajectories,
+                self.body_points_xyz,
+                self.right_hand_points_xyz,
+                self.left_hand_points_xyz,
+                self.face_points_xyz,
             ),
             axis=0,
         )
@@ -119,10 +112,10 @@ class MediapipeObservation(BaseObservation):
 
     def to_serializable_dict(self) -> dict:
         d =  {
-            "pose_trajectories": self.pose_trajectories.tolist(),
-            "right_hand_trajectories": self.right_hand_trajectories.tolist(),
-            "left_hand_trajectories": self.left_hand_trajectories.tolist(),
-            "face_trajectories": self.face_trajectories.tolist(),
+            "pose_trajectories": self.body_points_xyz.tolist(),
+            "right_hand_trajectories": self.right_hand_points_xyz.tolist(),
+            "left_hand_trajectories": self.left_hand_points_xyz.tolist(),
+            "face_trajectories": self.face_points_xyz.tolist(),
             "image_size": self.image_size
         }
         try:
