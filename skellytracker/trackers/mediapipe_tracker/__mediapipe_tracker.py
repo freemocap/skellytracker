@@ -40,7 +40,6 @@ class MediapipeTracker(BaseTracker):
                       annotate_image: bool = False) -> tuple[np.ndarray, MediapipeObservation, MediapipeResults] | tuple[MediapipeObservation, MediapipeResults]:
 
         latest_observation, mediapipe_results = self.detector.detect(image)
-
         if annotate_image:
             return self.annotator.annotate_image(image=image,
                                                  latest_observation=latest_observation), latest_observation, mediapipe_results
