@@ -1,9 +1,10 @@
 from dataclasses import field, dataclass
 
-import numpy as np
 import cv2
-from mediapipe.python.solutions import holistic as mp_holistic
+import numpy as np
 from mediapipe.python.solutions import drawing_utils
+from mediapipe.python.solutions import holistic as mp_holistic
+from mediapipe.python.solutions.face_mesh_connections import FACEMESH_IRISES, FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
@@ -48,24 +49,48 @@ class MediapipeImageAnnotator(BaseImageAnnotator):
         annotated_image = image.copy()
 
         drawing_utils.draw_landmarks(
-            annotated_image,
-            latest_observation.pose_landmarks,
-            mp_holistic.POSE_CONNECTIONS,
+            image=annotated_image,
+            landmark_list=latest_observation.pose_landmarks,
+            connections=mp_holistic.POSE_CONNECTIONS,
+            landmark_drawing_spec=drawing_utils.DrawingSpec(color=(245, 117, 66), thickness=2, circle_radius=4),
+            connection_drawing_spec=drawing_utils.DrawingSpec(color=(245, 166, 230), thickness=2),
+            is_drawing_landmarks=True,
         )
         drawing_utils.draw_landmarks(
-            annotated_image,
-            latest_observation.right_hand_landmarks,
-            mp_holistic.HAND_CONNECTIONS,
+            image=annotated_image,
+            landmark_list=latest_observation.right_hand_landmarks,
+            connections=mp_holistic.HAND_CONNECTIONS,
+            landmark_drawing_spec=drawing_utils.DrawingSpec(color=(10, 22, 210), thickness=1, circle_radius=2),
+            connection_drawing_spec=drawing_utils.DrawingSpec(color=(10, 44, 211), thickness=2),
+            is_drawing_landmarks=True,
         )
         drawing_utils.draw_landmarks(
-            annotated_image,
-            latest_observation.left_hand_landmarks,
-            mp_holistic.HAND_CONNECTIONS,
+            image=annotated_image,
+            landmark_list=latest_observation.left_hand_landmarks,
+            connections=mp_holistic.HAND_CONNECTIONS,
+            landmark_drawing_spec=drawing_utils.DrawingSpec(color=(230, 22, 20), thickness=1, circle_radius=2),
+            connection_drawing_spec=drawing_utils.DrawingSpec(color=(230, 44, 20), thickness=2),
+            is_drawing_landmarks=True,
         )
         drawing_utils.draw_landmarks(
-            annotated_image,
-            latest_observation.face_landmarks,
-            mp_holistic.FACEMESH_TESSELATION,
+            image=annotated_image,
+            landmark_list=latest_observation.face_landmarks,
+            connections=mp_holistic.FACEMESH_CONTOURS,
+            connection_drawing_spec=drawing_utils.DrawingSpec(color=(280, 244, 151), thickness=2),
+            is_drawing_landmarks=False
         )
-
+        drawing_utils.draw_landmarks(
+            image=annotated_image,
+            landmark_list=latest_observation.face_landmarks,
+            connections=FACEMESH_RIGHT_IRIS,
+            connection_drawing_spec=drawing_utils.DrawingSpec(color=(2, 2, 211), thickness=2),
+            is_drawing_landmarks=False
+        )
+        drawing_utils.draw_landmarks(
+            image=annotated_image,
+            landmark_list=latest_observation.face_landmarks,
+            connections=FACEMESH_LEFT_IRIS,
+            connection_drawing_spec=drawing_utils.DrawingSpec(color=(255, 2, 11), thickness=2),
+            is_drawing_landmarks=False
+        )
         return annotated_image

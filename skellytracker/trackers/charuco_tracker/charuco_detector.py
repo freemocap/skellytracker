@@ -51,15 +51,16 @@ class CharucoDetector(BaseDetector):
     def board_object_points(self) -> List[np.ndarray]:
         return list(self.board.getObjPoints())  # type: ignore
 
-    def detect(self, image: np.ndarray) -> CharucoObservation:
+    def detect(self, image: np.ndarray) -> tuple[CharucoObservation, tuple]:
         if len(image.shape) == 2:
             grey_image = image
         else:
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        return CharucoObservation.from_detect_board_results(*self.detector.detectBoard(grey_image),
+        board_detect_results = self.detector.detectBoard(grey_image)
+        return CharucoObservation.from_detect_board_results(*board_detect_results,
                                                             image_size=(int(image.shape[0]), int(image.shape[1])),
                                                             all_charuco_ids=self.config.charuco_corner_ids,
                                                             all_aruco_ids=self.aruco_marker_ids,
                                                             all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
                                                             all_aruco_corners_in_object_coordinates=self.board.getIds()
-                                                            )
+                                                            ), board_detect_results

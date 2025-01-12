@@ -8,23 +8,25 @@ from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRI
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
+MediapipeResults = NamedTuple
 
 
 @dataclass
 class MediapipeObservation(BaseObservation):
-    pose_landmarks: NormalizedLandmarkList
-    right_hand_landmarks: NormalizedLandmarkList
-    left_hand_landmarks: NormalizedLandmarkList
-    face_landmarks: NormalizedLandmarkList
-
+    pose_landmarks: NormalizedLandmarkList|None
+    pose_world_landmarks: NormalizedLandmarkList|None
+    right_hand_landmarks: NormalizedLandmarkList|None
+    left_hand_landmarks: NormalizedLandmarkList|None
+    face_landmarks: NormalizedLandmarkList|None
     image_size: tuple[int, int]
 
     @classmethod
     def from_holistic_results(cls,
-                                  mediapipe_results: NamedTuple,
+                                  mediapipe_results: MediapipeResults,
                                   image_size: tuple[int, int]):
         return cls(
             pose_landmarks=mediapipe_results.pose_landmarks,
+            pose_world_landmarks=mediapipe_results.pose_world_landmarks,
             right_hand_landmarks=mediapipe_results.right_hand_landmarks,
             left_hand_landmarks=mediapipe_results.left_hand_landmarks,
             face_landmarks=mediapipe_results.face_landmarks,

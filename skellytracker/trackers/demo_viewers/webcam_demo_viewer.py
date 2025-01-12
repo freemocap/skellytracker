@@ -115,6 +115,7 @@ class WebcamDemoViewer:
         while True:
             if not paused:
                 success, image = cap.read()
+                # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 tok = time.perf_counter()
                 frame_durations.append(tok - tik)
                 tik = tok
@@ -124,12 +125,16 @@ class WebcamDemoViewer:
                     break
 
                 tracker_tik = time.perf_counter()
-                observation = self.tracker.process_image(image, annotate_image=False)
+                observation, raw_results = self.tracker.process_image(image, annotate_image=False)
                 tracker_tok = time.perf_counter()
                 tracker_durations.append(tracker_tok - tracker_tik)
 
                 annotation_tik = time.perf_counter()
                 if show_overlay:
+                    # JSM - Hacky nonsense to view the mediapipe segmentation mask. should figure out a way to extract this without sending the whole segmentation mask image
+                    if hasattr(raw_results, "segmentation_mask") and raw_results.segmentation_mask is not None:
+                        image[:, :, 2] += (raw_results.segmentation_mask * 50).astype('uint8')
+
                     annotated_image = self.tracker.annotator.annotate_image(image, observation)
                 else:
                     annotated_image = image

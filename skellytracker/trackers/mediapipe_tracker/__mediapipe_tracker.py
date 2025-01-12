@@ -6,7 +6,7 @@ import numpy as np
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
 from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, MediapipeImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
-from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
+from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation, MediapipeResults
 
 logger = logging.getLogger(__name__)
 
@@ -37,13 +37,15 @@ class MediapipeTracker(BaseTracker):
 
     def process_image(self,
                       image: np.ndarray,
-                      annotate_image: bool = False) -> tuple[np.ndarray, MediapipeObservation] | MediapipeObservation:
+                      annotate_image: bool = False) -> tuple[np.ndarray, MediapipeObservation, MediapipeResults] | tuple[MediapipeObservation, MediapipeResults]:
 
-        latest_observation = self.detector.detect(image)
+        latest_observation, mediapipe_results = self.detector.detect(image)
+
         if annotate_image:
             return self.annotator.annotate_image(image=image,
-                                                 latest_observation=latest_observation), latest_observation
-        return latest_observation
+                                                 latest_observation=latest_observation), latest_observation, mediapipe_results
+
+        return latest_observation, mediapipe_results
 
 
 if __name__ == "__main__":
