@@ -24,9 +24,9 @@ class MediapipeObservation(BaseObservation):
     image_size: tuple[int, int]
 
     @classmethod
-    def from_holistic_results(cls,
-                              mediapipe_results: MediapipeResults,
-                              image_size: tuple[int, int]):
+    def from_detection_results(cls,
+                               mediapipe_results: MediapipeResults,
+                               image_size: tuple[int, int]):
         return cls(
             pose_landmarks=mediapipe_results.pose_landmarks,
             pose_world_landmarks=mediapipe_results.pose_world_landmarks,
