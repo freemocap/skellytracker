@@ -1,6 +1,8 @@
+import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
 
 import numpy as np
@@ -16,7 +18,24 @@ TrackedPointId = str
 
 @dataclass
 class BaseObservation(ABC):
-    pass
+    @classmethod
+    @abstractmethod
+    def from_detection_results(cls, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def to_array(self) -> np.ndarray[..., ...]:  # this is just a thought, but having a default "array output" in addition to json
+        pass
+
+    @abstractmethod
+    def to_serializable_dict(self) -> dict:
+        pass
+
+    def to_json_string(self) -> str:
+        return json.dumps(self.to_serializable_dict(), indent=4)
+
+    def to_json_bytes(self) -> bytes:
+        return self.to_json_string().encode("utf-8")
 
 BaseObservations = list[BaseObservation]
 
@@ -51,6 +70,9 @@ class BaseImageAnnotator(ABC):
 
 @dataclass
 class BaseDetectorConfig(ABC):
+    # TODO: are there defaults we want to store here?
+    # number of processes? whether to record or annotate?
+    # these might not be here specifically, but are they things we want as config parameters or method parameters?
     pass
 
 @dataclass
@@ -78,6 +100,26 @@ class BaseRecorder(ABC):
     def add_observations(self, observation: BaseObservation):
         self.observations.append(observation)
 
+    # I'm imagining these can be used if you want the data but want to handle saving elsewhere
+    @property
+    def as_array(self) -> np.ndarray:
+        return np.stack([observation.to_array() for observation in self.observations])
+
+    @property
+    def as_json_string(self) -> str:
+        output_dict = {frame_number: observation.to_serializable_dict() for frame_number, observation in
+                       enumerate(self.observations)}
+        return json.dumps(output_dict, indent=4)
+
+    # and these are used if you want skellytracker to handle the saving
+    def save_array(self, output_path: Path):
+        np.save(file=output_path,arr=self.as_array)
+
+    def save_json_file(self, output_path: Path):
+        with open(output_path, 'w') as json_file:
+            json_file.write(self.as_json_string)
+
+
 
 @dataclass
 class BaseObservationManager(ABC):
@@ -93,6 +135,7 @@ class BaseTracker(ABC):
     detector: BaseDetector
 
     annotator: BaseImageAnnotator | None = None
+    recorder: BaseRecorder | None = None
 
     @classmethod
     def create(cls, config: BaseTrackerConfig):

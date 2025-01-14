@@ -27,7 +27,7 @@ class CharucoObservation(BaseObservation):
     image_size: tuple[int, int]
 
     @classmethod
-    def from_detect_board_results(cls,
+    def from_detection_results(cls,
                                   detected_charuco_corners: np.ndarray,
                                   detected_charuco_corner_ids: list[list[int]],
                                   detected_aruco_marker_corners: tuple[np.ndarray[..., 2]],
