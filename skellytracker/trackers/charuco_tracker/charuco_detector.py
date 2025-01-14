@@ -57,4 +57,10 @@ class CharucoDetector(BaseDetector):
         else:
             grey_image = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         board_detect_results = self.detector.detectBoard(grey_image)
-        return CharucoObservation.from_detection_results(,, board_detect_results
+        return CharucoObservation.from_detection_results(*board_detect_results,
+                                                            image_size=(int(image.shape[0]), int(image.shape[1])),
+                                                            all_charuco_ids=self.config.charuco_corner_ids,
+                                                            all_aruco_ids=self.aruco_marker_ids,
+                                                            all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
+                                                            all_aruco_corners_in_object_coordinates=self.board.getIds()
+                                                            ), board_detect_results

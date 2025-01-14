@@ -82,28 +82,28 @@ class MediapipeObservation(BaseObservation):
         if self.pose_landmarks is None:
             return np.full((self.num_body_points, 3), np.nan)
 
-        return self.landmarks_to_array(self.pose_landmarks)
+        return self._landmarks_to_array(self.pose_landmarks)
 
     @property
     def right_hand_points_xyz(self) -> np.ndarray[..., 3]:
         if self.right_hand_landmarks is None:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
-        return self.landmarks_to_array(self.right_hand_landmarks)
+        return self._landmarks_to_array(self.right_hand_landmarks)
 
     @property
     def left_hand_points_xyz(self) -> np.ndarray[..., 3]:
         if self.left_hand_landmarks is None:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
-        return self.landmarks_to_array(self.left_hand_landmarks)
+        return self._landmarks_to_array(self.left_hand_landmarks)
 
     @property
     def face_tesselation_points_xyz(self) -> np.ndarray[..., 3]:
         if self.face_landmarks is None:
             return np.full((self.num_face_tesselation_points, 3), np.nan)
 
-        return self.landmarks_to_array(self.face_landmarks)
+        return self._landmarks_to_array(self.face_landmarks)
 
     @property
     def face_contour_points_xyz(self) -> np.ndarray[..., 3]:
@@ -113,20 +113,7 @@ class MediapipeObservation(BaseObservation):
             raise ValueError(f"Expected {self.num_face_contour_points} face contour points, got {len(xyz)}")
         return xyz
 
-    @property
-    def all_points_xyz(self) -> np.ndarray[533, 3]:
-        return np.concatenate(
-            # this order matters, do not change
-            (
-                self.body_points_xyz,
-                self.right_hand_points_xyz,
-                self.left_hand_points_xyz,
-                self.face_tesselation_points_xyz,
-            ),
-            axis=0,
-        )
-
-    def landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> np.ndarray[..., 3]:
+    def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> np.ndarray[..., 3]:
         landmark_array = np.array(
             [
                 (landmark.x, landmark.y, landmark.z)
@@ -168,6 +155,18 @@ class MediapipeObservation(BaseObservation):
             all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
         return all_points_by_name
+
+    def to_array(self) -> np.ndarray[533, 3]:
+        return np.concatenate(
+            # this order matters, do not change
+            (
+                self.body_points_xyz,
+                self.right_hand_points_xyz,
+                self.left_hand_points_xyz,
+                self.face_tesselation_points_xyz,
+            ),
+            axis=0,
+        )
 
     def to_serializable_dict(self) -> dict:
         d = {
