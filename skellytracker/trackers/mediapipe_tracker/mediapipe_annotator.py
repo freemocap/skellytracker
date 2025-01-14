@@ -39,14 +39,14 @@ class MediapipeImageAnnotator(BaseImageAnnotator):
             image: np.ndarray,
             latest_observation: MediapipeObservation | None = None,
     ) -> np.ndarray:
-        image_height, image_width = image.shape[:2]
-        text_offset = int(image_height * 0.01)
-
         if latest_observation is None:
             return image.copy()
         # Copy the original image for annotation
         annotated_image = image.copy()
 
+        # TODO: Right now this just uses mediapipe's cv2 wrapper for annotation.
+        # I can easily rewrite this if we want to have our own/add features mediapipe doesn't provide
+        # but didn't want to use time to fix
         drawing_utils.draw_landmarks(
             annotated_image,
             latest_observation.pose_landmarks,

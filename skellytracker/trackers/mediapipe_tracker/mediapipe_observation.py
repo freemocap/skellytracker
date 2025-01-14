@@ -20,7 +20,7 @@ class MediapipeObservation(BaseObservation):
     image_size: tuple[int, int]
 
     @classmethod
-    def from_holistic_results(cls,
+    def from_detection_results(cls,
                                   mediapipe_results: NamedTuple,
                                   image_size: tuple[int, int]):
         return cls(
@@ -32,12 +32,20 @@ class MediapipeObservation(BaseObservation):
         )
 
     @property
-    def charuco_empty(self):
-        return self.detected_charuco_corner_ids is None
+    def pose_landmarks_empty(self):
+        return self.pose_landmarks is None  # TODO: check if these are ever None, or empty lists, or always have values
 
     @property
-    def aruco_empty(self):
-        return self.detected_aruco_marker_ids is None
+    def right_hand_landmarks_empty(self):
+        return self.right_hand_landmarks is None
+
+    @property
+    def left_hand_landmarks_empty(self):
+        return self.left_hand_landmarks is None
+
+    @property
+    def face_landmarks_empty(self):
+        return self.face_landmarks is None
 
     @property
     def body_landmark_names(self) -> list[str]:
@@ -65,28 +73,28 @@ class MediapipeObservation(BaseObservation):
 
     @property
     def pose_trajectories(self) -> np.ndarray[..., 3]:  # TODO: not sure how to type these array sizes, seems like it doesn't like the `self` reference
-        if self.pose_landmarks is None:
+        if self.pose_landmarks_empty:
             return np.full((self.num_body_points, 3), np.nan)
 
         return self.landmarks_to_array(self.pose_landmarks)
 
     @property
     def right_hand_trajectories(self) -> np.ndarray[..., 3]:
-        if self.right_hand_landmarks is None:
+        if self.right_hand_landmarks_empty:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
         return self.landmarks_to_array(self.right_hand_landmarks)
 
     @property
     def left_hand_trajectories(self) -> np.ndarray[..., 3]:
-        if self.left_hand_landmarks is None:
+        if self.left_hand_landmarks_empty:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
         return self.landmarks_to_array(self.left_hand_landmarks)
 
     @property
     def face_trajectories(self) -> np.ndarray[..., 3]:
-        if self.face_landmarks is None:
+        if self.face_landmarks_empty:
             return np.full((self.num_face_points, 3), np.nan)
 
         return self.landmarks_to_array(self.face_landmarks)
@@ -128,13 +136,7 @@ class MediapipeObservation(BaseObservation):
         try:
             json.dumps(d).encode("utf-8")
         except Exception as e:
-            raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
+            raise ValueError(f"Failed to serialize MediapipeObservation to JSON: {e}")
         return d
-
-    def to_json_string(self) -> str:
-        return json.dumps(self.to_serializable_dict(), indent=4)
-
-    def to_json_bytes(self) -> bytes:
-        return self.to_json_string().encode("utf-8")
 
 MediapipeObservations = list[MediapipeObservation]

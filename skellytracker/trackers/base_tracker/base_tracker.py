@@ -1,11 +1,14 @@
+import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import List
 
 import numpy as np
 import cv2
 
+from skellytracker.trackers.demo_viewers.image_demo_viewer import ImageDemoViewer
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
 )
@@ -16,7 +19,21 @@ TrackedPointId = str
 
 @dataclass
 class BaseObservation(ABC):
-    pass
+
+    @classmethod
+    @abstractmethod
+    def from_detection_results(cls, *args, **kwargs):
+        pass
+
+    @abstractmethod
+    def to_serializable_dict(self) -> dict:
+        pass
+
+    def to_json_string(self) -> str:
+        return json.dumps(self.to_serializable_dict(), indent=4)
+
+    def to_json_bytes(self) -> bytes:
+        return self.to_json_string().encode("utf-8")
 
 BaseObservations = list[BaseObservation]
 
@@ -111,6 +128,16 @@ class BaseTracker(ABC):
             window_title=self.__class__.__name__
         )
         camera_viewer.run()
+
+    def image_demo(self, image_path: Path) -> None:
+        """
+        Run tracker on single image
+
+        :return: None
+        """
+
+        image_viewer = ImageDemoViewer(self, self.__class__.__name__)
+        image_viewer.run(image_path=image_path)
 
     # def process_video(
     #         self,
@@ -214,15 +241,6 @@ class BaseTracker(ABC):
     #         self.recorder.clear_recorded_objects()
 
     #
-    # def image_demo(self, image_path: Path) -> None:
-    #     """
-    #     Run tracker on single image
-    #
-    #     :return: None
-    #     """
-    #
-    #     image_viewer = ImageDemoViewer(self, self.__class__.__name__)
-    #     image_viewer.run(image_path=image_path)
     #
 #
 # class BaseCumulativeTracker(BaseTracker):

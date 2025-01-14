@@ -27,16 +27,16 @@ class CharucoObservation(BaseObservation):
     image_size: tuple[int, int]
 
     @classmethod
-    def from_detect_board_results(cls,
-                                  detected_charuco_corners: np.ndarray,
-                                  detected_charuco_corner_ids: list[list[int]],
-                                  detected_aruco_marker_corners: tuple[np.ndarray[..., 2]],
-                                  detected_aruco_marker_ids: list[list[int]],
-                                  all_charuco_ids: list[int],
-                                  all_charuco_corners_in_object_coordinates: np.ndarray[..., 3],
-                                  all_aruco_ids: list[int],
-                                  all_aruco_corners_in_object_coordinates: np.ndarray[..., 3],
-                                  image_size: tuple[int, int]):
+    def from_detection_results(cls,
+                               detected_charuco_corners: np.ndarray,
+                               detected_charuco_corner_ids: list[list[int]],
+                               detected_aruco_marker_corners: tuple[np.ndarray[..., 2]],
+                               detected_aruco_marker_ids: list[list[int]],
+                               all_charuco_ids: list[int],
+                               all_charuco_corners_in_object_coordinates: np.ndarray[..., 3],
+                               all_aruco_ids: list[int],
+                               all_aruco_corners_in_object_coordinates: np.ndarray[..., 3],
+                               image_size: tuple[int, int]):
 
         detected_charuco_corners_in_object_coordinates = all_charuco_corners_in_object_coordinates[np.squeeze(detected_charuco_corner_ids), :] if detected_charuco_corner_ids is not None else None
         return cls(
@@ -99,11 +99,5 @@ class CharucoObservation(BaseObservation):
         except Exception as e:
             raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
         return d
-
-    def to_json_string(self) -> str:
-        return json.dumps(self.to_serializable_dict(), indent=4)
-
-    def to_json_bytes(self) -> bytes:
-        return self.to_json_string().encode("utf-8")
 
 CharucoObservations = list[CharucoObservation]

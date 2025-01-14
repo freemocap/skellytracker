@@ -32,7 +32,6 @@ class MediapipeTracker(BaseTracker):
             config=config,
             detector=detector,
             annotator=MediapipeImageAnnotator.create(config.annotator_config),
-
         )
 
     def process_image(self,
