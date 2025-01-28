@@ -168,26 +168,26 @@ class MediapipeObservation(BaseObservation):
             all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
         return all_points_by_name
-
-    def to_serializable_dict(self) -> dict:
-        d = {
-            "pose_trajectories": self.body_points_xyz.tolist(),
-            "right_hand_trajectories": self.right_hand_points_xyz.tolist(),
-            "left_hand_trajectories": self.left_hand_points_xyz.tolist(),
-            "face_trajectories": self.face_tesselation_points_xyz.tolist(),
-            "image_size": self.image_size
-        }
-        try:
-            json.dumps(d).encode("utf-8")
-        except Exception as e:
-            raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
-        return d
-
-    def to_json_string(self) -> str:
-        return json.dumps(self.to_serializable_dict(), indent=4)
-
-    def to_json_bytes(self) -> bytes:
-        return self.to_json_string().encode("utf-8")
+    #
+    # def to_serializable_dict(self) -> dict:
+    #     d = {
+    #         "pose_trajectories": self.body_points_xyz.tolist(),
+    #         "right_hand_trajectories": self.right_hand_points_xyz.tolist(),
+    #         "left_hand_trajectories": self.left_hand_points_xyz.tolist(),
+    #         "face_trajectories": self.face_tesselation_points_xyz.tolist(),
+    #         "image_size": self.image_size
+    #     }
+    #     try:
+    #         json.dumps(d).encode("utf-8")
+    #     except Exception as e:
+    #         raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
+    #     return d
+    #
+    # def to_json_string(self) -> str:
+    #     return json.dumps(self.to_serializable_dict(), indent=4)
+    #
+    # def to_json_bytes(self) -> bytes:
+    #     return self.to_json_string().encode("utf-8")
 
 
 MediapipeObservations = list[MediapipeObservation]
