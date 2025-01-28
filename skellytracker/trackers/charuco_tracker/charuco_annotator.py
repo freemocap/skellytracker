@@ -1,5 +1,3 @@
-from dataclasses import field, dataclass
-
 import cv2
 import numpy as np
 
@@ -23,14 +21,14 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-@dataclass
 class CharucoImageAnnotator(BaseImageAnnotator):
     config: CharucoAnnotatorConfig
-    observations: list[CharucoObservation] = field(default_factory=list)
+    observations: list[CharucoObservation]
 
     @classmethod
     def create(cls, config: CharucoAnnotatorConfig):
-        return cls(config=config)
+        return cls(config=config ,
+                     observations=[])
 
     def annotate_image(
             self,

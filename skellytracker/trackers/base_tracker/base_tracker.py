@@ -1,6 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from pydantic import BaseModel, Field
+from numpydantic import NDArray, Shape
 from typing import List
 
 import numpy as np
@@ -14,21 +15,18 @@ logger = logging.getLogger(__name__)
 
 TrackedPointId = str
 
-@dataclass
-class BaseObservation(ABC):
+class BaseObservation(BaseModel, ABC):
     pass
 
 BaseObservations = list[BaseObservation]
 
-@dataclass
-class BaseImageAnnotatorConfig(ABC):
+class BaseImageAnnotatorConfig(BaseModel, ABC):
     pass
 
 
-@dataclass
-class BaseImageAnnotator(ABC):
+class BaseImageAnnotator(BaseModel, ABC):
     config: BaseImageAnnotatorConfig
-    observations: BaseObservations = field(default_factory=list) #for plotting trails, etc.
+    observations: BaseObservations  #make it a list to allow plotting trails, etc.
 
     @classmethod
     def create(cls, config: BaseImageAnnotatorConfig):
@@ -49,17 +47,15 @@ class BaseImageAnnotator(ABC):
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 2)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
-@dataclass
-class BaseDetectorConfig(ABC):
+class BaseDetectorConfig(BaseModel, ABC):
     pass
 
-@dataclass
-class BaseTrackerConfig(ABC):
+class BaseTrackerConfig(BaseModel, ABC):
     detector_config: BaseDetectorConfig
     annotator_config: BaseImageAnnotatorConfig | None = None
 
-@dataclass
-class BaseDetector(ABC):
+
+class BaseDetector(BaseModel, ABC):
     config: BaseDetectorConfig
 
     @classmethod
@@ -71,24 +67,22 @@ class BaseDetector(ABC):
         pass
 
 
-@dataclass
-class BaseRecorder(ABC):
-    observations: List[BaseObservation] = field(default_factory=list)
+class BaseRecorder(BaseModel, ABC):
+    observations: List[BaseObservation]
 
     def add_observations(self, observation: BaseObservation):
         self.observations.append(observation)
 
 
-@dataclass
-class BaseObservationManager(ABC):
-    observations: List[BaseObservation] = field(default_factory=list)
+class BaseObservationManager(BaseModel,ABC):
+    observations: List[BaseObservation]
     @abstractmethod
     def create_observation(self, **kwargs) -> BaseObservation:
         pass
 
 
-@dataclass
-class BaseTracker(ABC):
+
+class BaseTracker(BaseModel, ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
 

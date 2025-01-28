@@ -60,6 +60,7 @@ dependencies = [
     "numpy<2",
     "tqdm==4.*",
     "mediapipe==0.10.14",
+    "numpydantic>=1.6.7",
 ]
 requires-python = ">=3.9,<3.13"
 

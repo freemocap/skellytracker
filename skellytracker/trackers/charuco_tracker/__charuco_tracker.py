@@ -13,13 +13,11 @@ from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoOb
 
 logger = logging.getLogger(__name__)
 
-@dataclass
 class CharucoTrackerConfig(BaseTrackerConfig):
     detector_config: CharucoDetectorConfig = field(default_factory = CharucoDetectorConfig)
     annotator_config: CharucoAnnotatorConfig = field(default_factory = CharucoAnnotatorConfig)
 
 
-@dataclass
 class CharucoTracker(BaseTracker):
     config: CharucoTrackerConfig
     detector: CharucoDetector
@@ -53,13 +51,13 @@ class CharucoTracker(BaseTracker):
 
     def process_image(self,
                       image: np.ndarray,
-                      annotate_image: bool = False) -> tuple[np.ndarray, CharucoObservation] | CharucoObservation:
+                      annotate_image: bool = False) -> tuple[np.ndarray, tuple[CharucoObservation, None]] | tuple[CharucoObservation, None]:
 
         latest_observation = self.detector.detect(image)
         if annotate_image:
             return self.annotator.annotate_image(image=image,
-                                                 latest_observation=latest_observation), latest_observation
-        return latest_observation
+                                                 latest_observation=latest_observation), (latest_observation, None) #hacky thing to let us expose the Mediapipe segmentation mask
+        return latest_observation, None
 
 
 if __name__ == "__main__":
