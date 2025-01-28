@@ -7,14 +7,13 @@ from pydantic import ConfigDict
 from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
-DEFAULT_ARUCO_DICTIONARY = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
+DEFAULT_ARUCO_DICTIONARY:int = cv2.aruco.DICT_4X4_250
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     squares_x: int = 5
     squares_y: int = 3
-    aruco_dictionary: cv2.aruco.Dictionary = DEFAULT_ARUCO_DICTIONARY
+    aruco_dictionary_enum:int  = DEFAULT_ARUCO_DICTIONARY
     square_length: float = 1
     marker_length: float = 0.8
 
@@ -22,6 +21,9 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     def charuco_corner_ids(self) -> List[int]:
         return list(range((self.squares_x - 1) * (self.squares_y - 1)))
 
+    @property
+    def aruco_dictionary(self) -> cv2.aruco.Dictionary:
+        return cv2.aruco.getPredefinedDictionary(self.aruco_dictionary_enum)
 
 class CharucoDetector(BaseDetector):
     model_config = ConfigDict(arbitrary_types_allowed=True)
