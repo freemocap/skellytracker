@@ -22,8 +22,8 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
     static_image_mode: bool = False
     smooth_landmarks: bool = True
     enable_segmentation: bool = True
-    refine_face_landmarks: bool = True
     smooth_segmentation: bool = True
+    refine_face_landmarks: bool = True
 
 
 @dataclass

@@ -88,7 +88,15 @@ class WebcamDemoViewer:
         """
         Run the camera viewer.
         """
-        cap = cv2.VideoCapture(0)
+        port_number = 0
+        cap: cv2.VideoCapture|None = None
+        while port_number < 10:
+            cap = cv2.VideoCapture(port_number)
+            if cap.isOpened():
+                break
+            port_number += 1
+        if cap is None:
+            raise RuntimeError("Error: Could not open camera.")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         if not cap.isOpened():
