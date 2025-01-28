@@ -1,9 +1,9 @@
 import json
-from dataclasses import dataclass
+from pydantic import ConfigDict
 from typing import NamedTuple
 
 import numpy as np
-from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, LandmarkList # linter sees an error here, but it runs fine
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 
@@ -14,10 +14,10 @@ from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MED
 MediapipeResults = NamedTuple
 
 
-@dataclass
 class MediapipeObservation(BaseObservation):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     pose_landmarks: NormalizedLandmarkList | None
-    pose_world_landmarks: NormalizedLandmarkList | None
+    pose_world_landmarks: LandmarkList | None
     right_hand_landmarks: NormalizedLandmarkList | None
     left_hand_landmarks: NormalizedLandmarkList | None
     face_landmarks: NormalizedLandmarkList | None

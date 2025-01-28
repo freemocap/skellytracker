@@ -138,11 +138,11 @@ class WebcamDemoViewer:
                 tracker_durations.append(tracker_tok - tracker_tik)
 
                 annotation_tik = time.perf_counter()
-                if show_overlay and raw_results is not None:
-                    # JSM - Hacky nonsense to view the mediapipe segmentation mask. should figure out a way to extract this without sending the whole segmentation mask image
-                    if hasattr(raw_results, "segmentation_mask") and raw_results.segmentation_mask is not None:
-                        image[:, :, 2] += (raw_results.segmentation_mask * 50).astype('uint8')
-
+                if show_overlay:
+                    if 'mediapipe' in self.tracker.__class__.__name__.lower() and show_overlay and raw_results is not None:
+                        # JSM - Hacky nonsense to view the mediapipe segmentation mask. should figure out a way to extract this without sending the whole segmentation mask image
+                        if hasattr(raw_results, "segmentation_mask") and raw_results.segmentation_mask is not None:
+                            image[:, :, 2] += (raw_results.segmentation_mask * 50).astype('uint8')
                     annotated_image = self.tracker.annotator.annotate_image(image, observation)
                 else:
                     annotated_image = image

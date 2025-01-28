@@ -100,7 +100,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
         undetected_corners = latest_observation.all_charuco_ids.copy()
         if not latest_observation.charuco_empty:
             for charuco_id in latest_observation.detected_charuco_corner_ids:
-                undetected_corners.remove(charuco_id[0])
+                undetected_corners.remove(charuco_id)
 
         if len(undetected_corners) > 0:
             self.draw_doubled_text(

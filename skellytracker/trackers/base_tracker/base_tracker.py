@@ -1,6 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from numpydantic import NDArray, Shape
 from typing import List
 
@@ -56,6 +56,7 @@ class BaseTrackerConfig(BaseModel, ABC):
 
 
 class BaseDetector(BaseModel, ABC):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: BaseDetectorConfig
 
     @classmethod

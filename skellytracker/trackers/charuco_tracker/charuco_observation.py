@@ -91,7 +91,7 @@ class CharucoObservation(BaseObservation):
         if self.charuco_empty:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
-            corner_dict[corner_id[0]] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
+            corner_dict[corner_id] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
         return corner_dict
 
     @property
@@ -100,7 +100,7 @@ class CharucoObservation(BaseObservation):
         if self.aruco_empty:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_aruco_marker_ids):
-            corner_dict[corner_id[0]] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
+            corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
 
     # def to_serializable_dict(self) -> dict:

@@ -26,8 +26,8 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
     refine_face_landmarks: bool = True
 
 
-@dataclass
 class MediapipeDetector(BaseDetector):
+
     config: MediapipeDetectorConfig
     detector: mp.solutions.holistic.Holistic
 

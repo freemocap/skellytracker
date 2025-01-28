@@ -1,8 +1,7 @@
 import logging
-from dataclasses import dataclass, field
 
 import numpy as np
-
+from pydantic import Field
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
 from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, MediapipeImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
@@ -10,13 +9,11 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 logger = logging.getLogger(__name__)
 
-@dataclass
 class MediapipeTrackerConfig(BaseTrackerConfig):
-    detector_config: MediapipeDetectorConfig = field(default_factory = MediapipeDetectorConfig)
-    annotator_config: MediapipeAnnotatorConfig = field(default_factory = MediapipeAnnotatorConfig)
+    detector_config: MediapipeDetectorConfig = Field(default_factory = MediapipeDetectorConfig)
+    annotator_config: MediapipeAnnotatorConfig = Field(default_factory = MediapipeAnnotatorConfig)
 
 
-@dataclass
 class MediapipeTracker(BaseTracker):
     config: MediapipeTrackerConfig
     detector: MediapipeDetector

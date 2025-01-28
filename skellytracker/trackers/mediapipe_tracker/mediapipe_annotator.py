@@ -8,6 +8,7 @@ from mediapipe.python.solutions.face_mesh_connections import FACEMESH_IRISES, FA
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
+from numpydantic import NDArray, Shape
 
 
 class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
@@ -26,18 +27,17 @@ class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-@dataclass
 class MediapipeImageAnnotator(BaseImageAnnotator):
     config: MediapipeAnnotatorConfig
-    observations: list[MediapipeObservation] = field(default_factory=list)
+    observations: list[MediapipeObservation]
 
     @classmethod
     def create(cls, config: MediapipeAnnotatorConfig):
-        return cls(config=config)
+        return cls(config=config, observations=[])
 
     def annotate_image(
             self,
-            image: np.ndarray,
+            image: NDArray[Shape["* width, * height, 1-4 channels"], np.uint8],
             latest_observation: MediapipeObservation | None = None,
     ) -> np.ndarray:
         image_height, image_width = image.shape[:2]
