@@ -10,7 +10,7 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     corner_marker_type: int = cv2.MARKER_DIAMOND
     corner_marker_size: int = 10
     corner_marker_thickness: int = 2
-    corner_marker_color: tuple[int, int, int] = (0, 0, 255)
+    corner_marker_color: tuple[int, int, int] = (255, 0, 255)
 
     aruco_lines_thickness: int = 2
     aruco_lines_color: tuple[int, int, int] = (0, 255, 0)
