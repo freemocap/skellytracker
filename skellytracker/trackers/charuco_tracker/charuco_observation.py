@@ -10,6 +10,8 @@ DetectedCharucoCornerIds = NDArray[Shape["* charuco_id, ..."], int]
 DetectedCharucoCornersImageCoordinates = NDArray[Shape["* charuco_id, 2 pxpy"], float]
 DetectedCharucoCornersInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], float]
 
+DetectedCharucoCorners2DInFullArray = NDArray[Shape["* charuco_id, 2 pxpy"], float] # (i.e. a 2D array where the index corresponds to the charuco id, non-detected corners are set to np.nan)
+
 ArucoMarkerCorners = NDArray[Shape["4 corners, 2 pxpy"], float]
 DetectedArucoMarkerIds = NDArray[Shape["* aruco_id, ..."], int] # ID of the corresponding entry in the DetectedArucoMarkerCorners tuple
 DetectedArucoMarkerCorners = Sequence[NDArray[Shape[" 4 corners, 2 pxpy"], float]]
@@ -92,6 +94,20 @@ class CharucoObservation(BaseObservation):
     @property
     def aruco_empty(self):
         return self.detected_aruco_marker_ids is None
+
+    @property
+    def detected_charuco_corners_in_full_array(self) -> DetectedCharucoCorners2DInFullArray:
+        """
+        Retruns the detected charuco corners in a full array, where the indices correspond to the charuco ids
+        Non-detected corners are set to np.nan
+        :return:
+        """
+        full_array = np.full((len(self.all_charuco_ids), 2), np.nan)
+        if self.charuco_empty:
+            return full_array
+        for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
+            full_array[corner_id] = self.detected_charuco_corners_image_coordinates[corner_index]
+        return full_array
 
     @property
     def charuco_corners_dict(self) -> dict[int, np.ndarray[2]]:
