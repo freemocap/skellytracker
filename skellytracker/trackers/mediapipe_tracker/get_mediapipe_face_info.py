@@ -1,6 +1,4 @@
-from copy import copy
-
-from mediapipe.python.solutions.face_mesh_connections import FACEMESH_CONTOURS, FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS, \
+from mediapipe.python.solutions.face_mesh_connections import FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS, \
     FACEMESH_LIPS, FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE, FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW, \
     FACEMESH_FACE_OVAL
 

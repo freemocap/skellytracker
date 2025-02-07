@@ -2,8 +2,10 @@ import logging
 
 import numpy as np
 from pydantic import Field
+
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
-from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, MediapipeImageAnnotator
+from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, \
+    MediapipeImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation, MediapipeResults
 

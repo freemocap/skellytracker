@@ -1,11 +1,10 @@
 import logging
 from abc import ABC, abstractmethod
-from pydantic import BaseModel, Field, ConfigDict
-from numpydantic import NDArray, Shape
 from typing import List
 
-import numpy as np
 import cv2
+import numpy as np
+from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
@@ -44,7 +43,7 @@ class BaseImageAnnotator(BaseModel, ABC):
                           font_scale: float,
                           color: tuple[int, int, int],
                           thickness:int):
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 2)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
 class BaseDetectorConfig(BaseModel, ABC):

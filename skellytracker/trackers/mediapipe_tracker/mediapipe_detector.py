@@ -1,6 +1,4 @@
-from dataclasses import dataclass
 from enum import Enum
-from typing import NamedTuple
 
 import mediapipe as mp
 import numpy as np

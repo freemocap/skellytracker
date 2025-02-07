@@ -2,7 +2,7 @@
 # Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import field
 
 import numpy as np
 
