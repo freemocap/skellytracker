@@ -77,16 +77,16 @@ class WebcamDemoViewer:
         rect_color = (0, 0, 0)
         cv2.rectangle(overlay, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color, -1)
 
-        alpha = 0.5 # Transparency factor
+        alpha = 0.6 # Transparency factor
         # Blend the overlay with the original image
         cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
         for i, line in enumerate(text.split("\n")):
             y = y0 + i * dy
-            self.draw_doubled_text(image, line, x0, y, 0.7, (255, 15, 210), 1)
+            self.draw_doubled_text(image, line, x0, y, 0.7, (255, 25, 210), 2)
 
     def draw_doubled_text(self, image, text, x, y, font_scale, color, thickness):
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 4)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
     def run(self):
@@ -186,14 +186,16 @@ class WebcamDemoViewer:
                 self._set_exposure(cap, exposure)
             elif key == KEY_SHOW_CONTROLS:
                 show_controls = not show_controls
-            mean_brightness = image.mean() / 3
+            mean_luminance = image.mean() / 3
             mean_frame_duration = sum(frame_durations) / len(frame_durations)
             mean_frames_per_second = 1 / mean_frame_duration
             mean_tracker_duration = sum(tracker_durations) / len(tracker_durations)
             mean_annotation_duration = sum(annotation_durations) / len(annotation_durations)
             overlay_string = ""
-            info_string = f"Exposure: {exposure if not auto_exposure else 'auto'}\n"
-            info_string += f"Mean Brightness: {mean_brightness:.2f}\n\n"
+            exposure_string = f"Exposure: {exposure if not auto_exposure else 'auto'}"
+            exposure_string += f"({(2**exposure)*1000:.2f}ms)\n" if not auto_exposure else "\n"
+            info_string = exposure_string
+            info_string += f"Mean Luminance: {mean_luminance/255:.2f}\n\n"
             info_string += f"Mean FPS: {mean_frames_per_second:.2f}\n"
             info_string += f"Mean Frame Duration: {mean_frame_duration * 1000:.2f} ms\n"
             info_string += f"Mean Tracker Processing Duration: {mean_tracker_duration * 1000:.2f} ms\n"
