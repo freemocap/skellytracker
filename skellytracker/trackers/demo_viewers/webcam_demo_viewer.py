@@ -68,20 +68,25 @@ class WebcamDemoViewer:
         x0 = 6
         number_of_lines = text.count("\n") + 1
         longest_line = max(text.split("\n"), key=len)
-        rect_horizontal_edge_length = len(longest_line) * 10
+        rect_horizontal_edge_length = len(longest_line) * 13
         rect_vertical_edge_length = dy * number_of_lines + 10
-        rect_upper_left_coordinates = (int(x0 / 2), int(y0 / 2))
+        rect_upper_left_coordinates = (int(x0 / 4), int(y0 / 4))
         rect_lower_right_coordinates = (
-        int(x0 / 2) + rect_vertical_edge_length, int(x0 / 2) + rect_horizontal_edge_length)
-        rect_color_and_transparency = (25, 25, 25, .2)
-        # cv2.rectangle(image, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color_and_transparency, -1)
+        int(x0 / 2) + rect_horizontal_edge_length, int(x0 / 2) + rect_vertical_edge_length)
+        overlay = image.copy()
+        rect_color = (0, 0, 0)
+        cv2.rectangle(overlay, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color, -1)
+
+        alpha = 0.5 # Transparency factor
+        # Blend the overlay with the original image
+        cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
         for i, line in enumerate(text.split("\n")):
             y = y0 + i * dy
             self.draw_doubled_text(image, line, x0, y, 0.7, (255, 15, 210), 1)
 
     def draw_doubled_text(self, image, text, x, y, font_scale, color, thickness):
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness + 2)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
     def run(self):
