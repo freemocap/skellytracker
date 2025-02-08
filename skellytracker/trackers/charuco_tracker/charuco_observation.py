@@ -41,6 +41,7 @@ class CharucoObservation(BaseObservation):
 
     @classmethod
     def from_detect_board_results(cls,
+                                    frame_number: int,
                                   detected_charuco_corners: DetectedCharucoCornersImageCoordinates,
                                   detected_charuco_corner_ids: DetectedCharucoCornerIds,
                                   detected_aruco_marker_corners: Sequence[ArucoMarkerCorners],
@@ -74,6 +75,7 @@ class CharucoObservation(BaseObservation):
             detected_charuco_corners_in_object_coordinates = all_charuco_corners_in_object_coordinates[detected_charuco_corner_ids, :]
 
         return cls(
+            frame_number=frame_number,
             detected_charuco_corner_ids=detected_charuco_corner_ids,
             detected_charuco_corners_image_coordinates=detected_charuco_corners,
             detected_charuco_corners_in_object_coordinates=detected_charuco_corners_in_object_coordinates,

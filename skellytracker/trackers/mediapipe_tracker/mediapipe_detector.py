@@ -14,7 +14,7 @@ class MediapipeModelComplexity(int, Enum):
 
 
 class MediapipeDetectorConfig(BaseDetectorConfig):
-    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.LITE.value
+    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY.value
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = False

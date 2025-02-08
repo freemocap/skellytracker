@@ -7,13 +7,13 @@ from pydantic import ConfigDict
 from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
-DEFAULT_ARUCO_DICTIONARY:int = cv2.aruco.DICT_4X4_250
+DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_250
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
     squares_x: int = 5
     squares_y: int = 3
-    aruco_dictionary_enum:int  = DEFAULT_ARUCO_DICTIONARY
+    aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
     square_length: float = 1
     marker_length: float = 0.8
 
@@ -24,6 +24,7 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     @property
     def aruco_dictionary(self) -> cv2.aruco.Dictionary:
         return cv2.aruco.getPredefinedDictionary(self.aruco_dictionary_enum)
+
 
 class CharucoDetector(BaseDetector):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -55,7 +56,7 @@ class CharucoDetector(BaseDetector):
         return list(self.board.getObjPoints())  # type: ignore
 
     def detect(self,
-                frame_number: int,
+               frame_number: int,
                image: np.ndarray) -> CharucoObservation:
         if len(image.shape) == 2:
             grey_image = image
@@ -66,13 +67,15 @@ class CharucoDetector(BaseDetector):
          detected_aruco_corners,
          detected_aruco_ids) = self.detector.detectBoard(grey_image)
 
-        return CharucoObservation.from_detect_board_results(detected_charuco_corners=detected_charuco_corners,
-                                                            detected_charuco_corner_ids=detected_charuco_ids,
-                                                            detected_aruco_marker_corners=detected_aruco_corners,
-                                                            detected_aruco_marker_ids=detected_aruco_ids,
-                                                            image_size=(int(image.shape[0]), int(image.shape[1])),
-                                                            all_charuco_ids=self.config.charuco_corner_ids,
-                                                            all_aruco_ids=self.aruco_marker_ids,
-                                                            all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
-                                                            all_aruco_corners_in_object_coordinates=self.board.getObjPoints()
-                                                            )
+        return CharucoObservation.from_detect_board_results(
+            frame_number=frame_number,
+            detected_charuco_corners=detected_charuco_corners,
+            detected_charuco_corner_ids=detected_charuco_ids,
+            detected_aruco_marker_corners=detected_aruco_corners,
+            detected_aruco_marker_ids=detected_aruco_ids,
+            image_size=(int(image.shape[0]), int(image.shape[1])),
+            all_charuco_ids=self.config.charuco_corner_ids,
+            all_aruco_ids=self.aruco_marker_ids,
+            all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
+            all_aruco_corners_in_object_coordinates=self.board.getObjPoints()
+        )

@@ -2,13 +2,19 @@ import logging
 import time
 from collections import deque
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import cv2
+
+if TYPE_CHECKING:
+    from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
 logger = logging.getLogger(__name__)
 
 # Constants for key actions
+KEY_USE_CHARUCO_TRACKER = ord("c")
+KEY_USE_MEDIAPIPE_TRACKER = ord("m")
+
 KEY_SHOW_CONTROLS = ord("h")
 KEY_SHOW_OVERLAY = ord("o")
 KEY_SHOW_INFO = ord("i")
@@ -34,19 +40,24 @@ class WebcamDemoViewer:
 
     def __init__(
             self,
-            tracker,
+            tracker: 'BaseTracker' = None,
             window_title: Optional[str] = None,
             default_exposure: int = DEFAULT_EXPOSURE,
     ):
         """
         Initialize with a tracker and optional window title and default exposure.
         """
-        self.tracker = tracker
+        self.tracker:BaseTracker|None = tracker
         self.default_exposure = default_exposure
         if window_title is None:
             window_title = f"SkellyTracker - {tracker.__class__.__name__}"
         self.window_title = window_title
 
+    def set_tracker(self, tracker: 'BaseTracker'):
+        """
+        Set the tracker for the viewer.
+        """
+        self.tracker = tracker
     def _set_auto_exposure_mode(self, cap):
         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, ExposureModes.AUTO.value)
 
@@ -89,10 +100,16 @@ class WebcamDemoViewer:
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 4)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
-    def run(self):
+    def run(self, tracker: 'BaseTracker' = None):
         """
         Run the camera viewer.
         """
+
+        if tracker is not None:
+            self.set_tracker(tracker)
+        if self.tracker is None:
+            raise RuntimeError("Error: No tracker set! use `set_tracker(tracker)` to set a tracker.")
+
         port_number = 0
         frame_number = 0
         cap: cv2.VideoCapture | None = None
@@ -168,6 +185,16 @@ class WebcamDemoViewer:
                 break
             elif key == KEY_PAUSE_SPACE or key == KEY_PAUSE_P:
                 paused = not paused
+            elif key == KEY_USE_CHARUCO_TRACKER:
+                if "charuco" not in self.tracker.__class__.__name__.lower():
+                    logger.info("Switching to CharucoTracker")
+                    from skellytracker.trackers.charuco_tracker import CharucoTracker
+                    self.set_tracker(CharucoTracker.create())
+            elif key == KEY_USE_MEDIAPIPE_TRACKER:
+                if "mediapipe" not in self.tracker.__class__.__name__.lower():
+                    logger.info("Switching to MediaPipeTracker")
+                    from skellytracker.trackers.mediapipe_tracker import MediapipeTracker
+                    self.set_tracker(MediapipeTracker.create())
             elif key == KEY_SHOW_OVERLAY:
                 show_overlay = not show_overlay
             elif key == KEY_SHOW_INFO:
@@ -210,6 +237,9 @@ class WebcamDemoViewer:
                 overlay_string += (
                     "Controls:\n"
                     f"'SPACE'/'{chr(KEY_PAUSE_P)}': pause\n"
+                    f"'Current Tracker: {self.tracker.__class__.__name__}\n"
+                    f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Use CharucoTracker\n"
+                    f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': Use MediaPipeTracker\n"
                     f"'{chr(KEY_SHOW_INFO)}': {'show info' if not show_info else 'hide info'}\n"
                     f"'{chr(KEY_SHOW_OVERLAY)}': show overlay\n"
                     f"'{chr(KEY_SET_AUTO_EXPOSURE)}': auto-exposure\n"
