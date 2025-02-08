@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 TrackedPointId = str
 
 class BaseObservation(BaseModel, ABC):
+    frame_number: int  # the frame number of the image in which this observation was made
     pass
 
 BaseObservations = list[BaseObservation]
@@ -63,7 +64,9 @@ class BaseDetector(BaseModel, ABC):
         raise NotImplementedError("Must implement a method to create a detector from a config.")
 
     @abstractmethod
-    def detect(self, image: np.ndarray) -> BaseObservation:
+    def detect(self,
+               frame_number: int,
+               image: np.ndarray) -> BaseObservation:
         pass
 
 
@@ -92,7 +95,9 @@ class BaseTracker(BaseModel, ABC):
     def create(cls, config: BaseTrackerConfig):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
-    def process_image(self, image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
+    def process_image(self,
+                      frame_number: int,
+                      image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
         latest_observation = self.detector.detect(image)
         if annotate_image:
             return self.annotator.annotate_image(image=image, latest_observation=latest_observation), latest_observation

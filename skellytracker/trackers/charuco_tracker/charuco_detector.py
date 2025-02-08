@@ -54,7 +54,9 @@ class CharucoDetector(BaseDetector):
     def board_object_points(self) -> List[np.ndarray]:
         return list(self.board.getObjPoints())  # type: ignore
 
-    def detect(self, image: np.ndarray) -> CharucoObservation:
+    def detect(self,
+                frame_number: int,
+               image: np.ndarray) -> CharucoObservation:
         if len(image.shape) == 2:
             grey_image = image
         else:

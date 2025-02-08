@@ -27,6 +27,7 @@ MediapipeResults = NamedTuple
 
 class MediapipeObservation(BaseObservation):
     model_config = ConfigDict(arbitrary_types_allowed=True)
+    frame_number: int  # the frame number of the image in which this observation was made
     pose_landmarks: NormalizedLandmarkList | None
     pose_world_landmarks: LandmarkList | None
     right_hand_landmarks: NormalizedLandmarkList | None
@@ -36,9 +37,11 @@ class MediapipeObservation(BaseObservation):
 
     @classmethod
     def from_holistic_results(cls,
+                                frame_number: int,
                               mediapipe_results: MediapipeResults,
                               image_size: tuple[int, int]):
         return cls(
+            frame_number=frame_number,
             pose_landmarks=mediapipe_results.pose_landmarks,
             pose_world_landmarks=mediapipe_results.pose_world_landmarks,
             right_hand_landmarks=mediapipe_results.right_hand_landmarks,

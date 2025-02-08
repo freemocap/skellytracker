@@ -72,12 +72,12 @@ class WebcamDemoViewer:
         rect_vertical_edge_length = dy * number_of_lines + 10
         rect_upper_left_coordinates = (int(x0 / 4), int(y0 / 4))
         rect_lower_right_coordinates = (
-        int(x0 / 2) + rect_horizontal_edge_length, int(x0 / 2) + rect_vertical_edge_length)
+            int(x0 / 2) + rect_horizontal_edge_length, int(x0 / 2) + rect_vertical_edge_length)
         overlay = image.copy()
         rect_color = (0, 0, 0)
         cv2.rectangle(overlay, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color, -1)
 
-        alpha = 0.6 # Transparency factor
+        alpha = 0.6  # Transparency factor
         # Blend the overlay with the original image
         cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
@@ -94,7 +94,8 @@ class WebcamDemoViewer:
         Run the camera viewer.
         """
         port_number = 0
-        cap: cv2.VideoCapture|None = None
+        frame_number = 0
+        cap: cv2.VideoCapture | None = None
         while port_number < 10:
             cap = cv2.VideoCapture(port_number)
             if cap.isOpened():
@@ -136,9 +137,12 @@ class WebcamDemoViewer:
                 if not success:
                     logger.error("Error: Failed to read image.")
                     break
+                frame_number += 1
 
                 tracker_tik = time.perf_counter()
-                observation, raw_results = self.tracker.process_image(image, annotate_image=False)
+                observation, raw_results = self.tracker.process_image(frame_number=frame_number,
+                                                                      image=image,
+                                                                      annotate_image=False)
                 tracker_tok = time.perf_counter()
                 tracker_durations.append(tracker_tok - tracker_tik)
 
@@ -193,9 +197,9 @@ class WebcamDemoViewer:
             mean_annotation_duration = sum(annotation_durations) / len(annotation_durations)
             overlay_string = ""
             exposure_string = f"Exposure: {exposure if not auto_exposure else 'auto'}"
-            exposure_string += f"({(2**exposure)*1000:.2f}ms)\n" if not auto_exposure else "\n"
+            exposure_string += f"({(2 ** exposure) * 1000:.2f}ms)\n" if not auto_exposure else "\n"
             info_string = exposure_string
-            info_string += f"Mean Luminance: {mean_luminance/255:.2f}\n\n"
+            info_string += f"Mean Luminance: {mean_luminance / 255:.2f}\n\n"
             info_string += f"Mean FPS: {mean_frames_per_second:.2f}\n"
             info_string += f"Mean Frame Duration: {mean_frame_duration * 1000:.2f} ms\n"
             info_string += f"Mean Tracker Processing Duration: {mean_tracker_duration * 1000:.2f} ms\n"

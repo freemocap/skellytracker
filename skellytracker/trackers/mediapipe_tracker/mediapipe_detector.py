@@ -8,9 +8,9 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 
 class MediapipeModelComplexity(int, Enum):
-    LITE = 0 #BlazePose Lite model, fastest
-    FULL = 1 #BlazePose Full model, balanced
-    HEAVY = 2 #BlazePose Heavy model, most accurate
+    LITE = 0  # BlazePose Lite model, fastest
+    FULL = 1  # BlazePose Full model, balanced
+    HEAVY = 2  # BlazePose Heavy model, most accurate
 
 
 class MediapipeDetectorConfig(BaseDetectorConfig):
@@ -25,7 +25,6 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
 
 
 class MediapipeDetector(BaseDetector):
-
     config: MediapipeDetectorConfig
     detector: mp.solutions.holistic.Holistic
 
@@ -47,9 +46,10 @@ class MediapipeDetector(BaseDetector):
             detector=detector,
         )
 
-    def detect(self, image: np.ndarray) -> tuple[MediapipeObservation, MediapipeResults]:
+    def detect(self, frame_number: int, image: np.ndarray) -> tuple[MediapipeObservation, MediapipeResults]:
         # rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # assumes we're always getting BGR input - check with Jon to verify - JSM - BGR is an old standard, lets always convert to RGB on read and then assume RGB throughout
-        mediapipe_results:MediapipeResults = self.detector.process(image)
-        return MediapipeObservation.from_holistic_results(mediapipe_results,
+        mediapipe_results: MediapipeResults = self.detector.process(image)
+        return MediapipeObservation.from_holistic_results(frame_number=frame_number,
+                                                          mediapipe_results=mediapipe_results,
                                                           image_size=(int(image.shape[0]), int(image.shape[1])),
                                                           ), mediapipe_results

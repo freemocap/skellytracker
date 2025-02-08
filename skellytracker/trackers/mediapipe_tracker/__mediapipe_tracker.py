@@ -35,10 +35,12 @@ class MediapipeTracker(BaseTracker):
         )
 
     def process_image(self,
+                        frame_number: int,
                       image: np.ndarray,
                       annotate_image: bool = False) -> tuple[np.ndarray, MediapipeObservation, MediapipeResults] | tuple[MediapipeObservation, MediapipeResults]:
 
-        latest_observation, mediapipe_results = self.detector.detect(image)
+        latest_observation, mediapipe_results = self.detector.detect(image=image,
+                                                                     frame_number=frame_number)
         if annotate_image:
             return self.annotator.annotate_image(image=image,
                                                  latest_observation=latest_observation), latest_observation, mediapipe_results
