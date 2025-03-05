@@ -2,9 +2,9 @@
 # Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
 
 import logging
-from dataclasses import field
 
 import numpy as np
+from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
@@ -15,8 +15,8 @@ from skellytracker.trackers.demo_viewers.webcam_demo_viewer import WebcamDemoVie
 logger = logging.getLogger(__name__)
 
 class CharucoTrackerConfig(BaseTrackerConfig):
-    detector_config: CharucoDetectorConfig = field(default_factory = CharucoDetectorConfig)
-    annotator_config: CharucoAnnotatorConfig = field(default_factory = CharucoAnnotatorConfig)
+    detector_config: CharucoDetectorConfig = Field(default_factory = CharucoDetectorConfig)
+    annotator_config: CharucoAnnotatorConfig = Field(default_factory = CharucoAnnotatorConfig)
 
 
 class CharucoTracker(BaseTracker):

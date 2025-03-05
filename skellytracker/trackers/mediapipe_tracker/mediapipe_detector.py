@@ -49,7 +49,7 @@ class MediapipeDetector(BaseDetector):
     def detect(self, frame_number: int, image: np.ndarray) -> tuple[MediapipeObservation, MediapipeResults]:
         # rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # assumes we're always getting BGR input - check with Jon to verify - JSM - BGR is an old standard, lets always convert to RGB on read and then assume RGB throughout
         mediapipe_results: MediapipeResults = self.detector.process(image)
-        return MediapipeObservation.from_holistic_results(frame_number=frame_number,
+        return MediapipeObservation.from_detection_results(frame_number=frame_number,
                                                           mediapipe_results=mediapipe_results,
                                                           image_size=(int(image.shape[0]), int(image.shape[1])),
                                                           ), mediapipe_results

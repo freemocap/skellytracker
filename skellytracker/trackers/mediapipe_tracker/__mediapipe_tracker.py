@@ -14,7 +14,6 @@ class MediapipeTrackerConfig(BaseTrackerConfig):
     detector_config: MediapipeDetectorConfig = Field(default_factory = MediapipeDetectorConfig)
     annotator_config: MediapipeAnnotatorConfig = Field(default_factory = MediapipeAnnotatorConfig)
 
-@dataclass
 class MediapipeRecorder(BaseRecorder):
     # TODO: the BaseRecorder covers most of this, but we could save metadata with this if we wanted
     pass
@@ -23,8 +22,8 @@ class MediapipeRecorder(BaseRecorder):
 class MediapipeTracker(BaseTracker):
     config: MediapipeTrackerConfig
     detector: MediapipeDetector
-    annotator: MediapipeImageAnnotator
-    recorder: MediapipeRecorder
+    annotator: MediapipeImageAnnotator | None = None
+    recorder: MediapipeRecorder | None = None
 
     @classmethod
     def create(cls, config: MediapipeTrackerConfig | None = None):

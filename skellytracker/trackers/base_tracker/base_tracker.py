@@ -1,13 +1,12 @@
 import json
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
 import cv2
 import numpy as np
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
@@ -18,7 +17,6 @@ logger = logging.getLogger(__name__)
 TrackedPointId = str
 
 
-@dataclass
 class BaseObservation(BaseModel, ABC):
     frame_number: int  # the frame number of the image in which this observation was made
       
@@ -31,12 +29,8 @@ class BaseObservation(BaseModel, ABC):
     def to_array(self) -> np.ndarray[..., ...]:  # this is just a thought, but having a default "array output" in addition to json
         pass
 
-    @abstractmethod
-    def to_serializable_dict(self) -> dict:
-        pass
-
     def to_json_string(self) -> str:
-        return json.dumps(self.to_serializable_dict(), indent=4)
+        return json.dumps(self.model_dump_json(), indent=4)
 
     def to_json_bytes(self) -> bytes:
         return self.to_json_string().encode("utf-8")
@@ -98,7 +92,7 @@ class BaseDetector(BaseModel, ABC):
 
 
 class BaseRecorder(BaseModel, ABC):
-    observations: List[BaseObservation]
+    observations: List[BaseObservation] = Field(default_factory=list)
 
     def add_observations(self, observation: BaseObservation):
         self.observations.append(observation)
