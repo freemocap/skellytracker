@@ -1,11 +1,22 @@
-import json
-from dataclasses import dataclass
+from pydantic import ConfigDict
 from typing import NamedTuple
 
 import numpy as np
-from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList
+from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, LandmarkList # linter sees an error here, but it runs fine
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
+
+from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
+from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
+    MEDIAPIPE_FACE_CONTOURS_NAMES
+from typing import NamedTuple
+
+import numpy as np
+from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, \
+    LandmarkList  # linter sees an error here, but it runs fine
+from mediapipe.python.solutions import holistic as mp_holistic
+from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
+from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
 from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
@@ -14,10 +25,11 @@ from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MED
 MediapipeResults = NamedTuple
 
 
-@dataclass
 class MediapipeObservation(BaseObservation):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
+    frame_number: int  # the frame number of the image in which this observation was made
     pose_landmarks: NormalizedLandmarkList | None
-    pose_world_landmarks: NormalizedLandmarkList | None
+    pose_world_landmarks: LandmarkList | None
     right_hand_landmarks: NormalizedLandmarkList | None
     left_hand_landmarks: NormalizedLandmarkList | None
     face_landmarks: NormalizedLandmarkList | None
@@ -25,9 +37,11 @@ class MediapipeObservation(BaseObservation):
 
     @classmethod
     def from_detection_results(cls,
+                               frame_number: int,
                                mediapipe_results: MediapipeResults,
                                image_size: tuple[int, int]):
         return cls(
+            frame_number=frame_number,
             pose_landmarks=mediapipe_results.pose_landmarks,
             pose_world_landmarks=mediapipe_results.pose_world_landmarks,
             right_hand_landmarks=mediapipe_results.right_hand_landmarks,
@@ -168,25 +182,26 @@ class MediapipeObservation(BaseObservation):
             axis=0,
         )
 
-    def to_serializable_dict(self) -> dict:
-        d = {
-            "pose_trajectories": self.body_points_xyz.tolist(),
-            "right_hand_trajectories": self.right_hand_points_xyz.tolist(),
-            "left_hand_trajectories": self.left_hand_points_xyz.tolist(),
-            "face_trajectories": self.face_tesselation_points_xyz.tolist(),
-            "image_size": self.image_size
-        }
-        try:
-            json.dumps(d).encode("utf-8")
-        except Exception as e:
-            raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
-        return d
+#     def to_serializable_dict(self) -> dict:
+#         d = {
+#             "pose_trajectories": self.body_points_xyz.tolist(),
+#             "right_hand_trajectories": self.right_hand_points_xyz.tolist(),
+#             "left_hand_trajectories": self.left_hand_points_xyz.tolist(),
+#             "face_trajectories": self.face_tesselation_points_xyz.tolist(),
+#             "image_size": self.image_size
+#         }
+#         try:
+#             json.dumps(d).encode("utf-8")
+#         except Exception as e:
+#             raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
+#         return d
 
-    def to_json_string(self) -> str:
-        return json.dumps(self.to_serializable_dict(), indent=4)
+#     def to_json_string(self) -> str:
+#         return json.dumps(self.to_serializable_dict(), indent=4)
 
-    def to_json_bytes(self) -> bytes:
-        return self.to_json_string().encode("utf-8")
+#     def to_json_bytes(self) -> bytes:
+#         return self.to_json_string().encode("utf-8")
+
 
 
 MediapipeObservations = list[MediapipeObservation]

@@ -5,8 +5,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import List
 
-import numpy as np
 import cv2
+import numpy as np
+from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
     WebcamDemoViewer,
@@ -16,8 +17,11 @@ logger = logging.getLogger(__name__)
 
 TrackedPointId = str
 
+
 @dataclass
-class BaseObservation(ABC):
+class BaseObservation(BaseModel, ABC):
+    frame_number: int  # the frame number of the image in which this observation was made
+      
     @classmethod
     @abstractmethod
     def from_detection_results(cls, *args, **kwargs):
@@ -39,15 +43,13 @@ class BaseObservation(ABC):
 
 BaseObservations = list[BaseObservation]
 
-@dataclass
-class BaseImageAnnotatorConfig(ABC):
+class BaseImageAnnotatorConfig(BaseModel, ABC):
     pass
 
 
-@dataclass
-class BaseImageAnnotator(ABC):
+class BaseImageAnnotator(BaseModel, ABC):
     config: BaseImageAnnotatorConfig
-    observations: BaseObservations = field(default_factory=list) #for plotting trails, etc.
+    observations: BaseObservations  #make it a list to allow plotting trails, etc.
 
     @classmethod
     def create(cls, config: BaseImageAnnotatorConfig):
@@ -65,23 +67,23 @@ class BaseImageAnnotator(ABC):
                           font_scale: float,
                           color: tuple[int, int, int],
                           thickness:int):
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 2)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
-@dataclass
-class BaseDetectorConfig(ABC):
+
+class BaseDetectorConfig(BaseModel, ABC):
     # TODO: are there defaults we want to store here?
     # number of processes? whether to record or annotate?
     # these might not be here specifically, but are they things we want as config parameters or method parameters?
     pass
 
-@dataclass
-class BaseTrackerConfig(ABC):
+class BaseTrackerConfig(BaseModel, ABC):
     detector_config: BaseDetectorConfig
     annotator_config: BaseImageAnnotatorConfig | None = None
 
-@dataclass
-class BaseDetector(ABC):
+
+class BaseDetector(BaseModel, ABC):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: BaseDetectorConfig
 
     @classmethod
@@ -89,13 +91,14 @@ class BaseDetector(ABC):
         raise NotImplementedError("Must implement a method to create a detector from a config.")
 
     @abstractmethod
-    def detect(self, image: np.ndarray) -> BaseObservation:
+    def detect(self,
+               frame_number: int,
+               image: np.ndarray) -> BaseObservation:
         pass
 
 
-@dataclass
-class BaseRecorder(ABC):
-    observations: List[BaseObservation] = field(default_factory=list)
+class BaseRecorder(BaseModel, ABC):
+    observations: List[BaseObservation]
 
     def add_observations(self, observation: BaseObservation):
         self.observations.append(observation)
@@ -121,16 +124,15 @@ class BaseRecorder(ABC):
 
 
 
-@dataclass
-class BaseObservationManager(ABC):
-    observations: List[BaseObservation] = field(default_factory=list)
+class BaseObservationManager(BaseModel,ABC):
+    observations: List[BaseObservation]
     @abstractmethod
     def create_observation(self, **kwargs) -> BaseObservation:
         pass
 
 
-@dataclass
-class BaseTracker(ABC):
+
+class BaseTracker(BaseModel, ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
 
@@ -141,7 +143,9 @@ class BaseTracker(ABC):
     def create(cls, config: BaseTrackerConfig):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
-    def process_image(self, image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
+    def process_image(self,
+                      frame_number: int,
+                      image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
         latest_observation = self.detector.detect(image)
         if annotate_image:
             return self.annotator.annotate_image(image=image, latest_observation=latest_observation), latest_observation

@@ -2,7 +2,7 @@
 # Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import field
 
 import numpy as np
 
@@ -10,16 +10,15 @@ from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTr
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
+from skellytracker.trackers.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
 
 logger = logging.getLogger(__name__)
 
-@dataclass
 class CharucoTrackerConfig(BaseTrackerConfig):
     detector_config: CharucoDetectorConfig = field(default_factory = CharucoDetectorConfig)
     annotator_config: CharucoAnnotatorConfig = field(default_factory = CharucoAnnotatorConfig)
 
 
-@dataclass
 class CharucoTracker(BaseTracker):
     config: CharucoTrackerConfig
     detector: CharucoDetector
@@ -52,14 +51,15 @@ class CharucoTracker(BaseTracker):
 
 
     def process_image(self,
+                      frame_number: int,
                       image: np.ndarray,
-                      annotate_image: bool = False) -> tuple[np.ndarray, CharucoObservation] | CharucoObservation:
+                      annotate_image: bool = False) -> tuple[np.ndarray, tuple[CharucoObservation, None]] | tuple[CharucoObservation, None]:
 
-        latest_observation = self.detector.detect(image)
+        latest_observation = self.detector.detect(frame_number=frame_number, image=image)
         if annotate_image:
             return self.annotator.annotate_image(image=image,
-                                                 latest_observation=latest_observation), latest_observation
-        return latest_observation
+                                                 latest_observation=latest_observation), (latest_observation, None) #hacky thing to let us expose the Mediapipe segmentation mask
+        return latest_observation, None
 
 
 if __name__ == "__main__":

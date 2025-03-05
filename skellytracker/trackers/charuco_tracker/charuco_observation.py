@@ -1,45 +1,81 @@
-import json
-from dataclasses import dataclass
-
 import numpy as np
+from numpy.random.mtrand import Sequence
+from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
 
+AllCharucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], np.float32]
+AllArucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* aruco_ids, 4 corners, 3 xyz"], np.float32]
+DetectedCharucoCornerIds = NDArray[Shape["* charuco_id, ..."], int]
+DetectedCharucoCornersImageCoordinates = NDArray[Shape["* charuco_id, 2 pxpy"], float]
+DetectedCharucoCornersInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], float]
 
-@dataclass
+DetectedCharucoCorners2DInFullArray = NDArray[Shape["* charuco_id, 2 pxpy"], float] # (i.e. a 2D array where the index corresponds to the charuco id, non-detected corners are set to np.nan)
+
+ArucoMarkerCorners = NDArray[Shape["4 corners, 2 pxpy"], float]
+DetectedArucoMarkerIds = NDArray[Shape["* aruco_id, ..."], int] # ID of the corresponding entry in the DetectedArucoMarkerCorners tuple
+DetectedArucoMarkerCorners = Sequence[NDArray[Shape[" 4 corners, 2 pxpy"], float]]
+CharucoBoardTranslationVector = NDArray[Shape["3 tx_ty_tz"], np.float32]
+CharucoBoardRotationVector = NDArray[Shape["3 rx_ry_rz"], np.float32]
+
 class CharucoObservation(BaseObservation):
+    frame_number: int # the frame number of the image in which this observation was made
     all_charuco_ids: list[int]
-    all_charuco_corners_in_object_coordinates: np.ndarray[..., 3]
+    all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates
+
     all_aruco_ids: list[int]
-    all_aruco_corners_in_object_coordinates: np.ndarray[..., 3]
+    all_aruco_corners_in_object_coordinates: AllArucoCorners3DByIdInObjectCoordinates
 
-    detected_charuco_corner_ids: list[list[int]]|None
-    detected_charuco_corners_image_coordinates: np.ndarray[..., 2]|None
-    detected_charuco_corners_in_object_coordinates: np.ndarray[..., 3]|None
+    detected_charuco_corner_ids: DetectedCharucoCornerIds | None
+    detected_charuco_corners_image_coordinates: DetectedCharucoCornersImageCoordinates | None
+    detected_charuco_corners_in_object_coordinates: DetectedCharucoCornersInObjectCoordinates | None
 
 
-    detected_aruco_marker_ids: list[list[int]] | None
-    detected_aruco_marker_corners: tuple[np.ndarray[..., 2]] | None
+    detected_aruco_marker_ids: DetectedArucoMarkerIds | None
+    detected_aruco_marker_corners: DetectedArucoMarkerCorners | None
 
-    translation_vector: np.ndarray[..., 3] | None
-    rotation_vector: np.ndarray[..., 3] | None
+    charuco_board_translation_vector: CharucoBoardTranslationVector | None
+    charuco_board_rotation_vector: CharucoBoardRotationVector | None
 
     image_size: tuple[int, int]
 
     @classmethod
-    def from_detection_results(cls,
-                                  detected_charuco_corners: np.ndarray,
-                                  detected_charuco_corner_ids: list[list[int]],
-                                  detected_aruco_marker_corners: tuple[np.ndarray[..., 2]],
-                                  detected_aruco_marker_ids: list[list[int]],
+    def from_detect_board_results(cls,
+                                  frame_number: int,
+                                  detected_charuco_corners: DetectedCharucoCornersImageCoordinates,
+                                  detected_charuco_corner_ids: DetectedCharucoCornerIds,
+                                  detected_aruco_marker_corners: Sequence[ArucoMarkerCorners],
+                                  detected_aruco_marker_ids: DetectedArucoMarkerIds,
                                   all_charuco_ids: list[int],
-                                  all_charuco_corners_in_object_coordinates: np.ndarray[..., 3],
+                                  all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates,
                                   all_aruco_ids: list[int],
-                                  all_aruco_corners_in_object_coordinates: np.ndarray[..., 3],
+                                  all_aruco_corners_in_object_coordinates: AllArucoCorners3DByIdInObjectCoordinates,
                                   image_size: tuple[int, int]):
 
-        detected_charuco_corners_in_object_coordinates = all_charuco_corners_in_object_coordinates[np.squeeze(detected_charuco_corner_ids), :] if detected_charuco_corner_ids is not None else None
+
+        if detected_aruco_marker_ids is not None:
+            # squeeze out singleton dimensions (i.e. a.shape = [2,1,3] -> np.squeeze(a).shape = [2,3])
+
+            if detected_aruco_marker_ids.shape == (1, 1):
+                # deal with special case where only one marker is detected
+                detected_aruco_marker_ids = detected_aruco_marker_ids[0]
+            else:
+                detected_aruco_marker_ids = np.squeeze(detected_aruco_marker_ids)
+            detected_aruco_marker_corners = tuple([np.squeeze(corner) for corner in detected_aruco_marker_corners])
+
+        detected_charuco_corners_in_object_coordinates: DetectedCharucoCornersInObjectCoordinates | None = None
+        if detected_charuco_corner_ids is not None:
+            if detected_charuco_corner_ids.shape == (1, 1):
+                detected_charuco_corner_ids = detected_charuco_corner_ids[0]
+                detected_charuco_corners = detected_charuco_corners[0]
+            else:
+                detected_charuco_corner_ids = np.squeeze(detected_charuco_corner_ids)
+                detected_charuco_corners = np.squeeze(detected_charuco_corners)
+
+            detected_charuco_corners_in_object_coordinates = all_charuco_corners_in_object_coordinates[detected_charuco_corner_ids, :]
+
         return cls(
+            frame_number=frame_number,
             detected_charuco_corner_ids=detected_charuco_corner_ids,
             detected_charuco_corners_image_coordinates=detected_charuco_corners,
             detected_charuco_corners_in_object_coordinates=detected_charuco_corners_in_object_coordinates,
@@ -49,8 +85,8 @@ class CharucoObservation(BaseObservation):
             all_aruco_ids=all_aruco_ids,
             all_charuco_corners_in_object_coordinates=all_charuco_corners_in_object_coordinates,
             all_aruco_corners_in_object_coordinates=all_aruco_corners_in_object_coordinates,
-            translation_vector=None,
-            rotation_vector=None,
+            charuco_board_translation_vector=None,
+            charuco_board_rotation_vector=None,
             image_size=image_size
         )
 
@@ -63,12 +99,26 @@ class CharucoObservation(BaseObservation):
         return self.detected_aruco_marker_ids is None
 
     @property
+    def detected_charuco_corners_in_full_array(self) -> DetectedCharucoCorners2DInFullArray:
+        """
+        Retruns the detected charuco corners in a full array, where the indices correspond to the charuco ids
+        Non-detected corners are set to np.nan
+        :return:
+        """
+        full_array = np.full((len(self.all_charuco_ids), 2), np.nan)
+        if self.charuco_empty:
+            return full_array
+        for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
+            full_array[corner_id] = self.detected_charuco_corners_image_coordinates[corner_index]
+        return full_array
+
+    @property
     def charuco_corners_dict(self) -> dict[int, np.ndarray[2]]:
         corner_dict = {}
         if self.charuco_empty:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
-            corner_dict[corner_id[0]] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
+            corner_dict[corner_id] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
         return corner_dict
 
     @property
@@ -77,33 +127,8 @@ class CharucoObservation(BaseObservation):
         if self.aruco_empty:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_aruco_marker_ids):
-            corner_dict[corner_id[0]] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
+            corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
 
-    def to_serializable_dict(self) -> dict:
-        d =  {
-            "all_charuco_ids": self.all_charuco_ids,
-            "all_charuco_corners_in_object_coordinates": self.all_charuco_corners_in_object_coordinates.tolist(),
-            "detected_charuco_corner_ids": self.detected_charuco_corner_ids.tolist() if self.detected_charuco_corner_ids is not None else None,
-            "detected_charuco_corners_image_coordinates": self.detected_charuco_corners_image_coordinates.tolist() if self.detected_charuco_corners_image_coordinates is not None else None,
-            "detected_charuco_corners_in_object_coordinates": self.detected_charuco_corners_in_object_coordinates.tolist() if self.detected_charuco_corners_in_object_coordinates is not None else None,
-            "all_aruco_corners_in_object_coordinates": self.all_aruco_corners_in_object_coordinates.tolist(),
-            "detected_aruco_marker_ids": self.detected_aruco_marker_ids.tolist() if self.detected_aruco_marker_ids is not None else None,
-            "detected_aruco_marker_corners": [corner.tolist() for corner in self.detected_aruco_marker_corners] if self.detected_aruco_marker_corners is not None else None,
-            "translation_vector": self.translation_vector.tolist() if self.translation_vector is not None else None,
-            "rotation_vector": self.rotation_vector.tolist() if self.rotation_vector is not None else None,
-            "image_size": self.image_size
-        }
-        try:
-            json.dumps(d).encode("utf-8")
-        except Exception as e:
-            raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
-        return d
-
-    def to_json_string(self) -> str:
-        return json.dumps(self.to_serializable_dict(), indent=4)
-
-    def to_json_bytes(self) -> bytes:
-        return self.to_json_string().encode("utf-8")
 
 CharucoObservations = list[CharucoObservation]

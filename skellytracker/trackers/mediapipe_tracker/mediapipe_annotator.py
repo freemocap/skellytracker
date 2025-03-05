@@ -1,10 +1,9 @@
-from dataclasses import field, dataclass
-
 import cv2
 import numpy as np
 from mediapipe.python.solutions import drawing_utils
 from mediapipe.python.solutions import holistic as mp_holistic
-from mediapipe.python.solutions.face_mesh_connections import FACEMESH_IRISES, FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS
+from mediapipe.python.solutions.face_mesh_connections import FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS
+from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
@@ -26,18 +25,17 @@ class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-@dataclass
 class MediapipeImageAnnotator(BaseImageAnnotator):
     config: MediapipeAnnotatorConfig
-    observations: list[MediapipeObservation] = field(default_factory=list)
+    observations: list[MediapipeObservation]
 
     @classmethod
     def create(cls, config: MediapipeAnnotatorConfig):
-        return cls(config=config)
+        return cls(config=config, observations=[])
 
     def annotate_image(
             self,
-            image: np.ndarray,
+            image: NDArray[Shape["* width, * height, 1-4 channels"], np.uint8],
             latest_observation: MediapipeObservation | None = None,
     ) -> np.ndarray:
         image_height, image_width = image.shape[:2]

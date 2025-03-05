@@ -1,7 +1,7 @@
 import logging
-from dataclasses import dataclass, field
 
 import numpy as np
+from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig, BaseRecorder
 from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, MediapipeImageAnnotator
@@ -10,10 +10,9 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 logger = logging.getLogger(__name__)
 
-@dataclass
 class MediapipeTrackerConfig(BaseTrackerConfig):
-    detector_config: MediapipeDetectorConfig = field(default_factory = MediapipeDetectorConfig)
-    annotator_config: MediapipeAnnotatorConfig = field(default_factory = MediapipeAnnotatorConfig)
+    detector_config: MediapipeDetectorConfig = Field(default_factory = MediapipeDetectorConfig)
+    annotator_config: MediapipeAnnotatorConfig = Field(default_factory = MediapipeAnnotatorConfig)
 
 @dataclass
 class MediapipeRecorder(BaseRecorder):
@@ -21,7 +20,6 @@ class MediapipeRecorder(BaseRecorder):
     pass
 
 
-@dataclass
 class MediapipeTracker(BaseTracker):
     config: MediapipeTrackerConfig
     detector: MediapipeDetector
@@ -42,13 +40,16 @@ class MediapipeTracker(BaseTracker):
         )
 
     def process_image(self,
+                        frame_number: int,
                       image: np.ndarray,
                       annotate_image: bool = False,
                       record_observation: bool = True) -> tuple[np.ndarray, MediapipeObservation, MediapipeResults] | tuple[MediapipeObservation, MediapipeResults]:
 
-        latest_observation, mediapipe_results = self.detector.detect(image)
+        latest_observation, mediapipe_results = self.detector.detect(image=image,
+                                                                     frame_number=frame_number)
         if record_observation:
             self.recorder.add_observations(observation=latest_observation)
+
         if annotate_image:
             return self.annotator.annotate_image(image=image,
                                                  latest_observation=latest_observation), latest_observation, mediapipe_results

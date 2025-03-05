@@ -1,5 +1,3 @@
-from dataclasses import field, dataclass
-
 import cv2
 import numpy as np
 
@@ -12,7 +10,7 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     corner_marker_type: int = cv2.MARKER_DIAMOND
     corner_marker_size: int = 10
     corner_marker_thickness: int = 2
-    corner_marker_color: tuple[int, int, int] = (0, 0, 255)
+    corner_marker_color: tuple[int, int, int] = (255, 0, 255)
 
     aruco_lines_thickness: int = 2
     aruco_lines_color: tuple[int, int, int] = (0, 255, 0)
@@ -23,14 +21,14 @@ class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-@dataclass
 class CharucoImageAnnotator(BaseImageAnnotator):
     config: CharucoAnnotatorConfig
-    observations: list[CharucoObservation] = field(default_factory=list)
+    observations: list[CharucoObservation]
 
     @classmethod
     def create(cls, config: CharucoAnnotatorConfig):
-        return cls(config=config)
+        return cls(config=config ,
+                     observations=[])
 
     def annotate_image(
             self,
@@ -102,7 +100,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
         undetected_corners = latest_observation.all_charuco_ids.copy()
         if not latest_observation.charuco_empty:
             for charuco_id in latest_observation.detected_charuco_corner_ids:
-                undetected_corners.remove(charuco_id[0])
+                undetected_corners.remove(charuco_id)
 
         if len(undetected_corners) > 0:
             self.draw_doubled_text(

@@ -2,13 +2,19 @@ import logging
 import time
 from collections import deque
 from enum import Enum
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import cv2
+
+if TYPE_CHECKING:
+    from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
 
 logger = logging.getLogger(__name__)
 
 # Constants for key actions
+KEY_USE_CHARUCO_TRACKER = ord("c")
+KEY_USE_MEDIAPIPE_TRACKER = ord("m")
+
 KEY_SHOW_CONTROLS = ord("h")
 KEY_SHOW_OVERLAY = ord("o")
 KEY_SHOW_INFO = ord("i")
@@ -34,19 +40,24 @@ class WebcamDemoViewer:
 
     def __init__(
             self,
-            tracker,
+            tracker: 'BaseTracker' = None,
             window_title: Optional[str] = None,
             default_exposure: int = DEFAULT_EXPOSURE,
     ):
         """
         Initialize with a tracker and optional window title and default exposure.
         """
-        self.tracker = tracker
+        self.tracker:BaseTracker|None = tracker
         self.default_exposure = default_exposure
         if window_title is None:
             window_title = f"SkellyTracker - {tracker.__class__.__name__}"
         self.window_title = window_title
 
+    def set_tracker(self, tracker: 'BaseTracker'):
+        """
+        Set the tracker for the viewer.
+        """
+        self.tracker = tracker
     def _set_auto_exposure_mode(self, cap):
         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, ExposureModes.AUTO.value)
 
@@ -68,27 +79,47 @@ class WebcamDemoViewer:
         x0 = 6
         number_of_lines = text.count("\n") + 1
         longest_line = max(text.split("\n"), key=len)
-        rect_horizontal_edge_length = len(longest_line) * 10
+        rect_horizontal_edge_length = len(longest_line) * 13
         rect_vertical_edge_length = dy * number_of_lines + 10
-        rect_upper_left_coordinates = (int(x0 / 2), int(y0 / 2))
+        rect_upper_left_coordinates = (int(x0 / 4), int(y0 / 4))
         rect_lower_right_coordinates = (
-        int(x0 / 2) + rect_vertical_edge_length, int(x0 / 2) + rect_horizontal_edge_length)
-        rect_color_and_transparency = (25, 25, 25, .2)
-        # cv2.rectangle(image, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color_and_transparency, -1)
+            int(x0 / 2) + rect_horizontal_edge_length, int(x0 / 2) + rect_vertical_edge_length)
+        overlay = image.copy()
+        rect_color = (0, 0, 0)
+        cv2.rectangle(overlay, rect_upper_left_coordinates, rect_lower_right_coordinates, rect_color, -1)
+
+        alpha = 0.6  # Transparency factor
+        # Blend the overlay with the original image
+        cv2.addWeighted(overlay, alpha, image, 1 - alpha, 0, image)
 
         for i, line in enumerate(text.split("\n")):
             y = y0 + i * dy
-            self.draw_doubled_text(image, line, x0, y, 0.7, (255, 15, 210), 1)
+            self.draw_doubled_text(image, line, x0, y, 0.7, (255, 25, 210), 2)
 
     def draw_doubled_text(self, image, text, x, y, font_scale, color, thickness):
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness + 2)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 4)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
-    def run(self):
+    def run(self, tracker: 'BaseTracker' = None):
         """
         Run the camera viewer.
         """
-        cap = cv2.VideoCapture(0)
+
+        if tracker is not None:
+            self.set_tracker(tracker)
+        if self.tracker is None:
+            raise RuntimeError("Error: No tracker set! use `set_tracker(tracker)` to set a tracker.")
+
+        port_number = 0
+        frame_number = 0
+        cap: cv2.VideoCapture | None = None
+        while port_number < 10:
+            cap = cv2.VideoCapture(port_number)
+            if cap.isOpened():
+                break
+            port_number += 1
+        if cap is None:
+            raise RuntimeError("Error: Could not open camera.")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
         if not cap.isOpened():
@@ -123,18 +154,21 @@ class WebcamDemoViewer:
                 if not success:
                     logger.error("Error: Failed to read image.")
                     break
+                frame_number += 1
 
                 tracker_tik = time.perf_counter()
-                observation, raw_results = self.tracker.process_image(image, annotate_image=False)
+                observation, raw_results = self.tracker.process_image(frame_number=frame_number,
+                                                                      image=image,
+                                                                      annotate_image=False)
                 tracker_tok = time.perf_counter()
                 tracker_durations.append(tracker_tok - tracker_tik)
 
                 annotation_tik = time.perf_counter()
                 if show_overlay:
-                    # JSM - Hacky nonsense to view the mediapipe segmentation mask. should figure out a way to extract this without sending the whole segmentation mask image
-                    if hasattr(raw_results, "segmentation_mask") and raw_results.segmentation_mask is not None:
-                        image[:, :, 2] += (raw_results.segmentation_mask * 50).astype('uint8')
-
+                    if 'mediapipe' in self.tracker.__class__.__name__.lower() and show_overlay and raw_results is not None:
+                        # JSM - Hacky nonsense to view the mediapipe segmentation mask. should figure out a way to extract this without sending the whole segmentation mask image
+                        if hasattr(raw_results, "segmentation_mask") and raw_results.segmentation_mask is not None:
+                            image[:, :, 2] += (raw_results.segmentation_mask * 50).astype('uint8')
                     annotated_image = self.tracker.annotator.annotate_image(image, observation)
                 else:
                     annotated_image = image
@@ -151,6 +185,16 @@ class WebcamDemoViewer:
                 break
             elif key == KEY_PAUSE_SPACE or key == KEY_PAUSE_P:
                 paused = not paused
+            elif key == KEY_USE_CHARUCO_TRACKER:
+                if "charuco" not in self.tracker.__class__.__name__.lower():
+                    logger.info("Switching to CharucoTracker")
+                    from skellytracker.trackers.charuco_tracker import CharucoTracker
+                    self.set_tracker(CharucoTracker.create())
+            elif key == KEY_USE_MEDIAPIPE_TRACKER:
+                if "mediapipe" not in self.tracker.__class__.__name__.lower():
+                    logger.info("Switching to MediaPipeTracker")
+                    from skellytracker.trackers.mediapipe_tracker import MediapipeTracker
+                    self.set_tracker(MediapipeTracker.create())
             elif key == KEY_SHOW_OVERLAY:
                 show_overlay = not show_overlay
             elif key == KEY_SHOW_INFO:
@@ -173,14 +217,16 @@ class WebcamDemoViewer:
                 self._set_exposure(cap, exposure)
             elif key == KEY_SHOW_CONTROLS:
                 show_controls = not show_controls
-            mean_brightness = image.mean() / 3
+            mean_luminance = image.mean() / 3
             mean_frame_duration = sum(frame_durations) / len(frame_durations)
             mean_frames_per_second = 1 / mean_frame_duration
             mean_tracker_duration = sum(tracker_durations) / len(tracker_durations)
             mean_annotation_duration = sum(annotation_durations) / len(annotation_durations)
             overlay_string = ""
-            info_string = f"Exposure: {exposure if not auto_exposure else 'auto'}\n"
-            info_string += f"Mean Brightness: {mean_brightness:.2f}\n\n"
+            exposure_string = f"Exposure: {exposure if not auto_exposure else 'auto'}"
+            exposure_string += f"({(2 ** exposure) * 1000:.2f}ms)\n" if not auto_exposure else "\n"
+            info_string = exposure_string
+            info_string += f"Mean Luminance: {mean_luminance / 255:.2f}\n\n"
             info_string += f"Mean FPS: {mean_frames_per_second:.2f}\n"
             info_string += f"Mean Frame Duration: {mean_frame_duration * 1000:.2f} ms\n"
             info_string += f"Mean Tracker Processing Duration: {mean_tracker_duration * 1000:.2f} ms\n"
@@ -191,6 +237,9 @@ class WebcamDemoViewer:
                 overlay_string += (
                     "Controls:\n"
                     f"'SPACE'/'{chr(KEY_PAUSE_P)}': pause\n"
+                    f"'Current Tracker: {self.tracker.__class__.__name__}\n"
+                    f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Use CharucoTracker\n"
+                    f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': Use MediaPipeTracker\n"
                     f"'{chr(KEY_SHOW_INFO)}': {'show info' if not show_info else 'hide info'}\n"
                     f"'{chr(KEY_SHOW_OVERLAY)}': show overlay\n"
                     f"'{chr(KEY_SET_AUTO_EXPOSURE)}': auto-exposure\n"

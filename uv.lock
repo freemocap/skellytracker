@@ -955,6 +955,20 @@ wheels = [
 ]
 
 [[package]]
+name = "numpydantic"
+version = "1.6.7"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+    { name = "pydantic" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/da/7f/39666a6ac32a7c4669097a9323b0eeb1fdcd3c38603a43b8dd597adb2408/numpydantic-1.6.7.tar.gz", hash = "sha256:59ca92116049ff308d9537d1747612b34b3efe259f4a1b8096cddd15eb82daf4", size = 77424 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7c/ea/a9f6cba1af29ad38d9199291d2e4fe606728fb3be7b2a9a81bde54b9438d/numpydantic-1.6.7-py3-none-any.whl", hash = "sha256:0e263137c6fe693cbf24ee8f78200d1db0056c696d82a5e13fc4dcc67b0d734d", size = 85488 },
+]
+
+[[package]]
 name = "nvidia-cublas-cu12"
 version = "12.4.5.8"
 source = { registry = "https://pypi.org/simple" }
@@ -1702,6 +1716,7 @@ source = { editable = "." }
 dependencies = [
     { name = "mediapipe" },
     { name = "numpy" },
+    { name = "numpydantic" },
     { name = "opencv-contrib-python" },
     { name = "pydantic" },
     { name = "tqdm" },
@@ -1736,6 +1751,7 @@ requires-dist = [
     { name = "mediapipe", marker = "extra == 'all'", specifier = "==0.10.14" },
     { name = "mediapipe", marker = "extra == 'mediapipe'", specifier = "==0.10.14" },
     { name = "numpy", specifier = "<2" },
+    { name = "numpydantic", specifier = ">=1.6.7" },
     { name = "opencv-contrib-python", specifier = "==4.10.*" },
     { name = "pip-tools", marker = "extra == 'dev'" },
     { name = "pydantic", specifier = "==2.*" },
