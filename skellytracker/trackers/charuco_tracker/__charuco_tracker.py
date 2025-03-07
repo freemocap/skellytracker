@@ -53,13 +53,11 @@ class CharucoTracker(BaseTracker):
     def process_image(self,
                       frame_number: int,
                       image: np.ndarray,
-                      annotate_image: bool = False) -> tuple[np.ndarray, tuple[CharucoObservation, None]] | tuple[CharucoObservation, None]:
+                      annotate_image: bool = False) -> CharucoObservation:
 
         latest_observation = self.detector.detect(frame_number=frame_number, image=image)
-        if annotate_image:
-            return self.annotator.annotate_image(image=image,
-                                                 latest_observation=latest_observation), (latest_observation, None) #hacky thing to let us expose the Mediapipe segmentation mask
-        return latest_observation, None
+
+        return latest_observation
 
 
 if __name__ == "__main__":

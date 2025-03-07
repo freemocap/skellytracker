@@ -1,3 +1,4 @@
+from numpydantic import NDArray, Shape
 from pydantic import ConfigDict
 from typing import NamedTuple
 
@@ -24,7 +25,7 @@ from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MED
 
 MediapipeResults = NamedTuple
 
-
+# TODO: use numpydantic to fix numpy type hints for this
 class MediapipeObservation(BaseObservation):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     frame_number: int  # the frame number of the image in which this observation was made
@@ -33,13 +34,19 @@ class MediapipeObservation(BaseObservation):
     right_hand_landmarks: NormalizedLandmarkList | None
     left_hand_landmarks: NormalizedLandmarkList | None
     face_landmarks: NormalizedLandmarkList | None
+    segmentation_mask: np.ndarray | None
     image_size: tuple[int, int]
 
     @classmethod
     def from_detection_results(cls,
                                frame_number: int,
                                mediapipe_results: MediapipeResults,
-                               image_size: tuple[int, int]):
+                               image_size: tuple[int, int],
+                               include_segmentation_mask: bool = True):
+        if include_segmentation_mask:  # TODO: make sure we don't get a missing attribute error
+            segmentation_mask = mediapipe_results.segmentation_mask
+        else:
+            segmentation_mask = None
         return cls(
             frame_number=frame_number,
             pose_landmarks=mediapipe_results.pose_landmarks,
@@ -47,6 +54,7 @@ class MediapipeObservation(BaseObservation):
             right_hand_landmarks=mediapipe_results.right_hand_landmarks,
             left_hand_landmarks=mediapipe_results.left_hand_landmarks,
             face_landmarks=mediapipe_results.face_landmarks,
+            segmentation_mask=segmentation_mask,
             image_size=image_size
         )
 
@@ -91,43 +99,42 @@ class MediapipeObservation(BaseObservation):
         return self.num_body_points + (2 * self.num_single_hand_points) + self.num_face_tesselation_points
 
     @property
-    def body_points_xyz(self) -> np.ndarray[
-        ..., 3]:  # TODO: not sure how to type these array sizes, seems like it doesn't like the `self` reference
+    def body_points_xyz(self) -> NDArray[Shape["* body points, 3"], float]:
         if self.pose_landmarks is None:
             return np.full((self.num_body_points, 3), np.nan)
 
         return self._landmarks_to_array(self.pose_landmarks)
 
     @property
-    def right_hand_points_xyz(self) -> np.ndarray[..., 3]:
+    def right_hand_points_xyz(self) -> NDArray[Shape["* right hand points, 3"], float]:
         if self.right_hand_landmarks is None:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
         return self._landmarks_to_array(self.right_hand_landmarks)
 
     @property
-    def left_hand_points_xyz(self) -> np.ndarray[..., 3]:
+    def left_hand_points_xyz(self) -> NDArray[Shape["* left hand points, 3"], float]:
         if self.left_hand_landmarks is None:
             return np.full((self.num_single_hand_points, 3), np.nan)
 
         return self._landmarks_to_array(self.left_hand_landmarks)
 
     @property
-    def face_tesselation_points_xyz(self) -> np.ndarray[..., 3]:
+    def face_tesselation_points_xyz(self) -> NDArray[Shape["* face tessellation points, 3"], float]:
         if self.face_landmarks is None:
             return np.full((self.num_face_tesselation_points, 3), np.nan)
 
         return self._landmarks_to_array(self.face_landmarks)
 
     @property
-    def face_contour_points_xyz(self) -> np.ndarray[..., 3]:
+    def face_contour_points_xyz(self) -> NDArray[Shape["* face contour points, 3"], float]:
         all_face_landmarks = self.face_tesselation_points_xyz
         xyz = all_face_landmarks[list(MEDIAPIPE_FACE_CONTOURS_INDICIES)]
         if len(xyz) != self.num_face_contour_points:
             raise ValueError(f"Expected {self.num_face_contour_points} face contour points, got {len(xyz)}")
         return xyz
 
-    def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> np.ndarray[..., 3]:
+    def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> NDArray[Shape["* all points, 3"], float]:
         landmark_array = np.array(
             [
                 (landmark.x, landmark.y, landmark.z)
@@ -170,7 +177,7 @@ class MediapipeObservation(BaseObservation):
 
         return all_points_by_name
 
-    def to_array(self) -> np.ndarray[533, 3]:
+    def to_array(self) -> NDArray[Shape["533, 3"], float]:
         return np.concatenate(
             # this order matters, do not change
             (
@@ -181,27 +188,6 @@ class MediapipeObservation(BaseObservation):
             ),
             axis=0,
         )
-
-#     def to_serializable_dict(self) -> dict:
-#         d = {
-#             "pose_trajectories": self.body_points_xyz.tolist(),
-#             "right_hand_trajectories": self.right_hand_points_xyz.tolist(),
-#             "left_hand_trajectories": self.left_hand_points_xyz.tolist(),
-#             "face_trajectories": self.face_tesselation_points_xyz.tolist(),
-#             "image_size": self.image_size
-#         }
-#         try:
-#             json.dumps(d).encode("utf-8")
-#         except Exception as e:
-#             raise ValueError(f"Failed to serialize CharucoObservation to JSON: {e}")
-#         return d
-
-#     def to_json_string(self) -> str:
-#         return json.dumps(self.to_serializable_dict(), indent=4)
-
-#     def to_json_bytes(self) -> bytes:
-#         return self.to_json_string().encode("utf-8")
-
-
+    
 
 MediapipeObservations = list[MediapipeObservation]

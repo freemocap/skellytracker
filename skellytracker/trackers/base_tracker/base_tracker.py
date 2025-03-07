@@ -38,7 +38,7 @@ class BaseObservation(BaseModel, ABC):
 BaseObservations = list[BaseObservation]
 
 class BaseImageAnnotatorConfig(BaseModel, ABC):
-    pass
+    show_overlay: bool = False
 
 
 class BaseImageAnnotator(BaseModel, ABC):
@@ -94,7 +94,7 @@ class BaseDetector(BaseModel, ABC):
 class BaseRecorder(BaseModel, ABC):
     observations: List[BaseObservation] = Field(default_factory=list)
 
-    def add_observations(self, observation: BaseObservation):
+    def add_observation(self, observation: BaseObservation):
         self.observations.append(observation)
 
     # I'm imagining these can be used if you want the data but want to handle saving elsewhere
@@ -104,7 +104,7 @@ class BaseRecorder(BaseModel, ABC):
 
     @property
     def as_json_string(self) -> str:
-        output_dict = {frame_number: observation.to_serializable_dict() for frame_number, observation in
+        output_dict = {frame_number: observation.model_dump_json() for frame_number, observation in
                        enumerate(self.observations)}
         return json.dumps(output_dict, indent=4)
 
@@ -129,8 +129,7 @@ class BaseObservationManager(BaseModel,ABC):
 class BaseTracker(BaseModel, ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
-
-    annotator: BaseImageAnnotator | None = None
+    annotator: BaseImageAnnotator
     recorder: BaseRecorder | None = None
 
     @classmethod
@@ -139,10 +138,9 @@ class BaseTracker(BaseModel, ABC):
 
     def process_image(self,
                       frame_number: int,
-                      image: np.ndarray, annotate_image: bool = False) -> tuple[np.ndarray, BaseObservation]|BaseObservation:
-        latest_observation = self.detector.detect(image)
-        if annotate_image:
-            return self.annotator.annotate_image(image=image, latest_observation=latest_observation), latest_observation
+                      image: np.ndarray) -> BaseObservation:
+        latest_observation = self.detector.detect(frame_number=frame_number, image=image)
+
         return latest_observation
 
 

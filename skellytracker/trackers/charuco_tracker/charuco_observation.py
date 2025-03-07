@@ -1,5 +1,5 @@
+from typing import Sequence
 import numpy as np
-from numpy.random.mtrand import Sequence
 from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
@@ -40,7 +40,7 @@ class CharucoObservation(BaseObservation):
     image_size: tuple[int, int]
 
     @classmethod
-    def from_detect_board_results(cls,
+    def from_detection_results(cls,
                                   frame_number: int,
                                   detected_charuco_corners: DetectedCharucoCornersImageCoordinates,
                                   detected_charuco_corner_ids: DetectedCharucoCornerIds,
@@ -101,7 +101,7 @@ class CharucoObservation(BaseObservation):
     @property
     def detected_charuco_corners_in_full_array(self) -> DetectedCharucoCorners2DInFullArray:
         """
-        Retruns the detected charuco corners in a full array, where the indices correspond to the charuco ids
+        Returns the detected charuco corners in a full array, where the indices correspond to the charuco ids
         Non-detected corners are set to np.nan
         :return:
         """
@@ -129,6 +129,9 @@ class CharucoObservation(BaseObservation):
         for corner_index, corner_id in enumerate(self.detected_aruco_marker_ids):
             corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
+    
+    def to_array(self) -> DetectedCharucoCorners2DInFullArray:
+        return self.detected_charuco_corners_in_full_array
 
 
 CharucoObservations = list[CharucoObservation]
