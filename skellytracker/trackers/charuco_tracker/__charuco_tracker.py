@@ -10,7 +10,6 @@ from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTr
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
-from skellytracker.trackers.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +51,7 @@ class CharucoTracker(BaseTracker):
 
     def process_image(self,
                       frame_number: int,
-                      image: np.ndarray,
-                      annotate_image: bool = False) -> CharucoObservation:
+                      image: np.ndarray) -> CharucoObservation:
 
         latest_observation = self.detector.detect(frame_number=frame_number, image=image)
 

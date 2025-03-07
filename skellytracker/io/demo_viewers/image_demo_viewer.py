@@ -1,14 +1,18 @@
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 import cv2
+
+if TYPE_CHECKING:
+    from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+
 
 # Constants for key actions
 KEY_QUIT = ord("q")
 
 
 class ImageDemoViewer:
-    def __init__(self, tracker, window_title: Optional[str] = None):
+    def __init__(self, tracker: 'BaseTracker', window_title: Optional[str] = None):
         """
         Initialize with a tracker and optional window title and default exposure.
         """

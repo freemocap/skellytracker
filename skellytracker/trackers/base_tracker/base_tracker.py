@@ -8,9 +8,8 @@ import cv2
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
-from skellytracker.trackers.demo_viewers.webcam_demo_viewer import (
-    WebcamDemoViewer,
-)
+from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
+
 
 logger = logging.getLogger(__name__)
 
