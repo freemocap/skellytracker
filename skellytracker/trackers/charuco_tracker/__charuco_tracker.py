@@ -49,14 +49,5 @@ class CharucoTracker(BaseTracker):
         return self.detector.board.getChessboardCorners()
 
 
-    def process_image(self,
-                      frame_number: int,
-                      image: np.ndarray) -> CharucoObservation:
-
-        latest_observation = self.detector.detect(frame_number=frame_number, image=image)
-
-        return latest_observation
-
-
 if __name__ == "__main__":
     CharucoTracker.create().demo()

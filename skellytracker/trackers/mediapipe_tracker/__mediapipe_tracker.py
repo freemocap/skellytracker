@@ -38,18 +38,6 @@ class MediapipeTracker(BaseTracker):
             recorder=MediapipeRecorder(),
         )
 
-    def process_image(self,
-                        frame_number: int,
-                        image: np.ndarray,
-                        record_observation: bool = True) -> MediapipeObservation:
-
-        latest_observation = self.detector.detect(image=image, frame_number=frame_number)
-
-        if record_observation and self.recorder is not None:
-            self.recorder.add_observation(observation=latest_observation)
-
-        return latest_observation
-
 
 if __name__ == "__main__":
     MediapipeTracker.create().demo()

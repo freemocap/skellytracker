@@ -8,6 +8,7 @@ import cv2
 import numpy as np
 from pydantic import BaseModel, ConfigDict, Field
 
+from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
 from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
 
 
@@ -25,7 +26,7 @@ class BaseObservation(BaseModel, ABC):
         pass
 
     @abstractmethod
-    def to_array(self) -> np.ndarray[..., ...]:  # this is just a thought, but having a default "array output" in addition to json
+    def to_array(self) -> np.ndarray:
         pass
 
     def to_json_string(self) -> str:
@@ -42,12 +43,12 @@ class BaseImageAnnotatorConfig(BaseModel, ABC):
 
 class BaseImageAnnotator(BaseModel, ABC):
     config: BaseImageAnnotatorConfig
-    observations: BaseObservations  #make it a list to allow plotting trails, etc.
+    observations: BaseObservations  # make it a list to allow plotting trails, etc.
 
     @classmethod
+    @abstractmethod
     def create(cls, config: BaseImageAnnotatorConfig):
-        raise NotImplementedError("Must implement a method to create an image annotator from a config.")
-
+        pass
     @abstractmethod
     def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
         pass
@@ -115,6 +116,9 @@ class BaseRecorder(BaseModel, ABC):
         with open(output_path, 'w') as json_file:
             json_file.write(self.as_json_string)
 
+    def clear(self):
+        self.observations = []
+
 
 
 class BaseObservationManager(BaseModel,ABC):
@@ -136,9 +140,14 @@ class BaseTracker(BaseModel, ABC):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
     def process_image(self,
-                      frame_number: int,
-                      image: np.ndarray) -> BaseObservation:
-        latest_observation = self.detector.detect(frame_number=frame_number, image=image)
+                        frame_number: int,
+                        image: np.ndarray,
+                        record_observation: bool = True) -> BaseObservation:
+
+        latest_observation = self.detector.detect(image=image, frame_number=frame_number)
+
+        if record_observation and self.recorder is not None:
+            self.recorder.add_observation(observation=latest_observation)
 
         return latest_observation
 
@@ -150,118 +159,17 @@ class BaseTracker(BaseModel, ABC):
         )
         camera_viewer.run()
 
-    # def process_video(
-    #         self,
-    #         input_video_filepath: str,
-    #         output_data_directory: str,
-    #         output_video_filepath: str | None = None,
-    #         use_tqdm: bool = True,
-    # ):
-    #     """
-    #     Run the tracker on a video.
-    #
-    #     :param input_video_filepath: Path to video file.
-    #     :param output_data_directory: Path to save the data to.
-    #     :param output_video_filepath: Path to save annotated video to, does not save video if None.
-    #     :param use_tqdm: Whether to use tqdm to show a progress bar
-    #     """
-    #
-    #     cap = cv2.VideoCapture(str(input_video_filepath))
-    #
-    #     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    #     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    #     image_size = (width, height)
-    #
-    #     fps = cap.get(cv2.CAP_PROP_FPS)
-    #
-    #     if output_video_filepath is not None:
-    #         video_handler = VideoHandler(
-    #             output_path=output_video_filepath, frame_size=image_size, fps=fps
-    #         )
-    #     else:
-    #         video_handler = None
-    #
-    #     ret, frame = cap.read()
-    #
-    #     number_of_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    #
-    #     if use_tqdm:
-    #         iterator = tqdm(
-    #             range(number_of_frames),
-    #             desc=f"processing video: {Path(input_video_filepath).name}",
-    #             total=number_of_frames,
-    #             color="magenta",
-    #             unit="frames",
-    #             dynamic_ncols=True,
-    #         )
-    #     else:
-    #         iterator = range(number_of_frames)
-    #
-    #     for _frame_number in iterator:
-    #         if not ret or frame is None:
-    #             logger.error(
-    #                 f"Failed to load an image from: {str(input_video_filepath)}"
-    #             )
-    #             raise ValueError("Failed to load an image from: " + str(input_video_filepath))
-    #
-    #         self.process_image(frame)
-    #         if self.recorder is not None:
-    #             self.recorder.record(self.tracked_objects)
-    #         if video_handler is not None:
-    #             if self.annotated_image is None:
-    #                 self.annotated_image = frame
-    #             video_handler.add_frame(self.annotated_image)
-    #
-    #         ret, frame = cap.read()
-    #
-    #     cap.release()
-    #     if video_handler is not None:
-    #         video_handler.close()
-    #
-    #     output_array = self.process_and_save_tracked_objects(
-    #         input_video_filepath,  image_size
-    #     )
-    #
-    #     self.cleanup()
-    #
-    #     return output_array
-    #
-    # def process_and_save_tracked_objects(
-    #         self,
-    #         input_video_filepath: Union[str, Path],
-    #         save_data_bool: bool,
-    #         image_size: tuple,
-    # ) -> Optional[np.ndarray]:
-    #     if self.recorder is not None:
-    #         output_array = self.recorder.process_tracked_objects(image_size=image_size)
-    #         if save_data_bool:
-    #             self.recorder.save(
-    #                 file_path=str(Path(input_video_filepath).with_suffix(".npy"))
-    #             )
-    #     else:
-    #         output_array = None
-    #     return output_array
-    #
-    # def cleanup(self) -> None:
-    #     """
-    #     Run any cleanup code for the tracker, including clearing the recorded objects.
-    #
-    #     Can be overridden by subclasses if any tracker needs a specific cleanup.
-    #     """
-    #     if self.recorder is not None:
-    #         self.recorder.clear_recorded_objects()
-
-    #
-    # def image_demo(self, image_path: Path) -> None:
-    #     """
-    #     Run tracker on single image
-    #
-    #     :return: None
-    #     """
-    #
-    #     image_viewer = ImageDemoViewer(self, self.__class__.__name__)
-    #     image_viewer.run(image_path=image_path)
-    #
+    
+    def image_demo(self, image_path: Path) -> None:
+        """
+        Run tracker on single image
+    
+        :return: None
+        """
+    
+        image_viewer = ImageDemoViewer(self, self.__class__.__name__)
+        image_viewer.run(image_path=image_path)
+    
 #
 # class BaseCumulativeTracker(BaseTracker):
 #     """
