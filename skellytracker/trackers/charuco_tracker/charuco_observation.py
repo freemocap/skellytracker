@@ -19,7 +19,6 @@ CharucoBoardTranslationVector = NDArray[Shape["3 tx_ty_tz"], np.float32]
 CharucoBoardRotationVector = NDArray[Shape["3 rx_ry_rz"], np.float32]
 
 class CharucoObservation(BaseObservation):
-    frame_number: int # the frame number of the image in which this observation was made
     all_charuco_ids: list[int]
     all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates
 

@@ -1,6 +1,5 @@
 import logging
 
-import numpy as np
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig, BaseRecorder
