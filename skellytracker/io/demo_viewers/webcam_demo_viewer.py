@@ -163,7 +163,7 @@ class WebcamDemoViewer:
                 tracker_durations.append(tracker_tok - tracker_tik)
 
                 annotation_tik = time.perf_counter()
-                annotated_image = self.tracker.annotator.annotate_image(image, observation)
+                annotated_image = self.tracker.annotate_image(image, observation)
                 annotation_tok = time.perf_counter()
                 annotation_durations.append(annotation_tok - annotation_tik)
 

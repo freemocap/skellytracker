@@ -45,10 +45,13 @@ class BrightestPointDetector(BaseDetector):
                         centroid_x=centroid_x,
                         centroid_y=centroid_y,
                     )
-                )
+                ) 
 
         largest_patches = sorted(
             patch_list, key=lambda patch: patch.area, reverse=True
-        )[: min(len(patch_list)-1, self.config.num_tracked_points)]
+        )[: min(len(patch_list), self.config.num_tracked_points)]
+
+        if len(largest_patches) < self.config.num_tracked_points:
+            largest_patches = largest_patches + [None] * (self.config.num_tracked_points - len(largest_patches))
 
         return BrightestPointObservation.from_detection_results(frame_number=frame_number, bright_patches=largest_patches)

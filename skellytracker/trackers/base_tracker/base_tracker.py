@@ -150,6 +150,9 @@ class BaseTracker(BaseModel, ABC):
             self.recorder.add_observation(observation=latest_observation)
 
         return latest_observation
+    
+    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
+        return self.annotator.annotate_image(image=image, latest_observation=latest_observation)
 
 
     def demo(self) -> None:

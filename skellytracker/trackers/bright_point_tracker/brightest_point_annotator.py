@@ -24,7 +24,8 @@ class BrightestPointImageAnnotator(BaseImageAnnotator):
 
         for bright_patch in latest_observation.bright_patches:
             if (
-                bright_patch.centroid_x is not None
+                bright_patch is not None
+                and bright_patch.centroid_x is not None
                 and bright_patch.centroid_y is not None
             ):
                 cv2.drawMarker(

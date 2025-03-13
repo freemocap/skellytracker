@@ -11,15 +11,17 @@ class BrightPatch(BaseModel):
 
 
 class BrightestPointObservation(BaseObservation):
-    bright_patches: list[BrightPatch]
+    bright_patches: list[BrightPatch | None]
 
     @classmethod
-    def from_detection_results(cls, frame_number: int, bright_patches: list[BrightPatch]):
+    def from_detection_results(cls, frame_number: int, bright_patches: list[BrightPatch | None]):
         return cls(frame_number=frame_number, bright_patches=bright_patches)
 
     def to_array(self) -> NDArray[Shape["* bright_patches, 2 pxpy"], float]:
         array = np.full((len(self.bright_patches), 2), np.nan)
         for patch_index, patch in enumerate(self.bright_patches):
+            if patch is None:
+                continue
             array[patch_index, 0] = patch.centroid_x
             array[patch_index, 1] = patch.centroid_y
         return array

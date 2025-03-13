@@ -1,10 +1,12 @@
 import logging
+from typing import List
 
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig, BaseRecorder
 from skellytracker.trackers.bright_point_tracker.brightest_point_annotator import BrightestPointAnnotatorConfig, BrightestPointImageAnnotator
 from skellytracker.trackers.bright_point_tracker.brightest_point_detector import BrightestPointDetector, BrightestPointDetectorConfig
+from skellytracker.trackers.bright_point_tracker.brightest_point_observation import BrightestPointObservation
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +15,7 @@ class BrightestPointTrackerConfig(BaseTrackerConfig):
     annotator_config: BrightestPointAnnotatorConfig = Field(default_factory = BrightestPointAnnotatorConfig)
 
 class BrightestPointRecorder(BaseRecorder):
-    pass
+    observations: List[BrightestPointObservation | None] = Field(default_factory=list)
 
 
 class BrightestPointTracker(BaseTracker):

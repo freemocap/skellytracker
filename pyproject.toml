@@ -60,12 +60,13 @@ dependencies = [
     "numpy<2",
     "tqdm==4.*",
     "numpydantic>=1.6.7",
+    "requests>=2.32.3",
 ]
 requires-python = ">=3.9,<3.13"
 
 dynamic = ["version", "description"]
 
-[project.optional-dependencies]
+[dependency-groups]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
