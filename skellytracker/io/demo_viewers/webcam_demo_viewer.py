@@ -157,21 +157,13 @@ class WebcamDemoViewer:
                 frame_number += 1
 
                 tracker_tik = time.perf_counter()
-                observation, raw_results = self.tracker.process_image(frame_number=frame_number,
-                                                                      image=image,
-                                                                      annotate_image=False)
+                observation = self.tracker.process_image(frame_number=frame_number,
+                                                                      image=image)
                 tracker_tok = time.perf_counter()
                 tracker_durations.append(tracker_tok - tracker_tik)
 
                 annotation_tik = time.perf_counter()
-                if show_overlay:
-                    if 'mediapipe' in self.tracker.__class__.__name__.lower() and show_overlay and raw_results is not None:
-                        # JSM - Hacky nonsense to view the mediapipe segmentation mask. should figure out a way to extract this without sending the whole segmentation mask image
-                        if hasattr(raw_results, "segmentation_mask") and raw_results.segmentation_mask is not None:
-                            image[:, :, 2] += (raw_results.segmentation_mask * 50).astype('uint8')
-                    annotated_image = self.tracker.annotator.annotate_image(image, observation)
-                else:
-                    annotated_image = image
+                annotated_image = self.tracker.annotate_image(image, observation)
                 annotation_tok = time.perf_counter()
                 annotation_durations.append(annotation_tok - annotation_tik)
 
@@ -197,7 +189,10 @@ class WebcamDemoViewer:
                     self.set_tracker(MediapipeTracker.create())
             elif key == KEY_SHOW_OVERLAY:
                 show_overlay = not show_overlay
-            elif key == KEY_SHOW_INFO:
+                if hasattr(self.tracker.config.annotator_config, "show_overlay"):
+                    # TODO: may want a more standard overlay API to make this easier
+                    self.tracker.config.annotator_config.show_overlay = show_overlay
+            elif key == KEY_SHOW_INFO: 
                 show_info = not show_info
             elif key == KEY_SET_AUTO_EXPOSURE:
                 auto_exposure = True

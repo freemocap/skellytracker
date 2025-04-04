@@ -11,6 +11,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     show_tracks: int | None = 15
+    show_overlay: bool = True
     corner_marker_type: int = cv2.MARKER_DIAMOND
     corner_marker_size: int = 10
     corner_marker_thickness: int = 2
@@ -45,6 +46,9 @@ class MediapipeImageAnnotator(BaseImageAnnotator):
             return image.copy()
         # Copy the original image for annotation
         annotated_image = image.copy()
+
+        if self.config.show_overlay and latest_observation.segmentation_mask is not None:
+            annotated_image[:, :, 2] += (latest_observation.segmentation_mask * 50).astype('uint8')
 
         drawing_utils.draw_landmarks(
             image=annotated_image,

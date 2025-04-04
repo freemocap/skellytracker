@@ -14,7 +14,7 @@ class MediapipeModelComplexity(int, Enum):
 
 
 class MediapipeDetectorConfig(BaseDetectorConfig):
-    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY.value
+    model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
     static_image_mode: bool = False
@@ -31,7 +31,7 @@ class MediapipeDetector(BaseDetector):
     @classmethod
     def create(cls, config: MediapipeDetectorConfig):
         detector = mp.solutions.holistic.Holistic(
-            model_complexity=config.model_complexity,
+            model_complexity=config.model_complexity.value,
             min_detection_confidence=config.min_detection_confidence,
             min_tracking_confidence=config.min_tracking_confidence,
             static_image_mode=config.static_image_mode,
@@ -46,10 +46,10 @@ class MediapipeDetector(BaseDetector):
             detector=detector,
         )
 
-    def detect(self, frame_number: int, image: np.ndarray) -> tuple[MediapipeObservation, MediapipeResults]:
-        # rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)  # assumes we're always getting BGR input - check with Jon to verify - JSM - BGR is an old standard, lets always convert to RGB on read and then assume RGB throughout
+    def detect(self, frame_number: int, image: np.ndarray) -> MediapipeObservation:
         mediapipe_results: MediapipeResults = self.detector.process(image)
-        return MediapipeObservation.from_holistic_results(frame_number=frame_number,
+        return MediapipeObservation.from_detection_results(frame_number=frame_number,
                                                           mediapipe_results=mediapipe_results,
                                                           image_size=(int(image.shape[0]), int(image.shape[1])),
-                                                          ), mediapipe_results
+                                                          include_segmentation_mask=self.config.enable_segmentation
+                                                          )
