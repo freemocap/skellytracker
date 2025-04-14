@@ -37,12 +37,8 @@ class YOLOPoseTracker(BaseTracker):
         )
         if tracked_person.size != 0:
             # add averages of all tracked points as pixel x and y
-            self.tracked_objects["tracked_person"].pixel_x = float(
-                np.mean(tracked_person[:, 0])
-            )
-            self.tracked_objects["tracked_person"].pixel_y = float(
-                np.mean(tracked_person[:, 1])
-            )
+            self.tracked_objects["tracked_person"].pixel_x = float(np.mean(tracked_person[:, 0]))
+            self.tracked_objects["tracked_person"].pixel_y = float(np.mean(tracked_person[:, 1]))
             self.tracked_objects["tracked_person"].extra["landmarks"] = tracked_person
         else:
             self.tracked_objects["tracked_person"].pixel_x = None
