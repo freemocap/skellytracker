@@ -52,7 +52,9 @@ class YOLOMediapipeComboTracker(BaseTracker):
         self.bounding_box_buffer_percentage = bounding_box_buffer_percentage
         self.buffer_size_method = buffer_size_method
 
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(
+        self, image: np.ndarray, annotate_image: bool = True, **kwargs
+    ) -> Dict[str, TrackedObject]:
 
         yolo_results = self.model(image, classes=0, max_det=1, verbose=False)
         box_xyxy = np.asarray(yolo_results[0].boxes.xyxy.cpu()).flatten()
@@ -119,9 +121,10 @@ class YOLOMediapipeComboTracker(BaseTracker):
 
         bbox_image = buffered_yolo_results[0].plot()
 
-        self.annotated_image = self.annotate_image(
-            image=bbox_image, tracked_objects=self.tracked_objects
-        )
+        if annotate_image:
+            self.annotated_image = self.annotate_image(
+                image=bbox_image, tracked_objects=self.tracked_objects
+            )
 
         return self.tracked_objects
 
