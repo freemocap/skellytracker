@@ -203,6 +203,7 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
 
     elif tracker_name == 'CharucoTracker':
 
+
         tracker = CharucoTracker(
             squares_x=tracking_params.charuco_squares_x_in,
             squares_y=tracking_params.charuco_squares_y_in,
@@ -239,18 +240,14 @@ if __name__ == "__main__":
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 
     synchronized_video_path = Path(
-       r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data_123_zero_rotation\synchronized_videos"
+        "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
 
-    tracker_name = "CharucoTracker"
-    num_processes = 3
-
-    class CharucoModelInfo(ModelInfo):
-        name = 'charuco'
-        tracker_name = 'CharucoTracker'
+    tracker_name = "YOLOMediapipeComboTracker"
+    num_processes = None
 
     process_folder_of_videos(
-        model_info=CharucoModelInfo(),
+        model_info=MediapipeModelInfo(),
         tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
