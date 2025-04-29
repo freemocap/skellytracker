@@ -37,6 +37,9 @@ try:
 except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
+from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
+from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoModelInfo, CharucoTrackingParams
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -110,6 +113,7 @@ def process_folder_of_videos(
 
     logger.info(f"Shape of output array: {combined_array.shape}")
     np.save(output_folder_path, combined_array)
+    logger.info(f"Data saved to: {output_folder_path}")
 
     return combined_array
 
@@ -197,6 +201,16 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             output_resolution=tracking_params.output_resolution,
         )
 
+    elif tracker_name == 'CharucoTracker':
+
+
+        tracker = CharucoTracker(
+            squares_x=tracking_params.charuco_squares_x_in,
+            squares_y=tracking_params.charuco_squares_y_in,
+            dict_id= tracking_params.charuco_dict_id,
+        )
+
+
     else:
         raise ValueError("Invalid tracker type")
 
@@ -212,6 +226,8 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
+    elif tracker_name == 'CharucoTracker':
+        return CharucoTrackingParams()
     elif tracker_name == "OpenPoseTracker":
         raise ValueError(
             "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
