@@ -139,7 +139,7 @@ def process_single_video(
         video_name = video_path.stem + "_openpose.avi"
     else:
         video_name = (
-            video_path.stem + f"_charuco.mp4"
+            video_path.stem + f"_mediapipe.mp4"
         )  # TODO: fix it so blender output doesn't require mediapipe addendum here
 
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
