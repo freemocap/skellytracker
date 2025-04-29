@@ -37,6 +37,9 @@ try:
 except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
+from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
+from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoModelInfo, CharucoTrackingParams
+
 logger = logging.getLogger(__name__)
 
 try:
@@ -110,6 +113,7 @@ def process_folder_of_videos(
 
     logger.info(f"Shape of output array: {combined_array.shape}")
     np.save(output_folder_path, combined_array)
+    logger.info(f"Data saved to: {output_folder_path}")
 
     return combined_array
 
@@ -135,7 +139,7 @@ def process_single_video(
         video_name = video_path.stem + "_openpose.avi"
     else:
         video_name = (
-            video_path.stem + "_mediapipe.mp4"
+            video_path.stem + f"_charuco.mp4"
         )  # TODO: fix it so blender output doesn't require mediapipe addendum here
 
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
@@ -197,6 +201,15 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             output_resolution=tracking_params.output_resolution,
         )
 
+    elif tracker_name == 'CharucoTracker':
+
+        tracker = CharucoTracker(
+            squares_x=tracking_params.charuco_squares_x_in,
+            squares_y=tracking_params.charuco_squares_y_in,
+            dict_id= tracking_params.charuco_dict_id,
+        )
+
+
     else:
         raise ValueError("Invalid tracker type")
 
@@ -212,6 +225,8 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
+    elif tracker_name == 'CharucoTracker':
+        return CharucoTrackingParams()
     elif tracker_name == "OpenPoseTracker":
         raise ValueError(
             "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
@@ -224,14 +239,18 @@ if __name__ == "__main__":
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 
     synchronized_video_path = Path(
-        "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+       r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data_123_zero_rotation\synchronized_videos"
     )
 
-    tracker_name = "YOLOMediapipeComboTracker"
-    num_processes = None
+    tracker_name = "CharucoTracker"
+    num_processes = 3
+
+    class CharucoModelInfo(ModelInfo):
+        name = 'charuco'
+        tracker_name = 'CharucoTracker'
 
     process_folder_of_videos(
-        model_info=MediapipeModelInfo(),
+        model_info=CharucoModelInfo(),
         tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
