@@ -13,14 +13,16 @@ default_aruco_dictionary = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_
 class CharucoTracker(BaseTracker):
     def __init__(
         self,
-        tracked_object_names: List[str],
         squares_x: int,
         squares_y: int,
         dictionary: cv2.aruco.Dictionary = default_aruco_dictionary,
         square_length: float = 1,
         marker_length: float = 0.8,
     ):
-        super().__init__(
+        number_of_charuco_markers = (squares_x - 1) * (squares_y - 1)
+        tracked_object_names = [str(index) for index in range(number_of_charuco_markers)]
+        
+        super().__init__(    
             recorder=CharucoRecorder(), tracked_object_names=tracked_object_names
         )
         self.board = cv2.aruco.CharucoBoard(
@@ -110,11 +112,8 @@ class CharucoTracker(BaseTracker):
 if __name__ == "__main__":
     charuco_squares_x_in = 7
     charuco_squares_y_in = 5
-    number_of_charuco_markers = (charuco_squares_x_in - 1) * (charuco_squares_y_in - 1)
-    charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     CharucoTracker(
-        tracked_object_names=charuco_ids,
         squares_x=charuco_squares_x_in,
         squares_y=charuco_squares_y_in,
         dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
