@@ -91,15 +91,18 @@ def process_folder_of_videos(
         output_folder_path.parent.mkdir(parents=True, exist_ok=True)
 
     if annotated_video_path is None:
-        annotated_video_path = synchronized_video_path.parent / "annotated_videos"
+        if model_info.tracker_name == "MediapipeHolisticTracker" or model_info.tracker_name == "YOLOMediapipeComboTracker":
+            annotated_video_path = synchronized_video_path.parent / "annotated_videos"
+        else:
+            annotated_video_path = synchronized_video_path.parent / f"{model_info.name}_annotated_videos"
+    
     if not annotated_video_path.exists():
         annotated_video_path.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        (model_info.tracker_name, tracking_params, video_path, annotated_video_path)
+        (model_info.tracker_name, model_info.name, tracking_params, video_path, annotated_video_path)
         for video_path in video_paths
     ]
-
     if num_processes > 1:
         logging.info("Using multiprocessing to run pose estimation")
         with Pool(processes=num_processes) as pool:
@@ -120,6 +123,7 @@ def process_folder_of_videos(
 
 def process_single_video(
     tracker_name: str,
+    model_name: str,
     tracking_params: BaseModel,
     video_path: Path,
     annotated_video_path: Path,
@@ -139,7 +143,7 @@ def process_single_video(
         video_name = video_path.stem + "_openpose.avi"
     else:
         video_name = (
-            video_path.stem + "_mediapipe.mp4"
+            video_path.stem + f"_{model_name}.mp4"
         )  # TODO: fix it so blender output doesn't require mediapipe addendum here
 
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
@@ -243,7 +247,7 @@ if __name__ == "__main__":
         "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
 
-    tracker_name = "YOLOMediapipeComboTracker"
+    tracker_name = "MediapipeHolisticTracker"
     num_processes = None
 
     process_folder_of_videos(
