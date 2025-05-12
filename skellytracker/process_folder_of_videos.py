@@ -225,10 +225,10 @@ if __name__ == "__main__":
     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 
     synchronized_video_path = Path(
-        r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data\synchronized_videos"
+        "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
     
-    tracker_name = "YOLOMediapipeComboTracker"
+    tracker_name = "MediapipeHolisticTracker"
     num_processes = 3
 
 
@@ -237,6 +237,8 @@ if __name__ == "__main__":
     elif tracker_name == "YOLOMediapipeComboTracker":
         model_info=MediapipeModelInfo()
         model_info.tracker_name = "YOLOMediapipeComboTracker" #this is not ideal in the least - just a patch so we don't need to make any freemocap changes
+    elif tracker_name == "YOLOPoseTracker":
+        model_info=YOLOModelInfo()
 
 
     process_folder_of_videos(
