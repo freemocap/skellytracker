@@ -225,7 +225,7 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
     if tracker_name == "MediapipeHolisticTracker":
         return MediapipeTrackingParams()
     elif tracker_name == "YOLOMediapipeComboTracker":
-        return YOLOTrackingParams()  # TODO: figure out how to reference both tracking params in a stable way
+        return MediapipeTrackingParams()  # TODO: figure out how to reference both tracking params in a stable way
     elif tracker_name == "YOLOPoseTracker":
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
@@ -242,16 +242,26 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
 
 if __name__ == "__main__":
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
+    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
 
     synchronized_video_path = Path(
         "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
-
+    
     tracker_name = "MediapipeHolisticTracker"
-    num_processes = None
+    num_processes = 3
+
+
+    if tracker_name == "MediapipeHolisticTracker":
+        model_info=MediapipeModelInfo()
+    elif tracker_name == "YOLOMediapipeComboTracker":
+        model_info=MediapipeModelInfo()
+        model_info.tracker_name = "YOLOMediapipeComboTracker" #this is not ideal in the least - just a patch so we don't need to make any freemocap changes
+    elif tracker_name == "YOLOPoseTracker":
+        model_info=YOLOModelInfo()
 
     process_folder_of_videos(
-        model_info=MediapipeModelInfo(),
+        model_info=model_info,
         tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
