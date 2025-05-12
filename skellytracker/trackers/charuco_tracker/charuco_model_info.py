@@ -2,7 +2,6 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
 
 import cv2
-from typing import Dict
 
 class CharucoModelInfo(ModelInfo):
     name = "charuco"

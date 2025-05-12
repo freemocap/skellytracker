@@ -38,7 +38,7 @@ except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
 from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoModelInfo, CharucoTrackingParams
+from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoTrackingParams
 
 logger = logging.getLogger(__name__)
 
