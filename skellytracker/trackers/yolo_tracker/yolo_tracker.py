@@ -15,15 +15,18 @@ class YOLOPoseTracker(BaseTracker):
         pytorch_model = YOLOModelInfo.model_dictionary[model_size]
         self.model = YOLO(pytorch_model)
 
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(
+        self, image: np.ndarray, annotate_image: bool = True, **kwargs
+    ) -> Dict[str, TrackedObject]:
         # "max_det=1" argument to limit to single person tracking for now
         results = self.model(image, max_det=1, verbose=False)
 
         self.unpack_results(results)
 
-        self.annotated_image = self.annotate_image(
-            image=image, results=results, **kwargs
-        )
+        if annotate_image:
+            self.annotated_image = self.annotate_image(
+                image=image, results=results, **kwargs
+            )
 
         return self.tracked_objects
 

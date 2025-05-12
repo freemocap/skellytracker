@@ -31,7 +31,9 @@ class YOLOObjectTracker(BaseTracker):
         else:
             self.classes = None  # None includes all classes
 
-    def process_image(self, image, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(
+        self, image, annotate_image: bool = True, **kwargs
+    ) -> Dict[str, TrackedObject]:
         results = self.model(
             image,
             classes=self.classes,
@@ -53,7 +55,8 @@ class YOLOObjectTracker(BaseTracker):
             0
         ].boxes.orig_shape
 
-        self.annotated_image = self.annotate_image(image, results=results, **kwargs)
+        if annotate_image:
+            self.annotated_image = self.annotate_image(image, results=results, **kwargs)
 
         return self.tracked_objects
 
