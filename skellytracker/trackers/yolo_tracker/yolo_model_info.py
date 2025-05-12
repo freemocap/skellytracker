@@ -2,17 +2,18 @@ from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackin
 from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 
+
 class YOLOModelInfo(ModelInfo):
     name = "yolo"
     tracker_name = "YOLOPoseTracker"
     num_tracked_points = 17
     model_dictionary = {
-        "nano": "yolov8n-pose.pt",
-        "small": "yolov8s-pose.pt",
-        "medium": "yolov8m-pose.pt",
-        "large": "yolov8l-pose.pt",
-        "extra_large": "yolov8x-pose.pt",
-        "high_res": "yolov8x-pose-p6.pt",
+        "nano": "yolo11n-pose.pt",
+        "small": "yolo11s-pose.pt",
+        "medium": "yolo11m-pose.pt",
+        "large": "yolo11l-pose.pt",
+        "extra_large": "yolo11x-pose.pt",
+        "high_res": "yolo11x-pose-p6.pt",
     } # TODO: rename to tracker_dictionary to avoid pydantic 2 conflict?
     landmark_names = [
         "nose",
