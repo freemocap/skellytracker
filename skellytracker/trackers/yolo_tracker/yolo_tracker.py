@@ -31,26 +31,30 @@ class YOLOPoseTracker(BaseTracker):
         return results[-1].plot()
 
     def unpack_results(self, results: list):
-        tracked_person = np.asarray(results[-1].keypoints.xy)
-        self.tracked_objects["tracked_person"] = TrackedObject(
-            object_id="tracked_person"
-        )
+        self.tracked_objects["tracked_person"] = TrackedObject(object_id="tracked_person")
+
+        keypoints = getattr(results[-1], "keypoints", None)
+
+        if keypoints is None or keypoints.data is None:
+            self.tracked_objects["tracked_person"].pixel_x = None
+            self.tracked_objects["tracked_person"].pixel_y = None
+            self.tracked_objects["tracked_person"].extra["landmarks"] = np.full(
+                (1, YOLOModelInfo.num_tracked_points, 2), np.nan
+            )
+            return
+
+        tracked_person = keypoints.data[0].cpu().numpy()  # shape: (num_keypoints, 2)
+
         if tracked_person.size != 0:
-            # add averages of all tracked points as pixel x and y
-            self.tracked_objects["tracked_person"].pixel_x = float(
-                np.mean(tracked_person[:, 0])
-            )
-            self.tracked_objects["tracked_person"].pixel_y = float(
-                np.mean(tracked_person[:, 1])
-            )
-            self.tracked_objects["tracked_person"].extra["landmarks"] = tracked_person
+            self.tracked_objects["tracked_person"].pixel_x = float(np.mean(tracked_person[:, 0]))
+            self.tracked_objects["tracked_person"].pixel_y = float(np.mean(tracked_person[:, 1]))
+            self.tracked_objects["tracked_person"].extra["landmarks"] = tracked_person[np.newaxis, ...]
         else:
             self.tracked_objects["tracked_person"].pixel_x = None
             self.tracked_objects["tracked_person"].pixel_y = None
             self.tracked_objects["tracked_person"].extra["landmarks"] = np.full(
                 (1, YOLOModelInfo.num_tracked_points, 2), np.nan
             )
-
 
 if __name__ == "__main__":
     YOLOPoseTracker().demo()

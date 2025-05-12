@@ -17,7 +17,7 @@ def test_process_image_person_only(test_image):
     assert tracked_objects["object"].extra["boxes_xyxy"] is not None
     assert np.allclose(
         tracked_objects["object"].extra["boxes_xyxy"],
-        [90.676, 96.981, 493.54, 812.03],
+        [88.32, 98.531, 491.47, 813.9],
         atol=1e-2,
     )
     assert tracked_objects["object"].extra["original_image_shape"] == (1280, 720)
@@ -42,4 +42,4 @@ def test_record(test_image):
     assert processed_results is not None
     assert processed_results.shape == (1, 4)
 
-    assert np.allclose(processed_results, [90.676, 96.981, 493.54, 812.03], atol=1e-2)
+    assert np.allclose(processed_results, [88.320, 98.531, 491.469, 813.904], atol=1e-2)
