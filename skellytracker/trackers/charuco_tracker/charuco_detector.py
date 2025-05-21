@@ -1,3 +1,4 @@
+import json
 from typing import List
 
 import cv2
@@ -7,14 +8,16 @@ from pydantic import ConfigDict
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
+DEFAULT_ARUCO_DICTIONARY_NAME: str = "cv2.aruco.DICT_4X4_250"
 DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_250
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
     squares_x: int = 5
     squares_y: int = 3
+    aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
     aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
-    square_length: float = 1
+    unscaled_square_length: float = 1
     marker_length: float = 0.8
 
     @property
@@ -36,10 +39,11 @@ class CharucoDetector(BaseDetector):
     def create(cls, config: CharucoDetectorConfig):
         board = cv2.aruco.CharucoBoard(
             size=(config.squares_x, config.squares_y),
-            squareLength=config.square_length,
+            squareLength=config.unscaled_square_length,
             markerLength=config.marker_length,
             dictionary=config.aruco_dictionary,
         )
+
         detector = cv2.aruco.CharucoDetector(board)
         return cls(
             config=config,
@@ -80,3 +84,78 @@ class CharucoDetector(BaseDetector):
             all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
             all_aruco_corners_in_object_coordinates=self.board.getObjPoints()
         )
+
+    def save_board_image(self,
+                     filename: str,
+                     image_size: tuple[int, int] = (11000,8500),
+                        margin_size: int = 10,
+                     border_bits: int = 1) -> None:
+        board_image = self.board.generateImage(
+            outSize=image_size,
+            marginSize=margin_size,
+            borderBits=border_bits
+        )
+
+        annotated_board_image = cv2.putText(
+            board_image,
+            "Measure Charuco Square Size as the length of one size of the black squares in millimeters",
+            (200, 400),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            5,
+            (0, 0, 0),
+            20,
+            cv2.LINE_AA
+        )
+        annotated_board_image = cv2.putText(
+            annotated_board_image,
+            "Input this value into FreeMoCap to ensure correct unit scaling",
+            (200, 700),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            5,
+            (0, 0, 0),
+            20,
+            cv2.LINE_AA
+        )
+
+
+        annotated_board_image = cv2.putText(
+            annotated_board_image,
+            f"Created with command:",
+            (200, annotated_board_image.shape[0] - 600),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            4,
+            (0, 0, 0),
+            20,
+            cv2.LINE_AA
+        )
+        annotated_board_image = cv2.putText(
+            annotated_board_image,
+            f"`cv2.aruco.CharucoBoard(squares_x={self.config.squares_x},  squares_y={self.config.squares_y}, squareLength={self.config.unscaled_square_length}, markerLength={self.config.marker_length}, dictionary={self.config.aruco_dictionary_name})`",
+            (200, annotated_board_image.shape[0] -400),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            4,
+            (0, 0, 0),
+            20,
+            cv2.LINE_AA
+        )
+        annotated_board_image = cv2.putText(
+            annotated_board_image,
+            f"using `cv2.__version__: {cv2.__version__}`",
+            (200, annotated_board_image.shape[0] - 200),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            4,
+            (0, 0, 0),
+            20,
+            cv2.LINE_AA
+        )
+        cv2.imwrite(filename, annotated_board_image)
+
+
+if __name__ == "__main__":
+    # Example usage
+    detector_config = CharucoDetectorConfig()
+    detector = CharucoDetector.create(config=detector_config)
+    print(detector.aruco_marker_ids)
+    print(detector.board_object_points)
+
+    detector.save_board_image("charuco_board.png")
