@@ -37,6 +37,12 @@ try:
 except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
+try:
+    from skellytracker.trackers.rtmpose_tracker.rtmpose_tracker import RTMPoseTracker
+    from skellytracker.trackers.base_tracker.base_tracking_params import BaseTrackingParams
+except ModuleNotFoundError:
+    print("To use rtmpose_tracker, install rtmposelib and onnxruntime") 
+
 from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
 from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoTrackingParams
 
@@ -206,14 +212,14 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
         )
 
     elif tracker_name == 'CharucoTracker':
-
-
         tracker = CharucoTracker(
             squares_x=tracking_params.charuco_squares_x_in,
             squares_y=tracking_params.charuco_squares_y_in,
             dict_id= tracking_params.charuco_dict_id,
         )
 
+    elif tracker_name == "RTMPoseTracker":
+        tracker = RTMPoseTracker()
 
     else:
         raise ValueError("Invalid tracker type")
@@ -236,6 +242,8 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         raise ValueError(
             "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
         )
+    elif tracker_name == "RTMPoseTracker":
+        return BaseTrackingParams()
     else:
         raise ValueError("Invalid tracker type")
 
@@ -244,13 +252,14 @@ if __name__ == "__main__":
     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
     from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoModelInfo
+    from skellytracker.trackers.rtmpose_tracker.rtmpose_model_info import RTMPoseModelInfo
 
     synchronized_video_path = Path(
-        "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
+        r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data"
     )
     
     tracker_name = "MediapipeHolisticTracker"
-    num_processes = 3
+    num_processes = 1
 
 
     if tracker_name == "MediapipeHolisticTracker":
@@ -262,6 +271,8 @@ if __name__ == "__main__":
         model_info=YOLOModelInfo()
     elif tracker_name == "CharucoTracker":
         model_info=CharucoModelInfo()
+    elif tracker_name == "RTMPoseTracker":
+        model_info=RTMPoseModelInfo()
 
     process_folder_of_videos(
         model_info=model_info,
