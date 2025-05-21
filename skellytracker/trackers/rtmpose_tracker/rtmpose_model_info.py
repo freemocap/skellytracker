@@ -3,7 +3,7 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 #https://github.com/open-mmlab/mmpose/blob/dev-1.x/configs/_base_/datasets/coco_wholebody.py for marker order
 class RTMPoseModelInfo(ModelInfo):
     name = "rtmpose"
-    tracker_name = "RTMWholeBodyTracker"
+    tracker_name = "RTMPoseTracker"
 
     body_landmark_names = [
         "nose",

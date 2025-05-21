@@ -43,6 +43,7 @@ try:
 except ModuleNotFoundError:
     print("To use rtmpose_tracker, install rtmposelib and onnxruntime") 
 
+
 from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
 from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoTrackingParams
 
@@ -255,10 +256,10 @@ if __name__ == "__main__":
     from skellytracker.trackers.rtmpose_tracker.rtmpose_model_info import RTMPoseModelInfo
 
     synchronized_video_path = Path(
-        r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data"
+        r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data\synchronized_videos"
     )
     
-    tracker_name = "MediapipeHolisticTracker"
+    tracker_name = "RTMPoseTracker"
     num_processes = 1
 
 
