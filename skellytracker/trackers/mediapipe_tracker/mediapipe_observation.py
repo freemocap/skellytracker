@@ -1,22 +1,13 @@
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict
-from typing import NamedTuple
-
-import numpy as np
-from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, LandmarkList # linter sees an error here, but it runs fine
-from mediapipe.python.solutions import holistic as mp_holistic
-from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
-
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
-from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
-    MEDIAPIPE_FACE_CONTOURS_NAMES
 from typing import NamedTuple
 
 import numpy as np
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, \
     LandmarkList  # linter sees an error here, but it runs fine
+from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, \
+    LandmarkList  # linter sees an error here, but it runs fine
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
+from numpydantic import NDArray, Shape
 from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
