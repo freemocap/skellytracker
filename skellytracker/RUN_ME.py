@@ -22,6 +22,10 @@ try:
     )
 except ModuleNotFoundError:
     print("To use yolo_tracker, install skellytracker[yolo]")
+try:
+    from skellytracker.trackers.rtmpose_tracker.rtmpose_tracker import RTMPoseTracker
+except ModuleNotFoundError:
+    print("To use rtmpose_tracker, install skellytracker[rtm] or skellytracker[rtm_gpu] if using CUDA")
 
 
 def main(demo_tracker: str = "mediapipe_holistic_tracker"):
@@ -57,7 +61,11 @@ def main(demo_tracker: str = "mediapipe_holistic_tracker"):
         SAMTracker().demo()
     elif demo_tracker == "yolo_object_tracker":
         YOLOObjectTracker(model_size="medium").demo()
+    elif demo_tracker == "rtmpose_tracker":
+        RTMPoseTracker().demo()
+    else:
+        raise ValueError("Invalid tracker type")
 
 
 if __name__ == "__main__":
-    main(demo_tracker="mediapipe_holistic_tracker")
+    main(demo_tracker="rtmpose_tracker")
