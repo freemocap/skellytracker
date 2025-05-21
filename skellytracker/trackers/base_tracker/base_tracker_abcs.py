@@ -11,7 +11,6 @@ from pydantic import BaseModel, ConfigDict, Field
 from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
 from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
 
-
 logger = logging.getLogger(__name__)
 
 TrackedPointId = str

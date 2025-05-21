@@ -2,9 +2,8 @@ from copy import deepcopy
 from typing import Dict
 
 import numpy as np
-from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
-
 from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
+from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 
 class YOLOObjectRecorder(BaseRecorder):

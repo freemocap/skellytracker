@@ -4,9 +4,9 @@ from pathlib import Path
 from typing import Dict, Union
 
 import numpy as np
+from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder
 from tqdm import tqdm
 
-from skellytracker.trackers.base_tracker.base_recorder import BaseCumulativeRecorder
 from skellytracker.trackers.openpose_tracker.openpose_model_info import (
     OpenPoseModelInfo,
 )

@@ -6,15 +6,15 @@ import mediapipe as mp
 import numpy as np
 import torch
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
-from ultralytics import YOLO
-
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_recorder import (
     MediapipeHolisticRecorder,
 )
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
 )
+from ultralytics import YOLO
+
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 from skellytracker.trackers.yolo_object_tracker.yolo_object_model_info import (
     yolo_object_model_dictionary,
 )
