@@ -3,7 +3,7 @@ from enum import Enum
 import mediapipe as mp
 import numpy as np
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation, MediapipeResults
 
 

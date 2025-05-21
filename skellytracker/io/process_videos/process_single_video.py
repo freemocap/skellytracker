@@ -10,7 +10,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import Mediapi
 from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
 
 if TYPE_CHECKING:
-    from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+    from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
 logger = logging.getLogger(__name__)
 

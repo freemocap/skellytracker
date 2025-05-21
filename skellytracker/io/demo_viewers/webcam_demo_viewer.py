@@ -7,7 +7,7 @@ from typing import Optional, TYPE_CHECKING
 import cv2
 
 if TYPE_CHECKING:
-    from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+    from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
 logger = logging.getLogger(__name__)
 
@@ -190,7 +190,6 @@ class WebcamDemoViewer:
             elif key == KEY_SHOW_OVERLAY:
                 show_overlay = not show_overlay
                 if hasattr(self.tracker.config.annotator_config, "show_overlay"):
-                    # TODO: may want a more standard overlay API to make this easier
                     self.tracker.config.annotator_config.show_overlay = show_overlay
             elif key == KEY_SHOW_INFO: 
                 show_info = not show_info
@@ -218,10 +217,11 @@ class WebcamDemoViewer:
             mean_tracker_duration = sum(tracker_durations) / len(tracker_durations)
             mean_annotation_duration = sum(annotation_durations) / len(annotation_durations)
             overlay_string = ""
-            exposure_string = f"Exposure: {exposure if not auto_exposure else 'auto'}"
-            exposure_string += f"({(2 ** exposure) * 1000:.2f}ms)\n" if not auto_exposure else "\n"
+            exposure_string = f"Exposure: {exposure if not auto_exposure else 'AUTO'}"
+            exposure_string += f"({(2 ** exposure) * 1000:.2f}ms)" if not auto_exposure else "\n"
+            exposure_string += f"(~ {(2 ** exposure) * 1000:.2f}ms)\n\n" if not auto_exposure else "\n\n"
             info_string = exposure_string
-            info_string += f"Mean Luminance: {mean_luminance / 255:.2f}\n\n"
+            info_string += f"Mean Luminance: {mean_luminance / 255:.2f}\n"
             info_string += f"Mean FPS: {mean_frames_per_second:.2f}\n"
             info_string += f"Mean Frame Duration: {mean_frame_duration * 1000:.2f} ms\n"
             info_string += f"Mean Tracker Processing Duration: {mean_tracker_duration * 1000:.2f} ms\n"

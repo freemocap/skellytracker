@@ -1,6 +1,6 @@
 from mmpose.apis import inference_top_down_pose_model, init_pose_model
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
 
 # correct/fill this out based on these docs: https://github.com/open-mmlab/mmpose/blob/main/docs/en/user_guides/inference.md

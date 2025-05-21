@@ -7,7 +7,7 @@ import numpy as np
 from pydantic import BaseModel
 
 from skellytracker.system.constants import BASE_2D_FILE_NAME
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 from skellytracker.trackers.base_tracker.model_info import ModelInfo
 from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,

@@ -1,7 +1,7 @@
 import numpy as np
 from ultralytics import SAM
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
 
 class SAMTracker(BaseTracker):

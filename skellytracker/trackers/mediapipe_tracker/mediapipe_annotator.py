@@ -5,7 +5,7 @@ from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh_connections import FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS
 from numpydantic import NDArray, Shape
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
 
 

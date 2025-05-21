@@ -1,7 +1,7 @@
 import cv2
 import numpy as np
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseImageAnnotatorConfig, BaseImageAnnotator
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
 

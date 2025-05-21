@@ -1,6 +1,6 @@
 import cv2
 import numpy as np
-from skellytracker.trackers.base_tracker.base_tracker import BaseDetector, BaseDetectorConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig
 from skellytracker.trackers.bright_point_tracker.brightest_point_observation import BrightPatch, BrightestPointObservation
 
 

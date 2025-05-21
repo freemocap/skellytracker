@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Optional
 import cv2
 
 if TYPE_CHECKING:
-    from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+    from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
 
 # Constants for key actions

@@ -6,7 +6,7 @@ import logging
 import numpy as np
 from pydantic import Field
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker, BaseTrackerConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig, CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig, CharucoDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation

@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from pydantic import ConfigDict
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseDetectorConfig, BaseDetector
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
 DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_250

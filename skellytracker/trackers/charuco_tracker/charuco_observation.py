@@ -2,7 +2,7 @@ from typing import Sequence
 import numpy as np
 from numpydantic import NDArray, Shape
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 
 AllCharucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], np.float32]
 AllArucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* aruco_ids, 4 corners, 3 xyz"], np.float32]

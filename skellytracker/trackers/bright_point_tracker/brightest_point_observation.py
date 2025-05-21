@@ -1,7 +1,7 @@
 import numpy as np
 from numpydantic import NDArray, Shape
 from pydantic import BaseModel
-from skellytracker.trackers.base_tracker.base_tracker import BaseObservation
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 
 
 class BrightPatch(BaseModel):

@@ -5,7 +5,7 @@ import mediapipe as mp
 import numpy as np
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_recorder import (
     MediapipeHolisticRecorder,
 )
