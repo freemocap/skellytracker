@@ -34,7 +34,7 @@ class RTMPoseTracker(BaseTracker):
 
                 if device == "cuda":
                         onnx_path = Path(self.wholebody_model.pose_model.onnx_model)
-                        providers = ["CUDAExecutionProvider"] if device == device else ["CPUExecutionProvider"]
+                        providers = ["CUDAExecutionProvider"]
                         self.pose_session = onnxruntime.InferenceSession(str(onnx_path), providers=providers)
                 f = 2
 
