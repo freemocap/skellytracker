@@ -32,28 +32,27 @@ class RTMPoseTracker(BaseTracker):
                 device = device
                 )
 
-                if device == "cuda":
-                        onnx_path = Path(self.wholebody_model.pose_model.onnx_model)
-                        providers = ["CUDAExecutionProvider"]
-                        self.pose_session = onnxruntime.InferenceSession(str(onnx_path), providers=providers)
-                f = 2
-
-        def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
-                slices = {"body_slice": slice(0, 23),
+                self.slices = {"body_slice": slice(0, 23),
                         "face_slice": slice(23, 91),
                         "left_hand_slice": slice(91, 112),
                         "right_hand_slice": slice(112, 133)}
 
-                keypoints, scores = self.wholebody_model(image)
-                if keypoints.ndim == 3: #if multiple people are detected
-                        results = np.array(keypoints[0])     # pick the primary person
+                # if device == "cuda":
+                #         onnx_path = Path(self.wholebody_model.pose_model.onnx_model)
+                #         providers = ["CUDAExecutionProvider"]
+                #         self.pose_session = onnxruntime.InferenceSession(str(onnx_path), providers=providers)
+                # f = 2
 
-                else:
-                        results = keypoints
-                self.tracked_objects["pose_landmarks"].extra["landmarks"] = results[slices["body_slice"]]
-                self.tracked_objects["face_landmarks"].extra["landmarks"] = results[slices["face_slice"]]
-                self.tracked_objects["left_hand_landmarks"].extra["landmarks"] = results[slices["left_hand_slice"]]
-                self.tracked_objects["right_hand_landmarks"].extra["landmarks"] = results[slices["right_hand_slice"]]
+        def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+                keypoints, scores = self.wholebody_model(image)
+
+                # pick the primary person if multiple people are detected
+                results = np.array(keypoints[0]) if keypoints.ndim == 3 else keypoints 
+
+                self.tracked_objects["pose_landmarks"].extra["landmarks"] = results[self.slices["body_slice"]]
+                self.tracked_objects["face_landmarks"].extra["landmarks"] = results[self.slices["face_slice"]]
+                self.tracked_objects["left_hand_landmarks"].extra["landmarks"] = results[self.slices["left_hand_slice"]]
+                self.tracked_objects["right_hand_landmarks"].extra["landmarks"] = results[self.slices["right_hand_slice"]]
 
                 self.annotated_image = self.annotate_image(
                                         image=image,
