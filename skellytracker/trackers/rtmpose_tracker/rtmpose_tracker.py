@@ -12,6 +12,8 @@ slices = {"body_slice": slice(0, 23),
             "left_hand_slice": slice(91, 112),
             "right_hand_slice": slice(112, 133)}
 
+from pathlib import Path
+import onnxruntime
 
 class RTMPoseTracker(BaseTracker):
         def __init__(
@@ -22,11 +24,18 @@ class RTMPoseTracker(BaseTracker):
                 recorder = RTMPoseRecorder(),
                 )
 
+                device = "cuda"
                 self.wholebody_model = Wholebody(
                 to_openpose = False,
                 backend ='onnxruntime',
-                device = 'cuda'
+                device = device
                 )
+
+
+                onnx_path = Path(self.wholebody_model.pose_model.onnx_model)
+                providers = ["CUDAExecutionProvider"] if device == device else ["CPUExecutionProvider"]
+                self.pose_session = onnxruntime.InferenceSession(str(onnx_path), providers=providers)
+                f = 2
         
         def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
                 results, scores = self.wholebody_model(image)
