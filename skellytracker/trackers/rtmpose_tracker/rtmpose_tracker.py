@@ -4,12 +4,16 @@ from skellytracker.trackers.rtmpose_tracker.rtmpose_recorder import RTMPoseRecor
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from rtmlib import Wholebody, draw_skeleton
 import numpy as np
+import platform
 from typing import Dict
+import logging
 
 
 
 from pathlib import Path
 import onnxruntime
+
+logger = logging.getLogger(__name__)
 
 class RTMPoseTracker(BaseTracker):
         def __init__(
@@ -20,19 +24,20 @@ class RTMPoseTracker(BaseTracker):
                 recorder = RTMPoseRecorder(),
                 )
 
-                device = "cuda"
+                device = self._get_device()
+                
                 self.wholebody_model = Wholebody(
                 to_openpose = False,
                 backend ='onnxruntime',
                 device = device
                 )
 
-
-                onnx_path = Path(self.wholebody_model.pose_model.onnx_model)
-                providers = ["CUDAExecutionProvider"] if device == device else ["CPUExecutionProvider"]
-                self.pose_session = onnxruntime.InferenceSession(str(onnx_path), providers=providers)
+                if device == "cuda":
+                        onnx_path = Path(self.wholebody_model.pose_model.onnx_model)
+                        providers = ["CUDAExecutionProvider"] if device == device else ["CPUExecutionProvider"]
+                        self.pose_session = onnxruntime.InferenceSession(str(onnx_path), providers=providers)
                 f = 2
-        
+
         def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
                 slices = {"body_slice": slice(0, 23),
                         "face_slice": slice(23, 91),
@@ -62,6 +67,18 @@ class RTMPoseTracker(BaseTracker):
                                         openpose_skeleton=False,
                                         kpt_thr=0.5)
                 return image_annotated
+        
+        def _get_device(self):
+            if platform.system() == "Darwin":
+                    device = "mps"
+                    logger.debug("MacOS detected, attempting to use MPS")
+            elif onnxruntime.get_device() == "GPU":
+                    device = "cuda"
+                    logger.debug("onnxruntime-gpu installed, attempting to use CUDA")
+            else:
+                    device = "cpu"
+                    logger.debug("onnxruntime (non gpu version) installed, using CPU")
+            return device
 
 if __name__ == "__main__":
     RTMPoseTracker().demo()
