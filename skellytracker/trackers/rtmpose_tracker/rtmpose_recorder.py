@@ -22,12 +22,32 @@ class RTMPoseRecorder(BaseRecorder):
         )
 
         for i, recorded_object_list in enumerate(self.recorded_objects):
-            tracked_obj = recorded_object_list[0]  # we assume one person per frame
-            keypoints = tracked_obj.extra.get("landmarks", None)  # shape: (133, 2)
-            scores = tracked_obj.extra.get("scores", None)        # shape: (133,)
 
-            if keypoints is not None:
-                self.recorded_objects_array[i, :, 0:2] = keypoints  # X, Y
-                self.recorded_objects_array[i, :, 2] = scores       # Z holds score for now
+            # one big (133, 2) buffer for this frame
+            frame_xy   = np.full((RTMPoseModelInfo.num_tracked_points, 2), np.nan)
+            frame_conf = np.full((RTMPoseModelInfo.num_tracked_points,),   np.nan)
 
-        return self.recorded_objects_array
+            for obj in recorded_object_list:
+                if obj.extra.get("landmarks") is None:
+                    continue
+
+                # choose the slice for this object_id
+                if   obj.object_id == "pose_landmarks":        sl = slice(0, 23)
+                elif obj.object_id == "face_landmarks":        sl = slice(23, 91)
+                elif obj.object_id == "left_hand_landmarks":   sl = slice(91, 112)
+                elif obj.object_id == "right_hand_landmarks":  sl = slice(112,133)
+                else:
+                    continue  # unexpected id → skip
+
+                kps    = np.asarray(obj.extra["landmarks"])        # (n,2)
+                scores = np.asarray(obj.extra.get("scores", []))   # (n,)
+
+                # pad / truncate to the exact slice length
+                n = min(kps.shape[0], sl.stop - sl.start)
+                frame_xy[sl.start : sl.start+n, :] = kps[:n]
+                if scores.size:
+                    frame_conf[sl.start : sl.start+n] = scores[:n]
+
+            # write into the master array
+            self.recorded_objects_array[i, :, 0:2] = frame_xy
+            self.recorded_objects_array[i, :, 2]   = frame_conf

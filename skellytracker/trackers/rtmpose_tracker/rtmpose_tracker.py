@@ -7,10 +7,6 @@ import numpy as np
 from typing import Dict
 
 
-slices = {"body_slice": slice(0, 23),
-            "face_slice": slice(23, 91),
-            "left_hand_slice": slice(91, 112),
-            "right_hand_slice": slice(112, 133)}
 
 from pathlib import Path
 import onnxruntime
@@ -38,8 +34,17 @@ class RTMPoseTracker(BaseTracker):
                 f = 2
         
         def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
-                results, scores = self.wholebody_model(image)
+                slices = {"body_slice": slice(0, 23),
+                        "face_slice": slice(23, 91),
+                        "left_hand_slice": slice(91, 112),
+                        "right_hand_slice": slice(112, 133)}
 
+                keypoints, scores = self.wholebody_model(image)
+                if keypoints.ndim == 3: #if multiple people are detected
+                        results = np.array(keypoints[0])     # pick the primary person
+
+                else:
+                        results = keypoints
                 self.tracked_objects["pose_landmarks"].extra["landmarks"] = results[slices["body_slice"]]
                 self.tracked_objects["face_landmarks"].extra["landmarks"] = results[slices["face_slice"]]
                 self.tracked_objects["left_hand_landmarks"].extra["landmarks"] = results[slices["left_hand_slice"]]
@@ -47,7 +52,7 @@ class RTMPoseTracker(BaseTracker):
 
                 self.annotated_image = self.annotate_image(
                                         image=image,
-                                        keypoints=results,
+                                        keypoints=keypoints,
                                         scores=scores)
                 
         def annotate_image(self, image: np.ndarray, keypoints, scores) -> np.ndarray:
