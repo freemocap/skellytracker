@@ -3,12 +3,12 @@ from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from skellytracker.trackers.rtmpose_tracker.rtmpose_model_info import RTMPoseModelInfo
 from typing import Dict
 import numpy as np
-
+from copy import deepcopy
 class RTMPoseRecorder(BaseRecorder):
     def record(self, tracked_objects: Dict[str, TrackedObject]) -> None:
         self.recorded_objects.append(
             [
-                tracked_objects[tracked_object_name]
+                deepcopy(tracked_objects[tracked_object_name])
                 for tracked_object_name in tracked_objects.keys()
             ]
         )
@@ -51,3 +51,5 @@ class RTMPoseRecorder(BaseRecorder):
             # write into the master array
             self.recorded_objects_array[i, :, 0:2] = frame_xy
             self.recorded_objects_array[i, :, 2]   = frame_conf
+            
+        return self.recorded_objects_array
