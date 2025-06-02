@@ -73,6 +73,35 @@ def process_folder_of_videos(
     :return: Array of tracking data
     """
     video_paths = get_video_paths(synchronized_video_path)
+    process_list_of_videos(
+        model_info=model_info,
+        tracking_params=tracking_params,
+        video_paths=video_paths,
+        output_folder_path=output_folder_path,
+        annotated_video_path=annotated_video_path,
+        num_processes=num_processes,
+    )
+
+def process_list_of_videos(
+    model_info: ModelInfo,
+    tracking_params: BaseModel,
+    video_paths: list[Path],
+    output_folder_path: Optional[Path] = None,
+    annotated_video_path: Optional[Path] = None,
+    num_processes: Optional[int] = None,
+) -> np.ndarray:
+    """
+    Process a folder of synchronized videos with the given tracker.
+    Tracked data will be saved to a .npy file with the shape (numCams, numFrames, numTrackedPoints, pixelXYZ).
+
+    :param model_info: Model info for tracker.
+    :param tracking_params: Tracking parameters to use.
+    :param video_paths: List of videos to process.
+    :param output_folder_path: Path to save tracked data to.
+    :param annotated_video_path: Path to save annotated videos to.
+    :param num_processes: Number of processes to use, 1 to disable multiprocessing.
+    :return: Array of tracking data
+    """
 
     if num_processes is None:
         num_processes = min((cpu_count() - 1), len(video_paths))
