@@ -38,7 +38,9 @@ except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
 from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoTrackingParams
+from skellytracker.trackers.charuco_tracker.charuco_model_info import (
+    CharucoTrackingParams,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +75,7 @@ def process_folder_of_videos(
     :return: Array of tracking data
     """
     video_paths = get_video_paths(synchronized_video_path)
-    process_list_of_videos(
+    return process_list_of_videos(
         model_info=model_info,
         tracking_params=tracking_params,
         video_paths=video_paths,
@@ -81,6 +83,7 @@ def process_folder_of_videos(
         annotated_video_path=annotated_video_path,
         num_processes=num_processes,
     )
+
 
 def process_list_of_videos(
     model_info: ModelInfo,
@@ -120,16 +123,27 @@ def process_list_of_videos(
         output_folder_path.parent.mkdir(parents=True, exist_ok=True)
 
     if annotated_video_path is None:
-        if model_info.tracker_name == "MediapipeHolisticTracker" or model_info.tracker_name == "YOLOMediapipeComboTracker":
+        if (
+            model_info.tracker_name == "MediapipeHolisticTracker"
+            or model_info.tracker_name == "YOLOMediapipeComboTracker"
+        ):
             annotated_video_path = synchronized_video_path.parent / "annotated_videos"
         else:
-            annotated_video_path = synchronized_video_path.parent / f"{model_info.name}_annotated_videos"
-    
+            annotated_video_path = (
+                synchronized_video_path.parent / f"{model_info.name}_annotated_videos"
+            )
+
     if not annotated_video_path.exists():
         annotated_video_path.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        (model_info.tracker_name, model_info.name, tracking_params, video_path, annotated_video_path)
+        (
+            model_info.tracker_name,
+            model_info.name,
+            tracking_params,
+            video_path,
+            annotated_video_path,
+        )
         for video_path in video_paths
     ]
     if num_processes > 1:
@@ -234,15 +248,13 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             output_resolution=tracking_params.output_resolution,
         )
 
-    elif tracker_name == 'CharucoTracker':
-
+    elif tracker_name == "CharucoTracker":
 
         tracker = CharucoTracker(
             squares_x=tracking_params.charuco_squares_x_in,
             squares_y=tracking_params.charuco_squares_y_in,
-            dict_id= tracking_params.charuco_dict_id,
+            dict_id=tracking_params.charuco_dict_id,
         )
-
 
     else:
         raise ValueError("Invalid tracker type")
@@ -254,12 +266,14 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
     if tracker_name == "MediapipeHolisticTracker":
         return MediapipeTrackingParams()
     elif tracker_name == "YOLOMediapipeComboTracker":
-        return MediapipeTrackingParams()  # TODO: figure out how to reference both tracking params in a stable way
+        return (
+            MediapipeTrackingParams()
+        )  # TODO: figure out how to reference both tracking params in a stable way
     elif tracker_name == "YOLOPoseTracker":
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
-    elif tracker_name == 'CharucoTracker':
+    elif tracker_name == "CharucoTracker":
         return CharucoTrackingParams()
     elif tracker_name == "OpenPoseTracker":
         raise ValueError(
@@ -270,27 +284,30 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
 
 
 if __name__ == "__main__":
-    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+        MediapipeModelInfo,
+    )
     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
-    from skellytracker.trackers.charuco_tracker.charuco_model_info import CharucoModelInfo
+    from skellytracker.trackers.charuco_tracker.charuco_model_info import (
+        CharucoModelInfo,
+    )
 
     synchronized_video_path = Path(
         "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
-    
+
     tracker_name = "MediapipeHolisticTracker"
     num_processes = 3
 
-
     if tracker_name == "MediapipeHolisticTracker":
-        model_info=MediapipeModelInfo()
+        model_info = MediapipeModelInfo()
     elif tracker_name == "YOLOMediapipeComboTracker":
-        model_info=MediapipeModelInfo()
-        model_info.tracker_name = "YOLOMediapipeComboTracker" #this is not ideal in the least - just a patch so we don't need to make any freemocap changes
+        model_info = MediapipeModelInfo()
+        model_info.tracker_name = "YOLOMediapipeComboTracker"  # this is not ideal in the least - just a patch so we don't need to make any freemocap changes
     elif tracker_name == "YOLOPoseTracker":
-        model_info=YOLOModelInfo()
+        model_info = YOLOModelInfo()
     elif tracker_name == "CharucoTracker":
-        model_info=CharucoModelInfo()
+        model_info = CharucoModelInfo()
 
     process_folder_of_videos(
         model_info=model_info,
