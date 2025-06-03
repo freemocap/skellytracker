@@ -112,9 +112,10 @@ def process_list_of_videos(
         num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
     file_name = model_info.name + "_" + BASE_2D_FILE_NAME
+    synchronized_video_path = video_paths[0].parents[1]
     if output_folder_path is None:
         output_folder_path = (
-            video_paths[0].parent.parent / "output_data" / "raw_data" / file_name
+            synchronized_video_path / "output_data" / "raw_data" / file_name
         )
     else:
         output_folder_path = Path(output_folder_path) / file_name
@@ -153,6 +154,12 @@ def process_list_of_videos(
         array_list = []
         for task in tasks:
             array_list.append(process_single_video(*task))
+
+    if len(array_list) != len(video_paths):
+        raise ValueError(
+            f"Expected {len(video_paths)} outputs, but got {len(array_list)}. "
+            "This may indicate that some videos were not processed correctly."
+        )
 
     combined_array = np.stack(array_list)
 
