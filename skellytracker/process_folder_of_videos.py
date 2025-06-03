@@ -155,6 +155,12 @@ def process_list_of_videos(
         for task in tasks:
             array_list.append(process_single_video(*task))
 
+    if len(array_list) != len(video_paths):
+        raise ValueError(
+            f"Expected {len(video_paths)} outputs, but got {len(array_list)}. "
+            "This may indicate that some videos were not processed correctly."
+        )
+
     combined_array = np.stack(array_list)
 
     logger.info(f"Shape of output array: {combined_array.shape}")
