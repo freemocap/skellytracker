@@ -112,10 +112,10 @@ def process_list_of_videos(
         num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
     file_name = model_info.name + "_" + BASE_2D_FILE_NAME
-    synchronized_video_path = video_paths[0].parents[1]
+    synchronized_video_path = video_paths[0].parent
     if output_folder_path is None:
         output_folder_path = (
-            synchronized_video_path / "output_data" / "raw_data" / file_name
+            synchronized_video_path.parent / "output_data" / "raw_data" / file_name
         )
     else:
         output_folder_path = Path(output_folder_path) / file_name
