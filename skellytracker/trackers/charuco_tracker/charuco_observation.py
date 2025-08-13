@@ -1,6 +1,7 @@
-from typing import Sequence
+from typing import Any, Sequence
 
 import numpy as np
+from pydantic import BaseModel
 from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
@@ -19,12 +20,21 @@ DetectedArucoMarkerCorners = Sequence[NDArray[Shape[" 4 corners, 2 pxpy"], float
 CharucoBoardTranslationVector = NDArray[Shape["3 tx_ty_tz"], np.float32]
 CharucoBoardRotationVector = NDArray[Shape["3 rx_ry_rz"], np.float32]
 
+class AniposeCameraRow(BaseModel):
+    framenum: tuple[int, int]
+    corners: np.ndarray
+    ids: np.ndarray
+    filled: np.ndarray
+
 class CharucoObservation(BaseObservation):
     all_charuco_ids: list[int]
     all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates
 
     all_aruco_ids: list[int]
     all_aruco_corners_in_object_coordinates: AllArucoCorners3DByIdInObjectCoordinates
+
+    raw_charuco_corners: DetectedCharucoCornersImageCoordinates
+    raw_charuco_ids: DetectedCharucoCornerIds
 
     detected_charuco_corner_ids: DetectedCharucoCornerIds | None
     detected_charuco_corners_image_coordinates: DetectedCharucoCornersImageCoordinates | None
@@ -50,7 +60,8 @@ class CharucoObservation(BaseObservation):
                                   all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates,
                                   all_aruco_ids: list[int],
                                   all_aruco_corners_in_object_coordinates: AllArucoCorners3DByIdInObjectCoordinates,
-                                  image_size: tuple[int, int]):
+                                  image_size: tuple[int, int]
+                                  ):
 
 
         if detected_aruco_marker_ids is not None:
@@ -66,18 +77,20 @@ class CharucoObservation(BaseObservation):
         detected_charuco_corners_in_object_coordinates: DetectedCharucoCornersInObjectCoordinates | None = None
         if detected_charuco_corner_ids is not None:
             if detected_charuco_corner_ids.shape == (1, 1):
-                detected_charuco_corner_ids = detected_charuco_corner_ids[0]
-                detected_charuco_corners = detected_charuco_corners[0]
+                reshaped_detected_charuco_corner_ids = detected_charuco_corner_ids[0]
+                reshaped_detected_charuco_corners = detected_charuco_corners[0]
             else:
-                detected_charuco_corner_ids = np.squeeze(detected_charuco_corner_ids)
-                detected_charuco_corners = np.squeeze(detected_charuco_corners)
+                reshaped_detected_charuco_corner_ids = np.squeeze(detected_charuco_corner_ids)
+                reshaped_detected_charuco_corners = np.squeeze(detected_charuco_corners)
 
-            detected_charuco_corners_in_object_coordinates = all_charuco_corners_in_object_coordinates[detected_charuco_corner_ids, :]
+            detected_charuco_corners_in_object_coordinates = all_charuco_corners_in_object_coordinates[reshaped_detected_charuco_corner_ids, :]
 
         return cls(
             frame_number=frame_number,
-            detected_charuco_corner_ids=detected_charuco_corner_ids,
-            detected_charuco_corners_image_coordinates=detected_charuco_corners,
+            raw_charuco_corners=detected_charuco_corners,
+            raw_charuco_ids=detected_charuco_corner_ids,
+            detected_charuco_corner_ids=reshaped_detected_charuco_corner_ids,
+            detected_charuco_corners_image_coordinates=reshaped_detected_charuco_corners,
             detected_charuco_corners_in_object_coordinates=detected_charuco_corners_in_object_coordinates,
             detected_aruco_marker_ids=detected_aruco_marker_ids,
             detected_aruco_marker_corners=detected_aruco_marker_corners,
@@ -87,7 +100,7 @@ class CharucoObservation(BaseObservation):
             all_aruco_corners_in_object_coordinates=all_aruco_corners_in_object_coordinates,
             charuco_board_translation_vector=None,
             charuco_board_rotation_vector=None,
-            image_size=image_size
+            image_size=image_size,
         )
 
     @property
@@ -106,7 +119,7 @@ class CharucoObservation(BaseObservation):
         :return:
         """
         full_array = np.full((len(self.all_charuco_ids), 2), np.nan)
-        if self.charuco_empty:
+        if self.charuco_empty or self.detected_charuco_corner_ids is None or self.detected_charuco_corners_image_coordinates is None:
             return full_array
         for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
             full_array[corner_id] = self.detected_charuco_corners_image_coordinates[corner_index]
@@ -115,7 +128,7 @@ class CharucoObservation(BaseObservation):
     @property
     def charuco_corners_dict(self) -> dict[int, np.ndarray[2]]:
         corner_dict = {}
-        if self.charuco_empty:
+        if self.charuco_empty or self.detected_charuco_corner_ids is None or self.detected_charuco_corners_image_coordinates is None:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
             corner_dict[corner_id] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
@@ -124,7 +137,7 @@ class CharucoObservation(BaseObservation):
     @property
     def aruco_corners_dict(self) -> dict[int, np.ndarray[4, 2]]:
         corner_dict = {}
-        if self.aruco_empty:
+        if self.aruco_empty or self.detected_aruco_marker_ids is None or self.detected_aruco_marker_corners is None:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_aruco_marker_ids):
             corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
@@ -132,6 +145,20 @@ class CharucoObservation(BaseObservation):
     
     def to_array(self) -> DetectedCharucoCorners2DInFullArray:
         return self.detected_charuco_corners_in_full_array
+    
+    def to_anipose_camera_row(self) -> dict[str, Any] | None:
+        filled = np.full((len(self.all_charuco_ids), 1, 2), fill_value=np.nan)
+        if self.charuco_empty or self.raw_charuco_corners is None or self.raw_charuco_ids is None:
+            return None
+        for id, corner in zip(self.raw_charuco_ids.ravel(), self.raw_charuco_corners):
+            filled[id] = corner
+        camera_row = AniposeCameraRow(
+            framenum=(0, self.frame_number),
+            corners=self.raw_charuco_corners,
+            ids=self.raw_charuco_ids,
+            filled=filled,
+        )
+        return camera_row.model_dump()
 
 
 CharucoObservations = list[CharucoObservation]
