@@ -6,6 +6,7 @@ from typing import List
 
 import cv2
 import numpy as np
+from numpydantic import NDArray, Shape
 from pydantic import BaseModel, ConfigDict, Field
 
 from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
@@ -13,28 +14,44 @@ from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
 
 logger = logging.getLogger(__name__)
 
-TrackedPointId = str
+TrackedPointIdString = str
+TrackerTypeString = str
+
+TrackedPoint2d = NDArray[Shape["2 xyz"], float]
 
 
 class BaseObservation(BaseModel, ABC):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     frame_number: int  # the frame number of the image in which this observation was made
-      
+    tracker_type: TrackerTypeString = Field(description="Name of the tracker that made this observation.")
+
+
     @classmethod
     @abstractmethod
     def from_detection_results(cls, *args, **kwargs):
         pass
 
+
+    @abstractmethod
+    def to_tracked_points(cls, *args, **kwargs) -> dict[TrackedPointIdString, TrackedPoint2d]:
+        pass
+
+
     @abstractmethod
     def to_array(self) -> np.ndarray:
         pass
 
+
     def to_json_string(self) -> str:
         return json.dumps(self.model_dump_json(), indent=4)
+
 
     def to_json_bytes(self) -> bytes:
         return self.to_json_string().encode("utf-8")
 
+
 BaseObservations = list[BaseObservation]
+
 
 class BaseImageAnnotatorConfig(BaseModel, ABC):
     show_overlay: bool = False
@@ -48,6 +65,7 @@ class BaseImageAnnotator(BaseModel, ABC):
     @abstractmethod
     def create(cls, config: BaseImageAnnotatorConfig):
         pass
+
     @abstractmethod
     def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
         pass
@@ -59,7 +77,7 @@ class BaseImageAnnotator(BaseModel, ABC):
                           y: int,
                           font_scale: float,
                           color: tuple[int, int, int],
-                          thickness:int):
+                          thickness: int):
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
@@ -69,6 +87,7 @@ class BaseDetectorConfig(BaseModel, ABC):
     # number of processes? whether to record or annotate?
     # these might not be here specifically, but are they things we want as config parameters or method parameters?
     pass
+
 
 class BaseTrackerConfig(BaseModel, ABC):
     detector_config: BaseDetectorConfig
@@ -98,34 +117,33 @@ class BaseRecorder(BaseModel, ABC):
 
     # I'm imagining these can be used if you want the data but want to handle saving elsewhere
     @property
-    def as_array(self) -> np.ndarray:
+    def to_array(self) -> np.ndarray:
         return np.stack([observation.to_array() for observation in self.observations])
 
     @property
-    def as_json_string(self) -> str:
+    def to_json_string(self) -> str:
         output_dict = {frame_number: observation.model_dump_json() for frame_number, observation in
                        enumerate(self.observations)}
         return json.dumps(output_dict, indent=4)
 
     # and these are used if you want skellytracker to handle the saving
     def save_array(self, output_path: Path):
-        np.save(file=output_path,arr=self.as_array)
+        np.save(file=output_path, arr=self.to_array)
 
     def save_json_file(self, output_path: Path):
         with open(output_path, 'w') as json_file:
-            json_file.write(self.as_json_string)
+            json_file.write(self.to_json_string)
 
     def clear(self):
         self.observations = []
 
 
-
-class BaseObservationManager(BaseModel,ABC):
+class BaseObservationManager(BaseModel, ABC):
     observations: List[BaseObservation]
+
     @abstractmethod
     def create_observation(self, **kwargs) -> BaseObservation:
         pass
-
 
 
 class BaseTracker(BaseModel, ABC):
@@ -139,20 +157,18 @@ class BaseTracker(BaseModel, ABC):
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
     def process_image(self,
-                        frame_number: int,
-                        image: np.ndarray,
-                        record_observation: bool = True) -> BaseObservation:
-
+                      frame_number: int,
+                      image: np.ndarray,
+                      record_observation: bool = True) -> BaseObservation:
         latest_observation = self.detector.detect(image=image, frame_number=frame_number)
 
         if record_observation and self.recorder is not None:
             self.recorder.add_observation(observation=latest_observation)
 
         return latest_observation
-    
+
     def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
         return self.annotator.annotate_image(image=image, latest_observation=latest_observation)
-
 
     def demo(self) -> None:
         camera_viewer = WebcamDemoViewer(
@@ -161,17 +177,16 @@ class BaseTracker(BaseModel, ABC):
         )
         camera_viewer.run()
 
-    
     def image_demo(self, image_path: Path) -> None:
         """
         Run tracker on single image
     
         :return: None
         """
-    
+
         image_viewer = ImageDemoViewer(self, self.__class__.__name__)
         image_viewer.run(image_path=image_path)
-    
+
 #
 # class BaseCumulativeTracker(BaseTracker):
 #     """

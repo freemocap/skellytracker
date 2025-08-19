@@ -2,7 +2,7 @@ import numpy as np
 from numpydantic import NDArray, Shape
 from pydantic import BaseModel
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString
 
 
 class BrightPatch(BaseModel):
@@ -13,6 +13,7 @@ class BrightPatch(BaseModel):
 
 class BrightestPointObservation(BaseObservation):
     bright_patches: list[BrightPatch | None]
+    tracker_type:TrackerTypeString = 'bright_point_tracker'
 
     @classmethod
     def from_detection_results(cls, frame_number: int, bright_patches: list[BrightPatch | None]):

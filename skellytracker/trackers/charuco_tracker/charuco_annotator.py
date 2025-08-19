@@ -33,13 +33,12 @@ class CharucoImageAnnotator(BaseImageAnnotator):
     def annotate_image(
             self,
             image: np.ndarray,
-            latest_observation: CharucoObservation | None = None,
+            latest_observation: CharucoObservation,
     ) -> np.ndarray:
         image_height, image_width = image.shape[:2]
         text_offset = int(image_height * 0.01)
 
-        if latest_observation is None:
-            return image.copy()
+
         # Copy the original image for annotation
         annotated_image = image.copy()
 
@@ -60,7 +59,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
             marker_thickness = max(1, int(self.config.corner_marker_thickness * obs_count_scale))
             marker_size = max(1, int(self.config.corner_marker_size * obs_count_scale))
 
-            for corner_id, corner in observation.charuco_corners_dict.items():
+            for corner_id, corner in observation.to_tracked_points().items():
                 if corner is not None:
                     cv2.drawMarker(
                         annotated_image,

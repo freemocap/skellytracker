@@ -53,11 +53,7 @@ class WebcamDemoViewer:
             window_title = f"SkellyTracker - {tracker.__class__.__name__}"
         self.window_title = window_title
 
-    def set_tracker(self, tracker: 'BaseTracker'):
-        """
-        Set the tracker for the viewer.
-        """
-        self.tracker = tracker
+
     def _set_auto_exposure_mode(self, cap):
         cap.set(cv2.CAP_PROP_AUTO_EXPOSURE, ExposureModes.AUTO.value)
 
@@ -100,15 +96,10 @@ class WebcamDemoViewer:
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 4)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
-    def run(self, tracker: 'BaseTracker' = None):
+    def run(self):
         """
         Run the camera viewer.
         """
-
-        if tracker is not None:
-            self.set_tracker(tracker)
-        if self.tracker is None:
-            raise RuntimeError("Error: No tracker set! use `set_tracker(tracker)` to set a tracker.")
 
         port_number = 0
         frame_number = 0
@@ -163,9 +154,10 @@ class WebcamDemoViewer:
                 tracker_durations.append(tracker_tok - tracker_tik)
 
                 annotation_tik = time.perf_counter()
-                annotated_image = self.tracker.annotate_image(image, observation)
-                annotation_tok = time.perf_counter()
-                annotation_durations.append(annotation_tok - annotation_tik)
+                if observation is not None:
+                    annotated_image = self.tracker.annotate_image(image, observation)
+                    annotation_tok = time.perf_counter()
+                    annotation_durations.append(annotation_tok - annotation_tik)
 
                 # # Get the window size
                 # _, _, window_width, window_height = cv2.getWindowImageRect(self.window_title)
@@ -181,12 +173,12 @@ class WebcamDemoViewer:
                 if "charuco" not in self.tracker.__class__.__name__.lower():
                     logger.info("Switching to CharucoTracker")
                     from skellytracker.trackers.charuco_tracker import CharucoTracker
-                    self.set_tracker(CharucoTracker.create())
+                    self.tracker = CharucoTracker.create()
             elif key == KEY_USE_MEDIAPIPE_TRACKER:
                 if "mediapipe" not in self.tracker.__class__.__name__.lower():
                     logger.info("Switching to MediaPipeTracker")
                     from skellytracker.trackers.mediapipe_tracker import MediapipeTracker
-                    self.set_tracker(MediapipeTracker.create())
+                    self.tracker = MediapipeTracker.create()
             elif key == KEY_SHOW_OVERLAY:
                 show_overlay = not show_overlay
                 if hasattr(self.tracker.config.annotator_config, "show_overlay"):

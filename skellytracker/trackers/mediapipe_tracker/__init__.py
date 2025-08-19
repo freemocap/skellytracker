@@ -1,1 +1,2 @@
-from .__mediapipe_tracker import MediapipeTracker, MediapipeTrackerConfig, MediapipeObservation
+from .__mediapipe_tracker import MediapipeTracker, MediapipeTrackerConfig
+from .mediapipe_observation import MediapipeObservation

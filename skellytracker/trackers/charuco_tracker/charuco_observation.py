@@ -1,14 +1,16 @@
 from typing import Any, Sequence
 
 import numpy as np
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from numpydantic import NDArray, Shape
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2d, \
+    TrackedPointIdString
 
 AllCharucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], np.float32]
 AllArucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* aruco_ids, 4 corners, 3 xyz"], np.float32]
 DetectedCharucoCornerIds = NDArray[Shape["* charuco_id, ..."], int]
+RawCharucoCornersImageCoordinates = NDArray[Shape["* charuco_id,1 dim,  2 pxpy"], float]
 DetectedCharucoCornersImageCoordinates = NDArray[Shape["* charuco_id, 2 pxpy"], float]
 DetectedCharucoCornersInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], float]
 
@@ -21,20 +23,25 @@ CharucoBoardTranslationVector = NDArray[Shape["3 tx_ty_tz"], np.float32]
 CharucoBoardRotationVector = NDArray[Shape["3 rx_ry_rz"], np.float32]
 
 class AniposeCameraRow(BaseModel):
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,)
     framenum: tuple[int, int]
     corners: np.ndarray
     ids: np.ndarray
     filled: np.ndarray
 
+
+
+
 class CharucoObservation(BaseObservation):
+    tracker_type: TrackerTypeString = 'charuco_tracker'
     all_charuco_ids: list[int]
     all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates
 
     all_aruco_ids: list[int]
     all_aruco_corners_in_object_coordinates: AllArucoCorners3DByIdInObjectCoordinates
 
-    raw_charuco_corners: DetectedCharucoCornersImageCoordinates
-    raw_charuco_ids: DetectedCharucoCornerIds
+    raw_charuco_corners: RawCharucoCornersImageCoordinates | None
 
     detected_charuco_corner_ids: DetectedCharucoCornerIds | None
     detected_charuco_corners_image_coordinates: DetectedCharucoCornersImageCoordinates | None
@@ -75,6 +82,8 @@ class CharucoObservation(BaseObservation):
             detected_aruco_marker_corners = tuple([np.squeeze(corner) for corner in detected_aruco_marker_corners])
 
         detected_charuco_corners_in_object_coordinates: DetectedCharucoCornersInObjectCoordinates | None = None
+        reshaped_detected_charuco_corner_ids: DetectedCharucoCornerIds | None = None
+        reshaped_detected_charuco_corners: DetectedCharucoCornersImageCoordinates | None = None
         if detected_charuco_corner_ids is not None:
             if detected_charuco_corner_ids.shape == (1, 1):
                 reshaped_detected_charuco_corner_ids = detected_charuco_corner_ids[0]
@@ -88,7 +97,6 @@ class CharucoObservation(BaseObservation):
         return cls(
             frame_number=frame_number,
             raw_charuco_corners=detected_charuco_corners,
-            raw_charuco_ids=detected_charuco_corner_ids,
             detected_charuco_corner_ids=reshaped_detected_charuco_corner_ids,
             detected_charuco_corners_image_coordinates=reshaped_detected_charuco_corners,
             detected_charuco_corners_in_object_coordinates=detected_charuco_corners_in_object_coordinates,
@@ -145,7 +153,25 @@ class CharucoObservation(BaseObservation):
     
     def to_array(self) -> DetectedCharucoCorners2DInFullArray:
         return self.detected_charuco_corners_in_full_array
-    
+
+    def to_tracked_points(self) -> dict[TrackedPointIdString, TrackedPoint2d]:
+
+        """
+        Converts the detected charuco corners to a dictionary of tracked points.
+        The keys are the charuco ids and the values are the tracked points.
+        :return: dict[TrackedPointIdString, TrackedPoint2d]
+        """
+        if self.charuco_empty or self.detected_charuco_corner_ids is None or self.detected_charuco_corners_image_coordinates is None:
+            return {}
+        tracked_points_2d: dict[TrackedPointIdString, TrackedPoint2d] = {}
+        for charuco_corner_index in range(self.to_array().shape[0]):
+            point2d = self.to_array()[charuco_corner_index]
+            if np.isnan(point2d).any():
+                continue
+
+            tracked_points_2d[f"CharucoCorner-{charuco_corner_index}"] = point2d
+        return tracked_points_2d
+
     def to_anipose_camera_row(self) -> dict[str, Any] | None:
         filled = np.full((len(self.all_charuco_ids), 1, 2), fill_value=np.nan)
         if self.charuco_empty or self.raw_charuco_corners is None or self.raw_charuco_ids is None:

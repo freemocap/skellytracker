@@ -13,8 +13,8 @@ DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_250
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
-    squares_x: int = 5
-    squares_y: int = 3
+    squares_x: int = 7#5
+    squares_y: int = 5#3
     aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
     aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
     unscaled_square_length: float = 1
@@ -96,8 +96,9 @@ class CharucoDetector(BaseDetector):
             borderBits=border_bits
         )
 
+        annotated_board_image = board_image.copy()
         annotated_board_image = cv2.putText(
-            board_image,
+            annotated_board_image,
             "Measure Charuco Square Size as the length of one size of the black squares in millimeters",
             (200, 400),
             cv2.FONT_HERSHEY_SIMPLEX,
@@ -120,7 +121,7 @@ class CharucoDetector(BaseDetector):
 
         annotated_board_image = cv2.putText(
             annotated_board_image,
-            f"Created with command:",
+            f"Generated with command:",
             (200, annotated_board_image.shape[0] - 600),
             cv2.FONT_HERSHEY_SIMPLEX,
             4,
@@ -148,7 +149,8 @@ class CharucoDetector(BaseDetector):
             20,
             cv2.LINE_AA
         )
-        cv2.imwrite(filename, annotated_board_image)
+        cv2.imwrite(filename.replace(".png", "_annotated.png"), annotated_board_image)
+        cv2.imwrite(filename, board_image)
 
 
 if __name__ == "__main__":
