@@ -13,8 +13,8 @@ DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_250
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
-    squares_x: int = 7#5
-    squares_y: int = 5#3
+    squares_x: int = 5#7
+    squares_y: int = 3#5
     aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
     aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
     unscaled_square_length: float = 1

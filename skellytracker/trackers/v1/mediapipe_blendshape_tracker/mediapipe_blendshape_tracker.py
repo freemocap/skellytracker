@@ -12,10 +12,10 @@ from mediapipe.tasks.python import vision
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
-from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_model_info import (
+from skellytracker.trackers.v1.mediapipe_blendshape_tracker.mediapipe_blendshape_model_info import (
     MediapipeBlendshapeModelInfo,
 )
-from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_recorder import (
+from skellytracker.trackers.v1.mediapipe_blendshape_tracker.mediapipe_blendshape_recorder import (
     MediapipeBlendshapeRecorder,
 )
 

@@ -12,6 +12,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 # Constants for key actions
+KEY_USE_BRIGHTEST_POINT_TRACKER = ord("b")
 KEY_USE_CHARUCO_TRACKER = ord("c")
 KEY_USE_MEDIAPIPE_TRACKER = ord("m")
 
@@ -169,6 +170,12 @@ class WebcamDemoViewer:
                 break
             elif key == KEY_PAUSE_SPACE or key == KEY_PAUSE_P:
                 paused = not paused
+            elif key == KEY_USE_BRIGHTEST_POINT_TRACKER:
+                if "brightestpoint" not in self.tracker.__class__.__name__.lower():
+                    logger.info("Switching to BrightestPointTracker")
+                    from skellytracker.trackers.brightest_point_tracker import BrightestPointTracker
+                    self.tracker = BrightestPointTracker.create()
+
             elif key == KEY_USE_CHARUCO_TRACKER:
                 if "charuco" not in self.tracker.__class__.__name__.lower():
                     logger.info("Switching to CharucoTracker")
@@ -225,6 +232,7 @@ class WebcamDemoViewer:
                     "Controls:\n"
                     f"'SPACE'/'{chr(KEY_PAUSE_P)}': pause\n"
                     f"'Current Tracker: {self.tracker.__class__.__name__}\n"
+                    f"'{chr(KEY_USE_BRIGHTEST_POINT_TRACKER)})': Use BrightestPointTracker\n"
                     f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Use CharucoTracker\n"
                     f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': Use MediaPipeTracker\n"
                     f"'{chr(KEY_SHOW_INFO)}': {'show info' if not show_info else 'hide info'}\n"

@@ -5,8 +5,8 @@ from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from ultralytics import YOLO
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
-from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
-from skellytracker.trackers.yolo_tracker.yolo_recorder import YOLORecorder
+from skellytracker.trackers.v1.yolo_tracker.yolo_model_info import YOLOModelInfo
+from skellytracker.trackers.v1.yolo_tracker.yolo_recorder import YOLORecorder
 
 
 class YOLOPoseTracker(BaseTracker):

@@ -3,8 +3,8 @@ import math
 import numpy as np
 import pytest
 
-from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
-from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+from skellytracker.trackers.v1.yolo_tracker import YOLOModelInfo
+from skellytracker.trackers.v1.yolo_tracker import YOLOPoseTracker
 
 
 @pytest.mark.usefixtures("test_image")

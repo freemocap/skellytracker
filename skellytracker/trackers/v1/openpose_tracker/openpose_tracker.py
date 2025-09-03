@@ -3,7 +3,7 @@ from pathlib import Path
 from typing import Optional, Union
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseCumulativeTracker
-from skellytracker.trackers.openpose_tracker.openpose_recorder import OpenPoseRecorder
+from skellytracker.trackers.v1.openpose_tracker.openpose_recorder import OpenPoseRecorder
 
 
 class OpenPoseTracker(BaseCumulativeTracker):

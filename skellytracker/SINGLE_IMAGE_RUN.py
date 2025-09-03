@@ -2,7 +2,7 @@ from pathlib import Path
 
 import cv2
 
-from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
+from skellytracker.trackers.brightest_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
 from skellytracker.trackers.charuco_tracker.__charuco_tracker import CharucoTracker
@@ -14,7 +14,7 @@ try:
 except ModuleNotFoundError:
     print("\n\nTo use mediapipe_holistic_tracker, install skellytracker[mediapipe]\n\n")
 try:
-    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.v1.yolo_tracker import YOLOPoseTracker
 except ModuleNotFoundError:
     print("\n\nTo use yolo_tracker, install skellytracker[yolo]\n\n")
 

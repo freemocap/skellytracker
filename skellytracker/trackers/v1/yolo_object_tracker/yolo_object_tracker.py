@@ -5,10 +5,10 @@ from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 from ultralytics import YOLO
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
-from skellytracker.trackers.yolo_object_tracker.yolo_object_model_info import (
+from skellytracker.trackers.v1.yolo_object_tracker.yolo_object_model_info import (
     yolo_object_model_dictionary,
 )
-from skellytracker.trackers.yolo_object_tracker.yolo_object_recorder import (
+from skellytracker.trackers.v1.yolo_object_tracker.yolo_object_recorder import (
     YOLOObjectRecorder,
 )
 

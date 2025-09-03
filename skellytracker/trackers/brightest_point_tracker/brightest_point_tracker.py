@@ -7,7 +7,7 @@ from pydantic import BaseModel
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
-from skellytracker.trackers.bright_point_tracker.brightest_point_recorder import (
+from skellytracker.trackers.brightest_point_tracker.brightest_point_recorder import (
     BrightestPointRecorder,
 )
 

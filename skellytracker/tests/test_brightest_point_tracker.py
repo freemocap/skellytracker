@@ -4,12 +4,12 @@ import cv2
 import numpy as np
 import pytest
 
-from skellytracker.trackers.bright_point_tracker.__brightest_point_tracker import (
+from skellytracker.trackers.brightest_point_tracker.__brightest_point_tracker import (
     BrightestPointTracker,
     BrightestPointTrackerConfig,
 )
-from skellytracker.trackers.bright_point_tracker.brightest_point_detector import BrightestPointDetectorConfig
-from skellytracker.trackers.bright_point_tracker.brightest_point_observation import BrightestPointObservation
+from skellytracker.trackers.brightest_point_tracker.brightest_point_detector import BrightestPointDetectorConfig
+from skellytracker.trackers.brightest_point_tracker.brightest_point_observation import BrightestPointObservation
 
 
 @pytest.fixture()

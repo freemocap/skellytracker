@@ -9,13 +9,13 @@ from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 from skellytracker.system.constants import BASE_2D_FILE_NAME
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
-from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
+from skellytracker.trackers.brightest_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
 from skellytracker.utilities.get_video_paths import get_video_paths
 
 try:
-    from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+    from skellytracker.trackers.v1.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
         YOLOMediapipeComboTracker,
     )
 except ModuleNotFoundError:
@@ -23,8 +23,8 @@ except ModuleNotFoundError:
         "\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n"
     )
 try:
-    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
+    from skellytracker.trackers.v1.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.v1.yolo_tracker import YOLOTrackingParams
 except ModuleNotFoundError:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:
@@ -40,7 +40,7 @@ except ModuleNotFoundError:
 logger = logging.getLogger(__name__)
 
 try:
-    from skellytracker.trackers.openpose_tracker.openpose_tracker import (
+    from skellytracker.trackers.v1.openpose_tracker.openpose_tracker import (
         OpenPoseTracker,
     )
 except ModuleNotFoundError:

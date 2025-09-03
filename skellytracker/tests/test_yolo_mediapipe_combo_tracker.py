@@ -4,7 +4,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
     MediapipeModelInfo,
 )
 
-from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+from skellytracker.trackers.v1.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
     YOLOMediapipeComboTracker,
 )
 

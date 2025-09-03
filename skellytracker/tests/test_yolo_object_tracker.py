@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import (
+from skellytracker.trackers.v1.yolo_object_tracker import (
     YOLOObjectTracker,
 )
 

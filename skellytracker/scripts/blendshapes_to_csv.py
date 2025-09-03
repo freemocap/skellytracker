@@ -4,7 +4,7 @@ from typing import Generator
 
 import pandas as pd
 
-from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import (
+from skellytracker.trackers.v1.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import (
     MediapipeBlendshapeTracker,
 )
 

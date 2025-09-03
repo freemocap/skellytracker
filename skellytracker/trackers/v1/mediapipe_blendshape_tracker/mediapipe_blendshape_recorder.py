@@ -5,7 +5,7 @@ import numpy as np
 from skellytracker.trackers.base_tracker.base_recorder import BaseRecorder
 from skellytracker.trackers.base_tracker.tracked_object import TrackedObject
 
-from skellytracker.trackers.mediapipe_blendshape_tracker.mediapipe_blendshape_model_info import (
+from skellytracker.trackers.v1.mediapipe_blendshape_tracker.mediapipe_blendshape_model_info import (
     MediapipeBlendshapeModelInfo,
 )
 

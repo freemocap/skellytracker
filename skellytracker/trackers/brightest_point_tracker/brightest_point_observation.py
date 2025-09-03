@@ -2,7 +2,8 @@ import numpy as np
 from numpydantic import NDArray, Shape
 from pydantic import BaseModel
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, \
+    TrackedPointIdString, TrackedPoint2d
 
 
 class BrightPatch(BaseModel):
@@ -27,3 +28,12 @@ class BrightestPointObservation(BaseObservation):
             array[patch_index, 0] = patch.centroid_x
             array[patch_index, 1] = patch.centroid_y
         return array
+
+    def to_tracked_points(cls) -> dict[TrackedPointIdString, TrackedPoint2d]:
+        points = {}
+        for i, patch in enumerate(cls.bright_patches):
+            if patch is None:
+                continue
+            point_id = f"bright_patch_{i+1}"
+            points[point_id] = np.array([patch.centroid_x, patch.centroid_y])
+        return points

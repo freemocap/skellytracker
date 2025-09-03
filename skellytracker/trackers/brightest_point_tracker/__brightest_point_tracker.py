@@ -4,11 +4,11 @@ from typing import List
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
-from skellytracker.trackers.bright_point_tracker.brightest_point_annotator import BrightestPointAnnotatorConfig, \
+from skellytracker.trackers.brightest_point_tracker.brightest_point_annotator import BrightestPointAnnotatorConfig, \
     BrightestPointImageAnnotator
-from skellytracker.trackers.bright_point_tracker.brightest_point_detector import BrightestPointDetector, \
+from skellytracker.trackers.brightest_point_tracker.brightest_point_detector import BrightestPointDetector, \
     BrightestPointDetectorConfig
-from skellytracker.trackers.bright_point_tracker.brightest_point_observation import BrightestPointObservation
+from skellytracker.trackers.brightest_point_tracker.brightest_point_observation import BrightestPointObservation
 
 logger = logging.getLogger(__name__)
 
