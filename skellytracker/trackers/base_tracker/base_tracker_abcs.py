@@ -170,7 +170,7 @@ class BaseTracker(BaseModel, ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
     annotator: BaseImageAnnotator
-    recorder: BaseRecorder | None = None
+    recorder: BaseRecorder | None
 
     @classmethod
     def create(cls, config: BaseTrackerConfig):

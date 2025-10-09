@@ -1,11 +1,9 @@
 from __future__ import annotations
-from enum import Enum
-from multiprocessing import Pool
 from pathlib import Path
+import cv2
 import torch.multiprocessing as mp
 import albumentations as A
 import numpy as np
-import pickle
 import time
 
 from deeplabcut.compat import _update_device
@@ -16,19 +14,12 @@ from deeplabcut.pose_estimation_pytorch.apis.videos import (
 )
 import deeplabcut.pose_estimation_pytorch.apis.utils as utils
 from deeplabcut.pose_estimation_pytorch.apis.videos import (
-    _generate_assemblies_file,
-    _generate_output_data,
     _validate_destfolder,
-    create_df_from_prediction,
 )
 import deeplabcut.pose_estimation_pytorch.runners.shelving as shelving
 from deeplabcut.core.engine import Engine
-from deeplabcut.pose_estimation_pytorch.apis.tracklets import (
-    convert_detections2tracklets,
-)
 from deeplabcut.pose_estimation_pytorch.runners import DynamicCropper
 from deeplabcut.pose_estimation_pytorch.task import Task
-from deeplabcut.refine_training_dataset.stitch import stitch_tracklets
 from deeplabcut.utils import auxiliaryfunctions
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
@@ -75,14 +66,13 @@ class DeepLabCutDetector(BaseDetector):
             "This detector does not support processing individual images, please use detect_video instead."
         )
     
-    def detect_video(self, video_path: str) -> list[DeepLabCutObservation]:
-        pass
+    # TODO: get point names from dlc config
 
-    def analyze_single_video_dlc(
+    def detect_video(
         self,
         video_path: str | Path,
         **torch_kwargs,
-    ):
+    ) -> list[DeepLabCutObservation]:
         try:
             mp.set_start_method("spawn")
         except RuntimeError:
@@ -208,7 +198,7 @@ class DeepLabCutDetector(BaseDetector):
 
         video_iterator = VideoIterator(video, cropping=cropping)
 
-        image_size = video_iterator.video.dimensions
+        image_size = video_iterator.video.get(cv2.CAP_PROP_FRAME_WIDTH), video_iterator.video.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         shelf_writer = None
         if use_shelve:
