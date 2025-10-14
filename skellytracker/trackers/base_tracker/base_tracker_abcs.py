@@ -2,7 +2,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List
+from typing import List, Sequence
 
 import cv2
 import numpy as np
@@ -60,7 +60,7 @@ class BaseImageAnnotatorConfig(BaseModel, ABC):
 
 class BaseImageAnnotator(BaseModel, ABC):
     config: BaseImageAnnotatorConfig
-    observations: BaseObservations  # make it a list to allow plotting trails, etc.
+    observations: BaseObservations
 
     @classmethod
     @abstractmethod
@@ -125,12 +125,13 @@ class BaseDetector(BaseModel, ABC):
 
 
 class BaseRecorder(BaseModel, ABC):
+    # TODO: could be called ObservationGroup
     observations: List[BaseObservation] = Field(default_factory=list)
 
     def add_observation(self, observation: BaseObservation):
         self.observations.append(observation)
 
-    def add_observations(self, observations: List[BaseObservation]):
+    def add_observations(self, observations: Sequence[BaseObservation]):
         self.observations.extend(observations)
 
     # I'm imagining these can be used if you want the data but want to handle saving elsewhere
@@ -159,7 +160,7 @@ class BaseRecorder(BaseModel, ABC):
 
 
 class BaseObservationManager(BaseModel, ABC):
-    observations: List[BaseObservation]
+    observations: Sequence[BaseObservation]
 
     @abstractmethod
     def create_observation(self, **kwargs) -> BaseObservation:
@@ -241,6 +242,12 @@ class CumulativeBaseTracker(BaseTracker):
 
     @abstractmethod
     def process_video(
+        self, input_video_filepath: Path, **kwargs
+    ) -> Sequence[BaseObservation]:
+        pass
+
+    @abstractmethod
+    def annotate_video(
         self, input_video_filepath: Path, output_video_filepath: Path, **kwargs
-    ) -> list[BaseObservation]:
+    ) -> None:
         pass

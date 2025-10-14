@@ -8,8 +8,8 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservatio
 class DeepLabCutObservation(BaseObservation):
     tracker_type:TrackerTypeString = 'dlc_tracker'
     frame_number: int  # the frame number of the image in which this observation was made
-    pose_points: np.ndarray
-    confidence_values: np.ndarray
+    pose_points: np.ndarray # Num Markers x 2
+    confidence_values: np.ndarray # num markers
     image_size: tuple[int, int]
 
     @classmethod

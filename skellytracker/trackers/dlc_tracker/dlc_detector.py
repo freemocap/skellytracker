@@ -1,6 +1,7 @@
 from __future__ import annotations
 from pathlib import Path
 import cv2
+from pydantic import ConfigDict
 import torch.multiprocessing as mp
 import albumentations as A
 import numpy as np
@@ -26,6 +27,7 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorCo
 from skellytracker.trackers.dlc_tracker.dlc_observation import DeepLabCutObservation
 
 class DeepLabCutDetectorConfig(BaseDetectorConfig):
+    model_config = ConfigDict(arbitrary_types_allowed=True)
     dlc_config: str
     videotype: str = ""
     shuffle: int = 1
@@ -50,6 +52,11 @@ class DeepLabCutDetectorConfig(BaseDetectorConfig):
     transform: A.Compose | None = None
     overwrite: bool = False
     save_as_df: bool = False
+
+    @classmethod
+    def from_config(cls, config_path: str | Path):
+        config = auxiliaryfunctions.read_config(config_path)
+        return cls(**config) # TODO: test this
 
 
 class DeepLabCutDetector(BaseDetector):
@@ -114,7 +121,7 @@ class DeepLabCutDetector(BaseDetector):
         )
 
         if self.config.cropping is None and cfg.get("cropping", False):
-            cropping = [cfg["x1"], cfg["x2"], cfg["y1"], cfg["y2"]]
+            self.config.cropping = [cfg["x1"], cfg["x2"], cfg["y1"], cfg["y2"]]
 
         # Get general project parameters
         multi_animal = cfg["multianimalproject"]
@@ -136,7 +143,7 @@ class DeepLabCutDetector(BaseDetector):
                     "The ``use_shelve`` parameter cannot be used for single animal "
                     "projects. Setting ``use_shelve=False``."
                 )
-                use_shelve = False
+                self.config.use_shelve = False
 
         dynamic = DynamicCropper.build(*self.config.dynamic)
         if pose_task != Task.BOTTOM_UP and dynamic is not None:
@@ -196,12 +203,12 @@ class DeepLabCutDetector(BaseDetector):
         output_prefix = video.stem + dlc_scorer
         output_pkl = output_path / f"{output_prefix}_full.pickle"
 
-        video_iterator = VideoIterator(video, cropping=cropping)
+        video_iterator = VideoIterator(video, cropping=self.config.cropping)
 
         image_size = video_iterator.video.get(cv2.CAP_PROP_FRAME_WIDTH), video_iterator.video.get(cv2.CAP_PROP_FRAME_HEIGHT)
 
         shelf_writer = None
-        if use_shelve:
+        if self.config.use_shelve:
             shelf_writer = shelving.ShelfWriter(
                 pose_cfg=pose_cfg,
                 filepath=output_pkl,
@@ -216,10 +223,6 @@ class DeepLabCutDetector(BaseDetector):
             shelf_writer=shelf_writer,
             robust_nframes=self.config.robust_nframes,
         )
-        print(f"PREDICTIONS INFO")
-        print(f"\t{len(predictions)} frames")
-        print(f"\tkeys: {predictions[0].keys()}")
-        print(f"\tvalues shape: {[v.shape for v in predictions[0].values()]}")
         
         runtime.append(time.time())
         metadata = _generate_metadata(
@@ -228,7 +231,7 @@ class DeepLabCutDetector(BaseDetector):
             dlc_scorer=dlc_scorer,
             train_fraction=train_fraction,
             batch_size=batch_size,
-            cropping=cropping,
+            cropping=self.config.cropping,
             runtime=(runtime[0], runtime[1]),
             video=video_iterator,
             robust_nframes=self.config.robust_nframes,
