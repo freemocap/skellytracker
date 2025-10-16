@@ -1,5 +1,6 @@
 from pathlib import Path
 import cv2
+from deeplabcut.utils import auxiliaryfunctions
 import numpy as np
 import pandas as pd
 from pydantic import BaseModel
@@ -9,8 +10,20 @@ from skellytracker.trackers.dlc_tracker.dlc_detector import DeepLabCutDetector, 
 from skellytracker.trackers.dlc_tracker.dlc_observation import DeepLabCutObservation
 
 class DeepLabCutTrackerConfig(BaseModel):
+    tracker_name: str
+    iteration: int
     detector_config: DeepLabCutDetectorConfig
     annotator_config: DeepLabCutAnnotatorConfig
+
+    @classmethod
+    def from_config_yaml(cls, config_path: str):
+        config = auxiliaryfunctions.read_config(config_path)
+        return cls(
+            tracker_name=config.get("Task", "DeepLabCutTracker"),
+            iteration=config.get("iteration", 0),
+            detector_config=DeepLabCutDetectorConfig(dlc_config=config_path),
+            annotator_config=DeepLabCutAnnotatorConfig(),
+        )
 
 class DeepLabCutRecorder(BaseRecorder):
     def load_deeplabcut_csv(self, csv_path: Path, image_size: tuple[int, int] = (1280, 720)) -> list[DeepLabCutObservation]:
