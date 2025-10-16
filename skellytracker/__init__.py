@@ -21,9 +21,6 @@ LOG_LEVEL = LogLevels.TRACE
 configure_logging(LOG_LEVEL)
 
 
-#
-
-#
 # try:
 #     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
 #         MediapipeHolisticTracker,
