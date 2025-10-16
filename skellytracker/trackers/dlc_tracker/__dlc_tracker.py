@@ -27,7 +27,7 @@ class DeepLabCutTrackerConfig(BaseModel):
 
 class DeepLabCutRecorder(BaseRecorder):
     def load_deeplabcut_csv(self, csv_path: Path, image_size: tuple[int, int] = (1280, 720)) -> list[DeepLabCutObservation]:
-        df = pd.read_csv(csv_path)
+        df = pd.read_csv(csv_path, header=[1,2])
 
         df = df.iloc[:, 1:]
 
