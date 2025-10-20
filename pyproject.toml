@@ -67,8 +67,14 @@ dynamic = ["version", "description"]
 [project.optional-dependencies]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 mediapipe = ["mediapipe==0.10.14"]
-yolo = ["ultralytics~=8.3.132"]
-all = ["ultralytics~=8.3.132", "mediapipe==0.10.14"]
+yolo = ["ultralytics~=8.3.132",
+        "torch==2.8.*",
+        "torchvision==0.23.*",
+]
+all = ["ultralytics~=8.3.132",     
+      "torch==2.8.*",
+      "torchvision==0.23.*",
+      "mediapipe==0.10.14"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
