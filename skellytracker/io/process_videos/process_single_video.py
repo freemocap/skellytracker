@@ -76,7 +76,7 @@ def process_video(
         latest_observation = tracker.process_image(frame_number=_frame_number, image=frame, record_observation=True)
 
         if video_handler is not None:
-            annotated_image = tracker.annotator.annotate_image(image=frame, latest_observation=latest_observation)
+            annotated_image = tracker.annotator.annotate_image(image=frame, observation=latest_observation)
             video_handler.add_frame(annotated_image)
 
         ret, frame = cap.read()

@@ -103,7 +103,7 @@ def test_annotate_image(sample_image):
     )
     tracker = BrightestPointTracker.create(config=config)
     observation: BrightestPointObservation = tracker.process_image(frame_number=0, image=sample_image)
-    annotated_image = tracker.annotate_image(image=sample_image, latest_observation=observation)
+    annotated_image = tracker.annotate_image(image=sample_image, observation=observation)
 
     assert annotated_image is not None
     assert annotated_image.shape == sample_image.shape

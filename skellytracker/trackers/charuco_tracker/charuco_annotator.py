@@ -33,7 +33,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
     def annotate_image(
             self,
             image: np.ndarray,
-            latest_observation: CharucoObservation,
+            observation: CharucoObservation,
     ) -> np.ndarray:
         image_height, image_width = image.shape[:2]
         text_offset = int(image_height * 0.01)
@@ -42,16 +42,16 @@ class CharucoImageAnnotator(BaseImageAnnotator):
         # Copy the original image for annotation
         annotated_image = image.copy()
 
-        self.observations.append(latest_observation)
+        self.observations.append(observation)
 
         if self.config.show_tracks is None or self.config.show_tracks < 1:
-            self.observations = [latest_observation]
+            self.observations = [observation]
         elif len(self.observations) > self.config.show_tracks:
             self.observations = self.observations[-self.config.show_tracks:]
 
         # Draw a marker for each tracked corner
         for obs_count, observation in enumerate(self.observations[::-1]):
-            if latest_observation.charuco_empty:
+            if observation.charuco_empty:
                 continue
             obs_count_scale = 1 - (obs_count / len(self.observations))
 
@@ -96,9 +96,9 @@ class CharucoImageAnnotator(BaseImageAnnotator):
                                     thickness=1)
 
         # List undetected markers
-        undetected_corners = latest_observation.all_charuco_ids.copy()
-        if not latest_observation.charuco_empty:
-            for charuco_id in latest_observation.detected_charuco_corner_ids:
+        undetected_corners = observation.all_charuco_ids.copy()
+        if not observation.charuco_empty:
+            for charuco_id in observation.detected_charuco_corner_ids:
                 undetected_corners.remove(charuco_id)
 
         if len(undetected_corners) > 0:

@@ -20,10 +20,10 @@ class BrightestPointImageAnnotator(BaseImageAnnotator):
     def create(cls, config: BrightestPointAnnotatorConfig):
         return cls(config=config, observations=[])
     
-    def annotate_image(self, image: np.ndarray, latest_observation: BrightestPointObservation) -> np.ndarray:
+    def annotate_image(self, image: np.ndarray, observation: BrightestPointObservation) -> np.ndarray:
         annotated_image = image.copy()
 
-        for bright_patch in latest_observation.bright_patches:
+        for bright_patch in observation.bright_patches:
             if (
                 bright_patch is not None
                 and bright_patch.centroid_x is not None

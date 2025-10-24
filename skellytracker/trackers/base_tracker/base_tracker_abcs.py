@@ -67,7 +67,7 @@ class BaseImageAnnotator(BaseModel, ABC):
         pass
 
     @abstractmethod
-    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
+    def annotate_image(self, image: np.ndarray, observation: BaseObservation) -> np.ndarray:
         pass
 
     @staticmethod
@@ -167,8 +167,8 @@ class BaseTracker(BaseModel, ABC):
 
         return latest_observation
 
-    def annotate_image(self, image: np.ndarray, latest_observation: BaseObservation) -> np.ndarray:
-        return self.annotator.annotate_image(image=image, latest_observation=latest_observation)
+    def annotate_image(self, image: np.ndarray, observation: BaseObservation) -> np.ndarray:
+        return self.annotator.annotate_image(image=image, observation=observation)
 
     def demo(self) -> None:
         camera_viewer = WebcamDemoViewer(
