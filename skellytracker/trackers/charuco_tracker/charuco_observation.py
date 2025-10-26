@@ -4,7 +4,7 @@ import numpy as np
 from pydantic import BaseModel, ConfigDict
 from numpydantic import NDArray, Shape
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2d, \
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2dArray, \
     TrackedPointIdString
 
 AllCharucoCorners3DByIdInObjectCoordinates = NDArray[Shape["* charuco_id, 3 xyz"], np.float32]
@@ -151,10 +151,10 @@ class CharucoObservation(BaseObservation):
             corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
     
-    def to_array(self) -> DetectedCharucoCorners2DInFullArray:
+    def to_2d_array(self) -> DetectedCharucoCorners2DInFullArray:
         return self.detected_charuco_corners_in_full_array
 
-    def to_tracked_points(self) -> dict[TrackedPointIdString, TrackedPoint2d]:
+    def to_tracked_points(self) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
 
         """
         Converts the detected charuco corners to a dictionary of tracked points.
@@ -163,9 +163,9 @@ class CharucoObservation(BaseObservation):
         """
         if self.charuco_empty or self.detected_charuco_corner_ids is None or self.detected_charuco_corners_image_coordinates is None:
             return {}
-        tracked_points_2d: dict[TrackedPointIdString, TrackedPoint2d] = {}
-        for charuco_corner_index in range(self.to_array().shape[0]):
-            point2d = self.to_array()[charuco_corner_index]
+        tracked_points_2d: dict[TrackedPointIdString, TrackedPoint2dArray] = {}
+        for charuco_corner_index in range(self.to_2d_array().shape[0]):
+            point2d = self.to_2d_array()[charuco_corner_index]
             if np.isnan(point2d).any():
                 continue
 

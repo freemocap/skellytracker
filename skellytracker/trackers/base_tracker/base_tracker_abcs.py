@@ -17,8 +17,8 @@ logger = logging.getLogger(__name__)
 TrackedPointIdString = str
 TrackerTypeString = str
 
-TrackedPoint2d = NDArray[Shape["2 xyz"], float]
-
+TrackedPoint2dArray = NDArray[Shape["2 xyz"], float]
+TrackedPoints2dArray = NDArray[Shape["* number_of_points,2 xyz"], float]
 
 class BaseObservation(BaseModel, ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -33,12 +33,12 @@ class BaseObservation(BaseModel, ABC):
 
 
     @abstractmethod
-    def to_tracked_points(cls, *args, **kwargs) -> dict[TrackedPointIdString, TrackedPoint2d]:
+    def to_tracked_points(cls, *args, **kwargs) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
         pass
 
 
     @abstractmethod
-    def to_array(self) -> np.ndarray:
+    def to_2d_array(self) -> TrackedPoints2dArray:
         pass
 
 
@@ -118,7 +118,7 @@ class BaseRecorder(BaseModel, ABC):
     # I'm imagining these can be used if you want the data but want to handle saving elsewhere
     @property
     def to_array(self) -> np.ndarray:
-        return np.stack([observation.to_array() for observation in self.observations])
+        return np.stack([observation.to_2d_array() for observation in self.observations])
 
     @property
     def to_json_string(self) -> str:

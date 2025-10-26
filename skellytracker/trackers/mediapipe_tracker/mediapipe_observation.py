@@ -10,7 +10,7 @@ from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRI
 from numpydantic import NDArray, Shape
 from pydantic import ConfigDict
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2d
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2dArray
 from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
     MEDIAPIPE_FACE_CONTOURS_NAMES
 
@@ -167,11 +167,11 @@ class MediapipeObservation(BaseObservation):
             all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
         return all_points_by_name
-    def to_tracked_points(self) -> dict[str, TrackedPoint2d]:
+    def to_tracked_points(self) -> dict[str, TrackedPoint2dArray]:
         points =  self.all_points(dimensions=2)
         return {name: np.array([x, y, z]) for name, (x, y, z) in points.items()}
 
-    def to_array(self) -> NDArray[Shape["533, 3"], float]:
+    def to_2d_array(self) -> NDArray[Shape["533, 3"], float]:
         return np.concatenate(
             # this order matters, do not change
             (

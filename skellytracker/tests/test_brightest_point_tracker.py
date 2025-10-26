@@ -40,7 +40,7 @@ def test_image_with_one_brightest_point_array(sample_image):
     )
     tracker = BrightestPointTracker.create(config=config)
     observation = tracker.process_image(frame_number=0, image=sample_image)
-    observation_array = observation.to_array()
+    observation_array = observation.to_2d_array()
 
     assert observation_array.shape == (1, 2)
     assert observation_array[0, 0] == 70
@@ -52,7 +52,7 @@ def test_image_with_two_brightest_points(sample_image):
     )
     tracker = BrightestPointTracker.create(config=config)
     observation = tracker.process_image(frame_number=0, image=sample_image)
-    observation_array = observation.to_array()
+    observation_array = observation.to_2d_array()
 
     assert observation_array.shape == (2, 2)
     assert observation_array[0, 0] == 70
@@ -67,7 +67,7 @@ def test_image_with_two_brightest_points_array(sample_image):
     )
     tracker = BrightestPointTracker.create(config=config)
     observation = tracker.process_image(frame_number=0, image=sample_image)
-    observation_array = observation.to_array()
+    observation_array = observation.to_2d_array()
 
     assert observation_array.shape == (2, 2)
     assert observation_array[0, 0] == 70
@@ -82,7 +82,7 @@ def test_process_image_with_five_brightest_points(sample_image):
     )
     tracker = BrightestPointTracker.create(config=config)
     observation = tracker.process_image(frame_number=0, image=sample_image)
-    observation_array = observation.to_array()
+    observation_array = observation.to_2d_array()
 
     assert observation_array.shape == (5, 2)
     assert observation_array[0, 0] == 70
