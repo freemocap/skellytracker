@@ -174,14 +174,14 @@ class CharucoObservation(BaseObservation):
 
     def to_anipose_camera_row(self) -> dict[str, Any] | None:
         filled = np.full((len(self.all_charuco_ids), 1, 2), fill_value=np.nan)
-        if self.charuco_empty or self.raw_charuco_corners is None or self.raw_charuco_ids is None:
+        if self.charuco_empty or self.raw_charuco_corners is None or self.detected_charuco_corner_ids is None:
             return None
-        for id, corner in zip(self.raw_charuco_ids.ravel(), self.raw_charuco_corners):
+        for id, corner in zip(self.detected_charuco_corner_ids.ravel(), self.raw_charuco_corners):
             filled[id] = corner
         camera_row = AniposeCameraRow(
             framenum=(0, self.frame_number),
             corners=self.raw_charuco_corners,
-            ids=self.raw_charuco_ids,
+            ids=self.detected_charuco_corner_ids,
             filled=filled,
         )
         return camera_row.model_dump()
