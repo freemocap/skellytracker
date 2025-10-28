@@ -31,7 +31,7 @@ class AniposeCameraRow(BaseModel):
     filled: np.ndarray
 
 
-
+MINIMUM_CHARUCO_CORNERS_FOR_VISIBILITY = 6
 
 class CharucoObservation(BaseObservation):
     tracker_type: TrackerTypeString = 'charuco_tracker'
@@ -55,6 +55,12 @@ class CharucoObservation(BaseObservation):
     charuco_board_rotation_vector: CharucoBoardRotationVector | None
 
     image_size: tuple[int, int]
+
+    @property
+    def charuco_board_visible(self) -> bool:
+        if self.detected_charuco_corner_ids is None:
+            return False
+        return len(self.detected_charuco_corner_ids) >= MINIMUM_CHARUCO_CORNERS_FOR_VISIBILITY
 
     @classmethod
     def from_detection_results(cls,
