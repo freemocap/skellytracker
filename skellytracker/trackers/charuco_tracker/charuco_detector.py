@@ -8,13 +8,13 @@ from pydantic import ConfigDict
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
-DEFAULT_ARUCO_DICTIONARY_NAME: str = "cv2.aruco.DICT_4X4_250"
-DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_250
+DEFAULT_ARUCO_DICTIONARY_NAME: str = "cv2.aruco.DICT_4X4_50"
+DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_50
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
-    squares_x: int = 7
-    squares_y: int = 5
+    squares_x: int = 5
+    squares_y: int = 3
     aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
     aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
     unscaled_square_length: float = 1
