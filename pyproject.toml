@@ -76,6 +76,13 @@ all = ["ultralytics~=8.3.132",
       "torchvision==0.23.*",
       "mediapipe==0.10.14"]
 
+[project.optional-dependencies]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
+mediapipe = ["mediapipe==0.10.14"]
+yolo = ["ultralytics~=8.0.202"]
+dlc = ["deeplabcut==3.0.0rc9", "pillow>=11.1.0", "pyyaml>=6.0.2"]
+all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
+
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
 
