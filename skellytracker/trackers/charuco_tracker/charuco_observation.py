@@ -165,9 +165,7 @@ class CharucoObservation(BaseObservation):
             aruco_object_coords_list = []
             for marker_id in self.detected_aruco_marker_ids:
                 if marker_id not in self.all_aruco_ids:
-                    raise ValueError(
-                        f"Detected aruco marker ID {marker_id} not in all_aruco_ids"
-                    )
+                    continue
                 marker_idx = self.all_aruco_ids.index(marker_id)
                 aruco_object_coords_list.append(
                     self.all_aruco_corners_in_object_coordinates[marker_idx]
