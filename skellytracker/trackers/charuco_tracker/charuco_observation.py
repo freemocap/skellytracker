@@ -32,7 +32,6 @@ DetectedArucoMarkersInCameraCoordinates = NDArray[Shape["* aruco_id, 4 corners, 
 CharucoBoardTranslationVector = NDArray[Shape["3 tx_ty_tz"], np.float32]
 CharucoBoardRotationVector = NDArray[Shape["3 rx_ry_rz"], np.float32]
 
-
 class AniposeCameraRow(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     framenum: tuple[int, int]

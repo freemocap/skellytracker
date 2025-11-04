@@ -72,6 +72,12 @@ class CharucoDetector(BaseDetector):
          detected_aruco_corners,
          detected_aruco_ids) = self.detector.detectBoard(grey_image)
 
+        # remove aruco markers not part of board definition
+        if detected_aruco_ids is not None and len(detected_aruco_ids) > 0:
+            valid_indices = [index for index, marker_id in enumerate(detected_aruco_ids.flatten()) if marker_id in self.aruco_marker_ids]
+            detected_aruco_corners = [detected_aruco_corners[i] for i in valid_indices]
+            detected_aruco_ids = detected_aruco_ids[valid_indices].reshape(-1, 1)
+
         return CharucoObservation.from_detection_results(
             frame_number=frame_number,
             detected_charuco_corners=detected_charuco_corners,
