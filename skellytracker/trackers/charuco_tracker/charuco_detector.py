@@ -17,7 +17,7 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     squares_y: int = 3
     aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
     aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
-    unscaled_square_length: float = 1
+    square_length: float = 1 #size of the edge of a black square in user-defined units (e.g., millimeters)
     marker_length: float = 0.8
 
     @property
@@ -39,7 +39,7 @@ class CharucoDetector(BaseDetector):
     def create(cls, config: CharucoDetectorConfig):
         board = cv2.aruco.CharucoBoard(
             size=(config.squares_x, config.squares_y),
-            squareLength=config.unscaled_square_length,
+            squareLength=config.square_length,
             markerLength=config.marker_length,
             dictionary=config.aruco_dictionary,
         )
@@ -137,7 +137,7 @@ class CharucoDetector(BaseDetector):
         )
         annotated_board_image = cv2.putText(
             annotated_board_image,
-            f"`cv2.aruco.CharucoBoard(squares_x={self.config.squares_x},  squares_y={self.config.squares_y}, squareLength={self.config.unscaled_square_length}, markerLength={self.config.marker_length}, dictionary={self.config.aruco_dictionary_name})`",
+            f"`cv2.aruco.CharucoBoard(squares_x={self.config.squares_x},  squares_y={self.config.squares_y}, squareLength={self.config.square_length}, markerLength={self.config.marker_length}, dictionary={self.config.aruco_dictionary_name})`",
             (200, annotated_board_image.shape[0] -400),
             cv2.FONT_HERSHEY_SIMPLEX,
             4,
