@@ -40,6 +40,7 @@ class AniposeCameraRow(BaseModel):
     filled: np.ndarray
 
 
+
 MINIMUM_CHARUCO_CORNERS_FOR_VISIBILITY = 6
 MINIMUM_CHARUCO_CORNERS_FOR_POSE = 6
 
@@ -348,7 +349,13 @@ class CharucoObservation(BaseObservation):
     def to_anipose_camera_row(self) -> dict[str, Any] | None:
         filled = np.full((len(self.all_charuco_ids), 1, 2), fill_value=np.nan)
         if self.charuco_empty or self.raw_charuco_corners is None or self.detected_charuco_corner_ids is None:
-            return None
+            nan_row = AniposeCameraRow(
+                framenum=(0, self.frame_number),
+                corners=self.raw_charuco_corners,
+                ids=np.asarray(self.all_charuco_ids),
+                filled=filled,
+            )
+            return nan_row.model_dump()
         for id, corner in zip(self.detected_charuco_corner_ids.ravel(), self.raw_charuco_corners):
             filled[id] = corner
         camera_row = AniposeCameraRow(
