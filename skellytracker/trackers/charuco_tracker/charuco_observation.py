@@ -347,22 +347,22 @@ class CharucoObservation(BaseObservation):
         return tracked_points_2d
 
     def to_anipose_camera_row(self) -> dict[str, Any] | None:
-        filled = np.full((len(self.all_charuco_ids), 1, 2), fill_value=np.nan)
+        nan_filled = np.full((len(self.all_charuco_ids), 1, 2), fill_value=np.nan)
         if self.charuco_empty or self.raw_charuco_corners is None or self.detected_charuco_corner_ids is None:
             nan_row = AniposeCameraRow(
                 framenum=(0, self.frame_number),
-                corners=self.raw_charuco_corners,
+                corners=nan_filled,
                 ids=np.asarray(self.all_charuco_ids),
-                filled=filled,
+                filled=nan_filled,
             )
             return nan_row.model_dump()
         for id, corner in zip(self.detected_charuco_corner_ids.ravel(), self.raw_charuco_corners):
-            filled[id] = corner
+            nan_filled[id] = corner
         camera_row = AniposeCameraRow(
             framenum=(0, self.frame_number),
             corners=self.raw_charuco_corners,
             ids=self.detected_charuco_corner_ids,
-            filled=filled,
+            filled=nan_filled,
         )
         return camera_row.model_dump()
 
