@@ -49,7 +49,9 @@ class MediapipeDetector(BaseDetector):
     detector: mp.solutions.holistic.Holistic
 
     @classmethod
-    def create(cls, config: MediapipeDetectorConfig):
+    def create(cls, config: MediapipeDetectorConfig|None=None) -> "MediapipeDetector":
+        if config is None:
+            config = MediapipeDetectorConfig()
         detector = mp.solutions.holistic.Holistic(
             model_complexity=config.model_complexity.value,
             min_detection_confidence=config.min_detection_confidence,
