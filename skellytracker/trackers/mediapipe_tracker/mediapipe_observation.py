@@ -167,11 +167,25 @@ class MediapipeObservation(BaseObservation):
             all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
         return all_points_by_name
-    def to_tracked_points(self) -> dict[str, TrackedPoint2dArray]:
+    def to_2d_tracked_points(self) -> dict[str, TrackedPoint2dArray]:
         points =  self.all_points(dimensions=2)
+        return {name: np.array([x, y]) for name, (x, y) in points.items()}
+    def to_3d_tracked_points(self) -> dict[str, NDArray[Shape["2 xyz"], float]]:
+        points =  self.all_points(dimensions=3)
         return {name: np.array([x, y, z]) for name, (x, y, z) in points.items()}
 
-    def to_2d_array(self) -> NDArray[Shape["533, 3"], float]:
+    def to_2d_array(self) -> NDArray[Shape["533, 2"], float]:
+        return np.concatenate(
+            # this order matters, do not change
+            (
+                self.body_points_xyz[...,:2],
+                self.right_hand_points_xyz[...,:2],
+                self.left_hand_points_xyz[...,:2],
+                self.face_tesselation_points_xyz[...,:2],
+            ),
+            axis=0,
+        )
+    def to_3d_array(self) -> NDArray[Shape["533, 3"], float]:
         return np.concatenate(
             # this order matters, do not change
             (
@@ -182,6 +196,6 @@ class MediapipeObservation(BaseObservation):
             ),
             axis=0,
         )
-    
+
 
 MediapipeObservations = list[MediapipeObservation]
