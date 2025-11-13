@@ -23,6 +23,26 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
     smooth_segmentation: bool = True
     refine_face_landmarks: bool = True
 
+MEDIAPIPE_TRACKER_REALTIME_PRESET = MediapipeDetectorConfig(
+    model_complexity=MediapipeModelComplexity.LITE,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5,
+    static_image_mode=False,
+    smooth_landmarks=True,
+    enable_segmentation=False,
+    smooth_segmentation=False,
+    refine_face_landmarks=False,
+)
+MEDIAPIPE_TRACKER_POSTHOC_PRESET = MediapipeDetectorConfig(
+    model_complexity=MediapipeModelComplexity.HEAVY,
+    min_detection_confidence=0.5,
+    min_tracking_confidence=0.5,
+    static_image_mode=False,
+    smooth_landmarks=True,
+    enable_segmentation=True,
+    smooth_segmentation=True,
+    refine_face_landmarks=True,
+)
 
 class MediapipeDetector(BaseDetector):
     config: MediapipeDetectorConfig
@@ -45,6 +65,13 @@ class MediapipeDetector(BaseDetector):
             config=config,
             detector=detector,
         )
+    @classmethod
+    def create_realtime_preset(cls) -> "MediapipeDetector":
+        return cls.create(config=MEDIAPIPE_TRACKER_REALTIME_PRESET)
+
+    @classmethod
+    def create_posthoc_preset(cls) -> "MediapipeDetector":
+        return cls.create(config=MEDIAPIPE_TRACKER_POSTHOC_PRESET)
 
     def detect(self, frame_number: int, image: np.ndarray) -> MediapipeObservation:
         mediapipe_results: MediapipeResults = self.detector.process(image)
