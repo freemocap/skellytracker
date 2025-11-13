@@ -21,7 +21,7 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
     smooth_landmarks: bool = True
     enable_segmentation: bool = True
     smooth_segmentation: bool = True
-    refine_face_landmarks: bool = True
+    refine_face_landmarks: bool = True # adds iris landmarks to face mesh
 
 MEDIAPIPE_TRACKER_REALTIME_PRESET = MediapipeDetectorConfig(
     model_complexity=MediapipeModelComplexity.LITE,
@@ -31,7 +31,7 @@ MEDIAPIPE_TRACKER_REALTIME_PRESET = MediapipeDetectorConfig(
     smooth_landmarks=True,
     enable_segmentation=False,
     smooth_segmentation=False,
-    refine_face_landmarks=False,
+    refine_face_landmarks=True,
 )
 MEDIAPIPE_TRACKER_POSTHOC_PRESET = MediapipeDetectorConfig(
     model_complexity=MediapipeModelComplexity.HEAVY,
