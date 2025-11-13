@@ -9,8 +9,8 @@ build-backend = "flit_core.buildapi"
 name = "skellytracker"
 readme = "README.md"
 authors = [
-    {name = "Skelly FreeMoCap", email = "info@freemocap.org"},
-    ]
+    { name = "Skelly FreeMoCap", email = "info@freemocap.org" },
+]
 license = { file = "LICENSE" }
 classifiers = [
     "License :: OSI Approved :: GNU Affero General Public License v3 or later (AGPLv3+)",
@@ -39,7 +39,7 @@ classifiers = [
     "Topic :: System :: Hardware",
     "Topic :: System :: Hardware :: Universal Serial Bus (USB)",
     "Topic :: System :: Hardware :: Universal Serial Bus (USB) :: Video (UVC)",
-    ]
+]
 keywords = [
     "camera",
     "stream",
@@ -56,6 +56,7 @@ keywords = [
 #dynamic = ["dependencies"]
 dependencies = [
     "opencv-contrib-python==4.10.*",
+    "mediapipe==0.10.14",
     "pydantic==2.*",
     "numpy<2",
     "tqdm==4.*",
@@ -79,10 +80,10 @@ Homepage = "https://github.com/freemocap/skellytracker"
 current_version = "v2024.09.1019"
 
 version_pattern = "vYYYY.0M.BUILD[-TAG]"
-commit_message  = "Bump version {old_version} -> {new_version}"
-commit          = true
-tag             = true
-push            = true
+commit_message = "Bump version {old_version} -> {new_version}"
+commit = true
+tag = true
+push = true
 
 [tool.bumpver.file_patterns]
 "skellytracker/__init__.py" = ["{version}"]
