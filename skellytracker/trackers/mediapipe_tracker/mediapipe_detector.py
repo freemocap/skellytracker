@@ -17,6 +17,7 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
     model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
+    confidence_threshold: float = 0.5
     static_image_mode: bool = False
     smooth_landmarks: bool = True
     enable_segmentation: bool = True

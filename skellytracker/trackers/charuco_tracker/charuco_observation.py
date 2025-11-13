@@ -326,24 +326,45 @@ class CharucoObservation(BaseObservation):
             corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
 
-    def to_2d_array(self) -> DetectedCharucoCorners2DInFullArray:
+    def to_2d_array(self, *, confidence_threshold: float | None = None,
+                    fill_with_nans: bool = True) -> DetectedCharucoCorners2DInFullArray:
+        """
+        Convert to 2D array. Confidence filtering not supported for Charuco.
+
+        Args:
+            confidence_threshold: Ignored for Charuco tracker.
+            fill_with_nans: Ignored for Charuco tracker.
+        """
+        if confidence_threshold is not None:
+            logger.warning(
+                "Confidence filtering requested but not supported for Charuco tracker. Returning all detected points.")
+
         return self.detected_charuco_corners_in_full_array
 
-    def to_tracked_points(self) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
+    def to_tracked_points(self, *, confidence_threshold: float | None = None) -> dict[
+        TrackedPointIdString, TrackedPoint2dArray]:
         """
-        Converts the detected charuco corners to a dictionary of tracked points.
-        The keys are the charuco ids and the values are the tracked points.
+        Get tracked points. Confidence filtering not supported for Charuco.
+
+        Args:
+            confidence_threshold: Ignored for Charuco tracker.
         """
+        if confidence_threshold is not None:
+            logger.warning(
+                "Confidence filtering requested but not supported for Charuco tracker. Returning all detected points.")
+
         if (self.charuco_empty or
                 self.detected_charuco_corner_ids is None or
                 self.detected_charuco_corners_image_coordinates is None):
             return {}
+
         tracked_points_2d: dict[TrackedPointIdString, TrackedPoint2dArray] = {}
         for charuco_corner_index in range(self.to_2d_array().shape[0]):
             point2d = self.to_2d_array()[charuco_corner_index]
             if np.isnan(point2d).any():
                 continue
             tracked_points_2d[f"CharucoCorner-{charuco_corner_index}"] = point2d
+
         return tracked_points_2d
 
     def to_anipose_camera_row(self) -> dict[str, Any] | None:

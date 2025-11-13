@@ -20,31 +20,81 @@ TrackerTypeString = str
 TrackedPoint2dArray = NDArray[Shape["2 xyz"], float]
 TrackedPoints2dArray = NDArray[Shape["* number_of_points,2 xyz"], float]
 
+
 class BaseObservation(BaseModel, ABC):
     model_config = ConfigDict(arbitrary_types_allowed=True)
     frame_number: int  # the frame number of the image in which this observation was made
     tracker_type: TrackerTypeString = Field(description="Name of the tracker that made this observation.")
-
 
     @classmethod
     @abstractmethod
     def from_detection_results(cls, *args, **kwargs):
         pass
 
-
     @abstractmethod
     def to_tracked_points(cls, *args, **kwargs) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
         pass
 
-
     @abstractmethod
-    def to_2d_array(self) -> TrackedPoints2dArray:
+    def to_2d_array(self, *, confidence_threshold: float | None = None,
+                    fill_with_nans: bool = True) -> TrackedPoints2dArray:
+        """
+        Convert observation to 2D array, optionally filtering by confidence.
+
+        Args:
+            confidence_threshold: Minimum confidence to include point. If None, uses detector config default.
+            fill_with_nans: Whether to fill filtered points with NaN to maintain array shape.
+
+        Returns:
+            2D array of tracked points
+        """
         pass
 
+    def get_confidence_scores(self) -> NDArray[Shape["* number_of_points"], float] | None:
+        """
+        Get confidence scores for all tracked points.
+
+        Returns:
+            Array of confidence scores, or None if tracker doesn't support confidence.
+
+        Raises:
+            NotImplementedError: If tracker doesn't support confidence scores.
+        """
+        raise NotImplementedError(f"{self.tracker_type} does not support confidence scores")
+
+    def filter_by_confidence(
+            self,
+            points: NDArray,
+            confidence_scores: NDArray[Shape["* number_of_points"], float] | None,
+            confidence_threshold: float,
+            fill_with_nans: bool = True
+    ) -> NDArray:
+        """
+        Filter points by confidence threshold.
+
+        Args:
+            points: Array of points to filter
+            confidence_scores: Array of confidence scores
+            confidence_threshold: Minimum confidence threshold
+            fill_with_nans: Whether to fill filtered points with NaN
+
+        Returns:
+            Filtered points array
+        """
+        if confidence_scores is None:
+            raise NotImplementedError(f"{self.tracker_type} does not support confidence filtering")
+
+        if fill_with_nans:
+            filtered_points = points.copy()
+            mask = confidence_scores < confidence_threshold
+            filtered_points[mask] = np.nan
+            return filtered_points
+        else:
+            mask = confidence_scores >= confidence_threshold
+            return points[mask]
 
     def to_json_string(self) -> str:
         return json.dumps(self.model_dump_json(), indent=4)
-
 
     def to_json_bytes(self) -> bytes:
         return self.to_json_string().encode("utf-8")
@@ -83,9 +133,10 @@ class BaseImageAnnotator(BaseModel, ABC):
 
 
 class BaseDetectorConfig(BaseModel, ABC):
-    # TODO: are there defaults we want to store here?
-    # number of processes? whether to record or annotate?
-    # these might not be here specifically, but are they things we want as config parameters or method parameters?
+    confidence_threshold: float = Field(
+        default=0.5,
+        description="Default confidence threshold for filtering tracked points (0.0-1.0) - Should tune the default value to the tracker, confidence scores mean different things in different trackers."
+    )
     pass
 
 

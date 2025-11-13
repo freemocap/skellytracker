@@ -184,27 +184,112 @@ class MediapipeObservation(BaseObservation):
             all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
         return all_points_by_name
-    def to_tracked_points(self) -> dict[str, TrackedPoint2dArray]:
-        points =  self.all_points(dimensions=2)
-        return {name: np.array([x, y]) for name, (x, y) in points.items()}
-    def to_3d_tracked_points(self) -> dict[str, NDArray[Shape["2 xyz"], float]]:
-        points =  self.all_points(dimensions=3)
-        return {name: np.array([x, y, z]) for name, (x, y, z) in points.items()}
 
-    def to_2d_array(self) -> NDArray[Shape["211, 2"], float]:
-        return np.concatenate(
-            # this order matters, do not change
+    def get_confidence_scores(self) -> NDArray[Shape["* number_of_points"], float] | None:
+        """
+        Get visibility scores for all tracked points (MediaPipe's confidence metric).
+
+        Returns:
+            Array of visibility scores for body, hands, and face points
+        """
+        body_visibility = self._get_body_visibility()
+        right_hand_visibility = self._get_hand_visibility(self.right_hand_landmarks)
+        left_hand_visibility = self._get_hand_visibility(self.left_hand_landmarks)
+        face_visibility = self._get_face_visibility()
+
+        return np.concatenate([
+            body_visibility,
+            right_hand_visibility,
+            left_hand_visibility,
+            face_visibility
+        ])
+
+    def _get_body_visibility(self) -> NDArray[Shape["* body points"], float]:
+        """Extract visibility scores from body landmarks."""
+        if self.pose_landmarks is None:
+            return np.full(self.num_body_points, 0.0)
+
+        return np.array([
+            landmark.visibility if hasattr(landmark, 'visibility') else 1.0
+            for landmark in self.pose_landmarks.landmark
+        ])
+
+    def _get_hand_visibility(self, hand_landmarks: NormalizedLandmarkList | None) -> NDArray[
+        Shape["* hand points"], float]:
+        """Extract visibility scores from hand landmarks."""
+        if hand_landmarks is None:
+            return np.full(self.num_single_hand_points, 0.0)
+
+        # MediaPipe hand landmarks typically don't have visibility, use presence (0 or 1)
+        return np.array([
+            landmark.presence if hasattr(landmark, 'presence') else 1.0
+            for landmark in hand_landmarks.landmark
+        ])
+
+    def _get_face_visibility(self) -> NDArray[Shape["* face points"], float]:
+        """Extract visibility scores from face landmarks."""
+        if self.face_landmarks is None:
+            return np.full(self.num_face_contour_points, 0.0)
+
+        face_contour_indices = list(MEDIAPIPE_FACE_CONTOURS_INDICIES)
+
+        # Check if we have any face data
+        if np.isnan(self.face_tesselation_points_xyz).all():
+            return np.full(len(face_contour_indices), 0.0)
+
+        # Get visibility for contour points only
+        visibilities = []
+        for idx in face_contour_indices:
+            if idx < len(self.face_landmarks.landmark):
+                landmark = self.face_landmarks.landmark[idx]
+                visibility = landmark.presence if hasattr(landmark, 'presence') else 1.0
+            else:
+                # Iris landmarks that might be missing
+                visibility = 0.0
+            visibilities.append(visibility)
+
+        return np.array(visibilities)
+
+    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[
+        Shape["211, 2"], float]:
+        """
+        Convert to 2D array with optional confidence filtering.
+
+        Args:
+            confidence_threshold: Minimum visibility to include point. If None, no filtering.
+            fill_with_nans: Whether to fill low-confidence points with NaN.
+        """
+        points_2d = np.concatenate(
             (
-                self.body_points_xyz[...,:2],
-                self.right_hand_points_xyz[...,:2],
-                self.left_hand_points_xyz[...,:2],
-                self.face_contour_points_xyz[...,:2],
+                self.body_points_xyz[..., :2],
+                self.right_hand_points_xyz[..., :2],
+                self.left_hand_points_xyz[..., :2],
+                self.face_contour_points_xyz[..., :2],
             ),
             axis=0,
         )
-    def to_3d_array(self) -> NDArray[Shape["211, 3"], float]:
-        return np.concatenate(
-            # this order matters, do not change
+
+        if confidence_threshold is not None:
+            confidence_scores = self.get_confidence_scores()
+            points_2d = self.filter_by_confidence(
+                points=points_2d,
+                confidence_scores=confidence_scores,
+                confidence_threshold=confidence_threshold,
+                fill_with_nans=fill_with_nans
+            )
+
+        return points_2d
+
+    def to_3d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[
+        Shape["211, 3"], float]:
+        """
+        Convert to 3D array with optional confidence filtering.
+
+        Args:
+            confidence_threshold: Minimum visibility to include point. If None, no filtering.
+            fill_with_nans: Whether to fill low-confidence points with NaN.
+        """
+        points_3d = np.concatenate(
             (
                 self.body_points_xyz,
                 self.right_hand_points_xyz,
@@ -213,6 +298,42 @@ class MediapipeObservation(BaseObservation):
             ),
             axis=0,
         )
+
+        if confidence_threshold is not None:
+            confidence_scores = self.get_confidence_scores()
+            points_3d = self.filter_by_confidence(
+                points=points_3d,
+                confidence_scores=confidence_scores,
+                confidence_threshold=confidence_threshold,
+                fill_with_nans=fill_with_nans
+            )
+
+        return points_3d
+
+    def to_tracked_points(self, *, confidence_threshold: float | None = None) -> dict[str, TrackedPoint2dArray]:
+        """Get tracked points filtered by confidence."""
+        points = self.all_points(dimensions=2)
+
+        if confidence_threshold is not None:
+            confidence_scores = self.get_confidence_scores()
+
+            # Build mapping of point names to confidence scores
+            all_names = (
+                    self.body_landmark_names +
+                    self.right_hand_landmark_names +
+                    self.left_hand_landmark_names +
+                    self.face_contour_landmark_names
+            )
+
+            filtered_points = {}
+            for i, name in enumerate(all_names):
+                if confidence_scores[i] >= confidence_threshold:
+                    if name in points:
+                        filtered_points[name] = np.array(points[name])
+
+            return filtered_points
+
+        return {name: np.array([x, y]) for name, (x, y) in points.items()}
 
 
 MediapipeObservations = list[MediapipeObservation]
