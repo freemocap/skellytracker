@@ -122,8 +122,8 @@ class MediapipeObservation(BaseObservation):
     @property
     def face_contour_points_xyz(self) -> NDArray[Shape["* face contour points, 3"], float]:
         all_face_landmarks = self.face_tesselation_points_xyz
-        if all_face_landmarks.shape[0] != self.num_face_tesselation_points:
-            raise ValueError(f"Expected {self.num_face_tesselation_points} face tesselation points, got {all_face_landmarks.shape[0]}")
+        # if all_face_landmarks.shape[0] != self.num_face_tesselation_points:
+        #     raise ValueError(f"Expected {self.num_face_tesselation_points} face tesselation points, got {all_face_landmarks.shape[0]}")
         safe_face_landmarks = copy(list(MEDIAPIPE_FACE_CONTOURS_INDICIES))
         #remove any indices that are out of bounds
 
