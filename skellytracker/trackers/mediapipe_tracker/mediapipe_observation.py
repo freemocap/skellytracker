@@ -1,5 +1,7 @@
+from copy import copy
 from typing import NamedTuple
 
+import logging
 import numpy as np
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, \
     LandmarkList  # linter sees an error here, but it runs fine
@@ -8,12 +10,12 @@ from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, \
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 from numpydantic import NDArray, Shape
-from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2dArray
 from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
     MEDIAPIPE_FACE_CONTOURS_NAMES
 
+logger = logging.getLogger(__name__)
 MediapipeResults = NamedTuple
 
 # TODO: use numpydantic to fix numpy type hints for this
@@ -120,7 +122,17 @@ class MediapipeObservation(BaseObservation):
     @property
     def face_contour_points_xyz(self) -> NDArray[Shape["* face contour points, 3"], float]:
         all_face_landmarks = self.face_tesselation_points_xyz
-        xyz = all_face_landmarks[list(MEDIAPIPE_FACE_CONTOURS_INDICIES)]
+        if all_face_landmarks.shape[0] != self.num_face_tesselation_points:
+            raise ValueError(f"Expected {self.num_face_tesselation_points} face tesselation points, got {all_face_landmarks.shape[0]}")
+        safe_face_landmarks = copy(list(MEDIAPIPE_FACE_CONTOURS_INDICIES))
+        #remove any indices that are out of bounds
+
+        safe_face_landmarks = [i for i in safe_face_landmarks if i < all_face_landmarks.shape[0]]
+        #print any removed indices
+        removed_indices = set(MEDIAPIPE_FACE_CONTOURS_INDICIES) - set(safe_face_landmarks)
+        if removed_indices:
+            logger.warning(f"Removed out of bounds face contour indices: {removed_indices}")
+        xyz = all_face_landmarks[safe_face_landmarks]
         if len(xyz) != self.num_face_contour_points:
             raise ValueError(f"Expected {self.num_face_contour_points} face contour points, got {len(xyz)}")
         return xyz
