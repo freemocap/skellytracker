@@ -117,25 +117,31 @@ class MediapipeObservation(BaseObservation):
         if self.face_landmarks is None:
             return np.full((self.num_face_tesselation_points, 3), np.nan)
 
-        return self._landmarks_to_array(self.face_landmarks)
+        landmarks = self._landmarks_to_array(self.face_landmarks)
+
+        # MINIMAL FIX: Pad with NaN if iris landmarks are missing
+        expected_count = self.num_face_tesselation_points  # This is 478 when refine_face_landmarks=True
+        actual_count = landmarks.shape[0]
+
+        if actual_count < expected_count:
+            # Iris landmarks missing - pad with NaN to maintain consistent count
+            padding = np.full((expected_count - actual_count, 3), np.nan)
+            landmarks = np.vstack([landmarks, padding])
+
+        return landmarks
 
     @property
     def face_contour_points_xyz(self) -> NDArray[Shape["* face contour points, 3"], float]:
         all_face_landmarks = self.face_tesselation_points_xyz
-        # if all_face_landmarks.shape[0] != self.num_face_tesselation_points:
-        #     raise ValueError(f"Expected {self.num_face_tesselation_points} face tesselation points, got {all_face_landmarks.shape[0]}")
-        safe_face_landmarks = copy(list(MEDIAPIPE_FACE_CONTOURS_INDICIES))
-        #remove any indices that are out of bounds
 
-        safe_face_landmarks = [i for i in safe_face_landmarks if i < all_face_landmarks.shape[0]]
-        #print any removed indices
-        removed_indices = set(MEDIAPIPE_FACE_CONTOURS_INDICIES) - set(safe_face_landmarks)
-        if removed_indices:
-            logger.warning(f"Removed out of bounds face contour indices: {removed_indices}")
-        xyz = all_face_landmarks[safe_face_landmarks]
-        # if len(xyz) != self.num_face_contour_points:
-        #     raise ValueError(f"Expected {self.num_face_contour_points} face contour points, got {len(xyz)}")
-        return xyz
+        # NO MORE FILTERING - just use the indices directly since we padded above
+        face_contour_indices = list(MEDIAPIPE_FACE_CONTOURS_INDICIES)
+
+        # Check if all indices are NaN (no face detected at all)
+        if np.isnan(all_face_landmarks).all():
+            return np.full((len(face_contour_indices), 3), np.nan)
+
+        return all_face_landmarks[face_contour_indices]
 
     def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> NDArray[Shape["* all points, 3"], float]:
         landmark_array = np.array(
