@@ -152,8 +152,7 @@ class MediapipeObservation(BaseObservation):
         )
 
         # convert from normalized image coordinates to pixel coordinates
-        landmark_array *= np.array([self.image_size[0], self.image_size[1],
-                                    self.image_size[0]])  # multiply z by image width per mediapipe docs
+        landmark_array *= np.array([self.image_size[1], self.image_size[0],self.image_size[1]])  # multiply z by image width per mediapipe docs
 
         return landmark_array
 
