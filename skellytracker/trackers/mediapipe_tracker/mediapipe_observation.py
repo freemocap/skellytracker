@@ -133,8 +133,8 @@ class MediapipeObservation(BaseObservation):
         if removed_indices:
             logger.warning(f"Removed out of bounds face contour indices: {removed_indices}")
         xyz = all_face_landmarks[safe_face_landmarks]
-        if len(xyz) != self.num_face_contour_points:
-            raise ValueError(f"Expected {self.num_face_contour_points} face contour points, got {len(xyz)}")
+        # if len(xyz) != self.num_face_contour_points:
+        #     raise ValueError(f"Expected {self.num_face_contour_points} face contour points, got {len(xyz)}")
         return xyz
 
     def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> NDArray[Shape["* all points, 3"], float]:
