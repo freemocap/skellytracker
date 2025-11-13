@@ -167,7 +167,7 @@ class MediapipeObservation(BaseObservation):
             all_points_by_name[point_name] = face_xyz[index, :dimensions]
 
         return all_points_by_name
-    def to_2d_tracked_points(self) -> dict[str, TrackedPoint2dArray]:
+    def to_tracked_points(self) -> dict[str, TrackedPoint2dArray]:
         points =  self.all_points(dimensions=2)
         return {name: np.array([x, y]) for name, (x, y) in points.items()}
     def to_3d_tracked_points(self) -> dict[str, NDArray[Shape["2 xyz"], float]]:
