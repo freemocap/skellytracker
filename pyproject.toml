@@ -56,7 +56,7 @@ keywords = [
 #dynamic = ["dependencies"]
 dependencies = [
     "opencv-contrib-python==4.10.*",
-    "mediapipe",
+    "mediapipe==0.10.14",
     "pydantic==2.*",
     "numpy<2",
     "tqdm==4.*",
