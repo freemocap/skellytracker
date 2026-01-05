@@ -5,9 +5,9 @@ from rtmlib import Wholebody
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
-    mode = 'balanced'
-    backend = 'onnxruntime'
-    device = 'cpu'
+    mode: str = "balanced"
+    backend: str = "onnxruntime"
+    device: str = "cpu"
 
 class RTMPoseDetector(BaseDetector):
     config: RTMPoseDetectorConfig
@@ -30,6 +30,7 @@ class RTMPoseDetector(BaseDetector):
         keypoints, scores = self.detector(image)
         return RTMPoseObservation.from_detection_results(
             frame_number=frame_number,
-            results=results,
+            keypoints=keypoints,
+            scores=scores,
             image_size=(int(image.shape[0]), int(image.shape[1])),
         )

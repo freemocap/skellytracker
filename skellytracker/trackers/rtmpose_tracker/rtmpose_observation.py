@@ -27,3 +27,6 @@ class RTMPoseObservation(BaseObservation):
             )
         return point_2d
 
+    def to_tracked_points(self):
+        pass
+
