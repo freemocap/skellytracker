@@ -22,3 +22,14 @@ class RTMPoseImageAnnotator(BaseImageAnnotator):
                                         keypoints=observation.keypoints,
                                         scores=observation.scores)
         return annotated_image
+    
+    def annotate_image_from_keypoints_and_scores(
+            self,
+            image: np.ndarray,
+            keypoints: np.ndarray,
+            scores: np.ndarray
+    ):
+        annotated_image = draw_skeleton(img=image, 
+                                        keypoints=keypoints,
+                                        scores=scores)
+        return annotated_image

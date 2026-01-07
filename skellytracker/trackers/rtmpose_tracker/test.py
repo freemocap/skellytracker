@@ -5,6 +5,12 @@ import onnxruntime as ort
 
 from rtmlib import Wholebody, draw_skeleton
 
+ort.preload_dlls(directory="")
+
+# Print debug information
+ort.print_debug_info()
+
+
 device = 'cuda'  # cpu, cuda, mps
 backend = 'onnxruntime'  # opencv, onnxruntime, openvino
 img = cv2.imread(r"D:\sfn\michael_wobble\backup_wobble_board_project_4-Aaron-2024-02-19 - Copy\labeled-data\Camera_001_synchronized\img002.png")
