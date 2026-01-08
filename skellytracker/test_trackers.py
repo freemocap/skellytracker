@@ -403,8 +403,7 @@ def annotate_synced_videos_from_raw_mp(
 
 if __name__ == "__main__":
     tracker_name = "rtmpose"
-
-    path_to_recording_folder = Path(r"D:\2025_07_31_JSM_pilot\freemocap\2025-07-31_16-35-10_GMT-4_jsm_treadmill_trial_1")
+    path_to_recording_folder = Path(r"D:\2025_09_03_OKK\freemocap\6_camera_treadmills\2025-09-03_15-04-04_GMT-4_okk_treadmill_2")
     path_to_synced_videos = path_to_recording_folder / "synchronized_videos"
     path_to_output_data = path_to_recording_folder / "output_data" / tracker_name
 
