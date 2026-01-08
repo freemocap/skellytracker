@@ -22,4 +22,17 @@ class VITPoseDetector(BaseDetector):
     def create(cls, config: VITPoseDetectorConfig | None = None):
         detector = VitInference()
 
-    def _resolve_model_type(self, model)
+    def _resolve_model_type(self, model):
+        mappings = {"small":"s", 
+                    "base":"b", 
+                    "large": "l",
+                    "huge": "h"}
+
+        if model not in mappings:
+            raise ValueError(
+                f"Invalid model '{model}'. "
+                f"Must be one of {list(mappings.keys())}"
+            )
+        
+        return mappings[model]
+
