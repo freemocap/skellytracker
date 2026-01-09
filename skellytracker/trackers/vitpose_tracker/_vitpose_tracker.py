@@ -31,9 +31,5 @@ class VITPoseTracker(BaseTracker):
             recorder = VITPoseRecorder()
         )
     
-    def annotate_image(self, model: VitInference):
-        annotated_image = self.annotator.annotate_image(model)
-        return annotated_image
-
 if __name__ == "__main__":
     tracker = VITPoseTracker.create().demo()
