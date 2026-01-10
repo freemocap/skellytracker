@@ -10,11 +10,17 @@ class VITPoseObservation(BaseObservation):
     @classmethod
     def from_detection_results(cls, frame_number: int, results: dict[str, np.ndarray], image_size: tuple[int, int]):
 
-        results_array = results[0]  #only picking the first 'person' from the data
+        # Handle no detections
+        if len(results) == 0:
+            # Return NaN-filled array - 133 keypoints for wholebody (this number is unlikely to change, unless we also allow for other kinds of VIT models. At that point we'll need to account for that)
+            num_keypoints = 133
+            keypoints = np.full((num_keypoints, 3), np.nan, dtype=np.float32)
+        else:
+            keypoints = results[0]  # First person only
 
         return cls(
             frame_number=frame_number,
-            keypoints=results_array,
+            keypoints=keypoints,
             image_size=image_size
         )
     
