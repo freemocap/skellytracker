@@ -253,7 +253,7 @@ def vitpose_process_synced_folder_mp(
 
 if __name__ == "__main__":
     tracker_name = "vitpose"
-    path_to_recording_folder = Path(r"C:\Users\aaron\freemocap_data\recording_sessions\freemocap_test_data")
+    path_to_recording_folder = Path(r"D:\2025_07_31_JSM_pilot\freemocap\2025-07-31_16-35-10_GMT-4_jsm_treadmill_trial_1")
     path_to_synced_videos = path_to_recording_folder / "synchronized_videos"
     path_to_output_data = path_to_recording_folder / "output_data" / tracker_name
 
