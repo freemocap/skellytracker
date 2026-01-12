@@ -37,8 +37,8 @@ def resolve_yolo_model(name:str) -> Path:
 
 class VITPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
-    vit_model: str = "base" #options are 'small', 'base', 'large', and 'huge'
-    yolo_model: str = "nano" #options are 'nano', 'small', "medium", "large", "extralarge"
+    vit_model: str = "huge" #options are 'small', 'base', 'large', and 'huge'
+    yolo_model: str = "medium" #options are 'nano', 'small', "medium", "large", "extralarge"
     yolo_size: int = 640 #Size of the input image for YOLO model
     yolo_step: int = 1 #how often YOLO is applied (1 is every frame), when >1 the tracker will try to predict bboxs to increase performance speed
     device: str|None = None #options are 'cuda', 'mps', or 'cpu', but with None the inferencer will auto check in cuda -> mps -> cpu order
@@ -75,7 +75,7 @@ class VITPoseDetector(BaseDetector):
         return VITPoseObservation.from_detection_results(
             frame_number = frame_number,
             results = results,
-            image_size = (int(image.shape[0]), int(image.shape[1]))
+            image_size = (int(image.shape[1]), int(image.shape[0]))
         )
 
     @staticmethod
