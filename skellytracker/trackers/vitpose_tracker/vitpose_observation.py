@@ -13,7 +13,7 @@ class VITPoseObservation(BaseObservation):
         # Handle no detections
         if len(results) == 0:
             # Return NaN-filled array - 133 keypoints for wholebody (this number is unlikely to change, unless we also allow for other kinds of VIT models. At that point we'll need to account for that)
-            num_keypoints = 25
+            num_keypoints = 133
             keypoints = np.full((num_keypoints, 3), np.nan, dtype=np.float32)
         else:
             keypoints = results[0]  # First person only
