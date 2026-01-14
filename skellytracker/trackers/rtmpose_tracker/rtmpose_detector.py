@@ -6,7 +6,7 @@ import onnxruntime
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
-    mode: str = "balanced"
+    mode: str = "performance"
     backend: str = "onnxruntime"
     device: str = "cuda"
 
