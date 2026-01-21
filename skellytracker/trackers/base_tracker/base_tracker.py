@@ -37,11 +37,12 @@ class BaseTracker(ABC):
             self.tracked_objects[name] = TrackedObject(object_id=name)
 
     @abstractmethod
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(self, image: np.ndarray, annotate_image: bool = True, **kwargs) -> Dict[str, TrackedObject]:
         """
         Process the input image and apply the tracking algorithm.
 
         :param image: An input image.
+        :param annotate_image: Whether to annotate a copy of the image with the results of the tracking algorithm.
         :return: A dictionary of tracked objects
         """
         pass

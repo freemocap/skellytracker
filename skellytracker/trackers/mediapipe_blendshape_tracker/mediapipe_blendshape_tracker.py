@@ -46,7 +46,9 @@ class MediapipeBlendshapeTracker(BaseTracker):
         )
         self.detector = vision.FaceLandmarker.create_from_options(options)
 
-    def process_image(self, image: np.ndarray, **kwargs) -> Dict[str, TrackedObject]:
+    def process_image(
+        self, image: np.ndarray, annotate_image: bool = True, **kwargs
+    ) -> Dict[str, TrackedObject]:
         rgb_image = cv2.cvtColor(
             image, cv2.COLOR_BGR2RGB
         )  # TODO: may need to convert this into an `mp.Image`, but can't find documentation about that
@@ -63,11 +65,12 @@ class MediapipeBlendshapeTracker(BaseTracker):
             blendshape.score for blendshape in results.face_blendshapes[0]
         ]  # TODO: assumes we're only interested in 1 face, but docs say this works for multiple faces??
 
-        self.annotated_image = self.annotate_image(
-            image=image,
-            tracked_objects=self.tracked_objects,
-            face_landmarks=results.face_landmarks[0],
-        )
+        if annotate_image:
+            self.annotated_image = self.annotate_image(
+                image=image,
+                tracked_objects=self.tracked_objects,
+                face_landmarks=results.face_landmarks[0],
+            )
 
         return self.tracked_objects
 
@@ -127,7 +130,7 @@ class MediapipeBlendshapeTracker(BaseTracker):
             r.raise_for_status()
             model_path.write_bytes(r.content)
         return model_path
-    
+
 
 if __name__ == "__main__":
     MediapipeBlendshapeTracker().demo()
