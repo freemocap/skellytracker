@@ -403,35 +403,39 @@ def annotate_synced_videos_from_raw_mp(
 
 if __name__ == "__main__":
     tracker_name = "rtmpose"
-    path_to_recording_folder = Path(r"D:\2025_09_03_OKK\freemocap\6_camera_treadmills\2025-09-03_15-04-04_GMT-4_okk_treadmill_2")
-    path_to_synced_videos = path_to_recording_folder / "synchronized_videos"
-    path_to_output_data = path_to_recording_folder / "output_data" / tracker_name
 
-    path_to_save_2d_data = (
-        path_to_output_data
-        / "raw_data"
-        / f"{tracker_name}_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy"
-    )
-    path_to_save_2d_data.parent.mkdir(parents=True, exist_ok=True)
+    recordings_list = [r"D:\2023-06-07_TF01\1.0_recordings\four_camera\sesh_2023-06-07_12_28_46_TF01_toe_angle_neutral_trial_1"]
 
-    path_to_annotated_dir = path_to_recording_folder / "annotated_videos" / tracker_name
-    path_to_annotated_dir.mkdir(parents=True, exist_ok=True)
+    for path_to_recording_folder in recordings_list:
+        path_to_recording_folder = Path(path_to_recording_folder)
+        path_to_synced_videos = path_to_recording_folder / "synchronized_videos"
+        path_to_output_data = path_to_recording_folder / "output_data" / tracker_name
 
-    # 1) Extract
-    points_2d, raw_kp_list, raw_sc_list, n_people_list, video_paths = rtmpose_2d_from_synced_folder_mp(
-        path_to_synced_videos,
-        num_workers=6,
-        show_progress=True,
-    )
-    np.save(path_to_save_2d_data, points_2d)
+        path_to_save_2d_data = (
+            path_to_output_data
+            / "raw_data"
+            / f"{tracker_name}_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy"
+        )
+        path_to_save_2d_data.parent.mkdir(parents=True, exist_ok=True)
 
-    # 2) Annotate (MP per camera)
-    annotate_synced_videos_from_raw_mp(
-        video_paths=video_paths,
-        raw_kp_list=raw_kp_list,
-        raw_sc_list=raw_sc_list,
-        n_people_list=n_people_list,
-        out_dir=path_to_annotated_dir,
-        num_workers=4,
-        show_progress=True,
-    )
+        path_to_annotated_dir = path_to_recording_folder / "annotated_videos" / tracker_name
+        path_to_annotated_dir.mkdir(parents=True, exist_ok=True)
+
+        # 1) Extract
+        points_2d, raw_kp_list, raw_sc_list, n_people_list, video_paths = rtmpose_2d_from_synced_folder_mp(
+            path_to_synced_videos,
+            num_workers=6,
+            show_progress=True,
+        )
+        np.save(path_to_save_2d_data, points_2d)
+
+        # 2) Annotate (MP per camera)
+        annotate_synced_videos_from_raw_mp(
+            video_paths=video_paths,
+            raw_kp_list=raw_kp_list,
+            raw_sc_list=raw_sc_list,
+            n_people_list=n_people_list,
+            out_dir=path_to_annotated_dir,
+            num_workers=6,
+            show_progress=True,
+        )
