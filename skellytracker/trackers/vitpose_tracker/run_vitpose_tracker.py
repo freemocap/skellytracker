@@ -252,29 +252,34 @@ def vitpose_process_synced_folder_mp(
 # ============================================================
 
 if __name__ == "__main__":
-    tracker_name = "vitpose"
-    path_to_recording_folder = Path(r"D:\2025_07_31_JSM_pilot\freemocap\2025-07-31_16-35-10_GMT-4_jsm_treadmill_trial_1")
-    path_to_synced_videos = path_to_recording_folder / "synchronized_videos"
-    path_to_output_data = path_to_recording_folder / "output_data" / tracker_name
 
-    path_to_save_2d_data = (
-        path_to_output_data
-        / "raw_data"
-        / f"{tracker_name}_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy"
-    )
-    path_to_save_2d_data.parent.mkdir(parents=True, exist_ok=True)
+    recordings_list = [r"D:\2023-06-07_TF01\1.0_recordings\four_camera\sesh_2023-06-07_12_28_46_TF01_toe_angle_neutral_trial_1"]
 
-    path_to_annotated_dir = path_to_recording_folder / "annotated_videos" / tracker_name
+    for recording in recordings_list:
 
-    # Single pass: extract + annotate together
-    points_2d, raw_kp_list, video_paths, out_video_paths = vitpose_process_synced_folder_mp(
-        path_to_synced_videos,
-        path_to_annotated_dir,
-        num_workers=6,
-        show_progress=True,
-    )
-    
-    # Save 2D data
-    np.save(path_to_save_2d_data, points_2d)
-    print(f"Saved 2D data: {points_2d.shape}")
-    print(f"Annotated videos saved to: {path_to_annotated_dir}")
+        tracker_name = "vitpose"
+        path_to_recording_folder = Path(recording)
+        path_to_synced_videos = path_to_recording_folder / "synchronized_videos"
+        path_to_output_data = path_to_recording_folder / "output_data" / tracker_name
+
+        path_to_save_2d_data = (
+            path_to_output_data
+            / "raw_data"
+            / f"{tracker_name}_2dData_numCams_numFrames_numTrackedPoints_pixelXY.npy"
+        )
+        path_to_save_2d_data.parent.mkdir(parents=True, exist_ok=True)
+
+        path_to_annotated_dir = path_to_recording_folder / "annotated_videos" / tracker_name
+
+        # Single pass: extract + annotate together
+        points_2d, raw_kp_list, video_paths, out_video_paths = vitpose_process_synced_folder_mp(
+            path_to_synced_videos,
+            path_to_annotated_dir,
+            num_workers=6,
+            show_progress=True,
+        )
+        
+        # Save 2D data
+        np.save(path_to_save_2d_data, points_2d)
+        print(f"Saved 2D data: {points_2d.shape}")
+        print(f"Annotated videos saved to: {path_to_annotated_dir}")
