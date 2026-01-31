@@ -404,7 +404,13 @@ def annotate_synced_videos_from_raw_mp(
 if __name__ == "__main__":
     tracker_name = "rtmpose"
 
-    recordings_list = [r"D:\2023-06-07_TF01\1.0_recordings\four_camera\sesh_2023-06-07_12_28_46_TF01_toe_angle_neutral_trial_1"]
+    recording_root = Path(r"D:\2023-06-07_TF01\1.0_recordings\four_camera")
+
+    recordings_list = [recording_root/"sesh_2023-06-07_12_38_16_TF01_leg_length_neg_5_trial_1",
+                       recording_root/"sesh_2023-06-07_12_43_15_TF01_leg_length_neg_25_trial_1",
+                       recording_root/"sesh_2023-06-07_12_46_54_TF01_leg_length_neutral_trial_1",
+                       recording_root/"sesh_2023-06-07_12_50_56_TF01_leg_length_pos_25_trial_1",
+                       recording_root/"sesh_2023-06-07_12_55_21_TF01_leg_length_pos_5_trial_1"]
 
     for path_to_recording_folder in recordings_list:
         path_to_recording_folder = Path(path_to_recording_folder)
