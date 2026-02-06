@@ -253,7 +253,12 @@ def vitpose_process_synced_folder_mp(
 
 if __name__ == "__main__":
 
-    recordings_list = [r"D:\2023-06-07_TF01\1.0_recordings\four_camera\sesh_2023-06-07_12_28_46_TF01_toe_angle_neutral_trial_1"]
+    recording_root = Path(r"D:\2026-01-30-JTM")
+
+    recordings_list = [recording_root/"2026-01-30_10-40-03_GMT-5_JTM_nih_1",
+                       recording_root/"2026-01-30_10-57-13_GMT-5_JTM_nih_2",
+                       recording_root/"2026-01-30_11-21-06_GMT-5_JTM_treadmill_1",
+                       recording_root/"2026-01-30_11-32-56_GMT-5_JTM_treadmill_2"]
 
     for recording in recordings_list:
 
@@ -275,7 +280,7 @@ if __name__ == "__main__":
         points_2d, raw_kp_list, video_paths, out_video_paths = vitpose_process_synced_folder_mp(
             path_to_synced_videos,
             path_to_annotated_dir,
-            num_workers=6,
+            num_workers=1,
             show_progress=True,
         )
         
