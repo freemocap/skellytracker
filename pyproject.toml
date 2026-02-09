@@ -71,6 +71,16 @@ dynamic = ["version", "description"]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
+rtmpose-cpu = [
+  "rtmlib==0.0.14",         
+  "onnxruntime",      
+]
+
+rtmpose-gpu = [
+    "rtmlib==0.0.14",
+    "onnxruntime-gpu", 
+]
+
 all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
 
 [project.urls]
