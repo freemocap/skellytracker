@@ -7,7 +7,7 @@ from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
-
+from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoDetectorConfig
 
 
 class CharucoDetector(BaseDetector):

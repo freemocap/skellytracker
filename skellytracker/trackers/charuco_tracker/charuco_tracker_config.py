@@ -1,6 +1,7 @@
 from pydantic import Field
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTrackerConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTrackerConfig, BaseDetectorConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig
+import cv2
 
 DEFAULT_ARUCO_DICTIONARY_NAME: str = "cv2.aruco.DICT_4X4_50"
 DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_50
@@ -15,7 +16,7 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     marker_length: float = 0.8
 
     @property
-    def charuco_corner_ids(self) -> List[int]:
+    def charuco_corner_ids(self) -> list[int]:
         return list(range((self.squares_x - 1) * (self.squares_y - 1)))
 
     @property

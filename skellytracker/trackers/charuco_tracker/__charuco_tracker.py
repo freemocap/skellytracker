@@ -4,7 +4,7 @@
 import logging
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
-from skellytracker.trackers.charuco_tracker import CharucoTrackerConfig
+from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoTrackerConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetector
 from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoTrackerConfig
