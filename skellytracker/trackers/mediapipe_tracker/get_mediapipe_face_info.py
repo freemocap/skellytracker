@@ -32,7 +32,14 @@ MEDIAPIPE_FACE_CONTOURS_INDICIES = frozenset().union(*[MEDIAPIPE_FACE_LIPS_INDIC
                                                         MEDIAPIPE_FACE_FACE_OVAL_INDICIES,
                                                         MEDIAPIPE_FACE_RIGHT_IRIS_INDICIES,
                                                         MEDIAPIPE_FACE_LEFT_IRIS_INDICIES])
-MEDIAPIPE_FACE_CONTOURS_NAMES = MEDIAPIPE_LIPS_NAMES + MEDIAPIPE_LEFT_EYE_NAMES + MEDIAPIPE_RIGHT_EYE_NAMES + MEDIAPIPE_LEFT_EYEBROW_NAMES + MEDIAPIPE_RIGHT_EYEBROW_NAMES + MEDIAPIPE_FACE_OVAL_NAMES + MEDIAPIPE_RIGHT_IRIS_NAMES + MEDIAPIPE_LEFT_IRIS_NAMES
+MEDIAPIPE_FACE_CONTOURS_NAMES = (MEDIAPIPE_LIPS_NAMES +
+                                 MEDIAPIPE_LEFT_EYE_NAMES +
+                                 MEDIAPIPE_RIGHT_EYE_NAMES +
+                                 MEDIAPIPE_LEFT_EYEBROW_NAMES +
+                                 MEDIAPIPE_RIGHT_EYEBROW_NAMES +
+                                 MEDIAPIPE_FACE_OVAL_NAMES +
+                                 MEDIAPIPE_RIGHT_IRIS_NAMES +
+                                 MEDIAPIPE_LEFT_IRIS_NAMES)
 
 if len(MEDIAPIPE_FACE_CONTOURS_INDICIES) != len(MEDIAPIPE_FACE_CONTOURS_NAMES):
     raise ValueError("Expected the number of indicies and names to be the same")

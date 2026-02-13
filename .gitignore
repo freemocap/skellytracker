@@ -168,3 +168,4 @@ cython_debug/
 
 skellytracker/utilities/quine_directory_printer/output/*
 recorded_objects.npy
+.zip
