@@ -134,14 +134,15 @@ class MediapipeObservation(BaseObservation):
     def face_contour_points_xyz(self) -> NDArray[Shape["* face contour points, 3"], float]:
         all_face_landmarks = self.face_tesselation_points_xyz
 
-        # NO MORE FILTERING - just use the indices directly since we padded above
-        face_contour_indices = list(MEDIAPIPE_FACE_CONTOURS_INDICIES)
-
-        # Check if all indices are NaN (no face detected at all)
         if np.isnan(all_face_landmarks).all():
-            return np.full((len(face_contour_indices), 3), np.nan)
+            return np.full((self.num_face_contour_points, 3), np.nan)
 
-        return all_face_landmarks[face_contour_indices]
+        # Build index list from names to guarantee matching order.
+        # Each name is "{group}_{raw_mediapipe_index}", so we parse the
+        # trailing integer to get the raw landmark index for array lookup.
+        indices = [int(name.rsplit('_', 1)[1]) for name in self.face_contour_landmark_names]
+
+        return all_face_landmarks[indices]
 
     def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> NDArray[Shape["* all points, 3"], float]:
         landmark_array = np.array(
@@ -227,17 +228,16 @@ class MediapipeObservation(BaseObservation):
         ])
 
     def _get_face_visibility(self) -> NDArray[Shape["* face points"], float]:
-        """Extract visibility scores from face landmarks."""
+        """Extract visibility scores from face landmarks, in name-matching order."""
         if self.face_landmarks is None:
             return np.full(self.num_face_contour_points, 0.0)
 
-        face_contour_indices = list(MEDIAPIPE_FACE_CONTOURS_INDICIES)
-
-        # Check if we have any face data
         if np.isnan(self.face_tesselation_points_xyz).all():
-            return np.full(len(face_contour_indices), 0.0)
+            return np.full(self.num_face_contour_points, 0.0)
 
-        # Get visibility for contour points only
+        # Derive raw indices from names to guarantee matching order
+        face_contour_indices = [int(name.rsplit('_', 1)[1]) for name in self.face_contour_landmark_names]
+
         visibilities = []
         for idx in face_contour_indices:
             if idx < len(self.face_landmarks.landmark):

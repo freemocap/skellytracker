@@ -9,8 +9,8 @@ def get_unique_indices_and_names(connections: list[list[int]], prepend_string:st
     for connection in connections:
         indices.add(connection[0])
         indices.add(connection[1])
-    indices = list(indices)
-    names = [f"{prepend_string}_{i}" for i in indices]
+    sorted_indices = sorted(indices)
+    names = [f"{prepend_string}_{i}" for i in sorted_indices]
     return frozenset(indices), names
 
 
