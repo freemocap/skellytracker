@@ -1,4 +1,6 @@
 from skellytracker.trackers.mediapipe_tracker.__mediapipe_tracker import MediapipeCompositeTracker as MediapipeTracker
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import \
+    MediapipeCompositeDetectorConfig as MediapipeDetectorConfig
 from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_tracker_config import MediapipeCompositeTrackerConfig as MediapipeTrackerConfig
 from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_observation import MediapipeCompositeObservation as MediapipeObservation
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_tracker import MediapipePoseTracker
