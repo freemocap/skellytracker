@@ -1,5 +1,4 @@
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig
-from skellytracker.trackers.mediapipe_tracker import MediapipeHandTracker
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_manager import MediapipePoseModelComplexity
 
 
