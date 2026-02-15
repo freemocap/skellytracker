@@ -23,10 +23,10 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Utilities",
     "Topic :: Multimedia :: Video",
@@ -53,35 +53,32 @@ keywords = [
     "computer vision"
 ]
 
-#dynamic = ["dependencies"]
 dependencies = [
-    "opencv-contrib-python==4.10.*",
-    "mediapipe==0.10.14",
+    "opencv-contrib-python>=4.10.*",
     "pydantic==2.*",
-    "numpy<2",
+    "numpy",
     "tqdm==4.*",
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
 ]
-requires-python = ">=3.9,<3.13"
+requires-python = ">=3.11,<3.15"
 
 dynamic = ["version", "description"]
 
 [dependency-groups]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
-mediapipe = ["mediapipe==0.10.14"]
+mediapipe = ["mediapipe>=0.10.21"]
+#legacy-mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
 rtmpose-cpu = [
-  "rtmlib==0.0.14",         
-  "onnxruntime",      
+  "rtmlib==0.0.14",
+  "onnxruntime",
 ]
-
 rtmpose-gpu = [
     "rtmlib==0.0.14",
-    "onnxruntime-gpu", 
+    "onnxruntime-gpu",
 ]
-
-all = ["ultralytics~=8.0.202", "mediapipe==0.10.14"]
+all = ["ultralytics~=8.0.202", "mediapipe>=0.10.21"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"

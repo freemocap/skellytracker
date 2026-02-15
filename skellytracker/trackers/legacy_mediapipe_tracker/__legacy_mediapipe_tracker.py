@@ -3,14 +3,15 @@ import logging
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
-from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, \
+from skellytracker.trackers.legacy_mediapipe_tracker import LegacyMediapipeDetectorConfig
+from skellytracker.trackers.legacy_mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, \
     MediapipeImageAnnotator
-from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
+from skellytracker.trackers.legacy_mediapipe_tracker.mediapipe_detector import MediapipeDetector
 
 logger = logging.getLogger(__name__)
 
 class MediapipeTrackerConfig(BaseTrackerConfig):
-    detector_config: MediapipeDetectorConfig = Field(default_factory = MediapipeDetectorConfig)
+    detector_config: LegacyMediapipeDetectorConfig = Field(default_factory = LegacyMediapipeDetectorConfig)
     annotator_config: MediapipeAnnotatorConfig = Field(default_factory = MediapipeAnnotatorConfig)
 
 class MediapipeRecorder(BaseRecorder):
@@ -18,7 +19,7 @@ class MediapipeRecorder(BaseRecorder):
     pass
 
 
-class MediapipeTracker(BaseTracker):
+class LegacyMediapipeTracker(BaseTracker):
     config: MediapipeTrackerConfig
     detector: MediapipeDetector
     annotator: MediapipeImageAnnotator | None = None
@@ -39,4 +40,4 @@ class MediapipeTracker(BaseTracker):
 
 
 if __name__ == "__main__":
-    MediapipeTracker.create().demo()
+    LegacyMediapipeTracker.create().demo()

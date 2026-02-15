@@ -1,4 +1,3 @@
-from copy import copy
 from typing import NamedTuple
 
 import logging
@@ -12,7 +11,7 @@ from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRI
 from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2dArray
-from skellytracker.trackers.mediapipe_tracker.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
+from skellytracker.trackers.mediapipe_tracker.face.get_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
     MEDIAPIPE_FACE_CONTOURS_NAMES
 
 logger = logging.getLogger(__name__)

@@ -9,7 +9,7 @@ class MediapipeModelComplexity(int, Enum):
     HEAVY = 2  # BlazePose Heavy model, most accurate
 
 
-class MediapipeDetectorConfig(BaseDetectorConfig):
+class LegacyMediapipeDetectorConfig(BaseDetectorConfig):
     model_complexity: MediapipeModelComplexity = MediapipeModelComplexity.HEAVY
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5
@@ -21,7 +21,7 @@ class MediapipeDetectorConfig(BaseDetectorConfig):
     refine_face_landmarks: bool = True  # adds iris landmarks to face mesh
 
 
-MEDIAPIPE_TRACKER_REALTIME_PRESET = MediapipeDetectorConfig(
+MEDIAPIPE_TRACKER_REALTIME_PRESET = LegacyMediapipeDetectorConfig(
     model_complexity=MediapipeModelComplexity.LITE,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5,
@@ -31,7 +31,7 @@ MEDIAPIPE_TRACKER_REALTIME_PRESET = MediapipeDetectorConfig(
     smooth_segmentation=False,
     refine_face_landmarks=True,
 )
-MEDIAPIPE_TRACKER_POSTHOC_PRESET = MediapipeDetectorConfig(
+MEDIAPIPE_TRACKER_POSTHOC_PRESET = LegacyMediapipeDetectorConfig(
     model_complexity=MediapipeModelComplexity.HEAVY,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5,
