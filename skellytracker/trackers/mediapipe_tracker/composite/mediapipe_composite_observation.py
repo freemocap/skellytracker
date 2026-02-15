@@ -221,6 +221,70 @@ class MediapipeCompositeObservation(BaseObservation):
     def face_contour_landmark_names(self) -> list[str]:
         return list(MEDIAPIPE_FACE_CONTOURS_NAMES)
 
+    @property
+    def num_face_tesselation_points(self) -> int:
+        return NUM_FACE_LANDMARKS
+
+    @property
+    def has_pose(self) -> bool:
+        return self.pose is not None and self.pose.has_detection
+
+    @property
+    def has_right_hand(self) -> bool:
+        return self.hands is not None and self.hands.has_right_hand
+
+    @property
+    def has_left_hand(self) -> bool:
+        return self.hands is not None and self.hands.has_left_hand
+
+    @property
+    def has_face(self) -> bool:
+        return self.face is not None and self.face.has_detection
+
+    def all_points(self, dimensions: int, face_type: str = "contour", scale_by: float = 1.0) -> dict[str, tuple]:
+        """
+        Get all tracked points as a dict of name → coordinate tuple.
+
+        Matches the legacy MediapipeObservation.all_points() interface.
+
+        Args:
+            dimensions: 2 or 3 — number of coordinate dimensions to include.
+            face_type: "contour" for face contour subset, "tesselation" for full 478-point mesh.
+            scale_by: Multiply all coordinates by this factor.
+        """
+        if dimensions not in (2, 3):
+            raise ValueError(f"Invalid dimensions: {dimensions}")
+
+        all_points_by_name: dict[str, tuple] = {}
+
+        body_xyz = self.fused_body_landmarks_xyz.copy() * scale_by
+        right_hand_xyz = self.right_hand_landmarks_xyz.copy() * scale_by
+        left_hand_xyz = self.left_hand_landmarks_xyz.copy() * scale_by
+
+        if face_type == "tesselation":
+            face_xyz = self.face_landmarks_xyz.copy() * scale_by
+            face_names = [f"face_{i:04d}" for i in range(NUM_FACE_LANDMARKS)]
+        elif face_type == "contour":
+            face_xyz = self.face_contour_landmarks_xyz.copy() * scale_by
+            face_names = self.face_contour_landmark_names
+        else:
+            raise ValueError(f"Invalid face type: {face_type}")
+
+        for i, name in enumerate(POSE_LANDMARK_NAMES):
+            all_points_by_name[name] = tuple(body_xyz[i, :dimensions])
+
+        for i, name in enumerate(RIGHT_HAND_LANDMARK_NAMES):
+            all_points_by_name[name] = tuple(right_hand_xyz[i, :dimensions])
+
+        for i, name in enumerate(LEFT_HAND_LANDMARK_NAMES):
+            all_points_by_name[name] = tuple(left_hand_xyz[i, :dimensions])
+
+        for i, name in enumerate(face_names):
+            if i < face_xyz.shape[0]:
+                all_points_by_name[name] = tuple(face_xyz[i, :dimensions])
+
+        return all_points_by_name
+
     def get_confidence_scores(self) -> NDArray[Shape["*"], float]:
         body_vis = self.body_visibility
         right_hand_vis = self.hands.right_hand_visibility if self.hands is not None else np.zeros(NUM_HAND_LANDMARKS)
