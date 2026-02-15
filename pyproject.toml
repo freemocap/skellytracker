@@ -54,21 +54,31 @@ keywords = [
 ]
 
 dependencies = [
-    "opencv-contrib-python>=4.10.*",
+    "opencv-contrib-python",
     "pydantic==2.*",
-    "numpy",
+    "numpy<2",
     "tqdm==4.*",
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
 ]
-requires-python = ">=3.11,<3.15"
+requires-python = ">=3.9,<3.13"
 
 dynamic = ["version", "description"]
 
+# Optional dependencies — used by downstream packages via skellytracker[mediapipe] etc.
+[project.optional-dependencies]
+mediapipe = ["mediapipe>=0.10.21"]
+legacy-mediapipe = ["mediapipe==0.10.14"]
+yolo = ["ultralytics~=8.0.202"]
+rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
+rtmpose-gpu = ["rtmlib==0.0.14", "onnxruntime-gpu"]
+all = ["mediapipe>=0.10.21", "ultralytics~=8.0.202"]
+
+# Dependency groups — used for local development via `uv sync --group <name>`
 [dependency-groups]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 mediapipe = ["mediapipe>=0.10.21"]
-#legacy-mediapipe = ["mediapipe==0.10.14"]
+legacy-mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
 rtmpose-cpu = [
   "rtmlib==0.0.14",
@@ -78,7 +88,21 @@ rtmpose-gpu = [
     "rtmlib==0.0.14",
     "onnxruntime-gpu",
 ]
-all = ["ultralytics~=8.0.202", "mediapipe>=0.10.21"]
+
+# Tell uv which dependency groups conflict with each other and cannot
+# be installed simultaneously. Without this, `uv sync` tries to resolve
+# all groups at once and fails on the version contradictions.
+[tool.uv]
+conflicts = [
+    [
+        { group = "mediapipe" },
+        { group = "legacy-mediapipe" },
+    ],
+    [
+        { group = "rtmpose-cpu" },
+        { group = "rtmpose-gpu" },
+    ],
+]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
