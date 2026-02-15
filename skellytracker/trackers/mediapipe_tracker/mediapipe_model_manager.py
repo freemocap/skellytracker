@@ -10,16 +10,16 @@ logger = logging.getLogger(__name__)
 CACHE_DIR = Path.home() / ".freemocap" / "skellytracker-models"
 
 
-class PoseModelComplexity(str, Enum):
+class MediapipePoseModelComplexity(str, Enum):
     LITE = "lite"
     FULL = "full"
     HEAVY = "heavy"
 
 
-POSE_MODEL_URLS: dict[PoseModelComplexity, str] = {
-    PoseModelComplexity.LITE: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
-    PoseModelComplexity.FULL: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
-    PoseModelComplexity.HEAVY: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",
+POSE_MODEL_URLS: dict[MediapipePoseModelComplexity, str] = {
+    MediapipePoseModelComplexity.LITE: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task",
+    MediapipePoseModelComplexity.FULL: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task",
+    MediapipePoseModelComplexity.HEAVY: "https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_heavy/float16/1/pose_landmarker_heavy.task",
 }
 
 HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
@@ -65,7 +65,7 @@ def get_model_path(url: str) -> Path:
     return local_path
 
 
-def get_pose_model_path(complexity: PoseModelComplexity) -> Path:
+def get_pose_model_path(complexity: MediapipePoseModelComplexity) -> Path:
     """Get local path for a pose model of the given complexity."""
     url = POSE_MODEL_URLS[complexity]
     return get_model_path(url=url)
