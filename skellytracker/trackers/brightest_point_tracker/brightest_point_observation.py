@@ -1,39 +1,41 @@
+from dataclasses import dataclass, field
+
 import numpy as np
-from numpydantic import NDArray, Shape
-from pydantic import BaseModel
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, \
-    TrackedPointIdString, TrackedPoint2dArray
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
 
 
-class BrightPatch(BaseModel):
+@dataclass(slots=True)
+class BrightPatch:
     area: float
     centroid_x: int
     centroid_y: int
 
 
+@dataclass(slots=True)
 class BrightestPointObservation(BaseObservation):
-    bright_patches: list[BrightPatch | None]
-    tracker_type:TrackerTypeString = 'bright_point_tracker'
+    tracker_type: str = field(default="bright_point_tracker", init=False)
+    frame_number: int = 0
+    points: PointCloud = field(default_factory=lambda: PointCloud.empty(()))
+    bright_patches: list[BrightPatch | None] = field(default_factory=list)
 
     @classmethod
-    def from_detection_results(cls, frame_number: int, bright_patches: list[BrightPatch | None]):
-        return cls(frame_number=frame_number, bright_patches=bright_patches)
+    def from_detection_results(cls, frame_number: int, bright_patches: list[BrightPatch | None]) -> "BrightestPointObservation":
+        n = len(bright_patches)
+        names = tuple(f"bright_patch_{i + 1}" for i in range(n))
+        xyz = np.full((n, 3), np.nan)
+        visibility = np.zeros(n)
 
-    def to_2d_array(self) -> NDArray[Shape["* bright_patches, 2 pxpy"], float]:
-        array = np.full((len(self.bright_patches), 2), np.nan)
-        for patch_index, patch in enumerate(self.bright_patches):
-            if patch is None:
-                continue
-            array[patch_index, 0] = patch.centroid_x
-            array[patch_index, 1] = patch.centroid_y
-        return array
+        for i, patch in enumerate(bright_patches):
+            if patch is not None:
+                xyz[i] = (patch.centroid_x, patch.centroid_y, 0.0)
+                visibility[i] = 1.0
 
-    def to_tracked_points(cls) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
-        points = {}
-        for i, patch in enumerate(cls.bright_patches):
-            if patch is None:
-                continue
-            point_id = f"bright_patch_{i+1}"
-            points[point_id] = np.array([patch.centroid_x, patch.centroid_y])
-        return points
+        cloud = PointCloud(names=names, xyz=xyz, visibility=visibility)
+
+        return cls(
+            frame_number=frame_number,
+            points=cloud,
+            bright_patches=bright_patches,
+        )

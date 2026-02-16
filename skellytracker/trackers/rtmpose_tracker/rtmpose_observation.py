@@ -1,32 +1,50 @@
-import numpy as np
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString
+from dataclasses import dataclass, field
 
+import numpy as np
+
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
+from skellytracker.trackers.rtmpose_tracker.rtmpose_landmark_names import ALL_LANDMARK_NAMES
+
+_RTMPOSE_NAMES: tuple[str, ...] = tuple(ALL_LANDMARK_NAMES)
+
+
+@dataclass(slots=True)
 class RTMPoseObservation(BaseObservation):
-    tracker_type: TrackerTypeString = "rtmpose"
-    frame_number: int
-    image_size: tuple[int, int]
-    keypoints: np.ndarray
-    scores: np.ndarray
+    tracker_type: str = field(default="rtmpose", init=False)
+    frame_number: int = 0
+    image_size: tuple[int, int] = (0, 0)
+    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_RTMPOSE_NAMES))
+
+    # Raw multi-person arrays retained for access to other detected persons
+    keypoints: np.ndarray = field(default_factory=lambda: np.empty((0, 0, 0)))
+    scores: np.ndarray = field(default_factory=lambda: np.empty((0, 0)))
 
     @classmethod
-    def from_detection_results(cls, frame_number: int, keypoints: np.ndarray, scores: np.ndarray, image_size: tuple[int, int]):
-        return cls(frame_number=frame_number, image_size=image_size, keypoints=keypoints, scores=scores)
+    def from_detection_results(
+        cls,
+        frame_number: int,
+        keypoints: np.ndarray,
+        scores: np.ndarray,
+        image_size: tuple[int, int],
+    ) -> "RTMPoseObservation":
+        # Take the first detected person
+        if keypoints.shape[0] > 0:
+            points_2d = keypoints[0, :, :2]  # (N, 2)
+            confidence = scores[0, :]         # (N,)
+        else:
+            n = len(_RTMPOSE_NAMES)
+            points_2d = np.full((n, 2), np.nan)
+            confidence = np.zeros(n)
 
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> np.ndarray:
-        #NOTE: I think RTMLib automatically confidence filters for values < 0.3 ond default
-        point_2d = self.keypoints[0,:] #for now, choosing 2d points for the first 'person' detected
+        n = points_2d.shape[0]
+        xyz = np.column_stack([points_2d, np.zeros(n)])
+        cloud = PointCloud(names=_RTMPOSE_NAMES, xyz=xyz, visibility=confidence)
 
-        if confidence_threshold is not None:
-            confidence_scores = self.scores[0,:] #for now, choosing scores for the first 'person' detected
-
-            point_2d = self.filter_by_confidence(
-                points = point_2d,
-                confidence_scores = confidence_scores,
-                confidence_threshold=confidence_threshold,
-                fill_with_nans=fill_with_nans
-            )
-        return point_2d
-
-    def to_tracked_points(self):
-        pass
-
+        return cls(
+            frame_number=frame_number,
+            image_size=image_size,
+            points=cloud,
+            keypoints=keypoints,
+            scores=scores,
+        )

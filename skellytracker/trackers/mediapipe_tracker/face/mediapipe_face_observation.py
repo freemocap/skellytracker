@@ -1,29 +1,37 @@
-import numpy as np
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict
+from dataclasses import dataclass, field
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import (
-    BaseObservation,
-    TrackedPoint2dArray,
-    TrackedPointIdString,
-    TrackerTypeString,
-)
+import numpy as np
+from numpy.typing import NDArray
+
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
 from skellytracker.trackers.mediapipe_tracker.face.get_mediapipe_face_info import (
     MEDIAPIPE_FACE_CONTOURS_INDICIES,
     MEDIAPIPE_FACE_CONTOURS_NAMES,
 )
 from skellytracker.trackers.mediapipe_tracker.mediapipe_names import NUM_FACE_LANDMARKS
 
+_FACE_NAMES: tuple[str, ...] = tuple(f"face_{i:04d}" for i in range(NUM_FACE_LANDMARKS))
+_CONTOUR_NAMES: tuple[str, ...] = tuple(MEDIAPIPE_FACE_CONTOURS_NAMES)
 
+
+@dataclass(slots=True)
 class MediapipeFaceObservation(BaseObservation):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    tracker_type: TrackerTypeString = "mediapipe_face"
-    frame_number: int
-    image_size: tuple[int, int]  # (height, width)
+    """
+    Face observation storing the full 478-point tessellation in a PointCloud.
 
-    face_landmarks_xyz: NDArray[Shape["478, 3"], float]  # full tessellation
-    face_visibility: NDArray[Shape["478"], float]
-    face_blendshapes: dict[str, float] | None  # 52 blendshape scores, or None
+    The contour subset is derived on access via index lookup.
+    """
+
+    tracker_type: str = field(default="mediapipe_face", init=False)
+    frame_number: int = 0
+    image_size: tuple[int, int] = (0, 0)
+
+    # Full 478-point tessellation
+    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_FACE_NAMES))
+
+    # Blendshape coefficients (52 FACS-like scores), or None
+    face_blendshapes: dict[str, float] | None = None
 
     @classmethod
     def from_detection_results(
@@ -36,13 +44,7 @@ class MediapipeFaceObservation(BaseObservation):
         height, width = image_size
 
         if len(face_landmarker_result.face_landmarks) == 0:
-            return cls(
-                frame_number=frame_number,
-                image_size=image_size,
-                face_landmarks_xyz=np.full((NUM_FACE_LANDMARKS, 3), np.nan),
-                face_visibility=np.zeros(NUM_FACE_LANDMARKS),
-                face_blendshapes=None,
-            )
+            return cls(frame_number=frame_number, image_size=image_size)
 
         landmarks = face_landmarker_result.face_landmarks[0]
 
@@ -55,7 +57,6 @@ class MediapipeFaceObservation(BaseObservation):
             face_xyz[i] = (lm.x * width, lm.y * height, lm.z * width)
             face_vis[i] = lm.presence if lm.presence is not None else 1.0
 
-        # Blendshapes
         blendshapes: dict[str, float] | None = None
         if face_landmarker_result.face_blendshapes and len(face_landmarker_result.face_blendshapes) > 0:
             blendshapes = {
@@ -63,11 +64,12 @@ class MediapipeFaceObservation(BaseObservation):
                 for cat in face_landmarker_result.face_blendshapes[0]
             }
 
+        cloud = PointCloud(names=_FACE_NAMES, xyz=face_xyz, visibility=face_vis)
+
         return cls(
             frame_number=frame_number,
             image_size=image_size,
-            face_landmarks_xyz=face_xyz,
-            face_visibility=face_vis,
+            points=cloud,
             face_blendshapes=blendshapes,
         )
 
@@ -80,18 +82,12 @@ class MediapipeFaceObservation(BaseObservation):
         crop_size: tuple[int, int],
         full_image_size: tuple[int, int],
     ) -> "MediapipeFaceObservation":
-        """Convert a FaceLandmarkerResult from a cropped image back to full-image coordinates."""
+        """Convert a FaceLandmarkerResult from a crop back to full-image coordinates."""
         crop_h, crop_w = crop_size
         y_off, x_off = crop_origin
 
         if len(face_landmarker_result.face_landmarks) == 0:
-            return cls(
-                frame_number=frame_number,
-                image_size=full_image_size,
-                face_landmarks_xyz=np.full((NUM_FACE_LANDMARKS, 3), np.nan),
-                face_visibility=np.zeros(NUM_FACE_LANDMARKS),
-                face_blendshapes=None,
-            )
+            return cls(frame_number=frame_number, image_size=full_image_size)
 
         landmarks = face_landmarker_result.face_landmarks[0]
 
@@ -101,14 +97,9 @@ class MediapipeFaceObservation(BaseObservation):
         num_detected = len(landmarks)
         for i in range(min(num_detected, NUM_FACE_LANDMARKS)):
             lm = landmarks[i]
-            face_xyz[i] = (
-                lm.x * crop_w + x_off,
-                lm.y * crop_h + y_off,
-                lm.z * crop_w,
-            )
+            face_xyz[i] = (lm.x * crop_w + x_off, lm.y * crop_h + y_off, lm.z * crop_w)
             face_vis[i] = lm.presence if lm.presence is not None else 1.0
 
-        # Blendshapes (not affected by crop coordinates)
         blendshapes: dict[str, float] | None = None
         if face_landmarker_result.face_blendshapes and len(face_landmarker_result.face_blendshapes) > 0:
             blendshapes = {
@@ -116,62 +107,42 @@ class MediapipeFaceObservation(BaseObservation):
                 for cat in face_landmarker_result.face_blendshapes[0]
             }
 
+        cloud = PointCloud(names=_FACE_NAMES, xyz=face_xyz, visibility=face_vis)
+
         return cls(
             frame_number=frame_number,
             image_size=full_image_size,
-            face_landmarks_xyz=face_xyz,
-            face_visibility=face_vis,
+            points=cloud,
             face_blendshapes=blendshapes,
         )
 
     @property
     def has_detection(self) -> bool:
-        return not np.isnan(self.face_landmarks_xyz).all()
+        return self.points.n_valid > 0
+
+    @property
+    def face_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz
+
+    @property
+    def face_visibility(self) -> NDArray:
+        return self.points.visibility
 
     @property
     def num_face_contour_points(self) -> int:
         return len(MEDIAPIPE_FACE_CONTOURS_INDICIES)
 
     @property
-    def face_contour_landmarks_xyz(self) -> NDArray[Shape["*, 3"], float]:
+    def face_contour_landmarks_xyz(self) -> NDArray:
         """Extract the face contour subset from the full tessellation."""
         if not self.has_detection:
             return np.full((self.num_face_contour_points, 3), np.nan)
-
         indices = [int(name.rsplit("_", 1)[1]) for name in MEDIAPIPE_FACE_CONTOURS_NAMES]
-        return self.face_landmarks_xyz[indices]
+        return self.points.xyz[indices]
 
     @property
-    def face_contour_visibility(self) -> NDArray[Shape["*"], float]:
+    def face_contour_visibility(self) -> NDArray:
         if not self.has_detection:
             return np.zeros(self.num_face_contour_points)
         indices = [int(name.rsplit("_", 1)[1]) for name in MEDIAPIPE_FACE_CONTOURS_NAMES]
-        return self.face_visibility[indices]
-
-    def get_confidence_scores(self) -> NDArray[Shape["478"], float]:
-        return self.face_visibility
-
-    def to_tracked_points(self, *, confidence_threshold: float | None = None) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
-        """Return face contour points (not full tessellation) as tracked points."""
-        result: dict[TrackedPointIdString, TrackedPoint2dArray] = {}
-        contour_xyz = self.face_contour_landmarks_xyz
-        contour_vis = self.face_contour_visibility
-        for i, name in enumerate(MEDIAPIPE_FACE_CONTOURS_NAMES):
-            if np.isnan(contour_xyz[i]).any():
-                continue
-            if confidence_threshold is not None and contour_vis[i] < confidence_threshold:
-                continue
-            result[name] = np.array(contour_xyz[i, :2])
-        return result
-
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[Shape["*, 2"], float]:
-        """Return face contour points as 2D array."""
-        points_2d = self.face_contour_landmarks_xyz[:, :2].copy()
-        if confidence_threshold is not None:
-            points_2d = self.filter_by_confidence(
-                points=points_2d,
-                confidence_scores=self.face_contour_visibility,
-                confidence_threshold=confidence_threshold,
-                fill_with_nans=fill_with_nans,
-            )
-        return points_2d
+        return self.points.visibility[indices]

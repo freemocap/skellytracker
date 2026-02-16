@@ -1,5 +1,6 @@
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
@@ -99,7 +100,7 @@ class MediapipeCompositeDetector(BaseDetector):
 
         # If no body detected, return empty observation (skip expensive hand/face detection)
         if not pose_obs.has_detection:
-            return MediapipeCompositeObservation(
+            return MediapipeCompositeObservation.build(
                 frame_number=frame_number,
                 image_size=image_size,
                 pose=pose_obs,
@@ -110,36 +111,54 @@ class MediapipeCompositeDetector(BaseDetector):
         body_xyz = pose_obs.body_landmarks_xyz
         body_vis = pose_obs.body_visibility
 
-        # Step 2 & 3: Detect hands
+        # Step 2: Run hand and face detection in parallel.
+        # MediaPipe's C++ inference releases the GIL, so ThreadPoolExecutor
+        # gives real parallelism here — all three sub-detections can run
+        # simultaneously on separate threads.
         hand_obs: MediapipeHandObservation | None = None
         left_hand_roi: ROIBox | None = None
         right_hand_roi: ROIBox | None = None
+        face_obs: MediapipeFaceObservation | None = None
+        face_roi_box: ROIBox | None = None
 
-        if self.hand_detector is not None:
-            # Detect right hand
-            right_hand_obs, right_hand_roi = self._detect_hand(
-                frame_number=frame_number,
-                image=rgb_image,
-                body_xyz=body_xyz,
-                body_vis=body_vis,
-                wrist_index=POSE_RIGHT_WRIST_INDEX,
-                elbow_index=POSE_RIGHT_ELBOW_INDEX,
-                handedness_hint="Right",
-            )
+        futures = {}
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            if self.hand_detector is not None:
+                futures["right_hand"] = pool.submit(
+                    self._detect_hand,
+                    frame_number=frame_number,
+                    image=rgb_image,
+                    body_xyz=body_xyz,
+                    body_vis=body_vis,
+                    wrist_index=POSE_RIGHT_WRIST_INDEX,
+                    elbow_index=POSE_RIGHT_ELBOW_INDEX,
+                    handedness_hint="Right",
+                )
+                futures["left_hand"] = pool.submit(
+                    self._detect_hand,
+                    frame_number=frame_number,
+                    image=rgb_image,
+                    body_xyz=body_xyz,
+                    body_vis=body_vis,
+                    wrist_index=POSE_LEFT_WRIST_INDEX,
+                    elbow_index=POSE_LEFT_ELBOW_INDEX,
+                    handedness_hint="Left",
+                )
+            if self.face_detector is not None:
+                futures["face"] = pool.submit(
+                    self._detect_face,
+                    frame_number=frame_number,
+                    image=rgb_image,
+                    body_xyz=body_xyz,
+                    body_vis=body_vis,
+                )
 
-            # Detect left hand
-            left_hand_obs, left_hand_roi = self._detect_hand(
-                frame_number=frame_number,
-                image=rgb_image,
-                body_xyz=body_xyz,
-                body_vis=body_vis,
-                wrist_index=POSE_LEFT_WRIST_INDEX,
-                elbow_index=POSE_LEFT_ELBOW_INDEX,
-                handedness_hint="Left",
-            )
+        # Collect results
+        if "right_hand" in futures:
+            right_hand_obs, right_hand_roi = futures["right_hand"].result()
+            left_hand_obs, left_hand_roi = futures["left_hand"].result()
 
-            # Resolve overlapping hand detections — if both hands land on top of
-            # each other, assign based on proximity to body wrists
+            # Resolve overlapping hand detections
             right_hand_obs, left_hand_obs = self._resolve_hand_overlap(
                 right_hand_obs=right_hand_obs,
                 left_hand_obs=left_hand_obs,
@@ -147,29 +166,19 @@ class MediapipeCompositeDetector(BaseDetector):
             )
 
             # Merge left and right hand observations
-            hand_obs = MediapipeHandObservation(
+            hand_obs = MediapipeHandObservation.from_arrays(
                 frame_number=frame_number,
                 image_size=image_size,
-                tracker_type="mediapipe_hand",
-                right_hand_landmarks_xyz=right_hand_obs.right_hand_landmarks_xyz,
-                left_hand_landmarks_xyz=left_hand_obs.left_hand_landmarks_xyz,
-                right_hand_visibility=right_hand_obs.right_hand_visibility,
-                left_hand_visibility=left_hand_obs.left_hand_visibility,
+                right_hand_xyz=right_hand_obs.right_hand_landmarks_xyz.copy(),
+                left_hand_xyz=left_hand_obs.left_hand_landmarks_xyz.copy(),
+                right_hand_visibility=right_hand_obs.right_hand_visibility.copy(),
+                left_hand_visibility=left_hand_obs.left_hand_visibility.copy(),
             )
 
-        # Step 4: Detect face
-        face_obs: MediapipeFaceObservation | None = None
-        face_roi_box: ROIBox | None = None
+        if "face" in futures:
+            face_obs, face_roi_box = futures["face"].result()
 
-        if self.face_detector is not None:
-            face_obs, face_roi_box = self._detect_face(
-                frame_number=frame_number,
-                image=rgb_image,
-                body_xyz=body_xyz,
-                body_vis=body_vis,
-            )
-
-        return MediapipeCompositeObservation(
+        return MediapipeCompositeObservation.build(
             frame_number=frame_number,
             image_size=image_size,
             pose=pose_obs,
@@ -297,14 +306,13 @@ class MediapipeCompositeDetector(BaseDetector):
         image_size = right_hand_obs.image_size
         nan_hand = np.full((NUM_HAND_LANDMARKS, 3), np.nan)
         zero_vis = np.zeros(NUM_HAND_LANDMARKS)
-        empty = MediapipeHandObservation(
+        empty = MediapipeHandObservation.from_arrays(
             frame_number=frame_number,
             image_size=image_size,
-            tracker_type="mediapipe_hand",
-            right_hand_landmarks_xyz=nan_hand,
-            left_hand_landmarks_xyz=nan_hand,
-            right_hand_visibility=zero_vis,
-            left_hand_visibility=zero_vis,
+            right_hand_xyz=nan_hand.copy(),
+            left_hand_xyz=nan_hand.copy(),
+            right_hand_visibility=zero_vis.copy(),
+            left_hand_visibility=zero_vis.copy(),
         )
 
         if dist_to_right_body <= dist_to_left_body:
@@ -454,25 +462,26 @@ class MediapipeCompositeDetector(BaseDetector):
         From a full-image hand observation (which may have both hands),
         return an observation with only the requested side populated.
         """
+        nan_hand = np.full((NUM_HAND_LANDMARKS, 3), np.nan)
+        zero_vis = np.zeros(NUM_HAND_LANDMARKS)
+
         if handedness_hint == "Right":
-            return MediapipeHandObservation(
+            return MediapipeHandObservation.from_arrays(
                 frame_number=frame_number,
                 image_size=image_size,
-                tracker_type="mediapipe_hand",
-                right_hand_landmarks_xyz=obs.right_hand_landmarks_xyz,
-                left_hand_landmarks_xyz=np.full((NUM_HAND_LANDMARKS, 3), np.nan),
-                right_hand_visibility=obs.right_hand_visibility,
-                left_hand_visibility=np.zeros(NUM_HAND_LANDMARKS),
+                right_hand_xyz=obs.right_hand_landmarks_xyz.copy(),
+                left_hand_xyz=nan_hand,
+                right_hand_visibility=obs.right_hand_visibility.copy(),
+                left_hand_visibility=zero_vis,
             )
         else:
-            return MediapipeHandObservation(
+            return MediapipeHandObservation.from_arrays(
                 frame_number=frame_number,
                 image_size=image_size,
-                tracker_type="mediapipe_hand",
-                right_hand_landmarks_xyz=np.full((NUM_HAND_LANDMARKS, 3), np.nan),
-                left_hand_landmarks_xyz=obs.left_hand_landmarks_xyz,
-                right_hand_visibility=np.zeros(NUM_HAND_LANDMARKS),
-                left_hand_visibility=obs.left_hand_visibility,
+                right_hand_xyz=nan_hand,
+                left_hand_xyz=obs.left_hand_landmarks_xyz.copy(),
+                right_hand_visibility=zero_vis,
+                left_hand_visibility=obs.left_hand_visibility.copy(),
             )
 
     def close(self) -> None:

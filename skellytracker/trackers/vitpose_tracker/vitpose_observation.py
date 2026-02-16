@@ -1,43 +1,49 @@
-import numpy as np
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString
+from dataclasses import dataclass, field
 
+import numpy as np
+
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
+from skellytracker.trackers.rtmpose_tracker.rtmpose_landmark_names import ALL_LANDMARK_NAMES
+
+# VITPose uses COCO-WholeBody 133 keypoints — same topology as RTMPose
+_VITPOSE_NAMES: tuple[str, ...] = tuple(ALL_LANDMARK_NAMES)
+_NUM_KEYPOINTS = 133
+
+
+@dataclass(slots=True)
 class VITPoseObservation(BaseObservation):
-    tracker_type: TrackerTypeString = "vitpose"
-    frame_number: int
-    image_size: tuple[int, int]  
-    keypoints: np.ndarray
+    tracker_type: str = field(default="vitpose", init=False)
+    frame_number: int = 0
+    image_size: tuple[int, int] = (0, 0)
+    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_VITPOSE_NAMES))
+
+    # Raw keypoints retained for access to confidence in original format
+    raw_keypoints: np.ndarray = field(default_factory=lambda: np.full((_NUM_KEYPOINTS, 3), np.nan, dtype=np.float32))
 
     @classmethod
-    def from_detection_results(cls, frame_number: int, results: dict[str, np.ndarray], image_size: tuple[int, int]):
-
-        # Handle no detections
+    def from_detection_results(
+        cls,
+        frame_number: int,
+        results: dict[str, np.ndarray],
+        image_size: tuple[int, int],
+    ) -> "VITPoseObservation":
         if len(results) == 0:
-            # Return NaN-filled array - 133 keypoints for wholebody (this number is unlikely to change, unless we also allow for other kinds of VIT models. At that point we'll need to account for that)
-            num_keypoints = 133
-            keypoints = np.full((num_keypoints, 3), np.nan, dtype=np.float32)
-        else:
-            keypoints = results[0]  # First person only
+            return cls(frame_number=frame_number, image_size=image_size)
+
+        keypoints = results[0]  # First person only, shape (N, 3): x, y, confidence
+
+        # VITPose returns (y, x) — swap to (x, y)
+        points_xy = keypoints[:, :2][:, [1, 0]]
+        confidence = keypoints[:, 2]
+
+        n = points_xy.shape[0]
+        xyz = np.column_stack([points_xy, np.zeros(n)])
+        cloud = PointCloud(names=_VITPOSE_NAMES, xyz=xyz, visibility=confidence)
 
         return cls(
             frame_number=frame_number,
-            keypoints=keypoints,
-            image_size=image_size
+            image_size=image_size,
+            points=cloud,
+            raw_keypoints=keypoints,
         )
-    
-    def to_2d_array(self, *, confidence_threshold:float|None = None, fill_with_nans: bool = True) -> np.ndarray:
-        point_2d = self.keypoints[..., :2][:, [1, 0]]  # Convert (y, x) to (x, y)
-
-        if confidence_threshold is not None:
-            confidence_scores = self.keypoints[...,2]
-
-            point_2d = self.filter_by_confidence(
-                points=point_2d,
-                confidence_scores=confidence_scores,
-                fill_with_nans=fill_with_nans   
-            )
-
-        return point_2d
-    
-    def to_tracked_points(self):
-        pass
- 

@@ -1,30 +1,50 @@
-import numpy as np
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict
+from dataclasses import dataclass, field
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import (
-    BaseObservation,
-    TrackedPoint2dArray,
-    TrackedPointIdString,
-    TrackerTypeString,
-)
+import numpy as np
+from numpy.typing import NDArray
+
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
 from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
     LEFT_HAND_LANDMARK_NAMES,
     NUM_HAND_LANDMARKS,
     RIGHT_HAND_LANDMARK_NAMES,
 )
 
+_RIGHT_HAND_NAMES: tuple[str, ...] = tuple(RIGHT_HAND_LANDMARK_NAMES)
+_LEFT_HAND_NAMES: tuple[str, ...] = tuple(LEFT_HAND_LANDMARK_NAMES)
+_ALL_HAND_NAMES: tuple[str, ...] = _RIGHT_HAND_NAMES + _LEFT_HAND_NAMES
 
+
+@dataclass(slots=True)
 class MediapipeHandObservation(BaseObservation):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    tracker_type: TrackerTypeString = "mediapipe_hand"
-    frame_number: int
-    image_size: tuple[int, int]  # (height, width)
+    """
+    Hand observation storing left + right hands in a single PointCloud.
 
-    right_hand_landmarks_xyz: NDArray[Shape["21, 3"], float]
-    left_hand_landmarks_xyz: NDArray[Shape["21, 3"], float]
-    right_hand_visibility: NDArray[Shape["21"], float]
-    left_hand_visibility: NDArray[Shape["21"], float]
+    Layout: [0:21] = right hand, [21:42] = left hand.
+    """
+
+    tracker_type: str = field(default="mediapipe_hand", init=False)
+    frame_number: int = 0
+    image_size: tuple[int, int] = (0, 0)
+
+    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_ALL_HAND_NAMES))
+
+    @classmethod
+    def from_arrays(
+        cls,
+        frame_number: int,
+        image_size: tuple[int, int],
+        right_hand_xyz: NDArray,
+        left_hand_xyz: NDArray,
+        right_hand_visibility: NDArray,
+        left_hand_visibility: NDArray,
+    ) -> "MediapipeHandObservation":
+        """Build from pre-computed arrays (used by composite detector)."""
+        xyz = np.concatenate([right_hand_xyz, left_hand_xyz], axis=0)
+        vis = np.concatenate([right_hand_visibility, left_hand_visibility], axis=0)
+        cloud = PointCloud(names=_ALL_HAND_NAMES, xyz=xyz, visibility=vis)
+        return cls(frame_number=frame_number, image_size=image_size, points=cloud)
 
     @classmethod
     def from_detection_results(
@@ -33,12 +53,7 @@ class MediapipeHandObservation(BaseObservation):
         hand_landmarker_result: "mp.tasks.vision.HandLandmarkerResult",
         image_size: tuple[int, int],
     ) -> "MediapipeHandObservation":
-        """
-        Convert a HandLandmarkerResult into a MediapipeHandObservation.
-
-        Uses handedness labels to assign hands to left/right. If the same
-        hand is detected twice, the higher-confidence detection is used.
-        """
+        """Convert a HandLandmarkerResult into a MediapipeHandObservation."""
         height, width = image_size
 
         right_xyz = np.full((NUM_HAND_LANDMARKS, 3), np.nan)
@@ -48,8 +63,6 @@ class MediapipeHandObservation(BaseObservation):
 
         for i, hand_landmarks in enumerate(hand_landmarker_result.hand_landmarks):
             handedness = hand_landmarker_result.handedness[i]
-            # handedness[0].category_name is "Left" or "Right"
-            # MediaPipe assumes mirrored input, so "Left" from detector = user's left hand
             label = handedness[0].category_name
 
             landmarks_xyz = np.array(
@@ -66,11 +79,11 @@ class MediapipeHandObservation(BaseObservation):
                 right_xyz = landmarks_xyz
                 right_vis = visibility
 
-        return cls(
+        return cls.from_arrays(
             frame_number=frame_number,
             image_size=image_size,
-            right_hand_landmarks_xyz=right_xyz,
-            left_hand_landmarks_xyz=left_xyz,
+            right_hand_xyz=right_xyz,
+            left_hand_xyz=left_xyz,
             right_hand_visibility=right_vis,
             left_hand_visibility=left_vis,
         )
@@ -85,15 +98,7 @@ class MediapipeHandObservation(BaseObservation):
         full_image_size: tuple[int, int],
         handedness_hint: str,
     ) -> "MediapipeHandObservation":
-        """
-        Convert a HandLandmarkerResult from a cropped image back to full-image coordinates.
-
-        Args:
-            crop_origin: (y_offset, x_offset) of the crop in the full image.
-            crop_size: (crop_height, crop_width) of the crop.
-            full_image_size: (full_height, full_width).
-            handedness_hint: "Left" or "Right" — which hand we expect to find in this crop.
-        """
+        """Convert a HandLandmarkerResult from a crop back to full-image coordinates."""
         crop_h, crop_w = crop_size
         y_off, x_off = crop_origin
 
@@ -101,8 +106,6 @@ class MediapipeHandObservation(BaseObservation):
         target_vis = np.zeros(NUM_HAND_LANDMARKS)
 
         if len(hand_landmarker_result.hand_landmarks) > 0:
-            # Take the best detection from this crop
-            # If multiple hands found, prefer the one matching handedness_hint
             best_idx = 0
             for i, handedness in enumerate(hand_landmarker_result.handedness):
                 if handedness[0].category_name == handedness_hint:
@@ -110,25 +113,13 @@ class MediapipeHandObservation(BaseObservation):
                     break
 
             hand_landmarks = hand_landmarker_result.hand_landmarks[best_idx]
-
-            # Convert from normalized crop coords → full image pixel coords
-            landmarks_xyz = np.array(
-                [
-                    (
-                        lm.x * crop_w + x_off,
-                        lm.y * crop_h + y_off,
-                        lm.z * crop_w,  # z is relative to crop width
-                    )
-                    for lm in hand_landmarks
-                ]
+            target_xyz = np.array(
+                [(lm.x * crop_w + x_off, lm.y * crop_h + y_off, lm.z * crop_w) for lm in hand_landmarks]
             )
-            visibility = np.array(
+            target_vis = np.array(
                 [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks]
             )
-            target_xyz = landmarks_xyz
-            target_vis = visibility
 
-        # Build observation with only the relevant hand populated
         right_xyz = np.full((NUM_HAND_LANDMARKS, 3), np.nan)
         left_xyz = np.full((NUM_HAND_LANDMARKS, 3), np.nan)
         right_vis = np.zeros(NUM_HAND_LANDMARKS)
@@ -141,14 +132,34 @@ class MediapipeHandObservation(BaseObservation):
             left_xyz = target_xyz
             left_vis = target_vis
 
-        return cls(
+        return cls.from_arrays(
             frame_number=frame_number,
             image_size=full_image_size,
-            right_hand_landmarks_xyz=right_xyz,
-            left_hand_landmarks_xyz=left_xyz,
+            right_hand_xyz=right_xyz,
+            left_hand_xyz=left_xyz,
             right_hand_visibility=right_vis,
             left_hand_visibility=left_vis,
         )
+
+    # =========================================================================
+    # Convenience accessors — views into the PointCloud
+    # =========================================================================
+
+    @property
+    def right_hand_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz[:NUM_HAND_LANDMARKS]
+
+    @property
+    def left_hand_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz[NUM_HAND_LANDMARKS:]
+
+    @property
+    def right_hand_visibility(self) -> NDArray:
+        return self.points.visibility[:NUM_HAND_LANDMARKS]
+
+    @property
+    def left_hand_visibility(self) -> NDArray:
+        return self.points.visibility[NUM_HAND_LANDMARKS:]
 
     @property
     def has_right_hand(self) -> bool:
@@ -161,36 +172,3 @@ class MediapipeHandObservation(BaseObservation):
     @property
     def has_detection(self) -> bool:
         return self.has_right_hand or self.has_left_hand
-
-    def get_confidence_scores(self) -> NDArray[Shape["42"], float]:
-        return np.concatenate([self.right_hand_visibility, self.left_hand_visibility])
-
-    def to_tracked_points(self, *, confidence_threshold: float | None = None) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
-        result: dict[TrackedPointIdString, TrackedPoint2dArray] = {}
-        for i, name in enumerate(RIGHT_HAND_LANDMARK_NAMES):
-            if np.isnan(self.right_hand_landmarks_xyz[i]).any():
-                continue
-            if confidence_threshold is not None and self.right_hand_visibility[i] < confidence_threshold:
-                continue
-            result[name] = np.array(self.right_hand_landmarks_xyz[i, :2])
-        for i, name in enumerate(LEFT_HAND_LANDMARK_NAMES):
-            if np.isnan(self.left_hand_landmarks_xyz[i]).any():
-                continue
-            if confidence_threshold is not None and self.left_hand_visibility[i] < confidence_threshold:
-                continue
-            result[name] = np.array(self.left_hand_landmarks_xyz[i, :2])
-        return result
-
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[Shape["42, 2"], float]:
-        points_2d = np.concatenate(
-            [self.right_hand_landmarks_xyz[:, :2], self.left_hand_landmarks_xyz[:, :2]],
-            axis=0,
-        )
-        if confidence_threshold is not None:
-            points_2d = self.filter_by_confidence(
-                points=points_2d,
-                confidence_scores=self.get_confidence_scores(),
-                confidence_threshold=confidence_threshold,
-                fill_with_nans=fill_with_nans,
-            )
-        return points_2d

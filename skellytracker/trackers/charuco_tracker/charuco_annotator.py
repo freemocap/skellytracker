@@ -60,7 +60,7 @@ class CharucoImageAnnotator(BaseImageAnnotator):
             marker_size = max(1, int(self.config.corner_marker_size * obs_count_scale))
 
             for corner_id, corner in observation.to_tracked_points().items():
-                if corner is not None:
+                if corner is not None and not np.isnan(corner[0]) and not np.isnan(corner[1]):
                     cv2.drawMarker(
                         annotated_image,
                         (int(corner[0]), int(corner[1])),

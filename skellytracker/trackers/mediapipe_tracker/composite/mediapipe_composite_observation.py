@@ -1,13 +1,10 @@
-import numpy as np
-from numpydantic import NDArray, Shape
-from pydantic import ConfigDict
+from dataclasses import dataclass, field
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import (
-    BaseObservation,
-    TrackedPoint2dArray,
-    TrackedPointIdString,
-    TrackerTypeString,
-)
+import numpy as np
+from numpy.typing import NDArray
+
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
 from skellytracker.trackers.mediapipe_tracker.face.get_mediapipe_face_info import (
     MEDIAPIPE_FACE_CONTOURS_NAMES,
 )
@@ -29,9 +26,33 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
 )
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
 
+# Slice boundaries for the concatenated PointCloud:
+#   [0:33]        body (fused)
+#   [33:54]       right hand
+#   [54:75]       left hand
+#   [75:75+N]     face contour
+_BODY_START = 0
+_BODY_END = NUM_POSE_LANDMARKS
+_RHAND_START = _BODY_END
+_RHAND_END = _RHAND_START + NUM_HAND_LANDMARKS
+_LHAND_START = _RHAND_END
+_LHAND_END = _LHAND_START + NUM_HAND_LANDMARKS
+_FACE_START = _LHAND_END
+
+# Canonical name order — built once at module load
+_ALL_NAMES: tuple[str, ...] = (
+    tuple(POSE_LANDMARK_NAMES)
+    + tuple(RIGHT_HAND_LANDMARK_NAMES)
+    + tuple(LEFT_HAND_LANDMARK_NAMES)
+    + tuple(MEDIAPIPE_FACE_CONTOURS_NAMES)
+)
+_FACE_END = len(_ALL_NAMES)
+
 
 class ROIBox:
     """Bounding box for an ROI crop in full-image coordinates."""
+
+    __slots__ = ("x", "y", "width", "height")
 
     def __init__(self, x: int, y: int, width: int, height: int):
         self.x = x
@@ -40,83 +61,157 @@ class ROIBox:
         self.height = height
 
     def as_tuple(self) -> tuple[int, int, int, int]:
-        """Returns (x, y, width, height)."""
         return (self.x, self.y, self.width, self.height)
 
 
+@dataclass(slots=True)
 class MediapipeCompositeObservation(BaseObservation):
     """
     Holistic-style observation combining pose, hand, and face detections.
 
-    Stores the individual sub-observations and provides unified access to
-    all landmarks, plus fused body landmarks that splice in higher-precision
-    hand/face data where available.
+    All landmark data is stored in a single PointCloud where names and
+    coordinates are structurally coupled — impossible to desync.
+
+    Body landmarks are FUSED at construction time: higher-precision
+    hand/face data is spliced in where available.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    tracker_type: TrackerTypeString = "mediapipe_composite"
-    frame_number: int
-    image_size: tuple[int, int]  # (height, width)
+    tracker_type: str = field(default="mediapipe_composite", init=False)
+    frame_number: int = 0
+    image_size: tuple[int, int] = (0, 0)  # (height, width)
 
-    pose: MediapipePoseObservation | None
-    hands: MediapipeHandObservation | None
-    face: MediapipeFaceObservation | None
+    # The single source of truth for all landmark data
+    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_ALL_NAMES))
 
-    # ROI boxes used for hand/face crops (None if full-image detection was used or skipped)
+    # Sub-observations retained for metadata (blendshapes, segmentation, world coords)
+    pose: MediapipePoseObservation | None = None
+    hands: MediapipeHandObservation | None = None
+    face: MediapipeFaceObservation | None = None
+
+    # ROI boxes used for hand/face crops
     left_hand_roi: ROIBox | None = None
     right_hand_roi: ROIBox | None = None
     face_roi: ROIBox | None = None
 
     @classmethod
     def from_detection_results(cls, **kwargs: object) -> "MediapipeCompositeObservation":
-        """Not used — MediapipeCompositeObservation is built directly by the composite detector."""
-        raise NotImplementedError("Use the MediapipeCompositeDetector to build this observation")
+        raise NotImplementedError("Use MediapipeCompositeObservation.build()")
+
+    @classmethod
+    def build(
+        cls,
+        frame_number: int,
+        image_size: tuple[int, int],
+        pose: MediapipePoseObservation | None,
+        hands: MediapipeHandObservation | None,
+        face: MediapipeFaceObservation | None,
+        left_hand_roi: ROIBox | None = None,
+        right_hand_roi: ROIBox | None = None,
+        face_roi: ROIBox | None = None,
+    ) -> "MediapipeCompositeObservation":
+        """Build by concatenating sub-detections into a single fused PointCloud."""
+        body_xyz = pose.body_landmarks_xyz.copy() if pose is not None and pose.has_detection else np.full((NUM_POSE_LANDMARKS, 3), np.nan)
+        body_vis = pose.body_visibility.copy() if pose is not None else np.zeros(NUM_POSE_LANDMARKS)
+
+        rh_xyz = hands.right_hand_landmarks_xyz.copy() if hands is not None and hands.has_right_hand else np.full((NUM_HAND_LANDMARKS, 3), np.nan)
+        rh_vis = hands.right_hand_visibility.copy() if hands is not None else np.zeros(NUM_HAND_LANDMARKS)
+
+        lh_xyz = hands.left_hand_landmarks_xyz.copy() if hands is not None and hands.has_left_hand else np.full((NUM_HAND_LANDMARKS, 3), np.nan)
+        lh_vis = hands.left_hand_visibility.copy() if hands is not None else np.zeros(NUM_HAND_LANDMARKS)
+
+        face_contour_xyz, face_contour_vis = cls._extract_face_contour(face)
+
+        # Fuse body landmarks with hand/face data (in-place on body_xyz)
+        cls._fuse_body_with_face(body_xyz=body_xyz, face=face)
+        cls._fuse_body_with_hand(body_xyz=body_xyz, hand_xyz=rh_xyz, hand_to_pose_map=RIGHT_HAND_TO_POSE_MAP, wrist_pair=POSE_RIGHT_WRIST_FUSE_WITH_HAND_WRIST)
+        cls._fuse_body_with_hand(body_xyz=body_xyz, hand_xyz=lh_xyz, hand_to_pose_map=LEFT_HAND_TO_POSE_MAP, wrist_pair=POSE_LEFT_WRIST_FUSE_WITH_HAND_WRIST)
+
+        xyz = np.concatenate([body_xyz, rh_xyz, lh_xyz, face_contour_xyz], axis=0)
+        vis = np.concatenate([body_vis, rh_vis, lh_vis, face_contour_vis], axis=0)
+        cloud = PointCloud(names=_ALL_NAMES, xyz=xyz, visibility=vis)
+
+        return cls(
+            frame_number=frame_number,
+            image_size=image_size,
+            points=cloud,
+            pose=pose,
+            hands=hands,
+            face=face,
+            left_hand_roi=left_hand_roi,
+            right_hand_roi=right_hand_roi,
+            face_roi=face_roi,
+        )
 
     # =========================================================================
-    # Convenience accessors
+    # Fusion helpers (static — operate on arrays in-place)
+    # =========================================================================
+
+    @staticmethod
+    def _extract_face_contour(face: MediapipeFaceObservation | None) -> tuple[NDArray, NDArray]:
+        n_contour = len(MEDIAPIPE_FACE_CONTOURS_NAMES)
+        if face is None or not face.has_detection:
+            return np.full((n_contour, 3), np.nan), np.zeros(n_contour)
+        return face.face_contour_landmarks_xyz.copy(), face.face_contour_visibility.copy()
+
+    @staticmethod
+    def _fuse_body_with_face(body_xyz: NDArray, face: MediapipeFaceObservation | None) -> None:
+        if face is None or not face.has_detection:
+            return
+        face_xyz = face.face_landmarks_xyz
+        for pose_idx, face_idx in FACE_TO_POSE_DIRECT_MAP.items():
+            if face_idx < face_xyz.shape[0] and not np.isnan(face_xyz[face_idx]).any():
+                body_xyz[pose_idx] = face_xyz[face_idx]
+        for pose_idx, iris_indices in IRIS_TO_POSE_MAP.items():
+            iris_points = face_xyz[iris_indices]
+            if not np.isnan(iris_points).any():
+                body_xyz[pose_idx] = np.mean(iris_points, axis=0)
+
+    @staticmethod
+    def _fuse_body_with_hand(body_xyz: NDArray, hand_xyz: NDArray, hand_to_pose_map: dict[int, int], wrist_pair: tuple[int, int]) -> None:
+        if np.isnan(hand_xyz).all():
+            return
+        pose_wrist_idx, hand_wrist_idx = wrist_pair
+        if not np.isnan(hand_xyz[hand_wrist_idx]).any() and not np.isnan(body_xyz[pose_wrist_idx]).any():
+            body_xyz[pose_wrist_idx] = (body_xyz[pose_wrist_idx] + hand_xyz[hand_wrist_idx]) / 2.0
+        for pose_idx, hand_idx in hand_to_pose_map.items():
+            if not np.isnan(hand_xyz[hand_idx]).any():
+                body_xyz[pose_idx] = hand_xyz[hand_idx]
+
+    # =========================================================================
+    # PointCloud slice accessors — zero-copy views
     # =========================================================================
 
     @property
-    def body_landmarks_xyz(self) -> NDArray[Shape["33, 3"], float]:
-        if self.pose is None or not self.pose.has_detection:
-            return np.full((NUM_POSE_LANDMARKS, 3), np.nan)
-        return self.pose.body_landmarks_xyz
+    def body_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz[_BODY_START:_BODY_END]
 
     @property
-    def body_world_landmarks_xyz(self) -> NDArray[Shape["33, 3"], float]:
+    def body_world_landmarks_xyz(self) -> NDArray:
         if self.pose is None or not self.pose.has_detection:
             return np.full((NUM_POSE_LANDMARKS, 3), np.nan)
         return self.pose.body_world_landmarks_xyz
 
     @property
-    def body_visibility(self) -> NDArray[Shape["33"], float]:
-        if self.pose is None:
-            return np.zeros(NUM_POSE_LANDMARKS)
-        return self.pose.body_visibility
+    def body_visibility(self) -> NDArray:
+        return self.points.visibility[_BODY_START:_BODY_END]
 
     @property
-    def right_hand_landmarks_xyz(self) -> NDArray[Shape["21, 3"], float]:
-        if self.hands is None or not self.hands.has_right_hand:
-            return np.full((NUM_HAND_LANDMARKS, 3), np.nan)
-        return self.hands.right_hand_landmarks_xyz
+    def right_hand_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz[_RHAND_START:_RHAND_END]
 
     @property
-    def left_hand_landmarks_xyz(self) -> NDArray[Shape["21, 3"], float]:
-        if self.hands is None or not self.hands.has_left_hand:
-            return np.full((NUM_HAND_LANDMARKS, 3), np.nan)
-        return self.hands.left_hand_landmarks_xyz
+    def left_hand_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz[_LHAND_START:_LHAND_END]
 
     @property
-    def face_landmarks_xyz(self) -> NDArray[Shape["478, 3"], float]:
+    def face_landmarks_xyz(self) -> NDArray:
         if self.face is None or not self.face.has_detection:
             return np.full((NUM_FACE_LANDMARKS, 3), np.nan)
         return self.face.face_landmarks_xyz
 
     @property
-    def face_contour_landmarks_xyz(self) -> NDArray[Shape["*, 3"], float]:
-        if self.face is None or not self.face.has_detection:
-            return np.full((len(MEDIAPIPE_FACE_CONTOURS_NAMES), 3), np.nan)
-        return self.face.face_contour_landmarks_xyz
+    def face_contour_landmarks_xyz(self) -> NDArray:
+        return self.points.xyz[_FACE_START:_FACE_END]
 
     @property
     def face_blendshapes(self) -> dict[str, float] | None:
@@ -130,79 +225,13 @@ class MediapipeCompositeObservation(BaseObservation):
             return None
         return self.pose.segmentation_mask
 
-    # =========================================================================
-    # FUSED BODY LANDMARKS
-    # =========================================================================
-
+    # Fused body landmarks ARE the body slice — fusion happened at construction
     @property
-    def fused_body_landmarks_xyz(self) -> NDArray[Shape["33, 3"], float]:
-        """
-        Body landmarks with higher-precision hand/face data spliced in.
-
-        Replacements when face is detected:
-          - Nose (idx 0): face mesh nose tip
-          - Left/right eye (idx 2, 5): mean of iris contour points (pupil center)
-          - Eye inner (idx 1, 4): tear duct from face mesh
-          - Eye outer (idx 3, 6): outer lid corner from face mesh
-          - Ears (idx 7, 8): face mesh ear points
-          - Mouth corners (idx 9, 10): face mesh mouth corners
-
-        Replacements when hands are detected:
-          - Wrists (idx 15, 16): averaged with hand wrist landmark
-          - Pinky/Index/Thumb (idx 17-22): replaced by hand MCP/CMC landmarks
-        """
-        body = self.body_landmarks_xyz.copy()
-
-        if np.isnan(body).all():
-            return body
-
-        # Splice in face data
-        if self.face is not None and self.face.has_detection:
-            face_xyz = self.face.face_landmarks_xyz
-
-            # Direct replacements: nose, eye corners, ears, mouth
-            for pose_idx, face_idx in FACE_TO_POSE_DIRECT_MAP.items():
-                if face_idx < face_xyz.shape[0] and not np.isnan(face_xyz[face_idx]).any():
-                    body[pose_idx] = face_xyz[face_idx]
-
-            # Iris centroid replacements: left_eye and right_eye → mean of iris contour
-            for pose_idx, iris_indices in IRIS_TO_POSE_MAP.items():
-                iris_points = face_xyz[iris_indices]
-                if not np.isnan(iris_points).any():
-                    body[pose_idx] = np.mean(iris_points, axis=0)
-
-        # Splice in right hand data
-        if self.hands is not None and self.hands.has_right_hand:
-            rh = self.hands.right_hand_landmarks_xyz
-
-            # Average wrist position
-            pose_wrist_idx, hand_wrist_idx = POSE_RIGHT_WRIST_FUSE_WITH_HAND_WRIST
-            if not np.isnan(rh[hand_wrist_idx]).any() and not np.isnan(body[pose_wrist_idx]).any():
-                body[pose_wrist_idx] = (body[pose_wrist_idx] + rh[hand_wrist_idx]) / 2.0
-
-            # Direct replacements: pinky, index, thumb
-            for pose_idx, hand_idx in RIGHT_HAND_TO_POSE_MAP.items():
-                if not np.isnan(rh[hand_idx]).any():
-                    body[pose_idx] = rh[hand_idx]
-
-        # Splice in left hand data
-        if self.hands is not None and self.hands.has_left_hand:
-            lh = self.hands.left_hand_landmarks_xyz
-
-            # Average wrist position
-            pose_wrist_idx, hand_wrist_idx = POSE_LEFT_WRIST_FUSE_WITH_HAND_WRIST
-            if not np.isnan(lh[hand_wrist_idx]).any() and not np.isnan(body[pose_wrist_idx]).any():
-                body[pose_wrist_idx] = (body[pose_wrist_idx] + lh[hand_wrist_idx]) / 2.0
-
-            # Direct replacements: pinky, index, thumb
-            for pose_idx, hand_idx in LEFT_HAND_TO_POSE_MAP.items():
-                if not np.isnan(lh[hand_idx]).any():
-                    body[pose_idx] = lh[hand_idx]
-
-        return body
+    def fused_body_landmarks_xyz(self) -> NDArray:
+        return self.body_landmarks_xyz
 
     # =========================================================================
-    # BaseObservation interface
+    # Name accessors
     # =========================================================================
 
     @property
@@ -225,6 +254,10 @@ class MediapipeCompositeObservation(BaseObservation):
     def num_face_tesselation_points(self) -> int:
         return NUM_FACE_LANDMARKS
 
+    # =========================================================================
+    # Detection state
+    # =========================================================================
+
     @property
     def has_pose(self) -> bool:
         return self.pose is not None and self.pose.has_detection
@@ -241,121 +274,40 @@ class MediapipeCompositeObservation(BaseObservation):
     def has_face(self) -> bool:
         return self.face is not None and self.face.has_detection
 
+    # =========================================================================
+    # Legacy compatibility — all_points()
+    # =========================================================================
+
     def all_points(self, dimensions: int, face_type: str = "contour", scale_by: float = 1.0) -> dict[str, tuple]:
         """
-        Get all tracked points as a dict of name → coordinate tuple.
+        Get all valid tracked points as {name: (x, y[, z])} dict.
 
         Matches the legacy MediapipeObservation.all_points() interface.
-
-        Args:
-            dimensions: 2 or 3 — number of coordinate dimensions to include.
-            face_type: "contour" for face contour subset, "tesselation" for full 478-point mesh.
-            scale_by: Multiply all coordinates by this factor.
         """
         if dimensions not in (2, 3):
             raise ValueError(f"Invalid dimensions: {dimensions}")
 
-        all_points_by_name: dict[str, tuple] = {}
+        if face_type == "contour":
+            return self.points.to_scaled_tuples(dimensions=dimensions, scale_by=scale_by)
 
-        body_xyz = self.fused_body_landmarks_xyz.copy() * scale_by
-        right_hand_xyz = self.right_hand_landmarks_xyz.copy() * scale_by
-        left_hand_xyz = self.left_hand_landmarks_xyz.copy() * scale_by
+        elif face_type == "tesselation":
+            body_rh_lh = self.points.xyz[:_FACE_START] * scale_by
+            body_rh_lh_names = self.points.names[:_FACE_START]
 
-        if face_type == "tesselation":
-            face_xyz = self.face_landmarks_xyz.copy() * scale_by
-            face_names = [f"face_{i:04d}" for i in range(NUM_FACE_LANDMARKS)]
-        elif face_type == "contour":
-            face_xyz = self.face_contour_landmarks_xyz.copy() * scale_by
-            face_names = self.face_contour_landmark_names
+            face_full_xyz = self.face_landmarks_xyz * scale_by
+            face_full_names = tuple(f"face_{i:04d}" for i in range(NUM_FACE_LANDMARKS))
+
+            result: dict[str, tuple] = {}
+            for i, name in enumerate(body_rh_lh_names):
+                pt = body_rh_lh[i, :dimensions]
+                if not np.isnan(pt).any():
+                    result[name] = tuple(pt)
+            for i, name in enumerate(face_full_names):
+                if i < face_full_xyz.shape[0]:
+                    pt = face_full_xyz[i, :dimensions]
+                    if not np.isnan(pt).any():
+                        result[name] = tuple(pt)
+            return result
+
         else:
             raise ValueError(f"Invalid face type: {face_type}")
-
-        for i, name in enumerate(POSE_LANDMARK_NAMES):
-            all_points_by_name[name] = tuple(body_xyz[i, :dimensions])
-
-        for i, name in enumerate(RIGHT_HAND_LANDMARK_NAMES):
-            all_points_by_name[name] = tuple(right_hand_xyz[i, :dimensions])
-
-        for i, name in enumerate(LEFT_HAND_LANDMARK_NAMES):
-            all_points_by_name[name] = tuple(left_hand_xyz[i, :dimensions])
-
-        for i, name in enumerate(face_names):
-            if i < face_xyz.shape[0]:
-                all_points_by_name[name] = tuple(face_xyz[i, :dimensions])
-
-        return all_points_by_name
-
-    def get_confidence_scores(self) -> NDArray[Shape["*"], float]:
-        body_vis = self.body_visibility
-        right_hand_vis = self.hands.right_hand_visibility if self.hands is not None else np.zeros(NUM_HAND_LANDMARKS)
-        left_hand_vis = self.hands.left_hand_visibility if self.hands is not None else np.zeros(NUM_HAND_LANDMARKS)
-        face_vis = self.face.face_contour_visibility if self.face is not None else np.zeros(len(MEDIAPIPE_FACE_CONTOURS_NAMES))
-        return np.concatenate([body_vis, right_hand_vis, left_hand_vis, face_vis])
-
-    def to_tracked_points(self, *, confidence_threshold: float | None = None) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
-        result: dict[TrackedPointIdString, TrackedPoint2dArray] = {}
-
-        # Body points (using fused landmarks)
-        fused_body = self.fused_body_landmarks_xyz
-        body_vis = self.body_visibility
-        for i, name in enumerate(POSE_LANDMARK_NAMES):
-            if np.isnan(fused_body[i]).any():
-                continue
-            if confidence_threshold is not None and body_vis[i] < confidence_threshold:
-                continue
-            result[name] = np.array(fused_body[i, :2])
-
-        # Right hand
-        rh = self.right_hand_landmarks_xyz
-        rh_vis = self.hands.right_hand_visibility if self.hands is not None else np.zeros(NUM_HAND_LANDMARKS)
-        for i, name in enumerate(RIGHT_HAND_LANDMARK_NAMES):
-            if np.isnan(rh[i]).any():
-                continue
-            if confidence_threshold is not None and rh_vis[i] < confidence_threshold:
-                continue
-            result[name] = np.array(rh[i, :2])
-
-        # Left hand
-        lh = self.left_hand_landmarks_xyz
-        lh_vis = self.hands.left_hand_visibility if self.hands is not None else np.zeros(NUM_HAND_LANDMARKS)
-        for i, name in enumerate(LEFT_HAND_LANDMARK_NAMES):
-            if np.isnan(lh[i]).any():
-                continue
-            if confidence_threshold is not None and lh_vis[i] < confidence_threshold:
-                continue
-            result[name] = np.array(lh[i, :2])
-
-        # Face contours
-        fc = self.face_contour_landmarks_xyz
-        fc_vis = self.face.face_contour_visibility if self.face is not None else np.zeros(len(MEDIAPIPE_FACE_CONTOURS_NAMES))
-        for i, name in enumerate(MEDIAPIPE_FACE_CONTOURS_NAMES):
-            if np.isnan(fc[i]).any():
-                continue
-            if confidence_threshold is not None and fc_vis[i] < confidence_threshold:
-                continue
-            result[name] = np.array(fc[i, :2])
-
-        return result
-
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[Shape["*, 2"], float]:
-        """Concatenate body + right hand + left hand + face contour as 2D array."""
-        points_2d = np.concatenate(
-            [
-                self.fused_body_landmarks_xyz[:, :2],
-                self.right_hand_landmarks_xyz[:, :2],
-                self.left_hand_landmarks_xyz[:, :2],
-                self.face_contour_landmarks_xyz[:, :2],
-            ],
-            axis=0,
-        )
-
-        if confidence_threshold is not None:
-            confidence_scores = self.get_confidence_scores()
-            points_2d = self.filter_by_confidence(
-                points=points_2d,
-                confidence_scores=confidence_scores,
-                confidence_threshold=confidence_threshold,
-                fill_with_nans=fill_with_nans,
-            )
-
-        return points_2d
