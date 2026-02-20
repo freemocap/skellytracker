@@ -51,6 +51,13 @@ try:
 except ModuleNotFoundError:
     print("To use openpose_tracker, install skellytracker[openpose]")
 
+try:
+    from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import (
+        YOLOObjectTracker,
+    )
+except ImportError:
+    print("YOLO Object Tracker is not available in skellytracker")
+
 logger = logging.getLogger(__name__)
 
 
@@ -262,6 +269,9 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             dict_id=tracking_params.charuco_dict_id,
         )
 
+    elif tracker_name == "YOLOObjectTracker":
+        tracker = tracking_params
+
     else:
         raise ValueError("Invalid tracker type")
 
@@ -285,6 +295,8 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
         raise ValueError(
             "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
         )
+    elif tracker_name == "YOLOObjectTracker":
+        return BaseModel()
     else:
         raise ValueError("Invalid tracker type")
 
