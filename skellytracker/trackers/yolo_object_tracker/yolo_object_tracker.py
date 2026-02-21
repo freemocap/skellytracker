@@ -57,7 +57,7 @@ class YOLOObjectTracker(BaseTracker):
         # Determine which classes to track
         if classes_to_track is not None:
             self.classes = classes_to_track
-        elif person_only:
+        elif person_only and not self.custom_model:
             self.classes = [0]  # 0 is the YOLO class for person detection
         else:
             self.classes = None  # None includes all classes
