@@ -14,7 +14,7 @@ yolo_object_model_dictionary = {
 class YOLOObjectTrackingParams(BaseTrackingParams):
     model_path: Optional[str] = None
     model_size: str = "medium"
-    person_only: bool = True
+    person_only: bool = False
     confidence_threshold: float = 0.5
     classes_to_track: Optional[List[int]] = None
     max_detections: int = 10
@@ -40,7 +40,7 @@ class YOLOObjectModelInfo:
         self,
         model_path: Optional[str] = None,
         model_size: str = "medium",
-        person_only: bool = True,
+        person_only: bool = False,
         confidence_threshold: float = 0.5,
         classes_to_track: Optional[List[int]] = None,
         max_detections: int = 10,
