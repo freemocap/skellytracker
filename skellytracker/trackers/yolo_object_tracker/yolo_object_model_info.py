@@ -13,11 +13,11 @@ yolo_object_model_dictionary = {
 
 class YOLOObjectTrackingParams(BaseTrackingParams):
     model_path: Optional[str] = None
-    model_size: str = "medium"
+    model_size: str = "small"
     person_only: bool = False
     confidence_threshold: float = 0.5
     classes_to_track: Optional[List[int]] = None
-    max_detections: int = 10
+    max_detections: int = 1
 
 
 from skellytracker.trackers.yolo_object_tracker.yolo_object_tracker import YOLOObjectTracker
@@ -39,11 +39,11 @@ class YOLOObjectModelInfo:
     def __init__(
         self,
         model_path: Optional[str] = None,
-        model_size: str = "medium",
+        model_size: str = "small",
         person_only: bool = False,
         confidence_threshold: float = 0.5,
         classes_to_track: Optional[List[int]] = None,
-        max_detections: int = 10,
+        max_detections: int = 1,
     ):
         """
         Initialize YOLO object model info.

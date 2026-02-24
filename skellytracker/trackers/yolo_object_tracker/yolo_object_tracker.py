@@ -19,11 +19,11 @@ class YOLOObjectTracker(BaseTracker):
     def __init__(
         self,
         model_path: Optional[str] = None,
-        model_size: str = "nano",
+        model_size: str = "small",
         person_only: bool = False,
         confidence_threshold: float = 0.5,
         classes_to_track: Optional[List[int]] = None,
-        max_detections: int = 10,
+        max_detections: int = 1,
         tracked_object_names: Optional[List[str]] = None,
     ):
         """
