@@ -1,4 +1,5 @@
 from typing import NamedTuple
+from dataclasses import dataclass, field
 
 import logging
 import numpy as np
@@ -15,11 +16,12 @@ from skellytracker.trackers.legacy_mediapipe_tracker.get_legacy_mediapipe_face_i
     MEDIAPIPE_FACE_CONTOURS_NAMES
 
 logger = logging.getLogger(__name__)
-MediapipeResults = NamedTuple
+LegacyMediapipeResults = NamedTuple
 
 # TODO: use numpydantic to fix numpy type hints for this
-class MediapipeObservation(BaseObservation):
-    tracker_type:TrackerTypeString = 'mediapipe_tracker'
+@dataclass(slots=True)
+class LegacyMediapipeObservation(BaseObservation):
+    tracker_type: str = field(default="legacy_mediapipe", init=False)
     frame_number: int  # the frame number of the image in which this observation was made
     pose_landmarks: NormalizedLandmarkList | None
     pose_world_landmarks: LandmarkList | None
@@ -32,7 +34,7 @@ class MediapipeObservation(BaseObservation):
     @classmethod
     def from_detection_results(cls,
                                frame_number: int,
-                               mediapipe_results: MediapipeResults,
+                               mediapipe_results: LegacyMediapipeResults,
                                image_size: tuple[int, int],
                                include_segmentation_mask: bool = True):
         if include_segmentation_mask:  # TODO: make sure we don't get a missing attribute error
@@ -335,4 +337,4 @@ class MediapipeObservation(BaseObservation):
         return {name: np.array([x, y]) for name, (x, y) in points.items()}
 
 
-MediapipeObservations = list[MediapipeObservation]
+LegacyMediapipeObservations = list[LegacyMediapipeObservation]

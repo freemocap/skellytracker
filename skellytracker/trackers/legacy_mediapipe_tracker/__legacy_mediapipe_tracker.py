@@ -3,7 +3,7 @@ import logging
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
-from skellytracker.trackers.legacy_mediapipe_tracker import LegacyMediapipeDetectorConfig
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_config import LegacyMediapipeDetectorConfig
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_annotator import LegacyMediapipeAnnotatorConfig, \
     LegacyMediapipeImageAnnotator
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector import LegacyMediapipeDetector
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 class LegacyMediapipeTrackerConfig(BaseTrackerConfig):
     detector_config: LegacyMediapipeDetectorConfig = Field(default_factory = LegacyMediapipeDetectorConfig)
-    annotator_config: MediapipeAnnotatorConfig = Field(default_factory = LegacyMediapipeAnnotatorConfig)
+    annotator_config: LegacyMediapipeAnnotatorConfig = Field(default_factory = LegacyMediapipeAnnotatorConfig)
 
 class LegacyMediapipeRecorder(BaseRecorder):
     # TODO: the BaseRecorder covers most of this, but we could save metadata with this if we wanted

@@ -21,7 +21,7 @@ class LegacyMediapipeDetectorConfig(BaseDetectorConfig):
     refine_face_landmarks: bool = True  # adds iris landmarks to face mesh
 
 
-MEDIAPIPE_TRACKER_REALTIME_PRESET = LegacyMediapipeDetectorConfig(
+LEGACY_MEDIAPIPE_TRACKER_REALTIME_PRESET = LegacyMediapipeDetectorConfig(
     model_complexity=LegacyMediapipeModelComplexity.LITE,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5,
@@ -31,7 +31,7 @@ MEDIAPIPE_TRACKER_REALTIME_PRESET = LegacyMediapipeDetectorConfig(
     smooth_segmentation=False,
     refine_face_landmarks=True,
 )
-MEDIAPIPE_TRACKER_POSTHOC_PRESET = LegacyMediapipeDetectorConfig(
+LEGACY_MEDIAPIPE_TRACKER_POSTHOC_PRESET = LegacyMediapipeDetectorConfig(
     model_complexity=LegacyMediapipeModelComplexity.HEAVY,
     min_detection_confidence=0.5,
     min_tracking_confidence=0.5,

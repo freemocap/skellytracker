@@ -26,7 +26,7 @@ class LegacyMediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
 
-class MediapipeImageAnnotator(BaseImageAnnotator):
+class LegacyMediapipeImageAnnotator(BaseImageAnnotator):
     config: LegacyMediapipeAnnotatorConfig
     observations: list[LegacyMediapipeObservation]
 
