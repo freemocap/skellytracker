@@ -2,20 +2,23 @@ import mediapipe as mp
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
-from skellytracker.trackers.mediapipe_tracker.mediapipe_detector_config import (
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_config import (
     MediapipeDetectorConfig,
     MediapipeModelComplexity,
     MEDIAPIPE_TRACKER_REALTIME_PRESET,
     MEDIAPIPE_TRACKER_POSTHOC_PRESET,
 )
-from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation, MediapipeResults
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import LegacyMediapipeObservation, LegacyMediapipeResults
 
-class MediapipeDetector(BaseDetector):
-    config: MediapipeDetectorConfig
+from skellytracker.trackers.legacy_mediapipe_tracker import LegacyMediapipeDetectorConfig
+
+
+class LegacyMediapipeDetector(BaseDetector):
+    config: LegacyMediapipeDetectorConfig
     detector: mp.solutions.holistic.Holistic
 
     @classmethod
-    def create(cls, config: MediapipeDetectorConfig|None=None) -> "MediapipeDetector":
+    def create(cls, config: LegacyMediapipeDetectorConfig|None=None) -> "LegacyMediapipeDetector":
         if config is None:
             config = MediapipeDetectorConfig()
         detector = mp.solutions.holistic.Holistic(
@@ -34,16 +37,16 @@ class MediapipeDetector(BaseDetector):
             detector=detector,
         )
     @classmethod
-    def create_realtime_preset(cls) -> "MediapipeDetector":
+    def create_realtime_preset(cls) -> "LegacyMediapipeDetector":
         return cls.create(config=MEDIAPIPE_TRACKER_REALTIME_PRESET)
 
     @classmethod
-    def create_posthoc_preset(cls) -> "MediapipeDetector":
+    def create_posthoc_preset(cls) -> "LegacyMediapipeDetector":
         return cls.create(config=MEDIAPIPE_TRACKER_POSTHOC_PRESET)
 
-    def detect(self, frame_number: int, image: np.ndarray) -> MediapipeObservation:
-        mediapipe_results: MediapipeResults = self.detector.process(image)
-        return MediapipeObservation.from_detection_results(frame_number=frame_number,
+    def detect(self, frame_number: int, image: np.ndarray) -> LegacyMediapipeObservation:
+        mediapipe_results: LegacyMediapipeResults = self.detector.process(image)
+        return LegacyMediapipeObservation.from_detection_results(frame_number=frame_number,
                                                           mediapipe_results=mediapipe_results,
                                                           image_size=(int(image.shape[0]), int(image.shape[1])),
                                                           include_segmentation_mask=self.config.enable_segmentation

@@ -4,38 +4,38 @@ from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
 from skellytracker.trackers.legacy_mediapipe_tracker import LegacyMediapipeDetectorConfig
-from skellytracker.trackers.legacy_mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, \
-    MediapipeImageAnnotator
-from skellytracker.trackers.legacy_mediapipe_tracker.mediapipe_detector import MediapipeDetector
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_annotator import LegacyMediapipeAnnotatorConfig, \
+    LegacyMediapipeImageAnnotator
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector import LegacyMediapipeDetector
 
 logger = logging.getLogger(__name__)
 
-class MediapipeTrackerConfig(BaseTrackerConfig):
+class LegacyMediapipeTrackerConfig(BaseTrackerConfig):
     detector_config: LegacyMediapipeDetectorConfig = Field(default_factory = LegacyMediapipeDetectorConfig)
-    annotator_config: MediapipeAnnotatorConfig = Field(default_factory = MediapipeAnnotatorConfig)
+    annotator_config: MediapipeAnnotatorConfig = Field(default_factory = LegacyMediapipeAnnotatorConfig)
 
-class MediapipeRecorder(BaseRecorder):
+class LegacyMediapipeRecorder(BaseRecorder):
     # TODO: the BaseRecorder covers most of this, but we could save metadata with this if we wanted
     pass
 
 
 class LegacyMediapipeTracker(BaseTracker):
-    config: MediapipeTrackerConfig
-    detector: MediapipeDetector
-    annotator: MediapipeImageAnnotator | None = None
-    recorder: MediapipeRecorder | None = None
+    config: LegacyMediapipeTrackerConfig
+    detector: LegacyMediapipeDetector
+    annotator: LegacyMediapipeImageAnnotator | None = None
+    recorder: LegacyMediapipeRecorder | None = None
 
     @classmethod
-    def create(cls, config: MediapipeTrackerConfig | None = None):
+    def create(cls, config: LegacyMediapipeTrackerConfig | None = None):
         if config is None:
-            config = MediapipeTrackerConfig()
-        detector = MediapipeDetector.create(config.detector_config)
+            config = LegacyMediapipeTrackerConfig()
+        detector = LegacyMediapipeDetector.create(config.detector_config)
 
         return cls(
             config=config,
             detector=detector,
-            annotator=MediapipeImageAnnotator.create(config.annotator_config),
-            recorder=MediapipeRecorder(),
+            annotator=LegacyMediapipeImageAnnotator.create(config.annotator_config),
+            recorder=LegacyMediapipeRecorder(),
         )
 
 
