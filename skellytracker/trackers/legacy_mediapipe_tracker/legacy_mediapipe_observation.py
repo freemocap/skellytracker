@@ -251,8 +251,7 @@ class LegacyMediapipeObservation(BaseObservation):
 
         return np.array(visibilities)
 
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[
-        Shape["211, 2"], float]:
+    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True): #-> NDArray[Shape["211, 2"], float]: #forgot how many keypoints there are w/ the tessalation face
         """
         Convert to 2D array with optional confidence filtering.
 
@@ -265,7 +264,7 @@ class LegacyMediapipeObservation(BaseObservation):
                 self.body_points_xyz[..., :2],
                 self.right_hand_points_xyz[..., :2],
                 self.left_hand_points_xyz[..., :2],
-                self.face_contour_points_xyz[..., :2],
+                self.face_tesselation_points_xyz[..., :2],
             ),
             axis=0,
         )
