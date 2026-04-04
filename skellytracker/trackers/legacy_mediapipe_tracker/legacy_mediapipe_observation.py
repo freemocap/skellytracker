@@ -251,7 +251,7 @@ class LegacyMediapipeObservation(BaseObservation):
 
         return np.array(visibilities)
 
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True): #-> NDArray[Shape["211, 2"], float]: #forgot how many keypoints there are w/ the tessalation face
+    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> NDArray[Shape["553, 2"], float]: #NDArray[Shape["211, 2"], float]:
         """
         Convert to 2D array with optional confidence filtering.
 

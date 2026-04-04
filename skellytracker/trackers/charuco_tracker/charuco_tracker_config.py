@@ -12,8 +12,8 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     squares_y: int = 3
     aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
     aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
-    square_length: float = 1 #size of the edge of a black square in user-defined units (e.g., millimeters)
-    marker_length: float = 0.8
+    square_length: float = Field(gt=0, default=58, description="size of the edge of a black square in user-defined units (e.g., millimeters))")
+    marker_length: float = Field(gt=0, le =1.0,  default=0.8, description="Length of the Aruco marker as a proportion of the square size")
 
     @property
     def charuco_corner_ids(self) -> list[int]:

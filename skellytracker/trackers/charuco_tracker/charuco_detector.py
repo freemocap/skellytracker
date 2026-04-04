@@ -20,8 +20,8 @@ class CharucoDetector(BaseDetector):
     def create(cls, config: CharucoDetectorConfig):
         board = cv2.aruco.CharucoBoard(
             size=(config.squares_x, config.squares_y),
-            squareLength=config.square_length,
-            markerLength=config.marker_length,
+            squareLength=config.square_length, #mm
+            markerLength=config.square_length * config.marker_length,
             dictionary=config.aruco_dictionary,
         )
 
