@@ -1,3 +1,9 @@
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig
+from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoDetectorConfig
+from skellytracker.trackers.legacy_mediapipe_tracker import LegacyMediapipeDetectorConfig
+from skellytracker.trackers.mediapipe_tracker import MediapipeDetectorConfig
+
+
 def create_detector_from_config(detector_config: BaseDetectorConfig):
     """
     Create a detector instance from a picklable config.
