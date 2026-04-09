@@ -13,7 +13,11 @@ from skellytracker.trackers.mediapipe_tracker import MediapipeDetectorConfig
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_config import \
     LegacyMediapipeDetectorConfig
 
-from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig
+
+try:
+    from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig
+except ModuleNotFoundError:
+    RTMPoseDetectorConfig = BaseDetectorConfig
 
 
 # TODO - This should live in skellytracker
@@ -39,7 +43,7 @@ DetectorConfig = Annotated[
         Annotated[LegacyMediapipeDetectorConfig, Tag("legacy_mediapipe")],
         Annotated[MediapipeDetectorConfig, Tag("mediapipe")],
         Annotated[CharucoDetectorConfig, Tag("charuco")],
-        Annotated[RTMPoseDetectorConfig, Tag("rtmpose")],
+        # Annotated[RTMPoseDetectorConfig, Tag("rtmpose")],
     ],
     Discriminator(_detect_detector_config_type),
 ]
