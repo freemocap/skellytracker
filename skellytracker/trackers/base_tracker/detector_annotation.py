@@ -19,8 +19,7 @@ try:
 except ModuleNotFoundError:
     RTMPoseDetectorConfig = BaseDetectorConfig
 
-
-# TODO - This should live in skellytracker
+# TODO - this is dumb and busted
 def _detect_detector_config_type(data: Any) -> str:
     """Inspect raw data to determine which detector config subclass to use."""
     if isinstance(data, BaseDetectorConfig):
@@ -37,7 +36,6 @@ def _detect_detector_config_type(data: Any) -> str:
     return "legacy_mediapipe"
 
 
-# TODO - move this to skellytracker
 DetectorConfig = Annotated[
     Union[
         Annotated[LegacyMediapipeDetectorConfig, Tag("legacy_mediapipe")],
