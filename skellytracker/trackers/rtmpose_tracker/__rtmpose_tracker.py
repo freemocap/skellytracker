@@ -31,4 +31,8 @@ class RTMPoseTracker(BaseTracker):
         )
 
 if __name__ == "__main__":
+    import onnxruntime as ort
+
+    ort.preload_dlls()
+    print(f"ort.get_available_providers() -> {ort.get_available_providers()}")
     RTMPoseTracker.create().demo()

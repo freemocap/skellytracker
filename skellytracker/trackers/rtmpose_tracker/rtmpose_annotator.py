@@ -20,6 +20,7 @@ class RTMPoseImageAnnotator(BaseImageAnnotator):
     ):
         annotated_image = draw_skeleton(img=image, 
                                         keypoints=observation.keypoints,
+                                        kpt_thr=2, # RTMPose confidence scores are in arbitrary units based on the height of the heatmap detection of each keypoint. Default cutoff (0.5) seems too low. Cutting off below 2.0 seems to work ok.
                                         scores=observation.scores)
         return annotated_image
     

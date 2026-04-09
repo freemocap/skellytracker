@@ -4,11 +4,13 @@ from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseOb
 from rtmlib import Wholebody
 import onnxruntime
 
+
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"
     device: str = "cuda"
+
 
 class RTMPoseDetector(BaseDetector):
     config: RTMPoseDetectorConfig
@@ -20,13 +22,13 @@ class RTMPoseDetector(BaseDetector):
         if config.device == "cuda":
             onnxruntime.preload_dlls(directory="")
         detector = Wholebody(
-            to_openpose=False, #last time I set to true this failed
+            to_openpose=False,  # last time I set to true this failed
             mode=config.mode,
             backend=config.backend,
             device=config.device
-        )  
+        )
         return cls(
-            config=config, 
+            config=config,
             detector=detector)
 
     def detect(self, frame_number: int, image: np.ndarray) -> RTMPoseObservation:
