@@ -194,10 +194,10 @@ class LegacyMediapipeObservation(BaseObservation):
         Returns:
             Array of visibility scores for body, hands, and face points
         """
-        body_visibility = self._get_body_visibility()
-        right_hand_visibility = self._get_hand_visibility(self.right_hand_landmarks)
-        left_hand_visibility = self._get_hand_visibility(self.left_hand_landmarks)
-        face_visibility = self._get_face_visibility()
+        body_visibility = self.body_visibility()
+        right_hand_visibility = self.hand_visibility(self.right_hand_landmarks)
+        left_hand_visibility = self.hand_visibility(self.left_hand_landmarks)
+        face_visibility = self.face_visibility()
 
         return np.concatenate([
             body_visibility,
@@ -205,8 +205,8 @@ class LegacyMediapipeObservation(BaseObservation):
             left_hand_visibility,
             face_visibility
         ])
-
-    def _get_body_visibility(self) -> NDArray[Shape["* body points"], float]:
+    @property
+    def body_visibility(self) -> NDArray[Shape["* body points"], float]:
         """Extract visibility scores from body landmarks."""
         if self.pose_landmarks is None:
             return np.full(self.num_body_points, 0.0)
@@ -215,20 +215,14 @@ class LegacyMediapipeObservation(BaseObservation):
             landmark.visibility if hasattr(landmark, 'visibility') else 1.0
             for landmark in self.pose_landmarks.landmark
         ])
-
-    def _get_hand_visibility(self, hand_landmarks: NormalizedLandmarkList | None) -> NDArray[
+    @property
+    def hand_visibility(self) -> NDArray[
         Shape["* hand points"], float]:
         """Extract visibility scores from hand landmarks."""
-        if hand_landmarks is None:
-            return np.full(self.num_single_hand_points, 0.0)
+        return np.full(self.num_single_hand_points, 1.0)
 
-        # MediaPipe hand landmarks typically don't have visibility, use presence (0 or 1)
-        return np.array([
-            landmark.presence if hasattr(landmark, 'presence') else 1.0
-            for landmark in hand_landmarks.landmark
-        ])
-
-    def _get_face_visibility(self) -> NDArray[Shape["* face points"], float]:
+    @property
+    def face_visibility(self) -> NDArray[Shape["* face points"], float]:
         """Extract visibility scores from face landmarks, in name-matching order."""
         if self.face_landmarks is None:
             return np.full(self.num_face_contour_points, 0.0)
