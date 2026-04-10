@@ -99,6 +99,8 @@ class LegacyMediapipeObservation(BaseObservation):
 
         return self._landmarks_to_array(self.pose_landmarks)
 
+
+
     @property
     def right_hand_points_xyz(self) -> NDArray[Shape["* right hand points, 3"], float]:
         if self.right_hand_landmarks is None:
@@ -144,6 +146,20 @@ class LegacyMediapipeObservation(BaseObservation):
         indices = [int(name.rsplit('_', 1)[1]) for name in self.face_contour_landmark_names]
 
         return all_face_landmarks[indices]
+
+    @property
+    def has_pose(self) -> bool:
+        return self.pose_landmarks is not None
+    @property
+    def has_right_hand(self) -> bool:
+        return self.right_hand_landmarks is not None
+    @property
+    def has_left_hand(self) -> bool:
+        return self.left_hand_landmarks is not None
+
+    @property
+    def has_face(self) -> bool:
+        return self.face_landmarks is not None
 
     def _landmarks_to_array(self, landmarks: NormalizedLandmarkList) -> NDArray[Shape["* all points, 3"], float]:
         landmark_array = np.array(
