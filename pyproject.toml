@@ -23,8 +23,6 @@ classifiers = [
     "Natural Language :: English",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
@@ -50,7 +48,7 @@ keywords = [
     "freemocap",
     "motion capture",
     "synchronization",
-    "computer vision"
+    "computer vision",
 ]
 
 dependencies = [
@@ -65,43 +63,51 @@ requires-python = ">=3.11,<3.13"
 
 dynamic = ["version", "description"]
 
-# Optional dependencies — used by downstream packages via skellytracker[mediapipe] etc.
+# Extras for package consumers: `pip install skellytracker[rtmpose-gpu]`
+# Also usable in local dev: `uv sync --extra rtmpose-gpu`
 [project.optional-dependencies]
-mediapipe = ["mediapipe==0.10.14"]#["mediapipe>=0.10.21"]
-yolo = ["ultralytics~=8.0.202"]
-rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
-rtmpose-gpu = ["rtmlib==0.0.14", "onnxruntime-gpu"]
-all = ["mediapipe>=0.10.14", "ultralytics~=8.0.202"]
-#all = ["mediapipe>=0.10.21", "ultralytics~=8.0.202"]
-
-# Dependency groups — used for local development via `uv sync --group <name>`
-[dependency-groups]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 mediapipe = ["mediapipe>=0.10.14"]
-#mediapipe = ["mediapipe>=0.10.21"]
 yolo = ["ultralytics~=8.0.202"]
-rtmpose-cpu = [
-  "rtmlib==0.0.14",
-  "onnxruntime",
-]
+all = ["mediapipe>=0.10.14", "ultralytics~=8.0.202"]
+
+# RTMPose — CPU only (works everywhere)
+rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
+
+# RTMPose — NVIDIA GPU via CUDA 12
+# Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
+# don't need to install the CUDA Toolkit or cuDNN manually.
+# We pin to CUDA 12 libs because onnxruntime-gpu on PyPI is built against CUDA 12.
+# NVIDIA drivers are backward compatible, so users with newer drivers (e.g. CUDA 13)
+# can still use these CUDA 12 libs without issue — the driver just needs to support
+# CUDA >= 12 (check via `nvidia-smi`).
+# Code must call `onnxruntime.preload_dlls(directory="")` before creating a session
+# so ORT finds these pip-installed DLLs — skellytracker already does this.
 rtmpose-gpu = [
     "rtmlib==0.0.14",
     "onnxruntime-gpu",
+    "nvidia-cuda-runtime-cu12",
+    "nvidia-cublas-cu12",
+    "nvidia-cufft-cu12",
+    "nvidia-cudnn-cu12",
 ]
 
-# Tell uv which dependency groups and optional extras conflict with each
-# other and cannot be installed simultaneously.
-[tool.uv]
-default-groups = ["dev", "mediapipe"]
-conflicts = [
+# RTMPose — any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm)
+# No CUDA toolkit needed. Just pip install and go.
+# Note: requires a one-line patch to rtmlib to add 'directml' device support —
+# see GPU_SETUP_GUIDE.md for details.
+rtmpose-directml = ["rtmlib==0.0.14", "onnxruntime-directml"]
 
+# Dev-only tooling: `uv sync` (installed by default via default-groups)
+[dependency-groups]
+dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
+
+[tool.uv]
+default-groups = ["dev"]
+conflicts = [
     [
         { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
-    ],
-    [
-        { group = "rtmpose-cpu" },
-        { group = "rtmpose-gpu" },
+        { extra = "rtmpose-directml" },
     ],
 ]
 
@@ -110,7 +116,6 @@ Homepage = "https://github.com/freemocap/skellytracker"
 
 [tool.bumpver]
 current_version = "v2024.09.1019"
-
 version_pattern = "vYYYY.0M.BUILD[-TAG]"
 commit_message = "Bump version {old_version} -> {new_version}"
 commit = true
@@ -120,15 +125,12 @@ push = true
 [tool.bumpver.file_patterns]
 "skellytracker/__init__.py" = ["{version}"]
 
-[tool.ruff.lint.per-file-ignores]
-"*/tests/*" = ["S101"]
-
 [tool.ruff.lint]
 extend-select = ["B", "S", "C4", "ISC", "PERF"]
+
+[tool.ruff.lint.per-file-ignores]
+"*/tests/*" = ["S101"]
 
 [project.scripts]
 skellytracker = "skellytracker.__main__:cli_main"
 skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
-
-[tool.setuptools]
-py-modules = ["skellytracker"]
