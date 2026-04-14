@@ -41,7 +41,7 @@ DetectorConfig = Annotated[
         Annotated[LegacyMediapipeDetectorConfig, Tag("legacy_mediapipe")],
         Annotated[MediapipeDetectorConfig, Tag("mediapipe")],
         Annotated[CharucoDetectorConfig, Tag("charuco")],
-        # Annotated[RTMPoseDetectorConfig, Tag("rtmpose")],
+        Annotated[RTMPoseDetectorConfig, Tag("rtmpose")],
     ],
     Discriminator(_detect_detector_config_type),
 ]
