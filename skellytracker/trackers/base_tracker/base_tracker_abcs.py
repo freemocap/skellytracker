@@ -128,8 +128,8 @@ class BaseObservation(ABC):
 
 BaseObservations = list[BaseObservation]
 
-
-class BaseImageAnnotatorConfig(BaseModel, ABC):
+@dataclass
+class BaseImageAnnotatorConfig( ABC):
     show_overlay: bool = False
 
 

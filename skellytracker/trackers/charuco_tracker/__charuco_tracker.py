@@ -2,6 +2,7 @@
 # Aruco detection docs: https://docs.opencv.org/4.10.0/d5/dae/tutorial_aruco_detection.html
 
 import logging
+from dataclasses import dataclass
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoImageAnnotator
@@ -10,7 +11,7 @@ from skellytracker.trackers.charuco_tracker.charuco_tracker_config import Charuc
 
 logger = logging.getLogger(__name__)
 
-
+@dataclass
 class CharucoTracker(BaseTracker):
     config: CharucoTrackerConfig
     detector: CharucoDetector

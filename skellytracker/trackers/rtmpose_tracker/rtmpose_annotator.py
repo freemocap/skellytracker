@@ -1,11 +1,12 @@
 import numpy as np
+from attr import dataclass
 from numpy.typing import NDArray
 from rtmlib import draw_skeleton
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
 
-
+@dataclass
 class RTMPoseImageAnnotator(BaseImageAnnotator):
     config: BaseImageAnnotatorConfig
     observations: list[RTMPoseObservation]

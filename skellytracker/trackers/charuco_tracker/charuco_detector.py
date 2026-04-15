@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import List
 
 import cv2
@@ -7,7 +8,7 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoDetectorConfig
 
-
+@dataclass
 class CharucoDetector(BaseDetector):
     config: CharucoDetectorConfig
     board: cv2.aruco.CharucoBoard

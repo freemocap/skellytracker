@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 from mediapipe.python.solutions import drawing_utils
@@ -24,7 +26,7 @@ class LegacyMediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     text_thickness: int = 2
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
-
+@dataclass
 class LegacyMediapipeImageAnnotator(BaseImageAnnotator):
     config: LegacyMediapipeAnnotatorConfig
     observations: list[LegacyMediapipeObservation]

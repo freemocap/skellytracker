@@ -1,10 +1,12 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
-
+@dataclass
 class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     show_tracks: int | None = 15
     corner_marker_type: int = cv2.MARKER_DIAMOND
