@@ -67,7 +67,7 @@ dynamic = ["version", "description"]
 # Extras for package consumers: `pip install skellytracker[rtmpose-gpu]`
 # Also usable in local dev: `uv sync --extra rtmpose-gpu`
 [project.optional-dependencies]
-mediapipe = ["mediapipe>=0.10.14"]
+mediapipe = ["mediapipe==0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
 all = ["mediapipe==0.10.14", "rtmlib==0.0.14", "onnxruntime"]#"ultralytics~=8.0.202"]
 
