@@ -105,7 +105,7 @@ class LegacyMediapipeObservation(BaseObservation):
 
     @property
     def num_total_points(self) -> int:
-        return self.num_body_points + (2 * self.num_single_hand_points) + self.num_face_tesselation_points
+        return self.num_body_points + (2 * self.num_single_hand_points) + self.num_face_contour_points
 
     @property
     def body_points_xyz(self) -> np.ndarray:
@@ -225,7 +225,7 @@ class LegacyMediapipeObservation(BaseObservation):
                 self.body_points_xyz[..., :2],
                 self.right_hand_points_xyz[..., :2],
                 self.left_hand_points_xyz[..., :2],
-                self.face_tesselation_points_xyz[..., :2],
+                self.face_contour_points_xyz[..., :2],
             ),
             axis=0,
         )
