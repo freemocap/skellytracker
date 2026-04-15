@@ -1,9 +1,11 @@
+from easy_ViTPose import VitInference
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
-from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetector, VITPoseDetectorConfig
 from skellytracker.trackers.vitpose_tracker.vitpose_annotator import VITPoseAnnotator, BaseImageAnnotatorConfig
-from easy_ViTPose import VitInference
+from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetector, VITPoseDetectorConfig
+
+
 class VITPoseTrackerConfig(BaseTrackerConfig):
     detector_config: VITPoseDetector = Field( default_factory = VITPoseDetectorConfig)
     annotator_config: BaseImageAnnotatorConfig = Field( default_factory = BaseImageAnnotatorConfig)

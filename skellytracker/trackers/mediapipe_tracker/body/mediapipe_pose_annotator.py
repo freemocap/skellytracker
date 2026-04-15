@@ -6,8 +6,8 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseImageAnnotatorConfig,
     BaseObservation,
 )
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import POSE_CONNECTIONS
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
+from skellytracker.trackers.mediapipe_tracker.mediapipe_names import POSE_CONNECTIONS
 
 
 class MediapipePoseAnnotatorConfig(BaseImageAnnotatorConfig):

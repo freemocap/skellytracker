@@ -2,7 +2,6 @@ import logging
 
 import mediapipe as mp
 import numpy as np
-from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_config import MediapipeFaceConfig
@@ -20,7 +19,6 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 class MediapipeFaceDetector(BaseDetector):
     """Wraps MediaPipe FaceLandmarker in IMAGE mode (for use with crops)."""
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: MediapipeFaceConfig
     landmarker: FaceLandmarker
 

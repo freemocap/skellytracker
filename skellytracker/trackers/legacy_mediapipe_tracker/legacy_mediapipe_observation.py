@@ -1,7 +1,7 @@
-from typing import NamedTuple
-from dataclasses import dataclass, field
-
 import logging
+from dataclasses import dataclass, field
+from typing import NamedTuple
+
 import numpy as np
 from mediapipe.framework.formats.landmark_pb2 import NormalizedLandmarkList, \
     LandmarkList  # linter sees an error here, but it runs fine
@@ -11,8 +11,9 @@ from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh import FACEMESH_NUM_LANDMARKS_WITH_IRISES
 from numpydantic import NDArray, Shape
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackerTypeString, TrackedPoint2dArray
-from skellytracker.trackers.legacy_mediapipe_tracker.get_legacy_mediapipe_face_info import MEDIAPIPE_FACE_CONTOURS_INDICIES, \
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation, TrackedPoint2dArray
+from skellytracker.trackers.legacy_mediapipe_tracker.get_legacy_mediapipe_face_info import \
+    MEDIAPIPE_FACE_CONTOURS_INDICIES, \
     MEDIAPIPE_FACE_CONTOURS_NAMES
 
 logger = logging.getLogger(__name__)

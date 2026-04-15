@@ -1,11 +1,10 @@
+import logging
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
 import cv2
-import logging
 import numpy as np
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
@@ -28,12 +27,20 @@ CharucoBoardTranslationVector = NDArray[np.float32]
 CharucoBoardRotationVector = NDArray[np.float32]
 
 
-class AniposeCameraRow(BaseModel):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclass
+class AniposeCameraRow:
     framenum: tuple[int, int]
     corners: np.ndarray
     ids: np.ndarray
     filled: np.ndarray
+
+    def to_dict(self) -> dict:
+        return {
+            "framenum": self.framenum,
+            "corners": self.corners,
+            "ids": self.ids,
+            "filled": self.filled,
+        }
 
 
 MINIMUM_CHARUCO_CORNERS_FOR_VISIBILITY = 6
@@ -290,7 +297,7 @@ class CharucoObservation(BaseObservation):
                 ids=np.asarray(self.all_charuco_ids),
                 filled=nan_filled,
             )
-            return nan_row.model_dump()
+            return nan_row.to_dict()
         for id, corner in zip(self.detected_charuco_corner_ids.ravel(), self.raw_charuco_corners):
             nan_filled[id] = corner
         camera_row = AniposeCameraRow(
@@ -299,7 +306,7 @@ class CharucoObservation(BaseObservation):
             ids=self.detected_charuco_corner_ids,
             filled=nan_filled,
         )
-        return camera_row.model_dump()
+        return camera_row.to_dict()
 
 
 CharucoObservations = list[CharucoObservation]

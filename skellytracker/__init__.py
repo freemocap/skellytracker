@@ -13,6 +13,8 @@ __repo_issues_url__ = f"{__repo_url__}/issues"
 
 # ruff: noqa: F401, E402
 
+from beartype.claw import beartype_this_package
+beartype_this_package()
 
 from skellytracker.system.logging_configuration.configure_logging import configure_logging
 from skellytracker.system.logging_configuration.log_levels import LogLevels

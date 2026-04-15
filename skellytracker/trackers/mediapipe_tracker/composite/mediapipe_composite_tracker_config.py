@@ -1,8 +1,10 @@
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTrackerConfig
-from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_annotator import MediapipeCompositeAnnotatorConfig
-from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import MediapipeCompositeDetectorConfig
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_annotator import \
+    MediapipeCompositeAnnotatorConfig
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import \
+    MediapipeCompositeDetectorConfig
 
 
 class MediapipeCompositeTrackerConfig(BaseTrackerConfig):

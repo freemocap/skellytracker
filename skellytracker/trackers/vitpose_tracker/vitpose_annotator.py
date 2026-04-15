@@ -1,7 +1,9 @@
+import numpy as np
+from easy_ViTPose.vit_utils.visualization import draw_points_and_skeleton, joints_dict
+
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.vitpose_tracker.vitpose_observation import VITPoseObservation
-from easy_ViTPose.vit_utils.visualization import draw_points_and_skeleton, joints_dict
-import numpy as np
+
 
 class VITPoseAnnotator(BaseImageAnnotator):
     config: BaseImageAnnotatorConfig

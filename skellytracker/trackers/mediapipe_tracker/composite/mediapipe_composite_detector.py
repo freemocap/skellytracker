@@ -4,10 +4,11 @@ from concurrent.futures import ThreadPoolExecutor
 
 import cv2
 import numpy as np
-from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
-from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import MediapipeCompositeDetectorConfig
+from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_detector import MediapipePoseDetector
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import \
+    MediapipeCompositeDetectorConfig
 from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_observation import (
     MediapipeCompositeObservation,
     ROIBox,
@@ -27,7 +28,6 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
     POSE_RIGHT_ELBOW_INDEX,
     POSE_RIGHT_WRIST_INDEX,
 )
-from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_detector import MediapipePoseDetector
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +49,6 @@ class MediapipeCompositeDetector(BaseDetector):
     If no body is detected at all, returns an all-NaN observation.
     """
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: MediapipeCompositeDetectorConfig
     pose_detector: MediapipePoseDetector
     hand_detector: MediapipeHandDetector | None

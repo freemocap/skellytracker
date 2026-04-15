@@ -1,13 +1,13 @@
 import json
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List
 
 import cv2
 import numpy as np
 from numpydantic import NDArray, Shape
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
 from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
 from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
@@ -123,12 +123,10 @@ class BaseImageAnnotatorConfig(BaseModel, ABC):
     show_overlay: bool = False
 
 
-class BaseImageAnnotator(BaseModel, ABC):
-    model_config = ConfigDict(
-        arbitrary_types_allowed=True
-    )
+@dataclass
+class BaseImageAnnotator(ABC):
     config: BaseImageAnnotatorConfig
-    observations: BaseObservations  # make it a list to allow plotting trails, etc.
+    observations: list[BaseObservation] = field(default_factory=list)
 
     @classmethod
     @abstractmethod
@@ -163,8 +161,8 @@ class BaseTrackerConfig(BaseModel, ABC):
     annotator_config: BaseImageAnnotatorConfig | None = None
 
 
-class BaseDetector(BaseModel, ABC):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclass
+class BaseDetector(ABC):
     config: BaseDetectorConfig
 
     @classmethod
@@ -178,9 +176,9 @@ class BaseDetector(BaseModel, ABC):
         pass
 
 
-class BaseRecorder(BaseModel, ABC):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    observations: List[BaseObservation] = Field(default_factory=list)
+@dataclass
+class BaseRecorder(ABC):
+    observations: list[BaseObservation] = field(default_factory=list)
 
     def add_observation(self, observation: BaseObservation) -> None:
         self.observations.append(observation)
@@ -208,8 +206,8 @@ class BaseRecorder(BaseModel, ABC):
         self.observations = []
 
 
-class BaseTracker(BaseModel, ABC):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclass
+class BaseTracker(ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
     annotator: BaseImageAnnotator

@@ -1,9 +1,11 @@
+from pathlib import Path
+
+import numpy as np
+from easy_ViTPose import VitInference
+from huggingface_hub import hf_hub_download
+
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig
 from skellytracker.trackers.vitpose_tracker.vitpose_observation import VITPoseObservation
-from easy_ViTPose import VitInference
-from pathlib import Path
-from huggingface_hub import hf_hub_download
-import numpy as np
 
 HF_VIT_REPO = "JunkyByte/easy_ViTPose"
 HF_YOLO_REPO = "ultralytics/YOLOv8"
@@ -92,8 +94,3 @@ class VITPoseDetector(BaseDetector):
             )
         
         return mappings[model]
-    
-
-
-
-

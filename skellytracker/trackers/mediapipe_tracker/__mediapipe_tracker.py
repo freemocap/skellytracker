@@ -1,11 +1,12 @@
 import logging
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseRecorder, BaseTracker
-from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_tracker_config import MediapipeCompositeTrackerConfig
 from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_annotator import (
     MediapipeCompositeAnnotator,
 )
 from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_detector import MediapipeCompositeDetector
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_tracker_config import \
+    MediapipeCompositeTrackerConfig
 
 logger = logging.getLogger(__name__)
 

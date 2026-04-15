@@ -6,13 +6,16 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseImageAnnotatorConfig,
     BaseObservation,
 )
+from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_annotator import MediapipePoseAnnotator, \
+    MediapipePoseAnnotatorConfig
 from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_observation import (
     MediapipeCompositeObservation,
     ROIBox,
 )
-from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_annotator import MediapipeFaceAnnotator, MediapipeFaceAnnotatorConfig
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_annotator import MediapipeHandAnnotator, MediapipeHandAnnotatorConfig
-from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_annotator import MediapipePoseAnnotator, MediapipePoseAnnotatorConfig
+from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_annotator import MediapipeFaceAnnotator, \
+    MediapipeFaceAnnotatorConfig
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_annotator import MediapipeHandAnnotator, \
+    MediapipeHandAnnotatorConfig
 
 
 class MediapipeCompositeAnnotatorConfig(BaseImageAnnotatorConfig):

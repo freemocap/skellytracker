@@ -7,8 +7,8 @@ from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_c
     LEGACY_MEDIAPIPE_TRACKER_REALTIME_PRESET,
     LEGACY_MEDIAPIPE_TRACKER_POSTHOC_PRESET,
 )
-from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import LegacyMediapipeObservation, LegacyMediapipeResults
-
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import LegacyMediapipeObservation, \
+    LegacyMediapipeResults
 
 
 class LegacyMediapipeDetector(BaseDetector):

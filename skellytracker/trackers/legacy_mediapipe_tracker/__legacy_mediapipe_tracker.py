@@ -3,10 +3,11 @@ import logging
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
-from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_config import LegacyMediapipeDetectorConfig
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_annotator import LegacyMediapipeAnnotatorConfig, \
     LegacyMediapipeImageAnnotator
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector import LegacyMediapipeDetector
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_config import \
+    LegacyMediapipeDetectorConfig
 
 logger = logging.getLogger(__name__)
 

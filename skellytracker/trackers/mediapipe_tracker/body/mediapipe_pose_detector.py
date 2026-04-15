@@ -3,12 +3,11 @@ import time
 
 import mediapipe as mp
 import numpy as np
-from pydantic import ConfigDict
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
-from skellytracker.trackers.mediapipe_tracker.mediapipe_model_manager import get_pose_model_path
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_config import MediapipePoseConfig
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
+from skellytracker.trackers.mediapipe_tracker.mediapipe_model_manager import get_pose_model_path
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,6 @@ VisionRunningMode = mp.tasks.vision.RunningMode
 
 
 class MediapipePoseDetector(BaseDetector):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: MediapipePoseConfig
     landmarker: PoseLandmarker
 

@@ -1,20 +1,20 @@
 from __future__ import annotations
 
+import multiprocessing as mp
+import threading
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Optional, Tuple, List
+from typing import Iterable, Optional, Tuple
 
 import cv2
 import numpy as np
 from tqdm import tqdm
-import multiprocessing as mp
-import threading
 
+from skellytracker.trackers.rtmpose_tracker.rtmpose_annotator import RTMPoseImageAnnotator
 from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import (
     RTMPoseDetector,
     RTMPoseDetectorConfig,
 )
-from skellytracker.trackers.rtmpose_tracker.rtmpose_annotator import RTMPoseImageAnnotator
 
 
 # ---------------------------

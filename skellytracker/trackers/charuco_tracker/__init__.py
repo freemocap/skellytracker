@@ -1,2 +1,2 @@
-from .__charuco_tracker import CharucoTracker
 from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoTrackerConfig
+from .__charuco_tracker import CharucoTracker

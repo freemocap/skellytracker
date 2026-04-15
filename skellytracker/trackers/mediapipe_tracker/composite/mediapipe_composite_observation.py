@@ -5,6 +5,7 @@ from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
+from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
 from skellytracker.trackers.mediapipe_tracker.face.get_mediapipe_face_info import (
     MEDIAPIPE_FACE_CONTOURS_NAMES,
 )
@@ -24,7 +25,6 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
     RIGHT_HAND_LANDMARK_NAMES,
     RIGHT_HAND_TO_POSE_MAP,
 )
-from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
 
 # Slice boundaries for the concatenated PointCloud:
 #   [0:33]        body (fused)

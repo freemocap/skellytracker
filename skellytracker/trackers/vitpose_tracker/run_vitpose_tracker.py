@@ -1,21 +1,20 @@
 from __future__ import annotations
 
+import multiprocessing as mp
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple, Iterable
-import multiprocessing as mp
-import threading
 
 import cv2
 import numpy as np
 from tqdm import tqdm
 
+from skellytracker.trackers.vitpose_tracker.vitpose_annotator import VITPoseAnnotator
 from skellytracker.trackers.vitpose_tracker.vitpose_detector import (
     VITPoseDetector,
     VITPoseDetectorConfig,
 )
-from skellytracker.trackers.vitpose_tracker.vitpose_annotator import VITPoseAnnotator
-from skellytracker.trackers.vitpose_tracker.vitpose_observation import VITPoseObservation
 
 
 # ---------------------------

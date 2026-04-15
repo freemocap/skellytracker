@@ -1,9 +1,9 @@
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig
+from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_config import MediapipePoseConfig
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_config import MediapipeFaceConfig
 from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_config import MediapipeHandConfig
-from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_config import MediapipePoseConfig
 
 
 class MediapipeCompositeDetectorConfig(BaseDetectorConfig):

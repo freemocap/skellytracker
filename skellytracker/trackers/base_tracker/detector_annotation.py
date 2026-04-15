@@ -7,12 +7,12 @@ used to tell child processes which detector to instantiate.
 from typing import Annotated, Any, Union
 
 from pydantic import Discriminator, Tag
-from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig
+
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig
-from skellytracker.trackers.mediapipe_tracker import MediapipeDetectorConfig
+from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetectorConfig
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_config import \
     LegacyMediapipeDetectorConfig
-
+from skellytracker.trackers.mediapipe_tracker import MediapipeDetectorConfig
 
 try:
     from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig

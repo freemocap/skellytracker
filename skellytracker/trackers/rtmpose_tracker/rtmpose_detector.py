@@ -1,8 +1,9 @@
 import numpy as np
+import onnxruntime
+from rtmlib import Wholebody
+
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
-from rtmlib import Wholebody
-import onnxruntime
 
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):

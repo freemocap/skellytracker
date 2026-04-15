@@ -1,7 +1,8 @@
+import cv2
 from pydantic import Field
+
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTrackerConfig, BaseDetectorConfig
 from skellytracker.trackers.charuco_tracker.charuco_annotator import CharucoAnnotatorConfig
-import cv2
 
 DEFAULT_ARUCO_DICTIONARY_NAME: str = "cv2.aruco.DICT_4X4_50"
 DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_50
