@@ -90,10 +90,10 @@ class CharucoObservation(BaseObservation):
     def from_detection_results(
             cls,
             frame_number: int,
-            detected_charuco_corners: DetectedCharucoCornersImageCoordinates,
-            detected_charuco_corner_ids: DetectedCharucoCornerIds,
-            detected_aruco_marker_corners: Sequence[ArucoMarkerCorners],
-            detected_aruco_marker_ids: DetectedArucoMarkerIds,
+            detected_charuco_corners: DetectedCharucoCornersImageCoordinates | None,
+            detected_charuco_corner_ids: DetectedCharucoCornerIds | None,
+            detected_aruco_marker_corners: Sequence[ArucoMarkerCorners] | None,
+            detected_aruco_marker_ids: DetectedArucoMarkerIds | None,
             all_charuco_ids: list[int],
             all_charuco_corners_in_object_coordinates: AllCharucoCorners3DByIdInObjectCoordinates,
             all_aruco_ids: list[int],
@@ -111,6 +111,10 @@ class CharucoObservation(BaseObservation):
         reshaped_detected_charuco_corner_ids: DetectedCharucoCornerIds | None = None
         reshaped_detected_charuco_corners: DetectedCharucoCornersImageCoordinates | None = None
         if detected_charuco_corner_ids is not None:
+            if detected_charuco_corners is None:
+                raise ValueError(
+                    f"Frame {frame_number}: detected_charuco_corner_ids is non-None but detected_charuco_corners is None"
+                )
             if detected_charuco_corner_ids.shape == (1, 1):
                 reshaped_detected_charuco_corner_ids = detected_charuco_corner_ids[0]
                 reshaped_detected_charuco_corners = detected_charuco_corners[0]
@@ -187,7 +191,7 @@ class CharucoObservation(BaseObservation):
         if self.charuco_empty or self.detected_charuco_corner_ids is None or self.detected_charuco_corners_image_coordinates is None:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_charuco_corner_ids):
-            corner_dict[corner_id] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
+            corner_dict[int(corner_id)] = np.squeeze(self.detected_charuco_corners_image_coordinates[corner_index])
         return corner_dict
 
     @property
@@ -196,7 +200,7 @@ class CharucoObservation(BaseObservation):
         if self.aruco_empty or self.detected_aruco_marker_ids is None or self.detected_aruco_marker_corners is None:
             return corner_dict
         for corner_index, corner_id in enumerate(self.detected_aruco_marker_ids):
-            corner_dict[corner_id] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
+            corner_dict[int(corner_id)] = np.squeeze(self.detected_aruco_marker_corners[corner_index])
         return corner_dict
 
     # =========================================================================

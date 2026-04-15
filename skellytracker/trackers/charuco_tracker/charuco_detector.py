@@ -32,7 +32,7 @@ class CharucoDetector(BaseDetector):
 
     @property
     def aruco_marker_ids(self) -> List[int]:
-        return list(self.board.getIds())
+        return [int(i) for i in self.board.getIds()]
 
     @property
     def board_object_points(self) -> List[np.ndarray]:
@@ -67,7 +67,7 @@ class CharucoDetector(BaseDetector):
             all_charuco_ids=self.config.charuco_corner_ids,
             all_aruco_ids=self.aruco_marker_ids,
             all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
-            all_aruco_corners_in_object_coordinates=self.board.getObjPoints()
+            all_aruco_corners_in_object_coordinates=np.array(self.board.getObjPoints(), dtype=np.float32)
         )
 
     def save_board_image(self,
