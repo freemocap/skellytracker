@@ -7,11 +7,13 @@ from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetec
 
 
 class VITPoseTrackerConfig(BaseTrackerConfig):
-    detector_config: VITPoseDetector = Field( default_factory = VITPoseDetectorConfig)
-    annotator_config: BaseImageAnnotatorConfig = Field( default_factory = BaseImageAnnotatorConfig)
+    detector_config: VITPoseDetectorConfig = Field(default_factory=VITPoseDetectorConfig)
+    annotator_config: BaseImageAnnotatorConfig = Field(default_factory=BaseImageAnnotatorConfig)
+
 
 class VITPoseRecorder(BaseRecorder):
     pass
+
 
 class VITPoseTracker(BaseTracker):
     config: VITPoseTrackerConfig
@@ -27,11 +29,12 @@ class VITPoseTracker(BaseTracker):
         detector = VITPoseDetector.create(config.detector_config)
 
         return cls(
-            config = config,
-            detector = detector,
-            annotator = VITPoseAnnotator.create(config.annotator_config),
-            recorder = VITPoseRecorder()
+            config=config,
+            detector=detector,
+            annotator=VITPoseAnnotator.create(config.annotator_config),
+            recorder=VITPoseRecorder()
         )
-    
+
+
 if __name__ == "__main__":
     tracker = VITPoseTracker.create().demo()

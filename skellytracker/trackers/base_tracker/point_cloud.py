@@ -25,8 +25,8 @@ class PointCloud:
     """
 
     names: tuple[str, ...]
-    xyz: NDArray[np.floating]        # (N, 3) — mutable coordinates
-    visibility: NDArray[np.floating] # (N,)   — mutable confidence scores
+    xyz: NDArray[np.float64]        # (N, 3) — mutable coordinates
+    visibility: NDArray[np.float64] # (N,)   — mutable confidence scores
     _name_to_idx: dict[str, int] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -46,7 +46,7 @@ class PointCloud:
         return len(self.names)
 
     @property
-    def xy(self) -> NDArray[np.floating]:
+    def xy(self) -> NDArray[np.float64]:
         """(N, 2) view of just x, y coordinates. Zero-copy."""
         return self.xyz[:, :2]
 
@@ -70,11 +70,11 @@ class PointCloud:
     def has_name(self, name: str) -> bool:
         return name in self._name_to_idx
 
-    def xyz_by_name(self, name: str) -> NDArray[np.floating]:
+    def xyz_by_name(self, name: str) -> NDArray[np.float64]:
         """Get (3,) coordinate array for a single point by name."""
         return self.xyz[self._name_to_idx[name]]
 
-    def xy_by_name(self, name: str) -> NDArray[np.floating]:
+    def xy_by_name(self, name: str) -> NDArray[np.float64]:
         """Get (2,) coordinate array for a single point by name."""
         return self.xyz[self._name_to_idx[name], :2]
 
@@ -129,8 +129,8 @@ class PointCloud:
             raise ValueError("Cannot concatenate empty list of PointClouds")
 
         all_names: list[str] = []
-        all_xyz: list[NDArray] = []
-        all_vis: list[NDArray] = []
+        all_xyz: list[NDArray[np.float64]] = []
+        all_vis: list[NDArray[np.float64]] = []
 
         for cloud in clouds:
             all_names.extend(cloud.names)
@@ -147,7 +147,7 @@ class PointCloud:
     # Conversion — for interfaces that expect dicts or flat arrays
     # =========================================================================
 
-    def to_2d_array(self) -> NDArray[np.floating]:
+    def to_2d_array(self) -> NDArray[np.float64]:
         """
         Return (N, 2) array of xy coordinates.
 
@@ -156,7 +156,7 @@ class PointCloud:
         """
         return self.xy.copy()
 
-    def to_named_dict(self, dimensions: int = 2) -> dict[str, NDArray[np.floating]]:
+    def to_named_dict(self, dimensions: int = 2) -> dict[str, NDArray[np.float64]]:
         """
         Return dict of {name: coordinate_array} for ALL points.
 
@@ -166,7 +166,7 @@ class PointCloud:
         d = dimensions
         return {name: self.xyz[i, :d].copy() for i, name in enumerate(self.names)}
 
-    def to_valid_dict(self, dimensions: int = 2) -> dict[str, NDArray[np.floating]]:
+    def to_valid_dict(self, dimensions: int = 2) -> dict[str, NDArray[np.float64]]:
         """
         Return dict of {name: coordinate_array} for only valid (non-NaN) points.
 

@@ -6,8 +6,7 @@ from typing import Optional, TYPE_CHECKING
 
 import cv2
 
-if TYPE_CHECKING:
-    from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +34,7 @@ class ExposureModes(float, Enum):
 
 
 class WebcamDemoViewer:
+
     DEFAULT_EXPOSURE = -7
     MAX_EXPOSURE = -12
     MIN_EXPOSURE = -4
@@ -48,6 +48,7 @@ class WebcamDemoViewer:
         """
         Initialize with a tracker and optional window title and default exposure.
         """
+
         self.tracker:BaseTracker|None = tracker
         self.default_exposure = default_exposure
         if window_title is None:

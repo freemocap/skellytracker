@@ -3,7 +3,6 @@ import numpy as np
 from mediapipe.python.solutions import drawing_utils
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh_connections import FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS
-from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import LegacyMediapipeObservation
@@ -36,7 +35,7 @@ class LegacyMediapipeImageAnnotator(BaseImageAnnotator):
 
     def annotate_image(
             self,
-            image: NDArray[Shape["* width, * height, 1-4 channels"], np.uint8],
+            image: np.ndarray,
             observation: LegacyMediapipeObservation | None = None,
     ) -> np.ndarray:
         image_height, image_width = image.shape[:2]

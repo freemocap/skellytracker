@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import mediapipe as mp
 import numpy as np
 
@@ -7,16 +9,19 @@ from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector_c
     LEGACY_MEDIAPIPE_TRACKER_REALTIME_PRESET,
     LEGACY_MEDIAPIPE_TRACKER_POSTHOC_PRESET,
 )
-from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import LegacyMediapipeObservation, \
-    LegacyMediapipeResults
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import (
+    LegacyMediapipeObservation,
+    LegacyMediapipeResults,
+)
 
 
+@dataclass
 class LegacyMediapipeDetector(BaseDetector):
     config: LegacyMediapipeDetectorConfig
     detector: mp.solutions.holistic.Holistic
 
     @classmethod
-    def create(cls, config: LegacyMediapipeDetectorConfig|None=None) -> "LegacyMediapipeDetector":
+    def create(cls, config: LegacyMediapipeDetectorConfig | None = None) -> "LegacyMediapipeDetector":
         if config is None:
             config = LegacyMediapipeDetectorConfig()
         detector = mp.solutions.holistic.Holistic(
@@ -28,12 +33,12 @@ class LegacyMediapipeDetector(BaseDetector):
             enable_segmentation=config.enable_segmentation,
             refine_face_landmarks=config.refine_face_landmarks,
             smooth_segmentation=config.smooth_segmentation,
-
         )
         return cls(
             config=config,
             detector=detector,
         )
+
     @classmethod
     def create_realtime_preset(cls) -> "LegacyMediapipeDetector":
         return cls.create(config=LEGACY_MEDIAPIPE_TRACKER_REALTIME_PRESET)
@@ -43,9 +48,12 @@ class LegacyMediapipeDetector(BaseDetector):
         return cls.create(config=LEGACY_MEDIAPIPE_TRACKER_POSTHOC_PRESET)
 
     def detect(self, frame_number: int, image: np.ndarray) -> LegacyMediapipeObservation:
-        mediapipe_results: LegacyMediapipeResults = self.detector.process(image)
-        return LegacyMediapipeObservation.from_detection_results(frame_number=frame_number,
-                                                          mediapipe_results=mediapipe_results,
-                                                          image_size=(int(image.shape[0]), int(image.shape[1])),
-                                                          include_segmentation_mask=self.config.enable_segmentation
-                                                          )
+        # LegacyMediapipeResults is a Protocol — beartype checks structural compatibility at the call site.
+        # Holistic.process() does not accept keyword arguments, so image is passed positionally.
+        mediapipe_results = self.detector.process(image)
+        return LegacyMediapipeObservation.from_detection_results(
+            frame_number=frame_number,
+            mediapipe_results=mediapipe_results,
+            image_size=(int(image.shape[0]), int(image.shape[1])),
+            include_segmentation_mask=self.config.enable_segmentation,
+        )

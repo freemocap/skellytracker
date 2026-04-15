@@ -6,11 +6,10 @@ from pathlib import Path
 
 import cv2
 import numpy as np
-from numpydantic import NDArray, Shape
+from numpy.typing import NDArray
 from pydantic import BaseModel, Field
 
-from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
-from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
+
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
 
 logger = logging.getLogger(__name__)
@@ -18,8 +17,10 @@ logger = logging.getLogger(__name__)
 TrackedPointIdString = str
 TrackerTypeString = str
 
-TrackedPoint2dArray = NDArray[Shape["2 xyz"], float]
-TrackedPoints2dArray = NDArray[Shape["* number_of_points,2 xyz"], float]
+# Shape-annotated aliases kept for documentation; numpy.typing.NDArray is used
+# in method signatures because it is beartype-compatible.
+TrackedPoint2dArray = NDArray[np.float64]       # shape (2,)  — (x, y)
+TrackedPoints2dArray = NDArray[np.float64]      # shape (N, 2) — one row per point
 
 
 class BaseObservation(ABC):
@@ -53,7 +54,11 @@ class BaseObservation(ABC):
     # Concrete methods — all delegate to PointCloud
     # =========================================================================
 
-    def to_tracked_points(self, *, confidence_threshold: float | None = None) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
+    def to_tracked_points(
+        self,
+        *,
+        confidence_threshold: float | None = None,
+    ) -> dict[TrackedPointIdString, NDArray[np.float64]]:
         """
         Get all tracked points as {name: (x, y)} dict.
 
@@ -65,7 +70,12 @@ class BaseObservation(ABC):
             return filtered.to_named_dict(dimensions=2)
         return self.points.to_named_dict(dimensions=2)
 
-    def to_2d_array(self, *, confidence_threshold: float | None = None, fill_with_nans: bool = True) -> TrackedPoints2dArray:
+    def to_2d_array(
+        self,
+        *,
+        confidence_threshold: float | None = None,
+        fill_with_nans: bool = True,
+    ) -> NDArray[np.float64]:
         """
         Convert observation to (N, 2) array.
 
@@ -80,17 +90,17 @@ class BaseObservation(ABC):
             return filtered.to_2d_array()
         return self.points.to_2d_array()
 
-    def get_confidence_scores(self) -> NDArray[Shape["* number_of_points"], float]:
+    def get_confidence_scores(self) -> NDArray[np.float64]:
         """Get visibility/confidence scores for all tracked points."""
         return self.points.visibility.copy()
 
     def filter_by_confidence(
-            self,
-            points: NDArray,
-            confidence_scores: NDArray[Shape["* number_of_points"], float],
-            confidence_threshold: float,
-            fill_with_nans: bool = True,
-    ) -> NDArray:
+        self,
+        points: NDArray[np.float64],
+        confidence_scores: NDArray[np.float64],
+        confidence_threshold: float,
+        fill_with_nans: bool = True,
+    ) -> NDArray[np.float64]:
         """Filter a points array by confidence threshold."""
         if fill_with_nans:
             filtered_points = points.copy()
@@ -103,7 +113,7 @@ class BaseObservation(ABC):
 
     def to_json_string(self) -> str:
         """Serialize observation to JSON string."""
-        data: dict = {
+        data: dict[str, object] = {
             "frame_number": self.frame_number,
             "tracker_type": self.tracker_type,
             "point_names": list(self.points.names),
@@ -130,21 +140,27 @@ class BaseImageAnnotator(ABC):
 
     @classmethod
     @abstractmethod
-    def create(cls, config: BaseImageAnnotatorConfig):
+    def create(cls, config: BaseImageAnnotatorConfig) -> "BaseImageAnnotator":
         pass
 
     @abstractmethod
-    def annotate_image(self, image: np.ndarray, observation: BaseObservation) -> np.ndarray:
+    def annotate_image(
+        self,
+        image: NDArray[np.uint8],
+        observation: BaseObservation,
+    ) -> NDArray[np.uint8]:
         pass
 
     @staticmethod
-    def draw_doubled_text(image: np.ndarray,
-                          text: str,
-                          x: int,
-                          y: int,
-                          font_scale: float,
-                          color: tuple[int, int, int],
-                          thickness: int):
+    def draw_doubled_text(
+        image: NDArray[np.uint8],
+        text: str,
+        x: int,
+        y: int,
+        font_scale: float,
+        color: tuple[int, int, int],
+        thickness: int,
+    ) -> None:
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
@@ -152,7 +168,7 @@ class BaseImageAnnotator(ABC):
 class BaseDetectorConfig(BaseModel, ABC):
     confidence_threshold: float = Field(
         default=0.5,
-        description="Default confidence threshold for filtering tracked points (0.0-1.0)"
+        description="Default confidence threshold for filtering tracked points (0.0-1.0)",
     )
 
 
@@ -166,13 +182,15 @@ class BaseDetector(ABC):
     config: BaseDetectorConfig
 
     @classmethod
-    def create(cls, config: BaseDetectorConfig):
+    def create(cls, config: BaseDetectorConfig) -> "BaseDetector":
         raise NotImplementedError("Must implement a method to create a detector from a config.")
 
     @abstractmethod
-    def detect(self,
-               frame_number: int,
-               image: np.ndarray) -> BaseObservation:
+    def detect(
+        self,
+        frame_number: int,
+        image: NDArray[np.uint8],
+    ) -> BaseObservation:
         pass
 
 
@@ -184,7 +202,7 @@ class BaseRecorder(ABC):
         self.observations.append(observation)
 
     @property
-    def to_array(self) -> np.ndarray:
+    def to_array(self) -> NDArray[np.float64]:
         return np.stack([observation.to_2d_array() for observation in self.observations])
 
     @property
@@ -199,7 +217,7 @@ class BaseRecorder(ABC):
         np.save(file=output_path, arr=self.to_array)
 
     def save_json_file(self, output_path: Path) -> None:
-        with open(output_path, 'w') as json_file:
+        with open(output_path, "w") as json_file:
             json_file.write(self.to_json_string)
 
     def clear(self) -> None:
@@ -214,13 +232,15 @@ class BaseTracker(ABC):
     recorder: BaseRecorder | None = None
 
     @classmethod
-    def create(cls, config: BaseTrackerConfig):
+    def create(cls, config: BaseTrackerConfig) -> "BaseTracker":
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
-    def process_image(self,
-                      frame_number: int,
-                      image: np.ndarray,
-                      record_observation: bool = True) -> BaseObservation:
+    def process_image(
+        self,
+        frame_number: int,
+        image: NDArray[np.uint8],
+        record_observation: bool = True,
+    ) -> BaseObservation:
         latest_observation = self.detector.detect(image=image, frame_number=frame_number)
 
         if record_observation and self.recorder is not None:
@@ -228,16 +248,23 @@ class BaseTracker(ABC):
 
         return latest_observation
 
-    def annotate_image(self, image: np.ndarray, observation: BaseObservation) -> np.ndarray:
+    def annotate_image(
+        self,
+        image: NDArray[np.uint8],
+        observation: BaseObservation,
+    ) -> NDArray[np.uint8]:
         return self.annotator.annotate_image(image=image, observation=observation)
 
     def demo(self) -> None:
+        from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
         camera_viewer = WebcamDemoViewer(
             tracker=self,
-            window_title=self.__class__.__name__
+            window_title=self.__class__.__name__,
         )
         camera_viewer.run()
 
     def image_demo(self, image_path: Path) -> None:
+        from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
+
         image_viewer = ImageDemoViewer(self, self.__class__.__name__)
         image_viewer.run(image_path=image_path)

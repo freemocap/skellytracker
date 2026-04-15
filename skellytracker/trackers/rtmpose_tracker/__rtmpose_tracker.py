@@ -6,8 +6,8 @@ from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetec
 
 
 class RTMPoseTrackerConfig(BaseTrackerConfig):
-    detector_config: RTMPoseDetector = Field(default_factory=RTMPoseDetectorConfig)
-    annotator_config: RTMPoseImageAnnotator = Field(default_factory=BaseImageAnnotatorConfig)
+    detector_config: RTMPoseDetectorConfig = Field(default_factory=RTMPoseDetectorConfig)
+    annotator_config: BaseImageAnnotatorConfig | None = None
 
 class RTMPoseRecorder(BaseRecorder):
     pass
@@ -26,9 +26,9 @@ class RTMPoseTracker(BaseTracker):
 
         return cls(
             config = config,
-            detector = detector, 
+            detector = detector,
             annotator = RTMPoseImageAnnotator.create(config.annotator_config),
-            recorder = RTMPoseRecorder(),   
+            recorder = RTMPoseRecorder(),
         )
 
 if __name__ == "__main__":

@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 import logging
 
 from pydantic import Field
@@ -19,7 +20,7 @@ class LegacyMediapipeRecorder(BaseRecorder):
     # TODO: the BaseRecorder covers most of this, but we could save metadata with this if we wanted
     pass
 
-
+@dataclass
 class LegacyMediapipeTracker(BaseTracker):
     config: LegacyMediapipeTrackerConfig
     detector: LegacyMediapipeDetector

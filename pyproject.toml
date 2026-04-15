@@ -69,7 +69,7 @@ dynamic = ["version", "description"]
 [project.optional-dependencies]
 mediapipe = ["mediapipe>=0.10.14"]
 yolo = ["ultralytics~=8.0.202"]
-all = ["mediapipe>=0.10.14", "ultralytics~=8.0.202"]
+all = ["mediapipe==0.10.14", "rtmlib==0.0.14", "onnxruntime"]#"ultralytics~=8.0.202"]
 
 # RTMPose — CPU only (works everywhere)
 rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]

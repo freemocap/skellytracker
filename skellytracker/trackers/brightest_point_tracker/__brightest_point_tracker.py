@@ -1,5 +1,5 @@
 import logging
-from typing import List
+from dataclasses import dataclass, field
 
 from pydantic import Field
 
@@ -16,8 +16,9 @@ class BrightestPointTrackerConfig(BaseTrackerConfig):
     detector_config: BrightestPointDetectorConfig = Field(default_factory = BrightestPointDetectorConfig)
     annotator_config: BrightestPointAnnotatorConfig = Field(default_factory = BrightestPointAnnotatorConfig)
 
+@dataclass
 class BrightestPointRecorder(BaseRecorder):
-    observations: List[BrightestPointObservation | None] = Field(default_factory=list)
+    observations: list[BrightestPointObservation | None] = field(default_factory=list)
 
 
 class BrightestPointTracker(BaseTracker):
