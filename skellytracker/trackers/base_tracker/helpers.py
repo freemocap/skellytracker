@@ -2,7 +2,7 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorCo
 from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoDetectorConfig
 from skellytracker.trackers.legacy_mediapipe_tracker import LegacyMediapipeDetectorConfig
 from skellytracker.trackers.mediapipe_tracker import MediapipeDetectorConfig
-from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig
+# from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig
 
 
 def create_detector_from_config(detector_config: BaseDetectorConfig):
@@ -12,7 +12,7 @@ def create_detector_from_config(detector_config: BaseDetectorConfig):
     to avoid pulling in mediapipe/cv2.aruco during module import.
     """
 
-    #TODO - this is a bit broken - it will fail if user calls a config for a tracker they havent installed, and I thin kit will fail to match if using non-default values. needs fixed
+    #TODO - this is a bit broken - I think it will fail if user calls a config for a tracker they havent installed, and I thin kit will fail to match if using non-default values. needs fixed
     match detector_config:
         case CharucoDetectorConfig():
             from skellytracker.trackers.charuco_tracker.charuco_detector import CharucoDetector
@@ -23,9 +23,9 @@ def create_detector_from_config(detector_config: BaseDetectorConfig):
         case LegacyMediapipeDetectorConfig():
             from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_detector import LegacyMediapipeDetector
             return LegacyMediapipeDetector.create(config=detector_config)
-        case RTMPoseDetectorConfig():
-            from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetector
-            return RTMPoseDetector.create(config=detector_config)
+        # case RTMPoseDetectorConfig():
+        #     from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetector
+        #     return RTMPoseDetector.create(config=detector_config)
         case _:
             raise TypeError(f"Unknown detector config type: {type(detector_config).__name__}")
 
