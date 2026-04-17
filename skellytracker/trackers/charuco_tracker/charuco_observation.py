@@ -126,19 +126,45 @@ class CharucoObservation(BaseObservation):
                 reshaped_detected_charuco_corner_ids, :
             ]
 
-        # Build the PointCloud from detected corners in full-array format
-        n_corners = len(all_charuco_ids)
-        corner_names = tuple(f"CharucoCorner-{i}" for i in range(n_corners))
-        full_array_2d = np.full((n_corners, 2), np.nan)
-        visibility = np.zeros(n_corners)
+        # Build the PointCloud from detected corners in full-array format.
+        # Layout: [CharucoCorner-0..N-1, ArucoCorner-{id}-0..3 per marker in all_aruco_ids order]
+        n_charuco = len(all_charuco_ids)
+        n_aruco = len(all_aruco_ids)
+        n_total = n_charuco + n_aruco * 4
+
+        charuco_names = tuple(f"CharucoCorner-{i}" for i in range(n_charuco))
+        aruco_names = tuple(
+            f"ArucoCorner-{marker_id}-{c}"
+            for marker_id in all_aruco_ids
+            for c in range(4)
+        )
+        corner_names = charuco_names + aruco_names
+
+        full_array_2d = np.full((n_total, 2), np.nan)
+        visibility = np.zeros(n_total)
 
         if reshaped_detected_charuco_corner_ids is not None and reshaped_detected_charuco_corners is not None:
             for corner_index, corner_id in enumerate(reshaped_detected_charuco_corner_ids):
                 full_array_2d[corner_id] = reshaped_detected_charuco_corners[corner_index]
                 visibility[corner_id] = 1.0
 
-        # PointCloud stores (N, 3) — use z=0 for 2D charuco corners
-        xyz = np.column_stack([full_array_2d, np.zeros(n_corners)])
+        if (detected_aruco_marker_ids is not None and
+                detected_aruco_marker_corners is not None and
+                n_aruco > 0):
+            aruco_id_to_slot = {mid: slot for slot, mid in enumerate(all_aruco_ids)}
+            for marker_index, marker_id in enumerate(np.atleast_1d(detected_aruco_marker_ids)):
+                slot = aruco_id_to_slot.get(int(marker_id))
+                if slot is None:
+                    continue
+                marker_corners = np.asarray(detected_aruco_marker_corners[marker_index])
+                if marker_corners.shape != (4, 2):
+                    continue
+                base = n_charuco + slot * 4
+                full_array_2d[base:base + 4] = marker_corners
+                visibility[base:base + 4] = 1.0
+
+        # PointCloud stores (N, 3) — use z=0 for 2D image-space corners
+        xyz = np.column_stack([full_array_2d, np.zeros(n_total)])
         cloud = PointCloud(names=corner_names, xyz=xyz, visibility=visibility)
 
         return cls(
@@ -183,7 +209,8 @@ class CharucoObservation(BaseObservation):
     @property
     def detected_charuco_corners_in_full_array(self) -> NDArray:
         """Full array of charuco corners indexed by ID, NaN for undetected."""
-        return self.points.xy.copy()
+        n_charuco = len(self.all_charuco_ids)
+        return self.points.xy[:n_charuco].copy()
 
     @property
     def charuco_corners_dict(self) -> dict[int, np.ndarray]:
