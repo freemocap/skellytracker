@@ -59,6 +59,7 @@ dependencies = [
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
     "beartype>=0.19",
+    "mediapipe>=0.10.14",
 ]
 requires-python = ">=3.11,<3.13"
 
@@ -67,11 +68,12 @@ dynamic = ["version", "description"]
 # Extras for package consumers: `pip install skellytracker[rtmpose-gpu]`
 # Also usable in local dev: `uv sync --extra rtmpose-gpu`
 [project.optional-dependencies]
-mediapipe = ["mediapipe==0.10.14"]
+legacy-mediapipe = ["mediapipe==0.10.14"]
+mediapipe = ["mediapipe"]
 yolo = ["ultralytics~=8.0.202"]
 all = ["mediapipe==0.10.14", "rtmlib==0.0.14", "onnxruntime"]#"ultralytics~=8.0.202"]
 
-# RTMPose — CPU only (works everywhere)
+# RTMPose — CPU only
 rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
 
 # RTMPose — NVIDIA GPU via CUDA 12
