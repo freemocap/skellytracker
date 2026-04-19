@@ -9,7 +9,7 @@ from functools import reduce
 from operator import or_
 from typing import Annotated
 
-from pydantic import Discriminator
+from pydantic import Discriminator, Tag
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseDetector,
@@ -129,22 +129,24 @@ def _detect_detector_config_type(data: object) -> str:
     raise ValueError(f"Cannot determine detector config type from: {type(data)}")
 
 
-_AVAILABLE_CONFIGS: list[type[BaseDetectorConfig]] = []
+# Each union member must be Annotated[ConfigType, Tag("...")] where the tag
+# string matches what _detect_detector_config_type returns for that type.
+_TAGGED_CONFIGS: list[type] = []
 
 if CHARUCO_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(CharucoDetectorConfig)
+    _TAGGED_CONFIGS.append(Annotated[CharucoDetectorConfig, Tag("charuco")])
 if MEDIAPIPE_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(MediapipeDetectorConfig)
+    _TAGGED_CONFIGS.append(Annotated[MediapipeDetectorConfig, Tag("mediapipe")])
 if LEGACY_MEDIAPIPE_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(LegacyMediapipeDetectorConfig)
+    _TAGGED_CONFIGS.append(Annotated[LegacyMediapipeDetectorConfig, Tag("legacy_mediapipe")])
 if RTMPOSE_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(RTMPoseDetectorConfig)
+    _TAGGED_CONFIGS.append(Annotated[RTMPoseDetectorConfig, Tag("rtmpose")])
 
-if len(_AVAILABLE_CONFIGS) == 0:
+if len(_TAGGED_CONFIGS) == 0:
     raise RuntimeError("No trackers available!")
 
-# Build the Union type dynamically: ConfigA | ConfigB | ConfigC ...
-_DetectorConfigUnion = reduce(or_, _AVAILABLE_CONFIGS)
+# Build the Union type dynamically: TaggedA | TaggedB | TaggedC ...
+_DetectorConfigUnion = reduce(or_, _TAGGED_CONFIGS)
 
 DetectorConfig = Annotated[
     _DetectorConfigUnion,
