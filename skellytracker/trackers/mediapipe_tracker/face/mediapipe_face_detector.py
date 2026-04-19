@@ -31,7 +31,7 @@ class MediapipeFaceDetector(BaseDetector):
         model_path = get_face_model_path()
         options = FaceLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(model_path)),
-            running_mode=VisionRunningMode.IMAGE.LIVE_STREAM,
+            running_mode=VisionRunningMode.IMAGE,
             num_faces=config.num_faces,
             min_face_detection_confidence=config.min_detection_confidence,
             min_face_presence_confidence=config.min_tracking_confidence,
