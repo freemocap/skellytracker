@@ -148,7 +148,7 @@ if len(_TAGGED_CONFIGS) == 0:
 # Build the Union type dynamically: TaggedA | TaggedB | TaggedC ...
 _DetectorConfigUnion = reduce(or_, _TAGGED_CONFIGS)
 
-DetectorConfig = Annotated[
+SkeletonDetectorConfig = Annotated[
     _DetectorConfigUnion,
     Discriminator(_detect_detector_config_type),
 ]
