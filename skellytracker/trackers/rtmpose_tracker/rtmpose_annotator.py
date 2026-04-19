@@ -1,5 +1,6 @@
+from dataclasses import dataclass
+
 import numpy as np
-from attr import dataclass
 from numpy.typing import NDArray
 from rtmlib import draw_skeleton
 

@@ -1,12 +1,15 @@
+from typing import Literal
+
 from pydantic import Field
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, TrackerType
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_config import MediapipePoseConfig
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_config import MediapipeFaceConfig
 from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_config import MediapipeHandConfig
 
 
 class MediapipeCompositeDetectorConfig(BaseDetectorConfig):
+    tracker_type: Literal[TrackerType.MEDIAPIPE] = TrackerType.MEDIAPIPE
     pose_config: MediapipePoseConfig = Field(default_factory=MediapipePoseConfig)
     hand_config: MediapipeHandConfig = Field(default_factory=MediapipeHandConfig)
     face_config: MediapipeFaceConfig = Field(default_factory=MediapipeFaceConfig)

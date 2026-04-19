@@ -1,6 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -15,23 +16,53 @@ from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_obse
 )
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_detector import MediapipeFaceDetector
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_detector import MediapipeHandDetector
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import MediapipeHandObservation
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
+from skellytracker.trackers.mediapipe_tracker.composite.composite_tracker_mappings import (
     HAND_WRIST_INDEX,
-    NUM_HAND_LANDMARKS,
     POSE_LEFT_EAR_INDEX,
     POSE_LEFT_ELBOW_INDEX,
+    POSE_LEFT_EYE_INDEX,
+    POSE_LEFT_EYE_INNER_INDEX,
+    POSE_LEFT_EYE_OUTER_INDEX,
     POSE_LEFT_WRIST_INDEX,
+    POSE_MOUTH_LEFT_INDEX,
+    POSE_MOUTH_RIGHT_INDEX,
     POSE_NOSE_INDEX,
     POSE_RIGHT_EAR_INDEX,
     POSE_RIGHT_ELBOW_INDEX,
+    POSE_RIGHT_EYE_INDEX,
+    POSE_RIGHT_EYE_INNER_INDEX,
+    POSE_RIGHT_EYE_OUTER_INDEX,
     POSE_RIGHT_WRIST_INDEX,
+)
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_detector import MediapipeHandDetector
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import (
+    NUM_HAND_LANDMARKS,
+    MediapipeHandObservation,
+)
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_HOLISTIC_DEFINITION,
 )
 
 logger = logging.getLogger(__name__)
 
+# All pose landmark indices that correspond to head anatomy.
+# Used to compute the face ROI bounding box — robust to side-views because
+# we take the bbox of whichever subset is actually visible.
+HEAD_POSE_INDICES: list[int] = [
+    POSE_NOSE_INDEX,
+    POSE_LEFT_EYE_INNER_INDEX,
+    POSE_LEFT_EYE_INDEX,
+    POSE_LEFT_EYE_OUTER_INDEX,
+    POSE_RIGHT_EYE_INNER_INDEX,
+    POSE_RIGHT_EYE_INDEX,
+    POSE_RIGHT_EYE_OUTER_INDEX,
+    POSE_LEFT_EAR_INDEX,
+    POSE_RIGHT_EAR_INDEX,
+    POSE_MOUTH_LEFT_INDEX,
+    POSE_MOUTH_RIGHT_INDEX,
+]
 
+@dataclass
 class MediapipeCompositeDetector(BaseDetector):
     """
     Pose-first, crop-detect pipeline that recreates MediaPipe Holistic behavior.
@@ -82,6 +113,7 @@ class MediapipeCompositeDetector(BaseDetector):
             pose_detector=pose_detector,
             hand_detector=hand_detector,
             face_detector=face_detector,
+            tracked_object=MEDIAPIPE_HOLISTIC_DEFINITION,
         )
 
     def detect(self, frame_number: int, image: np.ndarray) -> MediapipeCompositeObservation:
@@ -346,25 +378,46 @@ class MediapipeCompositeDetector(BaseDetector):
         body_xyz: np.ndarray,
         body_vis: np.ndarray,
     ) -> tuple[MediapipeFaceObservation, ROIBox | None]:
-        """Detect face using ROI crop if nose is visible, otherwise full image."""
+        """
+        Detect face using an ROI crop derived from the pose head landmarks.
+
+        The crop is a square whose side length is face_roi_scale times the
+        largest dimension of the tight bounding box over all visible head
+        landmarks (nose, eyes, ears, mouth).  Using the full set of visible
+        head points makes the crop robust to side-on views where one ear — or
+        both ears — may be completely occluded.
+
+        Falls back to full-image detection when fewer than 2 head landmarks
+        have sufficient visibility.
+        """
         assert self.face_detector is not None
 
         image_h, image_w = image.shape[:2]
-        nose_vis = body_vis[POSE_NOSE_INDEX]
 
-        if nose_vis >= self.config.roi_visibility_threshold:
-            nose_xy = body_xyz[POSE_NOSE_INDEX, :2]
-            left_ear_xy = body_xyz[POSE_LEFT_EAR_INDEX, :2]
-            right_ear_xy = body_xyz[POSE_RIGHT_EAR_INDEX, :2]
-            ear_distance = float(np.linalg.norm(left_ear_xy - right_ear_xy))
+        # Collect 2-D positions of all head landmarks that exceed the visibility threshold.
+        visible_head_points: list[np.ndarray] = []
+        for idx in HEAD_POSE_INDICES:
+            if body_vis[idx] >= self.config.roi_visibility_threshold:
+                xy = body_xyz[idx, :2]
+                if not np.isnan(xy).any():
+                    visible_head_points.append(xy)
 
-            if ear_distance > 1.0:  # sanity check
-                crop_size = int(ear_distance * self.config.face_roi_scale)
+        if len(visible_head_points) >= 2:
+            pts = np.stack(visible_head_points, axis=0)  # shape (N, 2)
+            min_xy = pts.min(axis=0)
+            max_xy = pts.max(axis=0)
+            bbox_center = (min_xy + max_xy) / 2.0
+            bbox_w = float(max_xy[0] - min_xy[0])
+            bbox_h = float(max_xy[1] - min_xy[1])
 
-                # Smooth the ROI center and size against previous frame
+            # Square crop side = scale factor applied to the larger bbox dimension.
+            # face_roi_scale = 1.5 means the crop is 50 % larger than the tight bbox.
+            crop_size = int(max(bbox_w, bbox_h) * self.config.face_roi_scale)
+
+            if crop_size > 1:
                 cx, cy, sz = self._smooth_roi_params(
-                    raw_cx=float(nose_xy[0]),
-                    raw_cy=float(nose_xy[1]),
+                    raw_cx=float(bbox_center[0]),
+                    raw_cy=float(bbox_center[1]),
                     raw_size=float(crop_size),
                     slot="face",
                 )
@@ -387,7 +440,7 @@ class MediapipeCompositeDetector(BaseDetector):
                     )
                     return obs, roi
 
-        # Fallback: full-image detection
+        # Fallback: full-image detection when too few head landmarks are visible.
         obs = self.face_detector.detect(frame_number=frame_number, image=image)
         return obs, None
 

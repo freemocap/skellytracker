@@ -6,47 +6,56 @@ from numpy.typing import NDArray
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
-from skellytracker.trackers.mediapipe_tracker.face.get_mediapipe_face_info import (
-    MEDIAPIPE_FACE_CONTOURS_NAMES,
-)
-from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import MediapipeHandObservation
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
+from skellytracker.trackers.mediapipe_tracker.composite.composite_tracker_mappings import (
     FACE_TO_POSE_DIRECT_MAP,
     IRIS_TO_POSE_MAP,
-    LEFT_HAND_LANDMARK_NAMES,
     LEFT_HAND_TO_POSE_MAP,
-    NUM_FACE_LANDMARKS,
-    NUM_HAND_LANDMARKS,
-    NUM_POSE_LANDMARKS,
-    POSE_LANDMARK_NAMES,
     POSE_LEFT_WRIST_FUSE_WITH_HAND_WRIST,
     POSE_RIGHT_WRIST_FUSE_WITH_HAND_WRIST,
-    RIGHT_HAND_LANDMARK_NAMES,
     RIGHT_HAND_TO_POSE_MAP,
 )
+from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import (
+    MediapipeFaceObservation,
+    NUM_FACE_LANDMARKS,
+)
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import (
+    MediapipeHandObservation,
+    NUM_HAND_LANDMARKS,
+)
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_BODY_DEFINITION,
+    MEDIAPIPE_FACE_CONTOUR_DEFINITION,
+    MEDIAPIPE_HOLISTIC_DEFINITION,
+)
 
-# Slice boundaries for the concatenated PointCloud:
-#   [0:33]        body (fused)
-#   [33:54]       right hand
-#   [54:75]       left hand
-#   [75:75+N]     face contour
+NUM_POSE_LANDMARKS: int = MEDIAPIPE_BODY_DEFINITION.num_tracked_points
+
+# Slice boundaries for the concatenated holistic PointCloud, derived from
+# the composition YAML so they stay in sync with MEDIAPIPE_HOLISTIC_DEFINITION.
 _BODY_START = 0
-_BODY_END = NUM_POSE_LANDMARKS
+_BODY_END = _BODY_START + NUM_POSE_LANDMARKS
 _RHAND_START = _BODY_END
 _RHAND_END = _RHAND_START + NUM_HAND_LANDMARKS
 _LHAND_START = _RHAND_END
 _LHAND_END = _LHAND_START + NUM_HAND_LANDMARKS
 _FACE_START = _LHAND_END
+_FACE_END = _FACE_START + MEDIAPIPE_FACE_CONTOUR_DEFINITION.num_tracked_points
 
-# Canonical name order — built once at module load
-_ALL_NAMES: tuple[str, ...] = (
-    tuple(POSE_LANDMARK_NAMES)
-    + tuple(RIGHT_HAND_LANDMARK_NAMES)
-    + tuple(LEFT_HAND_LANDMARK_NAMES)
-    + tuple(MEDIAPIPE_FACE_CONTOURS_NAMES)
+_HOLISTIC_NAMES: tuple[str, ...] = MEDIAPIPE_HOLISTIC_DEFINITION.tracked_points
+assert len(_HOLISTIC_NAMES) == _FACE_END, (
+    f"Holistic composition size {_FACE_END} disagrees with YAML length {len(_HOLISTIC_NAMES)}"
 )
-_FACE_END = len(_ALL_NAMES)
+
+# Row indices of the face contour subset within the tesselated 478-point array.
+# Used to subset the face detector's native output when building the composite.
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (  # noqa: E402
+    MEDIAPIPE_FACE_TESSELATED_DEFINITION,
+)
+
+_FACE_CONTOUR_SUBSET_INDICES: tuple[int, ...] = tuple(
+    MEDIAPIPE_FACE_TESSELATED_DEFINITION.index_of(name)
+    for name in MEDIAPIPE_FACE_CONTOUR_DEFINITION.tracked_points
+)
 
 
 class ROIBox:
@@ -69,8 +78,8 @@ class MediapipeCompositeObservation(BaseObservation):
     """
     Holistic-style observation combining pose, hand, and face detections.
 
-    All landmark data is stored in a single PointCloud where names and
-    coordinates are structurally coupled — impossible to desync.
+    All landmark data is stored in a single PointCloud whose names/ordering
+    come from the mediapipe_holistic.yaml composition definition.
 
     Body landmarks are FUSED at construction time: higher-precision
     hand/face data is spliced in where available.
@@ -80,15 +89,13 @@ class MediapipeCompositeObservation(BaseObservation):
     frame_number: int = 0
     image_size: tuple[int, int] = (0, 0)  # (height, width)
 
-    # The single source of truth for all landmark data
-    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_ALL_NAMES))
+    points: PointCloud = field(default_factory=MEDIAPIPE_HOLISTIC_DEFINITION.empty_point_cloud)
 
     # Sub-observations retained for metadata (blendshapes, segmentation, world coords)
     pose: MediapipePoseObservation | None = None
     hands: MediapipeHandObservation | None = None
     face: MediapipeFaceObservation | None = None
 
-    # ROI boxes used for hand/face crops
     left_hand_roi: ROIBox | None = None
     right_hand_roi: ROIBox | None = None
     face_roi: ROIBox | None = None
@@ -121,14 +128,13 @@ class MediapipeCompositeObservation(BaseObservation):
 
         face_contour_xyz, face_contour_vis = cls._extract_face_contour(face)
 
-        # Fuse body landmarks with hand/face data (in-place on body_xyz)
         cls._fuse_body_with_face(body_xyz=body_xyz, face=face)
         cls._fuse_body_with_hand(body_xyz=body_xyz, hand_xyz=rh_xyz, hand_to_pose_map=RIGHT_HAND_TO_POSE_MAP, wrist_pair=POSE_RIGHT_WRIST_FUSE_WITH_HAND_WRIST)
         cls._fuse_body_with_hand(body_xyz=body_xyz, hand_xyz=lh_xyz, hand_to_pose_map=LEFT_HAND_TO_POSE_MAP, wrist_pair=POSE_LEFT_WRIST_FUSE_WITH_HAND_WRIST)
 
         xyz = np.concatenate([body_xyz, rh_xyz, lh_xyz, face_contour_xyz], axis=0)
         vis = np.concatenate([body_vis, rh_vis, lh_vis, face_contour_vis], axis=0)
-        cloud = PointCloud(names=_ALL_NAMES, xyz=xyz, visibility=vis)
+        cloud = PointCloud(names=_HOLISTIC_NAMES, xyz=xyz, visibility=vis)
 
         return cls(
             frame_number=frame_number,
@@ -143,12 +149,12 @@ class MediapipeCompositeObservation(BaseObservation):
         )
 
     # =========================================================================
-    # Fusion helpers (static — operate on arrays in-place)
+    # Fusion helpers
     # =========================================================================
 
     @staticmethod
     def _extract_face_contour(face: MediapipeFaceObservation | None) -> tuple[NDArray, NDArray]:
-        n_contour = len(MEDIAPIPE_FACE_CONTOURS_NAMES)
+        n_contour = MEDIAPIPE_FACE_CONTOUR_DEFINITION.num_tracked_points
         if face is None or not face.has_detection:
             return np.full((n_contour, 3), np.nan), np.zeros(n_contour)
         return face.face_contour_landmarks_xyz.copy(), face.face_contour_visibility.copy()
@@ -225,7 +231,6 @@ class MediapipeCompositeObservation(BaseObservation):
             return None
         return self.pose.segmentation_mask
 
-    # Fused body landmarks ARE the body slice — fusion happened at construction
     @property
     def fused_body_landmarks_xyz(self) -> NDArray:
         return self.body_landmarks_xyz
@@ -236,19 +241,19 @@ class MediapipeCompositeObservation(BaseObservation):
 
     @property
     def body_landmark_names(self) -> list[str]:
-        return POSE_LANDMARK_NAMES
+        return list(MEDIAPIPE_BODY_DEFINITION.tracked_points)
 
     @property
     def right_hand_landmark_names(self) -> list[str]:
-        return RIGHT_HAND_LANDMARK_NAMES
+        return list(_HOLISTIC_NAMES[_RHAND_START:_RHAND_END])
 
     @property
     def left_hand_landmark_names(self) -> list[str]:
-        return LEFT_HAND_LANDMARK_NAMES
+        return list(_HOLISTIC_NAMES[_LHAND_START:_LHAND_END])
 
     @property
     def face_contour_landmark_names(self) -> list[str]:
-        return list(MEDIAPIPE_FACE_CONTOURS_NAMES)
+        return list(MEDIAPIPE_FACE_CONTOUR_DEFINITION.tracked_points)
 
     @property
     def num_face_tesselation_points(self) -> int:
@@ -281,8 +286,6 @@ class MediapipeCompositeObservation(BaseObservation):
     def all_points(self, dimensions: int, face_type: str = "contour", scale_by: float = 1.0) -> dict[str, tuple]:
         """
         Get all valid tracked points as {name: (x, y[, z])} dict.
-
-        Matches the legacy MediapipeObservation.all_points() interface.
         """
         if dimensions not in (2, 3):
             raise ValueError(f"Invalid dimensions: {dimensions}")
@@ -295,7 +298,7 @@ class MediapipeCompositeObservation(BaseObservation):
             body_rh_lh_names = self.points.names[:_FACE_START]
 
             face_full_xyz = self.face_landmarks_xyz * scale_by
-            face_full_names = tuple(f"face_{i:04d}" for i in range(NUM_FACE_LANDMARKS))
+            face_full_names = MEDIAPIPE_FACE_TESSELATED_DEFINITION.tracked_points
 
             result: dict[str, tuple] = {}
             for i, name in enumerate(body_rh_lh_names):

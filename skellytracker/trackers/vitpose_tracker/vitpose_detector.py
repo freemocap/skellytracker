@@ -1,10 +1,11 @@
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 from easy_ViTPose import VitInference
 from huggingface_hub import hf_hub_download
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig, TrackerType
 from skellytracker.trackers.vitpose_tracker.vitpose_observation import VITPoseObservation
 
 HF_VIT_REPO = "JunkyByte/easy_ViTPose"
@@ -38,6 +39,7 @@ def resolve_yolo_model(name:str) -> Path:
     return Path(hf_hub_download(repo_id = HF_YOLO_REPO, filename = model_name))
 
 class VITPoseDetectorConfig(BaseDetectorConfig):
+    tracker_type: Literal[TrackerType.VITPOSE] = TrackerType.VITPOSE
     confidence_threshold: float = 0.5
     vit_model: str = "huge" #options are 'small', 'base', 'large', and 'huge'
     yolo_model: str = "medium" #options are 'nano', 'small', "medium", "large", "extralarge"

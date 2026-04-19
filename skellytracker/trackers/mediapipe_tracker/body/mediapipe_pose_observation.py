@@ -1,16 +1,17 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from mediapipe.tasks.python.vision import PoseLandmarkerResult
 from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
-    NUM_POSE_LANDMARKS,
-    POSE_LANDMARK_NAMES,
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_BODY_DEFINITION,
 )
 
-_POSE_NAMES: tuple[str, ...] = tuple(POSE_LANDMARK_NAMES)
+_POSE_NAMES: tuple[str, ...] = MEDIAPIPE_BODY_DEFINITION.tracked_points
+NUM_POSE_LANDMARKS: int = MEDIAPIPE_BODY_DEFINITION.num_tracked_points
 
 
 @dataclass(slots=True)
@@ -19,9 +20,8 @@ class MediapipePoseObservation(BaseObservation):
     frame_number: int = 0
     image_size: tuple[int, int] = (0, 0)  # (height, width)
 
-    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_POSE_NAMES))
+    points: PointCloud = field(default_factory=MEDIAPIPE_BODY_DEFINITION.empty_point_cloud)
 
-    # Extra data not in the PointCloud
     body_world_landmarks_xyz: NDArray = field(default_factory=lambda: np.full((NUM_POSE_LANDMARKS, 3), np.nan))
     segmentation_mask: np.ndarray | None = None
 
@@ -29,7 +29,7 @@ class MediapipePoseObservation(BaseObservation):
     def from_detection_results(
         cls,
         frame_number: int,
-        pose_landmarker_result: "mp.tasks.vision.PoseLandmarkerResult",
+        pose_landmarker_result: PoseLandmarkerResult,
         image_size: tuple[int, int],
     ) -> "MediapipePoseObservation":
         """Convert a PoseLandmarkerResult into a MediapipePoseObservation."""
@@ -51,7 +51,6 @@ class MediapipePoseObservation(BaseObservation):
             [lm.visibility if lm.visibility is not None else 0.0 for lm in landmarks]
         )
 
-        # Segmentation mask — squeeze to 2D if the Tasks API returns (H, W, 1)
         seg_mask = None
         if pose_landmarker_result.segmentation_masks:
             raw_mask = pose_landmarker_result.segmentation_masks[0].numpy_view().copy()
@@ -69,7 +68,6 @@ class MediapipePoseObservation(BaseObservation):
 
     @property
     def has_detection(self) -> bool:
-        """True if a body was detected (not all NaN)."""
         return self.points.n_valid > 0
 
     @property

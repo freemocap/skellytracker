@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 import mediapipe as mp
 import numpy as np
@@ -7,6 +8,9 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_config import MediapipeFaceConfig
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_manager import get_face_model_path
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_FACE_TESSELATED_DEFINITION, MEDIAPIPE_FACE_CONTOUR_DEFINITION,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +19,7 @@ FaceLandmarker = mp.tasks.vision.FaceLandmarker
 FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-
+@dataclass
 class MediapipeFaceDetector(BaseDetector):
     """Wraps MediaPipe FaceLandmarker in IMAGE mode (for use with crops)."""
 
@@ -35,7 +39,7 @@ class MediapipeFaceDetector(BaseDetector):
             output_face_blendshapes=config.output_face_blendshapes,
         )
         landmarker = FaceLandmarker.create_from_options(options)
-        return cls(config=config, landmarker=landmarker)
+        return cls(config=config, landmarker=landmarker, tracked_object=MEDIAPIPE_FACE_CONTOUR_DEFINITION)
 
     def detect(self, frame_number: int, image: np.ndarray) -> MediapipeFaceObservation:
         """Detect face in a full image."""

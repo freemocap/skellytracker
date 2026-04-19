@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -6,12 +8,27 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseImageAnnotatorConfig,
     BaseObservation,
 )
-from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
-    FACEMESH_CONTOURS,
-    FACEMESH_LEFT_IRIS,
-    FACEMESH_RIGHT_IRIS,
+from skellytracker.trackers.mediapipe_tracker.composite.composite_tracker_mappings import (
+    LEFT_IRIS_INDICES,
+    RIGHT_IRIS_INDICES,
 )
+from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_FACE_TESSELATED_DEFINITION,
+)
+
+# All face connections (contour + iris loops, all using face_XXXX names)
+_FACE_CONNECTION_INDICES: tuple[tuple[int, int], ...] = MEDIAPIPE_FACE_TESSELATED_DEFINITION.connection_indices()
+
+
+def _iris_loop_connections(indices: list[int]) -> tuple[tuple[int, int], ...]:
+    """Build closed-loop connections for a ring of iris indices."""
+    n = len(indices)
+    return tuple((indices[i], indices[(i + 1) % n]) for i in range(n))
+
+
+_LEFT_IRIS_CONNECTION_INDICES = _iris_loop_connections(LEFT_IRIS_INDICES)
+_RIGHT_IRIS_CONNECTION_INDICES = _iris_loop_connections(RIGHT_IRIS_INDICES)
 
 
 class MediapipeFaceAnnotatorConfig(BaseImageAnnotatorConfig):
@@ -23,6 +40,7 @@ class MediapipeFaceAnnotatorConfig(BaseImageAnnotatorConfig):
     iris_thickness: int = 2
 
 
+@dataclass
 class MediapipeFaceAnnotator(BaseImageAnnotator):
     config: MediapipeFaceAnnotatorConfig
     observations: list[MediapipeFaceObservation]
@@ -41,38 +59,35 @@ class MediapipeFaceAnnotator(BaseImageAnnotator):
         annotated = image.copy()
         all_points = observation.face_landmarks_xyz[:, :2]
 
-        # Draw face contours (excluding iris — those get separate colors)
         self._draw_connections(
             image=annotated,
             points=all_points,
-            connections=FACEMESH_CONTOURS,
+            connections=_FACE_CONNECTION_INDICES,
             color=self.config.contour_color,
             thickness=self.config.contour_thickness,
         )
-
-        # Draw irises with distinct colors
         self._draw_connections(
             image=annotated,
             points=all_points,
-            connections=FACEMESH_LEFT_IRIS,
+            connections=_LEFT_IRIS_CONNECTION_INDICES,
             color=self.config.left_iris_color,
             thickness=self.config.iris_thickness,
         )
         self._draw_connections(
             image=annotated,
             points=all_points,
-            connections=FACEMESH_RIGHT_IRIS,
+            connections=_RIGHT_IRIS_CONNECTION_INDICES,
             color=self.config.right_iris_color,
             thickness=self.config.iris_thickness,
         )
 
         return annotated
 
+    @staticmethod
     def _draw_connections(
-        self,
         image: np.ndarray,
         points: np.ndarray,
-        connections: list[tuple[int, int]],
+        connections: tuple[tuple[int, int], ...],
         color: tuple[int, int, int],
         thickness: int,
     ) -> None:

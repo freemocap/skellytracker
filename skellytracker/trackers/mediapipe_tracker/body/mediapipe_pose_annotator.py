@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -7,7 +9,11 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseObservation,
 )
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import POSE_CONNECTIONS
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_BODY_DEFINITION,
+)
+
+_POSE_CONNECTION_INDICES: tuple[tuple[int, int], ...] = MEDIAPIPE_BODY_DEFINITION.connection_indices()
 
 
 class MediapipePoseAnnotatorConfig(BaseImageAnnotatorConfig):
@@ -18,6 +24,7 @@ class MediapipePoseAnnotatorConfig(BaseImageAnnotatorConfig):
     connection_thickness: int = 2
 
 
+@dataclass
 class MediapipePoseAnnotator(BaseImageAnnotator):
     config: MediapipePoseAnnotatorConfig
     observations: list[MediapipePoseObservation]
@@ -35,7 +42,6 @@ class MediapipePoseAnnotator(BaseImageAnnotator):
 
         annotated = image.copy()
 
-        # Draw segmentation overlay
         if self.config.show_overlay and observation.segmentation_mask is not None:
             overlay = annotated.copy()
             mask = (observation.segmentation_mask * 50).astype("uint8")
@@ -44,8 +50,7 @@ class MediapipePoseAnnotator(BaseImageAnnotator):
 
         points = observation.body_landmarks_xyz[:, :2]
 
-        # Draw connections
-        for start_idx, end_idx in POSE_CONNECTIONS:
+        for start_idx, end_idx in _POSE_CONNECTION_INDICES:
             p1 = points[start_idx]
             p2 = points[end_idx]
             if np.isnan(p1).any() or np.isnan(p2).any():
@@ -58,7 +63,6 @@ class MediapipePoseAnnotator(BaseImageAnnotator):
                 thickness=self.config.connection_thickness,
             )
 
-        # Draw landmarks
         for i in range(points.shape[0]):
             pt = points[i]
             if np.isnan(pt).any():

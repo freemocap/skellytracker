@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 from pydantic import Field
 
@@ -21,7 +22,7 @@ class MediapipeFaceTrackerConfig(BaseTrackerConfig):
 class MediapipeFaceRecorder(BaseRecorder):
     pass
 
-
+@dataclass
 class MediapipeFaceTracker(BaseTracker):
     config: MediapipeFaceTrackerConfig
     detector: MediapipeFaceDetector

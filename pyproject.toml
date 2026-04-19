@@ -59,7 +59,7 @@ dependencies = [
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
     "beartype>=0.19",
-    "mediapipe>=0.10.14",
+    "pyyaml>=6.0",
 ]
 requires-python = ">=3.11,<3.13"
 
@@ -69,12 +69,11 @@ dynamic = ["version", "description"]
 # Also usable in local dev: `uv sync --extra rtmpose-gpu`
 [project.optional-dependencies]
 legacy-mediapipe = ["mediapipe==0.10.14"]
-mediapipe = ["mediapipe"]
+mediapipe = ["mediapipe==0.10.33"]
 yolo = ["ultralytics~=8.0.202"]
-all = ["mediapipe==0.10.14", "rtmlib==0.0.14", "onnxruntime"]#"ultralytics~=8.0.202"]
-
-# RTMPose — CPU only
-rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
+#
+## RTMPose — CPU only
+#rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
 
 # RTMPose — NVIDIA GPU via CUDA 12
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
@@ -100,17 +99,53 @@ rtmpose-gpu = [
 # see GPU_SETUP_GUIDE.md for details.
 rtmpose-directml = ["rtmlib==0.0.14", "onnxruntime-directml"]
 
+# RECOMMENDED - regular mediapipe with GPU RTMPose.
+recommended = [
+    "mediapipe==0.10.33",
+    "rtmlib==0.0.14",
+    "onnxruntime-gpu",
+    "nvidia-cuda-runtime-cu12",
+    "nvidia-cublas-cu12",
+    "nvidia-cufft-cu12",
+    "nvidia-cudnn-cu12", ]#"ultralytics~=8.0.202"]
+
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
 [dependency-groups]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 
 [tool.uv]
 default-groups = ["dev"]
+
+# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. We want the
+# GPU build (`onnxruntime-gpu`) or the DirectML build (`onnxruntime-directml`)
+# instead, pulled in via the relevant extra. All three packages provide the
+# same top-level `onnxruntime` Python import, but they cannot coexist on disk:
+# they share the same namespace directory and their DLLs / .pyd files clobber
+# each other, producing a broken install that fails at import with things like
+# `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
+#
+# `exclude-dependencies` drops the CPU `onnxruntime` package from the resolution
+# graph entirely, even when rtmlib requests it transitively. rtmlib still works
+# at runtime because whichever accelerated build is installed provides the
+# `onnxruntime` import.
+#
+# Caveat: this setting only takes effect when uv resolves this workspace. A
+# downstream `pip install skellytracker[recommended]` will NOT honor it and
+# will reintroduce the conflict. The upstream fix is for rtmlib to stop pinning
+# `onnxruntime` as a hard dependency.
+exclude-dependencies = ["onnxruntime"]
+
 conflicts = [
     [
-        { extra = "rtmpose-cpu" },
+#        { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
         { extra = "rtmpose-directml" },
+        { extra = "recommended" },
+    ],
+    [
+        { extra = "legacy-mediapipe" },
+        { extra = "mediapipe" },
+        { extra = "recommended" },
     ],
 ]
 
