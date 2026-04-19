@@ -4,6 +4,7 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import onnxruntime
@@ -79,7 +80,7 @@ def _make_nvidia_pip_dlls_discoverable_on_windows() -> None:
 
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
-    tracker_type:TrackerType = TrackerType.RTMPOSE
+    tracker_type: Literal[TrackerType.RTMPOSE] = TrackerType.RTMPOSE
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"

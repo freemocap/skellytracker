@@ -1,3 +1,5 @@
+from typing import Literal
+
 import cv2
 from pydantic import Field
 
@@ -9,7 +11,7 @@ DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_50
 
 
 class CharucoDetectorConfig(BaseDetectorConfig):
-    tracker_type: TrackerType = TrackerType.CHARUCO
+    tracker_type: Literal[TrackerType.CHARUCO] = TrackerType.CHARUCO
     squares_x: int = 5
     squares_y: int = 3
     aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME

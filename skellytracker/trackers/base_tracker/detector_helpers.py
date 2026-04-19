@@ -1,5 +1,7 @@
 """
-Factory functions for creating detectors and annotators from config objects.
+Factory functions for creating detectors and annotators from config objects,
+plus the discriminated-union type aliases used by downstream consumers to
+declare "I want any skeleton tracker" / "I want any board tracker" / etc.
 
 Called inside child processes — detector/annotator class imports are deferred
 to avoid pulling in mediapipe/cv2.aruco at module import time. Config classes
@@ -21,6 +23,8 @@ CHARUCO_AVAILABLE = False
 LEGACY_MEDIAPIPE_AVAILABLE = False
 MEDIAPIPE_AVAILABLE = False
 RTMPOSE_AVAILABLE = False
+VITPOSE_AVAILABLE = False
+BRIGHTEST_POINT_AVAILABLE = False
 
 try:
     from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoDetectorConfig
@@ -43,6 +47,18 @@ except ModuleNotFoundError:
 try:
     from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig
     RTMPOSE_AVAILABLE = True
+except ModuleNotFoundError:
+    pass
+
+try:
+    from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetectorConfig
+    VITPOSE_AVAILABLE = True
+except ModuleNotFoundError:
+    pass
+
+try:
+    from skellytracker.trackers.brightest_point_tracker.brightest_point_detector import BrightestPointDetectorConfig
+    BRIGHTEST_POINT_AVAILABLE = True
 except ModuleNotFoundError:
     pass
 
@@ -71,10 +87,19 @@ def create_detector_from_config(detector_config: BaseDetectorConfig) -> BaseDete
         from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetector
         return RTMPoseDetector.create(config=detector_config)
 
+    if VITPOSE_AVAILABLE and isinstance(detector_config, VITPoseDetectorConfig):
+        from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetector
+        return VITPoseDetector.create(config=detector_config)
+
+    if BRIGHTEST_POINT_AVAILABLE and isinstance(detector_config, BrightestPointDetectorConfig):
+        from skellytracker.trackers.brightest_point_tracker.brightest_point_detector import BrightestPointDetector
+        return BrightestPointDetector.create(config=detector_config)
+
     raise TypeError(
         f"No detector available for config type: {type(detector_config).__name__}. "
         f"Available trackers — charuco: {CHARUCO_AVAILABLE}, mediapipe: {MEDIAPIPE_AVAILABLE}, "
-        f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}"
+        f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}, "
+        f"vitpose: {VITPOSE_AVAILABLE}, brightest_point: {BRIGHTEST_POINT_AVAILABLE}"
     )
 
 
@@ -100,38 +125,64 @@ def create_annotator_from_config(config: BaseDetectorConfig) -> BaseImageAnnotat
     if RTMPOSE_AVAILABLE and isinstance(config, RTMPoseDetectorConfig):
         raise NotImplementedError("RTMPose annotator not yet implemented")
 
+    if VITPOSE_AVAILABLE and isinstance(config, VITPoseDetectorConfig):
+        from skellytracker.trackers.vitpose_tracker.vitpose_annotator import VITPoseAnnotator
+        return VITPoseAnnotator.create()
+
+    if BRIGHTEST_POINT_AVAILABLE and isinstance(config, BrightestPointDetectorConfig):
+        from skellytracker.trackers.brightest_point_tracker.brightest_point_annotator import BrightestPointImageAnnotator, BrightestPointAnnotatorConfig
+        return BrightestPointImageAnnotator.create(config=BrightestPointAnnotatorConfig())
+
     raise TypeError(
         f"No annotator available for config type: {type(config).__name__}. "
         f"Available trackers — charuco: {CHARUCO_AVAILABLE}, mediapipe: {MEDIAPIPE_AVAILABLE}, "
-        f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}"
+        f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}, "
+        f"vitpose: {VITPOSE_AVAILABLE}, brightest_point: {BRIGHTEST_POINT_AVAILABLE}"
     )
 
 
 # ============================================================================
-# Discriminated union type for use as a Pydantic field annotation.
+# Discriminated-union type aliases for use as Pydantic field annotations.
 #
-# Each config subclass has a `tracker_type: Literal["..."]` field with a
-# unique default value. Pydantic uses this field to determine which subclass
-# to deserialize into — no callable discriminator or Tag annotations needed.
+# Each config subclass has a `tracker_type: Literal[TrackerType.X]` field with
+# a unique enum-member value. Pydantic uses that field to route deserialization
+# to the correct subclass. Categories map 1:1 onto the physical nature of what
+# the tracker tracks (skeleton/pose, calibration board, generic point).
+#
+# Each alias is built only from members whose optional deps imported above —
+# so a partial install still yields a valid (narrower) union. If no members
+# in a category are available the alias is `None` (downstream code can check
+# for that). Only fails loudly when *no* tracker is available at all.
 # ============================================================================
 
-_AVAILABLE_CONFIGS: list[type[BaseDetectorConfig]] = []
-
-if CHARUCO_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(CharucoDetectorConfig)
+_SKELETON_CONFIGS: list[type[BaseDetectorConfig]] = []
 if MEDIAPIPE_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(MediapipeDetectorConfig)
+    _SKELETON_CONFIGS.append(MediapipeDetectorConfig)
 if LEGACY_MEDIAPIPE_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(LegacyMediapipeDetectorConfig)
+    _SKELETON_CONFIGS.append(LegacyMediapipeDetectorConfig)
 if RTMPOSE_AVAILABLE:
-    _AVAILABLE_CONFIGS.append(RTMPoseDetectorConfig)
+    _SKELETON_CONFIGS.append(RTMPoseDetectorConfig)
+if VITPOSE_AVAILABLE:
+    _SKELETON_CONFIGS.append(VITPoseDetectorConfig)
 
-if len(_AVAILABLE_CONFIGS) == 0:
+_BOARD_CONFIGS: list[type[BaseDetectorConfig]] = []
+if CHARUCO_AVAILABLE:
+    _BOARD_CONFIGS.append(CharucoDetectorConfig)
+
+_POINT_CONFIGS: list[type[BaseDetectorConfig]] = []
+if BRIGHTEST_POINT_AVAILABLE:
+    _POINT_CONFIGS.append(BrightestPointDetectorConfig)
+
+if not (_SKELETON_CONFIGS or _BOARD_CONFIGS or _POINT_CONFIGS):
     raise RuntimeError("No trackers available!")
 
-_DetectorConfigUnion = reduce(or_, _AVAILABLE_CONFIGS)
 
-SkeletonDetectorConfig = Annotated[
-    _DetectorConfigUnion,
-    Discriminator("tracker_type"),
-]
+def _build_discriminated_union(configs: list[type[BaseDetectorConfig]]):
+    if not configs:
+        return None
+    return Annotated[reduce(or_, configs), Discriminator("tracker_type")]
+
+
+SkeletonDetectorConfig = _build_discriminated_union(_SKELETON_CONFIGS)
+BoardDetectorConfig = _build_discriminated_union(_BOARD_CONFIGS)
+PointDetectorConfig = _build_discriminated_union(_POINT_CONFIGS)

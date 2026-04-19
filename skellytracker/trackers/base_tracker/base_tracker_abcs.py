@@ -27,6 +27,8 @@ class TrackerType(str, Enum):
     MEDIAPIPE_HAND = "mediapipe_hand"
     LEGACY_MEDIAPIPE = "legacy_mediapipe"
     RTMPOSE = "rtmpose"
+    VITPOSE = "vitpose"
+    BRIGHTEST_POINT = "brightest_point"
 
 # Shape-annotated aliases kept for documentation; numpy.typing.NDArray is used
 # in method signatures because it is beartype-compatible.
@@ -139,9 +141,6 @@ class BaseObservation(ABC):
 
 
 class BaseDetectorConfig(BaseModel, ABC):
-    tracker_type: TrackerType = Field(
-        description="Discriminator field — each subclass sets this to match the value of its TrackerType member.",
-    )
     confidence_threshold: float = Field(
         default=0.5,
         description="Default confidence threshold for filtering tracked points (0.0-1.0)",
