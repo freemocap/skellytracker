@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
+from skellytracker.trackers.base_tracker.tracked_object_definition import TrackedObjectDefinition
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +193,10 @@ class BaseTrackerConfig(BaseModel, ABC):
 @dataclass
 class BaseDetector(ABC):
     config: BaseDetectorConfig
+    # The schema of points (names + connections) this detector produces.
+    # Loaded from a YAML at detector creation time. None for legacy detectors
+    # that haven't migrated yet; concrete detectors should always supply one.
+    tracked_object: TrackedObjectDefinition | None = field(default=None, kw_only=True)
 
     @classmethod
     def create(cls, config: BaseDetectorConfig) -> "BaseDetector":

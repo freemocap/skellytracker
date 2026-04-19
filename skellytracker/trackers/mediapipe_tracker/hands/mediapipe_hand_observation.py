@@ -6,15 +6,19 @@ from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
 from skellytracker.trackers.base_tracker.point_cloud import PointCloud
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
-    LEFT_HAND_LANDMARK_NAMES,
-    NUM_HAND_LANDMARKS,
-    RIGHT_HAND_LANDMARK_NAMES,
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_HAND_DEFINITION,
 )
 
-_RIGHT_HAND_NAMES: tuple[str, ...] = tuple(RIGHT_HAND_LANDMARK_NAMES)
-_LEFT_HAND_NAMES: tuple[str, ...] = tuple(LEFT_HAND_LANDMARK_NAMES)
-_ALL_HAND_NAMES: tuple[str, ...] = _RIGHT_HAND_NAMES + _LEFT_HAND_NAMES
+# Both-hands observation = right-prefixed + left-prefixed definitions combined.
+RIGHT_HAND_DEFINITION = MEDIAPIPE_HAND_DEFINITION.with_prefix("right_hand_")
+LEFT_HAND_DEFINITION = MEDIAPIPE_HAND_DEFINITION.with_prefix("left_hand_")
+BOTH_HANDS_DEFINITION = RIGHT_HAND_DEFINITION.concatenate(
+    LEFT_HAND_DEFINITION, name="mediapipe_both_hands", tracker_type="mediapipe_hand",
+)
+
+NUM_HAND_LANDMARKS: int = MEDIAPIPE_HAND_DEFINITION.num_tracked_points
+_ALL_HAND_NAMES: tuple[str, ...] = BOTH_HANDS_DEFINITION.tracked_points
 
 
 @dataclass(slots=True)
@@ -29,7 +33,7 @@ class MediapipeHandObservation(BaseObservation):
     frame_number: int = 0
     image_size: tuple[int, int] = (0, 0)
 
-    points: PointCloud = field(default_factory=lambda: PointCloud.empty(_ALL_HAND_NAMES))
+    points: PointCloud = field(default_factory=BOTH_HANDS_DEFINITION.empty_point_cloud)
 
     @classmethod
     def from_arrays(

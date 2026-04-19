@@ -1,0 +1,55 @@
+---
+# Canonical mediapipe single-hand tracked points and skeleton connections.
+# 21 landmarks produced per hand by mediapipe's HandLandmarker.
+# Used for both left and right hands — the composite holistic definition
+# adds side-specific prefixes.
+name: mediapipe_hand
+tracker_type: mediapipe_hand
+
+tracked_points:
+  - wrist
+  - thumb_cmc
+  - thumb_mcp
+  - thumb_ip
+  - thumb_tip
+  - index_finger_mcp
+  - index_finger_pip
+  - index_finger_dip
+  - index_finger_tip
+  - middle_finger_mcp
+  - middle_finger_pip
+  - middle_finger_dip
+  - middle_finger_tip
+  - ring_finger_mcp
+  - ring_finger_pip
+  - ring_finger_dip
+  - ring_finger_tip
+  - pinky_mcp
+  - pinky_pip
+  - pinky_dip
+  - pinky_tip
+
+connections:
+  - [wrist, thumb_cmc]
+  - [thumb_cmc, thumb_mcp]
+  - [thumb_mcp, thumb_ip]
+  - [thumb_ip, thumb_tip]
+  - [wrist, index_finger_mcp]
+  - [index_finger_mcp, index_finger_pip]
+  - [index_finger_pip, index_finger_dip]
+  - [index_finger_dip, index_finger_tip]
+  - [wrist, middle_finger_mcp]
+  - [middle_finger_mcp, middle_finger_pip]
+  - [middle_finger_pip, middle_finger_dip]
+  - [middle_finger_dip, middle_finger_tip]
+  - [wrist, ring_finger_mcp]
+  - [ring_finger_mcp, ring_finger_pip]
+  - [ring_finger_pip, ring_finger_dip]
+  - [ring_finger_dip, ring_finger_tip]
+  - [wrist, pinky_mcp]
+  - [pinky_mcp, pinky_pip]
+  - [pinky_pip, pinky_dip]
+  - [pinky_dip, pinky_tip]
+  - [index_finger_mcp, middle_finger_mcp]
+  - [middle_finger_mcp, ring_finger_mcp]
+  - [ring_finger_mcp, pinky_mcp]

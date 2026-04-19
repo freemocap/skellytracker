@@ -1600,6 +1600,7 @@ dependencies = [
     { name = "numpydantic" },
     { name = "opencv-contrib-python" },
     { name = "pydantic" },
+    { name = "pyyaml" },
     { name = "requests" },
     { name = "tqdm" },
 ]
@@ -1667,6 +1668,7 @@ requires-dist = [
     { name = "onnxruntime-gpu", marker = "extra == 'rtmpose-gpu'" },
     { name = "opencv-contrib-python" },
     { name = "pydantic", specifier = "==2.*" },
+    { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "rtmlib", marker = "extra == 'recommended'", specifier = "==0.0.14" },
     { name = "rtmlib", marker = "extra == 'rtmpose-directml'", specifier = "==0.0.14" },

@@ -9,7 +9,10 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseObservation,
 )
 from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import MediapipeHandObservation
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import HAND_CONNECTIONS
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import MEDIAPIPE_HAND_DEFINITION
+
+# Per-hand connection indices (relative to a single 21-point hand array)
+_HAND_CONNECTION_INDICES: tuple[tuple[int, int], ...] = MEDIAPIPE_HAND_DEFINITION.connection_indices()
 
 
 class MediapipeHandAnnotatorConfig(BaseImageAnnotatorConfig):
@@ -18,6 +21,7 @@ class MediapipeHandAnnotatorConfig(BaseImageAnnotatorConfig):
     left_hand_color: tuple[int, int, int] = (230, 22, 20)
     connection_thickness: int = 2
     landmark_radius: int = 2
+
 
 @dataclass
 class MediapipeHandAnnotator(BaseImageAnnotator):
@@ -57,15 +61,13 @@ class MediapipeHandAnnotator(BaseImageAnnotator):
     ) -> None:
         points = landmarks_xyz[:, :2]
 
-        # Draw connections
-        for start_idx, end_idx in HAND_CONNECTIONS:
+        for start_idx, end_idx in _HAND_CONNECTION_INDICES:
             p1 = points[start_idx]
             p2 = points[end_idx]
             if np.isnan(p1).any() or np.isnan(p2).any():
                 continue
             cv2.line(image, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), color=color, thickness=self.config.connection_thickness)
 
-        # Draw landmarks
         for i in range(points.shape[0]):
             pt = points[i]
             if np.isnan(pt).any():

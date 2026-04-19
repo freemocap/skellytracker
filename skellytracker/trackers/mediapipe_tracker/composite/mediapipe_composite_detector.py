@@ -16,11 +16,8 @@ from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_obse
 )
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_detector import MediapipeFaceDetector
 from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_detector import MediapipeHandDetector
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import MediapipeHandObservation
-from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
+from skellytracker.trackers.mediapipe_tracker.composite.composite_tracker_mappings import (
     HAND_WRIST_INDEX,
-    NUM_HAND_LANDMARKS,
     POSE_LEFT_EAR_INDEX,
     POSE_LEFT_ELBOW_INDEX,
     POSE_LEFT_WRIST_INDEX,
@@ -28,6 +25,14 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
     POSE_RIGHT_EAR_INDEX,
     POSE_RIGHT_ELBOW_INDEX,
     POSE_RIGHT_WRIST_INDEX,
+)
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_detector import MediapipeHandDetector
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import (
+    NUM_HAND_LANDMARKS,
+    MediapipeHandObservation,
+)
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import (
+    MEDIAPIPE_HOLISTIC_DEFINITION,
 )
 
 logger = logging.getLogger(__name__)
@@ -83,6 +88,7 @@ class MediapipeCompositeDetector(BaseDetector):
             pose_detector=pose_detector,
             hand_detector=hand_detector,
             face_detector=face_detector,
+            tracked_object=MEDIAPIPE_HOLISTIC_DEFINITION,
         )
 
     def detect(self, frame_number: int, image: np.ndarray) -> MediapipeCompositeObservation:

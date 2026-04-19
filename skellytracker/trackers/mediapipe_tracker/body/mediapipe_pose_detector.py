@@ -9,6 +9,7 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_config import MediapipePoseConfig
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_observation import MediapipePoseObservation
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_manager import get_pose_model_path
+from skellytracker.trackers.mediapipe_tracker.names_and_connections import MEDIAPIPE_BODY_DEFINITION
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +36,7 @@ class MediapipePoseDetector(BaseDetector):
             output_segmentation_masks=config.output_segmentation_mask,
         )
         landmarker = PoseLandmarker.create_from_options(options)
-        return cls(config=config, landmarker=landmarker)
+        return cls(config=config, landmarker=landmarker, tracked_object=MEDIAPIPE_BODY_DEFINITION)
 
     def detect(self, frame_number: int, image: np.ndarray, timestamp_ms: int | None = None) -> MediapipePoseObservation:
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)

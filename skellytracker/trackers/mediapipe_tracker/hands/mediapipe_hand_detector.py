@@ -6,7 +6,10 @@ import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_config import MediapipeHandConfig
-from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import MediapipeHandObservation
+from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import (
+    BOTH_HANDS_DEFINITION,
+    MediapipeHandObservation,
+)
 from skellytracker.trackers.mediapipe_tracker.mediapipe_model_manager import get_hand_model_path
 
 logger = logging.getLogger(__name__)
@@ -28,14 +31,14 @@ class MediapipeHandDetector(BaseDetector):
         model_path = get_hand_model_path()
         options = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(model_path)),
-            running_mode=VisionRunningMode.IMAGE,
+            running_mode=VisionRunningMode.IMAGE.LIVE_STREAM,
             num_hands=config.num_hands,
             min_hand_detection_confidence=config.min_detection_confidence,
             min_hand_presence_confidence=config.min_tracking_confidence,
             min_tracking_confidence=config.min_tracking_confidence,
         )
         landmarker = HandLandmarker.create_from_options(options)
-        return cls(config=config, landmarker=landmarker)
+        return cls(config=config, landmarker=landmarker, tracked_object=BOTH_HANDS_DEFINITION)
 
     def detect(self, frame_number: int, image: np.ndarray) -> MediapipeHandObservation:
         """Detect hands in a full image."""
