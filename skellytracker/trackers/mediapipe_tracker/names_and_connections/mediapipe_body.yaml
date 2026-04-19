@@ -3,6 +3,7 @@
 # 33 landmarks produced by mediapipe's PoseLandmarker.
 name: mediapipe_body
 tracker_type: mediapipe_pose
+landmark_schema: MediaPipe_Pose
 
 tracked_points:
   - nose

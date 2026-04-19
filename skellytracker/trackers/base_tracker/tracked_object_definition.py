@@ -23,6 +23,7 @@ class TrackedObjectDefinition(BaseModel):
 
     name: str
     tracker_type: str
+    landmark_schema: str = "unknown"
     tracked_points: tuple[str, ...]
     connections: tuple[tuple[str, str], ...] = ()
 
@@ -58,6 +59,7 @@ class TrackedObjectDefinition(BaseModel):
         return cls(
             name=data["name"],
             tracker_type=data["tracker_type"],
+            landmark_schema=data.get("landmark_schema", "unknown"),
             tracked_points=tuple(data.get("tracked_points", ())),
             connections=tuple(tuple(pair) for pair in data.get("connections", ())),
         )
@@ -87,6 +89,7 @@ class TrackedObjectDefinition(BaseModel):
         return cls(
             name=data["name"],
             tracker_type=data["tracker_type"],
+            landmark_schema=data.get("landmark_schema", "composite"),
             tracked_points=tuple(all_points),
             connections=tuple(all_connections),
         )

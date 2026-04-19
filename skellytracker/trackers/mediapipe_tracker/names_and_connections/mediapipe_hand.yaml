@@ -5,6 +5,7 @@
 # adds side-specific prefixes.
 name: mediapipe_hand
 tracker_type: mediapipe_hand
+landmark_schema: MediaPipe_Hand
 
 tracked_points:
   - wrist

@@ -1,8 +1,10 @@
 ---
 name: mediapipe_face_contour
 tracker_type: mediapipe_face
+landmark_schema: MediaPipe_FaceMesh
 
 tracked_points:
+  # These are a subset of the 468 points in the tessellated face definiton
   - face_0000
   - face_0007
   - face_0010

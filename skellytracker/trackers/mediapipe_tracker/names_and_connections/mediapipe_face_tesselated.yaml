@@ -1,6 +1,7 @@
 ---
 name: mediapipe_face_tesselated
 tracker_type: mediapipe_face
+landmark_schema: MediaPipe_FaceMesh
 
 tracked_points:
   - face_0000
