@@ -1,6 +1,6 @@
 from enum import Enum
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, TrackerType
 
 
 class LegacyMediapipeModelComplexity(int, Enum):
@@ -10,6 +10,7 @@ class LegacyMediapipeModelComplexity(int, Enum):
 
 
 class LegacyMediapipeDetectorConfig(BaseDetectorConfig):
+    tracker_type: TrackerType = TrackerType.LEGACY_MEDIAPIPE
     model_complexity: LegacyMediapipeModelComplexity = LegacyMediapipeModelComplexity.HEAVY
     min_detection_confidence: float = 0.5
     min_tracking_confidence: float = 0.5

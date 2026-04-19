@@ -2,6 +2,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
 
 import cv2
@@ -16,6 +17,16 @@ logger = logging.getLogger(__name__)
 
 TrackedPointIdString = str
 TrackerTypeString = str
+
+
+class TrackerType(str, Enum):
+    CHARUCO = "charuco"
+    MEDIAPIPE = "mediapipe" # composite of body, hands, and face - like holistic
+    MEDIAPIPE_POSE = "mediapipe_pose"
+    MEDIAPIPE_FACE = "mediapipe_face"
+    MEDIAPIPE_HAND = "mediapipe_hand"
+    LEGACY_MEDIAPIPE = "legacy_mediapipe"
+    RTMPOSE = "rtmpose"
 
 # Shape-annotated aliases kept for documentation; numpy.typing.NDArray is used
 # in method signatures because it is beartype-compatible.
@@ -33,7 +44,7 @@ class BaseObservation(ABC):
     Subclasses must be dataclasses (or any class) that provide:
         - points: PointCloud
         - frame_number: int
-        - tracker_type: str
+        - tracker_type: TrackerType
         - from_detection_results() classmethod
 
     The concrete methods (to_2d_array, to_tracked_points, etc.) all delegate
@@ -43,7 +54,7 @@ class BaseObservation(ABC):
     # Subclasses must have these attributes
     points: PointCloud
     frame_number: int
-    tracker_type: str
+    tracker_type: TrackerType
 
     @classmethod
     @abstractmethod
@@ -126,7 +137,16 @@ class BaseObservation(ABC):
         return self.to_json_string().encode("utf-8")
 
 
-BaseObservations = list[BaseObservation]
+
+class BaseDetectorConfig(BaseModel, ABC):
+    tracker_type: TrackerType = Field(
+        description="Discriminator field — each subclass sets this to match the value of its TrackerType member.",
+    )
+    confidence_threshold: float = Field(
+        default=0.5,
+        description="Default confidence threshold for filtering tracked points (0.0-1.0)",
+    )
+
 
 @dataclass
 class BaseImageAnnotatorConfig( ABC):
@@ -163,13 +183,6 @@ class BaseImageAnnotator(ABC):
     ) -> None:
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
         cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
-
-
-class BaseDetectorConfig(BaseModel, ABC):
-    confidence_threshold: float = Field(
-        default=0.5,
-        description="Default confidence threshold for filtering tracked points (0.0-1.0)",
-    )
 
 
 class BaseTrackerConfig(BaseModel, ABC):

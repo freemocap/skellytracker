@@ -32,6 +32,7 @@ class MediapipeCompositeAnnotatorConfig(BaseImageAnnotatorConfig):
     face_roi_color: tuple[int, int, int] = (255, 255, 0)
     roi_thickness: int = 2
 
+
 @dataclass
 class MediapipeCompositeAnnotator(BaseImageAnnotator):
     config: MediapipeCompositeAnnotatorConfig
@@ -71,18 +72,21 @@ class MediapipeCompositeAnnotator(BaseImageAnnotator):
 
         # Draw ROI boxes
         if self.config.draw_roi_boxes:
-            self._draw_roi_box(image=annotated, roi=observation.left_hand_roi, color=self.config.hand_roi_color, label="L Hand")
-            self._draw_roi_box(image=annotated, roi=observation.right_hand_roi, color=self.config.hand_roi_color, label="R Hand")
-            self._draw_roi_box(image=annotated, roi=observation.face_roi, color=self.config.face_roi_color, label="Face")
+            self._draw_roi_box(image=annotated, roi=observation.left_hand_roi, color=self.config.hand_roi_color,
+                               label="L Hand")
+            self._draw_roi_box(image=annotated, roi=observation.right_hand_roi, color=self.config.hand_roi_color,
+                               label="R Hand")
+            self._draw_roi_box(image=annotated, roi=observation.face_roi, color=self.config.face_roi_color,
+                               label="Face")
 
         return annotated
 
     def _draw_roi_box(
-        self,
-        image: np.ndarray,
-        roi: ROIBox | None,
-        color: tuple[int, int, int],
-        label: str,
+            self,
+            image: np.ndarray,
+            roi: ROIBox | None,
+            color: tuple[int, int, int],
+            label: str,
     ) -> None:
         if roi is None:
             return

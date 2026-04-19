@@ -9,7 +9,7 @@ from functools import reduce
 from operator import or_
 from typing import Annotated
 
-from pydantic import Discriminator, Tag
+from pydantic import Discriminator
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseDetector,
@@ -106,49 +106,32 @@ def create_annotator_from_config(config: BaseDetectorConfig) -> BaseImageAnnotat
         f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}"
     )
 
-def _detect_detector_config_type(data: object) -> str:
-    """Inspect raw data to determine which detector config subclass to use."""
-    if isinstance(data, BaseDetectorConfig):
-        if CHARUCO_AVAILABLE and isinstance(data, CharucoDetectorConfig):
-            return "charuco"
-        if MEDIAPIPE_AVAILABLE and isinstance(data, MediapipeDetectorConfig):
-            return "mediapipe"
-        if LEGACY_MEDIAPIPE_AVAILABLE and isinstance(data, LegacyMediapipeDetectorConfig):
-            return "legacy_mediapipe"
-        if RTMPOSE_AVAILABLE and isinstance(data, RTMPoseDetectorConfig):
-            return "rtmpose"
-        raise ValueError(f"Unsupported detector config type: {type(data)}")
 
-    if isinstance(data, dict):
-        if "squares_x" in data or "aruco_dictionary_name" in data:
-            return "charuco"
-        if "pose_config" in data or "hand_config" in data or "face_config" in data:
-            return "mediapipe"
-        return "legacy_mediapipe"
+# ============================================================================
+# Discriminated union type for use as a Pydantic field annotation.
+#
+# Each config subclass has a `tracker_type: Literal["..."]` field with a
+# unique default value. Pydantic uses this field to determine which subclass
+# to deserialize into — no callable discriminator or Tag annotations needed.
+# ============================================================================
 
-    raise ValueError(f"Cannot determine detector config type from: {type(data)}")
-
-
-# Each union member must be Annotated[ConfigType, Tag("...")] where the tag
-# string matches what _detect_detector_config_type returns for that type.
-_TAGGED_CONFIGS: list[type] = []
+_AVAILABLE_CONFIGS: list[type[BaseDetectorConfig]] = []
 
 if CHARUCO_AVAILABLE:
-    _TAGGED_CONFIGS.append(Annotated[CharucoDetectorConfig, Tag("charuco")])
+    _AVAILABLE_CONFIGS.append(CharucoDetectorConfig)
 if MEDIAPIPE_AVAILABLE:
-    _TAGGED_CONFIGS.append(Annotated[MediapipeDetectorConfig, Tag("mediapipe")])
+    _AVAILABLE_CONFIGS.append(MediapipeDetectorConfig)
 if LEGACY_MEDIAPIPE_AVAILABLE:
-    _TAGGED_CONFIGS.append(Annotated[LegacyMediapipeDetectorConfig, Tag("legacy_mediapipe")])
+    _AVAILABLE_CONFIGS.append(LegacyMediapipeDetectorConfig)
 if RTMPOSE_AVAILABLE:
-    _TAGGED_CONFIGS.append(Annotated[RTMPoseDetectorConfig, Tag("rtmpose")])
+    _AVAILABLE_CONFIGS.append(RTMPoseDetectorConfig)
 
-if len(_TAGGED_CONFIGS) == 0:
+if len(_AVAILABLE_CONFIGS) == 0:
     raise RuntimeError("No trackers available!")
 
-# Build the Union type dynamically: TaggedA | TaggedB | TaggedC ...
-_DetectorConfigUnion = reduce(or_, _TAGGED_CONFIGS)
+_DetectorConfigUnion = reduce(or_, _AVAILABLE_CONFIGS)
 
 SkeletonDetectorConfig = Annotated[
     _DetectorConfigUnion,
-    Discriminator(_detect_detector_config_type),
+    Discriminator("tracker_type"),
 ]
