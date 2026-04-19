@@ -70,9 +70,9 @@ dynamic = ["version", "description"]
 legacy-mediapipe = ["mediapipe==0.10.14"]
 mediapipe = ["mediapipe==0.10.33"]
 yolo = ["ultralytics~=8.0.202"]
-
-# RTMPose — CPU only
-rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
+#
+## RTMPose — CPU only
+#rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
 
 # RTMPose — NVIDIA GPU via CUDA 12
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
@@ -114,9 +114,29 @@ dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 
 [tool.uv]
 default-groups = ["dev"]
+
+# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. We want the
+# GPU build (`onnxruntime-gpu`) or the DirectML build (`onnxruntime-directml`)
+# instead, pulled in via the relevant extra. All three packages provide the
+# same top-level `onnxruntime` Python import, but they cannot coexist on disk:
+# they share the same namespace directory and their DLLs / .pyd files clobber
+# each other, producing a broken install that fails at import with things like
+# `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
+#
+# `exclude-dependencies` drops the CPU `onnxruntime` package from the resolution
+# graph entirely, even when rtmlib requests it transitively. rtmlib still works
+# at runtime because whichever accelerated build is installed provides the
+# `onnxruntime` import.
+#
+# Caveat: this setting only takes effect when uv resolves this workspace. A
+# downstream `pip install skellytracker[recommended]` will NOT honor it and
+# will reintroduce the conflict. The upstream fix is for rtmlib to stop pinning
+# `onnxruntime` as a hard dependency.
+exclude-dependencies = ["onnxruntime"]
+
 conflicts = [
     [
-        { extra = "rtmpose-cpu" },
+#        { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
         { extra = "rtmpose-directml" },
         { extra = "recommended" },

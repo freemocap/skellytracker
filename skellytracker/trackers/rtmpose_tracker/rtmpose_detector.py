@@ -10,7 +10,7 @@ import onnxruntime
 from numpy.typing import NDArray
 from rtmlib import Wholebody
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig, TrackerType
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
 
 
@@ -79,6 +79,7 @@ def _make_nvidia_pip_dlls_discoverable_on_windows() -> None:
 
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
+    tracker_type:TrackerType = TrackerType.RTMPOSE
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"
