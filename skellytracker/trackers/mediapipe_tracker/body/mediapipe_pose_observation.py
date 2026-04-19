@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from mediapipe.tasks.python.vision import PoseLandmarkerResult
 from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
@@ -29,7 +30,7 @@ class MediapipePoseObservation(BaseObservation):
     def from_detection_results(
         cls,
         frame_number: int,
-        pose_landmarker_result: "mp.tasks.vision.PoseLandmarkerResult",
+        pose_landmarker_result: PoseLandmarkerResult,
         image_size: tuple[int, int],
     ) -> "MediapipePoseObservation":
         """Convert a PoseLandmarkerResult into a MediapipePoseObservation."""

@@ -1,6 +1,7 @@
 import logging
 import time
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 
 import cv2
 import numpy as np
@@ -31,7 +32,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_names import (
 
 logger = logging.getLogger(__name__)
 
-
+@dataclass
 class MediapipeCompositeDetector(BaseDetector):
     """
     Pose-first, crop-detect pipeline that recreates MediaPipe Holistic behavior.

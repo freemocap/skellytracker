@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -22,7 +24,7 @@ class MediapipeFaceAnnotatorConfig(BaseImageAnnotatorConfig):
     right_iris_color: tuple[int, int, int] = (2, 2, 211)
     iris_thickness: int = 2
 
-
+@dataclass
 class MediapipeFaceAnnotator(BaseImageAnnotator):
     config: MediapipeFaceAnnotatorConfig
     observations: list[MediapipeFaceObservation]

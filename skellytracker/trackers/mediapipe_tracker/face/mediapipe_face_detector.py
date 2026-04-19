@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 import mediapipe as mp
 import numpy as np
@@ -15,7 +16,7 @@ FaceLandmarker = mp.tasks.vision.FaceLandmarker
 FaceLandmarkerOptions = mp.tasks.vision.FaceLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-
+@dataclass
 class MediapipeFaceDetector(BaseDetector):
     """Wraps MediaPipe FaceLandmarker in IMAGE mode (for use with crops)."""
 

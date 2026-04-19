@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -17,7 +19,7 @@ class MediapipeHandAnnotatorConfig(BaseImageAnnotatorConfig):
     connection_thickness: int = 2
     landmark_radius: int = 2
 
-
+@dataclass
 class MediapipeHandAnnotator(BaseImageAnnotator):
     config: MediapipeHandAnnotatorConfig
     observations: list[MediapipeHandObservation]

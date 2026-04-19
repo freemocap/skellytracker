@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from mediapipe.tasks.python.vision import FaceLandmarkerResult
 from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
@@ -37,7 +38,7 @@ class MediapipeFaceObservation(BaseObservation):
     def from_detection_results(
         cls,
         frame_number: int,
-        face_landmarker_result: "mp.tasks.vision.FaceLandmarkerResult",
+        face_landmarker_result: FaceLandmarkerResult,
         image_size: tuple[int, int],
     ) -> "MediapipeFaceObservation":
         """Convert a FaceLandmarkerResult into a MediapipeFaceObservation."""
@@ -77,7 +78,7 @@ class MediapipeFaceObservation(BaseObservation):
     def from_crop_results(
         cls,
         frame_number: int,
-        face_landmarker_result: "mp.tasks.vision.FaceLandmarkerResult",
+        face_landmarker_result: FaceLandmarkerResult,
         crop_origin: tuple[int, int],
         crop_size: tuple[int, int],
         full_image_size: tuple[int, int],

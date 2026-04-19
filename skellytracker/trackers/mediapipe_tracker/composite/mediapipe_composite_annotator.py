@@ -1,3 +1,5 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
@@ -30,7 +32,7 @@ class MediapipeCompositeAnnotatorConfig(BaseImageAnnotatorConfig):
     face_roi_color: tuple[int, int, int] = (255, 255, 0)
     roi_thickness: int = 2
 
-
+@dataclass
 class MediapipeCompositeAnnotator(BaseImageAnnotator):
     config: MediapipeCompositeAnnotatorConfig
     observations: list[MediapipeCompositeObservation]

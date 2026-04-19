@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 import numpy as np
+from mediapipe.tasks.python.vision import HandLandmarkerResult
 from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseObservation
@@ -50,7 +51,7 @@ class MediapipeHandObservation(BaseObservation):
     def from_detection_results(
         cls,
         frame_number: int,
-        hand_landmarker_result: "mp.tasks.vision.HandLandmarkerResult",
+        hand_landmarker_result: HandLandmarkerResult,
         image_size: tuple[int, int],
     ) -> "MediapipeHandObservation":
         """Convert a HandLandmarkerResult into a MediapipeHandObservation."""
@@ -92,7 +93,7 @@ class MediapipeHandObservation(BaseObservation):
     def from_crop_results(
         cls,
         frame_number: int,
-        hand_landmarker_result: "mp.tasks.vision.HandLandmarkerResult",
+        hand_landmarker_result: HandLandmarkerResult,
         crop_origin: tuple[int, int],
         crop_size: tuple[int, int],
         full_image_size: tuple[int, int],

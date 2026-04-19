@@ -59,7 +59,6 @@ dependencies = [
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
     "beartype>=0.19",
-    "mediapipe>=0.10.14",
 ]
 requires-python = ">=3.11,<3.13"
 
@@ -69,9 +68,8 @@ dynamic = ["version", "description"]
 # Also usable in local dev: `uv sync --extra rtmpose-gpu`
 [project.optional-dependencies]
 legacy-mediapipe = ["mediapipe==0.10.14"]
-mediapipe = ["mediapipe"]
+mediapipe = ["mediapipe==0.10.33"]
 yolo = ["ultralytics~=8.0.202"]
-all = ["mediapipe==0.10.14", "rtmlib==0.0.14", "onnxruntime"]#"ultralytics~=8.0.202"]
 
 # RTMPose — CPU only
 rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
@@ -100,6 +98,16 @@ rtmpose-gpu = [
 # see GPU_SETUP_GUIDE.md for details.
 rtmpose-directml = ["rtmlib==0.0.14", "onnxruntime-directml"]
 
+# RECOMMENDED - regular mediapipe with GPU RTMPose.
+recommended = [
+    "mediapipe==0.10.33",
+    "rtmlib==0.0.14",
+    "onnxruntime-gpu",
+    "nvidia-cuda-runtime-cu12",
+    "nvidia-cublas-cu12",
+    "nvidia-cufft-cu12",
+    "nvidia-cudnn-cu12", ]#"ultralytics~=8.0.202"]
+
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
 [dependency-groups]
 dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
@@ -111,6 +119,12 @@ conflicts = [
         { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
         { extra = "rtmpose-directml" },
+        { extra = "recommended" },
+    ],
+    [
+        { extra = "legacy-mediapipe" },
+        { extra = "mediapipe" },
+        { extra = "recommended" },
     ],
 ]
 

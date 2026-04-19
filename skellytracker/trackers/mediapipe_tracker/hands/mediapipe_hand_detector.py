@@ -1,4 +1,5 @@
 import logging
+from dataclasses import dataclass
 
 import mediapipe as mp
 import numpy as np
@@ -15,7 +16,7 @@ HandLandmarker = mp.tasks.vision.HandLandmarker
 HandLandmarkerOptions = mp.tasks.vision.HandLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-
+@dataclass
 class MediapipeHandDetector(BaseDetector):
     """Wraps MediaPipe HandLandmarker in IMAGE mode (for use with crops)."""
 

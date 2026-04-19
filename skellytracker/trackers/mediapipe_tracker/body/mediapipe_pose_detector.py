@@ -1,5 +1,6 @@
 import logging
 import time
+from dataclasses import dataclass
 
 import mediapipe as mp
 import numpy as np
@@ -16,7 +17,7 @@ PoseLandmarker = mp.tasks.vision.PoseLandmarker
 PoseLandmarkerOptions = mp.tasks.vision.PoseLandmarkerOptions
 VisionRunningMode = mp.tasks.vision.RunningMode
 
-
+@dataclass
 class MediapipePoseDetector(BaseDetector):
     config: MediapipePoseConfig
     landmarker: PoseLandmarker
