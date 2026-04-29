@@ -12,9 +12,6 @@ class CharucoDetectorConfig(BaseDetectorConfig):
     tracker_type: Literal[TrackerType.CHARUCO] = TrackerType.CHARUCO
     board: CharucoBoardDefinition = Field(default_factory=CharucoBoardDefinition.create_letter_size_5x3)
 
-    # ---------------------------------------------------------------------------
-    # Shim properties — preserve the field names CharucoDetector.create() uses
-    # ---------------------------------------------------------------------------
 
     @property
     def squares_x(self) -> int:
