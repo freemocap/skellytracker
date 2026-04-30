@@ -289,6 +289,33 @@ class CharucoObservation(BaseObservation):
         return points_camera.astype(np.float32)
 
     # =========================================================================
+    # Tracked points override — includes aruco marker corners
+    # =========================================================================
+
+    def to_tracked_points(
+            self,
+            *,
+            confidence_threshold: float | None = None,
+    ) -> dict[str, np.ndarray]:
+        result = super().to_tracked_points(confidence_threshold=confidence_threshold)
+
+        if (not self.aruco_empty
+                and self.detected_aruco_marker_ids is not None
+                and self.detected_aruco_marker_corners is not None):
+            for marker_id, corners in zip(
+                    self.detected_aruco_marker_ids,
+                    self.detected_aruco_marker_corners,
+            ):
+                corners_arr = np.squeeze(corners)  # (4, 2)
+                if corners_arr.ndim != 2 or corners_arr.shape != (4, 2):
+                    continue
+                for corner_idx in range(4):
+                    name = f"ArucoMarkerCorner-{int(marker_id)}-{corner_idx}"
+                    result[name] = corners_arr[corner_idx]
+
+        return result
+
+    # =========================================================================
     # Anipose export
     # =========================================================================
 
