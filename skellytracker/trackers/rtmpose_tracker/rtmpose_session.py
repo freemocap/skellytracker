@@ -79,6 +79,10 @@ class RTMPoseSession:
     config: RTMPoseSessionConfig
     wholebody: Wholebody
     _active_provider: ExecutionProviderName
+    # True when the YOLOX ONNX model accepts batch > 1. Many checkpoints are
+    # exported with a static batch=1 dim; we probe this once at construction and
+    # skip the stack + batched run entirely for those models.
+    _yolox_supports_batch: bool = False
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -118,13 +122,14 @@ class RTMPoseSession:
         # provider options, TRT engine cache, and explicit SessionOptions.
         # The .onnx_model attribute on each BaseTool is the absolute path to
         # the (already-downloaded) model file.
-        wholebody.det_model.session = _build_tuned_ort_session(
+        det_session = _build_tuned_ort_session(
             onnx_path=wholebody.det_model.onnx_model,
             provider=active_provider,
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
             log_label="yolox",
         )
+        wholebody.det_model.session = det_session
         wholebody.pose_model.session = _build_tuned_ort_session(
             onnx_path=wholebody.pose_model.onnx_model,
             provider=active_provider,
@@ -133,10 +138,16 @@ class RTMPoseSession:
             log_label="rtmpose",
         )
 
+        # Probe whether YOLOX accepts batch > 1. ONNX exports often have a fixed
+        # batch=1 dimension; detect it once here so _detect_persons_batched can
+        # skip the doomed stack + session.run entirely (no warning spam).
+        yolox_supports_batch = _probe_supports_batch(det_session, label="yolox")
+
         session = cls(
             config=config,
             wholebody=wholebody,
             _active_provider=active_provider,
+            _yolox_supports_batch=yolox_supports_batch,
         )
 
         # Step 3: warmup. With TRT this is what triggers engine compilation; can
@@ -192,8 +203,17 @@ class RTMPoseSession:
             self,
             images: list[NDArray[np.uint8]],
     ) -> list[NDArray]:
-        """Run YOLOX over N images. Returns one bbox array per image."""
+        """Run YOLOX over N images. Returns one bbox array per image.
+
+        When the YOLOX ONNX export has a static batch=1 input dim (the common
+        case for humanart checkpoints), skips the stack attempt and runs N
+        separate session.run calls. Still benefits from a single CUDA context."""
         det = self.wholebody.det_model
+
+        # Fast path: model has static batch=1 or only one image — skip stacking.
+        if not self._yolox_supports_batch or len(images) == 1:
+            return [det(img) for img in images]
+
         preprocessed: list[tuple[NDArray[np.uint8], float]] = [
             det.preprocess(img) for img in images
         ]
@@ -447,6 +467,33 @@ def _cuda_provider_options() -> dict:
         # 2 GiB. Enough for both YOLOX + RTMPose under either model size.
         "gpu_mem_limit": 2 * 1024 * 1024 * 1024,
     }
+
+
+def _probe_supports_batch(session: ort.InferenceSession, label: str = "") -> bool:
+    """Return True if the session's first input has a dynamic (or > 1) batch dim.
+
+    ONNX exports from rtmlib's humanart YOLOX checkpoint ship with a static
+    batch=1 first dimension. Attempting session.run with N > 1 raises
+    `InvalidArgument: Got invalid dimensions for input: index: 0 Got: N Expected: 1`.
+    We detect this once at construction so callers can skip the doomed path."""
+    try:
+        first_input_shape = session.get_inputs()[0].shape
+    except Exception:
+        return True  # can't probe — optimistic
+    if not first_input_shape:
+        return True
+    batch_dim = first_input_shape[0]
+    # Dynamic batch: the dim is a string like "batch" or "N".
+    if isinstance(batch_dim, str):
+        return True
+    # Static dim: must be > 1 to support any real batching.
+    supports = int(batch_dim) > 1
+    if not supports:
+        logger.debug(
+            f"{label!r} ONNX model has static batch_size={batch_dim}; "
+            f"per-image inference will be used (single CUDA context still applies)."
+        )
+    return supports
 
 
 def _session_run_batched(session: ort.InferenceSession, batch: NDArray) -> list[NDArray]:
