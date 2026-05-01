@@ -192,6 +192,7 @@ class RTMPoseSession:
                 fp16=config.fp16,
                 log_label="yolox_prenms",
                 make_dynamic_batch=False,
+                trt_set_batch_profile=True,  # prenms ONNX already has dynamic batch
                 max_batch_size=config.max_batch_size,
             )
 
@@ -594,13 +595,23 @@ def _build_tuned_ort_session(
         log_label: str,
         make_dynamic_batch: bool = False,
         max_batch_size: int = 8,
+        trt_set_batch_profile: bool | None = None,
 ) -> ort.InferenceSession:
     """Construct an ORT session with explicit SessionOptions + provider options.
 
     When `make_dynamic_batch=True`, the ONNX model is first rewritten so its
     leading input/output axes are symbolic. This is needed for YOLOX checkpoints
     shipped with static batch=1.
+
+    `trt_set_batch_profile`: when True, sets the TRT optimization profile
+    (min=1, opt=max_batch_size, max=max_batch_size) even if `make_dynamic_batch`
+    is False. Required for sessions whose ONNX already has a symbolic batch dim
+    (e.g. the prenms session, built from the already-dynamic-batched YOLOX ONNX).
+    Defaults to `make_dynamic_batch` when not set.
     """
+    if trt_set_batch_profile is None:
+        trt_set_batch_profile = make_dynamic_batch
+
     if make_dynamic_batch:
         onnx_path = str(ensure_dynamic_batch(onnx_path))
 
@@ -614,8 +625,10 @@ def _build_tuned_ort_session(
 
     # TensorRT engines compiled against a static-batch graph cannot be reused
     # for a dynamic-batch graph (and vice versa). Bucket dynamic-batch caches
-    # under a versioned subdir so the two never collide.
-    if make_dynamic_batch:
+    # under a versioned subdir so the two never collide. This applies both when
+    # we rewrote the ONNX (make_dynamic_batch) and when we set a TRT batch
+    # profile on an already-dynamic ONNX (trt_set_batch_profile).
+    if trt_set_batch_profile:
         engine_cache_dir = engine_cache_dir / "dynbatch_v1"
         engine_cache_dir.mkdir(parents=True, exist_ok=True)
 
@@ -632,7 +645,7 @@ def _build_tuned_ort_session(
             "trt_timing_cache_path": str(engine_cache_dir),
             "trt_max_workspace_size": 2 * 1024 * 1024 * 1024,  # 2 GiB
         }
-        if make_dynamic_batch:
+        if trt_set_batch_profile:
             trt_options.update(
                 _trt_dynamic_batch_profile(
                     onnx_path=onnx_path,
