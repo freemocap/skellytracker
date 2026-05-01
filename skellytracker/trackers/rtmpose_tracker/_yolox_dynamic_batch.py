@@ -371,12 +371,26 @@ def _symbolize_batch_dim(value_info) -> None:
 
 
 def _constant_tensor_names(graph) -> set[str]:
-    """All tensor names that are definitely constant (initializers or outputs of
-    Constant/ConstantOfShape nodes)."""
+    """All tensor names that are definitely constant.
+
+    Starts from initializers and Constant/ConstantOfShape outputs, then
+    propagates forward: if every input to a node is constant, its outputs
+    are constant too (e.g. anchor/stride grids computed from constants via
+    Cast → Reshape → Mul → Add chains). Repeated until stable.
+    """
     names: set[str] = {init.name for init in graph.initializer}
     for node in graph.node:
         if node.op_type in ("Constant", "ConstantOfShape"):
             names.update(node.output)
+    changed = True
+    while changed:
+        changed = False
+        for node in graph.node:
+            if all(inp in names or inp == "" for inp in node.input):
+                new = set(node.output) - names
+                if new:
+                    names |= new
+                    changed = True
     return names
 
 
