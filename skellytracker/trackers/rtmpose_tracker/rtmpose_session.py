@@ -23,6 +23,8 @@ What "tuned" means here:
 """
 import logging
 import sys
+import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
@@ -61,7 +63,7 @@ class RTMPoseSessionConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     mode: Literal["performance", "lightweight", "balanced"] = "balanced"
-    execution_provider: ExecutionProviderName = "cuda"
+    execution_provider: ExecutionProviderName = "trt"
     engine_cache_dir: Path = Field(default_factory=_default_engine_cache_dir)
     max_batch_size: int = 4
     fp16: bool = True
@@ -139,9 +141,15 @@ class RTMPoseSession:
         # YOLOX path: rewrite the ONNX to declare a symbolic batch dim before
         # opening the ORT session. rtmlib's checkpoints ship with static batch=1,
         # which would otherwise force serial per-image inference for N cameras.
+        #
+        # The full YOLOX ONNX has NMS baked in, which contains a TopK node whose
+        # K exceeds TRT's compile-time limit (~3840). Build the full det_session
+        # with CUDA EP even when TRT is requested — it is only used as a per-image
+        # fallback (N=1 or prenms unavailable). The prenms session below gets TRT.
+        det_provider = "cuda" if active_provider == "trt" else active_provider
         det_session = _build_tuned_ort_session(
             onnx_path=wholebody.det_model.onnx_model,
-            provider=active_provider,
+            provider=det_provider,
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
             log_label="yolox",
@@ -276,13 +284,12 @@ class RTMPoseSession:
         For YOLOX models without baked-in NMS the standard batched path works."""
         det = self.wholebody.det_model
 
-        # Fast path: model has static batch=1 or only one image — skip stacking.
+        # Fast path: model has static batch=1 or only one image — use rtmlib's
+        # standard single-image YOLOX path (includes baked-in NMS, works on CUDA).
         if not self._yolox_supports_batch or len(images) == 1:
             return [det(img) for img in images]
 
-        preprocessed: list[tuple[NDArray[np.uint8], float]] = [
-            det.preprocess(img) for img in images
-        ]
+        preprocessed = [det.preprocess(img) for img in images]
 
         # Stack to (N, 3, H, W). All padded images share the same shape because
         # YOLOX letterboxes to a fixed model_input_size.
@@ -291,18 +298,25 @@ class RTMPoseSession:
         ).astype(np.float32, copy=False)
         batch = np.ascontiguousarray(batch)
 
-        # Pre-NMS bypass path: YOLOX-with-baked-NMS, batch > 1.
-        # Use the dedicated prenms session (stripped ONNX, no Squeeze/NMS nodes).
-        # ORT's CUDA EP compiles and runs the full graph even when only a subset
-        # of outputs is requested, so we can't skip Squeeze by requesting pre-NMS
-        # outputs from the main session — a physically separate session is needed.
+        # Preferred batched path: prenms session (backbone+decode, no Squeeze/NMS).
+        # Required when the YOLOX ONNX has baked-in NMS whose Squeeze(axis=0)
+        # only tolerates batch=1. This session is physically stripped of those nodes.
         if self._yolox_prenms_session is not None:
             input_name = self._yolox_prenms_session.get_inputs()[0].name
             try:
                 bboxes_batch, conf_batch = self._yolox_prenms_session.run(
-                    [PRENMS_BBOX_OUTPUT, PRENMS_CONF_OUTPUT],
-                    {input_name: batch},
+                    [PRENMS_BBOX_OUTPUT, PRENMS_CONF_OUTPUT], {input_name: batch},
                 )
+                return [
+                    _yolox_postprocess_prenms(
+                        bboxes_one=bboxes_batch[i],
+                        conf_one=conf_batch[i],
+                        ratio=preprocessed[i][1],
+                        nms_thr=det.nms_thr,
+                        score_thr=det.score_thr,
+                    )
+                    for i in range(len(images))
+                ]
             except Exception as e:
                 logger.warning(
                     f"YOLOX pre-NMS batched run failed ({e!r}); "
@@ -310,18 +324,7 @@ class RTMPoseSession:
                 )
                 return [det(img) for img in images]
 
-            return [
-                _yolox_postprocess_prenms(
-                    bboxes_one=bboxes_batch[i],
-                    conf_one=conf_batch[i],
-                    ratio=preprocessed[i][1],
-                    nms_thr=det.nms_thr,
-                    score_thr=det.score_thr,
-                )
-                for i in range(len(images))
-            ]
-
-        # Standard batched path: YOLOX without baked-in NMS.
+        # Fallback batched path: YOLOX session without baked-in NMS (uncommon).
         try:
             outputs = _session_run_batched(det.session, batch)
         except Exception as e:
@@ -449,6 +452,38 @@ class RTMPoseSession:
         # so the first real frame at either size doesn't pay re-search cost.
         # Dedup if max_batch_size == 1 (degenerate config).
         sizes = sorted({1, max(1, self.config.max_batch_size)})
+
+        # TRT compiles engines lazily on the first session.run() call inside
+        # predict_batch(). Detect first-run and show a prominent warning + live
+        # elapsed-time ticker so users know it's working and not hung.
+        is_trt = self._active_provider == "trt"
+        has_cached_engine = is_trt and any(self.config.engine_cache_dir.glob("**/*.engine"))
+        if is_trt and not has_cached_engine:
+            logger.warning(
+                f"\n"
+                f"  ╔══════════════════════════════════════════════════════════════╗\n"
+                f"  ║         TensorRT FIRST-RUN ENGINE COMPILATION                ║\n"
+                f"  ╠══════════════════════════════════════════════════════════════╣\n"
+                f"  ║  TRT is compiling your models to native GPU kernels.         ║\n"
+                f"  ║  This happens ONCE and is cached for all future runs.        ║\n"
+                f"  ║  Expected time: 1–5 minutes. Do not close the process.       ║\n"
+                f"  ╚══════════════════════════════════════════════════════════════╝"
+            )
+
+        stop_event = threading.Event()
+
+        def _tick() -> None:
+            start = time.perf_counter()
+            while not stop_event.wait(timeout=20):
+                elapsed = time.perf_counter() - start
+                m, s = divmod(int(elapsed), 60)
+                if is_trt and not has_cached_engine:
+                    logger.info(f"  TRT compiling ... {m}m {s:02d}s elapsed (please wait)")
+
+        ticker = threading.Thread(target=_tick, daemon=True)
+        ticker.start()
+        t0 = time.perf_counter()
+
         warmed: list[int] = []
         for batch_size in sizes:
             try:
@@ -460,10 +495,15 @@ class RTMPoseSession:
                 )
                 continue
             warmed.append(batch_size)
+
+        stop_event.set()
+        ticker.join(timeout=2)
+        elapsed_s = time.perf_counter() - t0
+
         if warmed:
             logger.info(
                 f"RTMPoseSession warmup OK on {self._active_provider!r} "
-                f"(batch_sizes={warmed}, image_shape={(h, w)})"
+                f"(batch_sizes={warmed}, image_shape={(h, w)}, elapsed={elapsed_s:.1f}s)"
             )
 
 
@@ -508,6 +548,43 @@ def _resolve_provider(
     raise RuntimeError(f"No supported ONNX Runtime providers found: {sorted(available)}")
 
 
+def _validate_engine_cache(engine_cache_dir: Path) -> None:
+    """Delete stale TRT engine files when TRT or ORT version has changed.
+
+    Writes a cache_manifest.json recording the current versions. On the next call,
+    if stored versions differ from current, all .engine and .timing files are
+    deleted so ORT/TRT will recompile fresh engines.
+    """
+    import json
+    manifest_path = engine_cache_dir / "cache_manifest.json"
+
+    try:
+        import tensorrt as _trt
+        current_trt = _trt.__version__
+    except Exception:
+        current_trt = "unavailable"
+    current = {"trt_version": current_trt, "ort_version": ort.__version__}
+
+    if manifest_path.exists():
+        try:
+            stored = json.loads(manifest_path.read_text())
+        except Exception:
+            stored = {}
+        if stored != current:
+            logger.warning(
+                f"TRT engine cache version mismatch "
+                f"(stored={stored}, current={current}). "
+                f"Deleting stale engines in {engine_cache_dir} — "
+                f"they will be recompiled on this run."
+            )
+            for stale in engine_cache_dir.glob("*.engine"):
+                stale.unlink(missing_ok=True)
+            for stale in engine_cache_dir.glob("*.timing"):
+                stale.unlink(missing_ok=True)
+
+    manifest_path.write_text(json.dumps(current, indent=2))
+
+
 def _build_tuned_ort_session(
         *,
         onnx_path: str,
@@ -541,6 +618,9 @@ def _build_tuned_ort_session(
     if make_dynamic_batch:
         engine_cache_dir = engine_cache_dir / "dynbatch_v1"
         engine_cache_dir.mkdir(parents=True, exist_ok=True)
+
+    if provider == "trt":
+        _validate_engine_cache(engine_cache_dir)
 
     providers: list[tuple[str, dict] | str] = []
     if provider == "trt":
@@ -576,14 +656,18 @@ def _build_tuned_ort_session(
     else:  # cpu
         providers.append("CPUExecutionProvider")
 
-    logger.info(f"Building tuned ORT session for {log_label!r} with providers={[p if isinstance(p, str) else p[0] for p in providers]}")
+    provider_names = [p if isinstance(p, str) else p[0] for p in providers]
+    logger.info(f"Building tuned ORT session for {log_label!r} with providers={provider_names}")
+
+    t0 = time.perf_counter()
     session = ort.InferenceSession(
         path_or_bytes=onnx_path,
         sess_options=sess_options,
         providers=providers,
     )
+    elapsed_s = time.perf_counter() - t0
     actual = session.get_providers()
-    logger.debug(f"{log_label!r} session active providers: {actual}")
+    logger.info(f"  {log_label!r} session ready in {elapsed_s:.1f}s (active providers: {actual})")
     return session
 
 
@@ -678,12 +762,16 @@ def _session_run_batched(session: ort.InferenceSession, batch: NDArray) -> list[
     return session.run(sess_output_names, {sess_input_name: batch})
 
 
+_WHOLEBODY_NUM_KPT = 133  # RTMPose wholebody keypoint count
+
+
 def _empty_pose_result() -> tuple[NDArray, NDArray]:
     """Empty `(keypoints, scores)` matching rtmlib's shape conventions for
-    'no detection': zero-person leading dim."""
+    'no detection': zero-person leading dim, correct keypoint count so callers
+    that inspect shape[1] (e.g. draw_skeleton) still see a valid skeleton type."""
     return (
-        np.empty((0, 0, 2), dtype=np.float64),
-        np.empty((0, 0), dtype=np.float32),
+        np.empty((0, _WHOLEBODY_NUM_KPT, 2), dtype=np.float64),
+        np.empty((0, _WHOLEBODY_NUM_KPT), dtype=np.float32),
     )
 
 

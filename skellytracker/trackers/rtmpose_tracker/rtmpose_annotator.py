@@ -23,6 +23,8 @@ class RTMPoseImageAnnotator(BaseImageAnnotator):
         image: NDArray[np.uint8],
         observation: RTMPoseObservation | None = None,
     ) -> NDArray[np.uint8]:
+        if observation is None or observation.keypoints.shape[0] == 0:
+            return image
         annotated_image = draw_skeleton(
             img=image,
             keypoints=observation.keypoints,
