@@ -87,6 +87,7 @@ yolo = ["ultralytics~=8.0.202"]
 rtmpose-gpu = [
     "rtmlib==0.0.14",
     "onnxruntime-gpu",
+    "onnx",
     "nvidia-cuda-runtime-cu12",
     "nvidia-cublas-cu12",
     "nvidia-cufft-cu12",
@@ -97,13 +98,14 @@ rtmpose-gpu = [
 # No CUDA toolkit needed. Just pip install and go.
 # Note: requires a one-line patch to rtmlib to add 'directml' device support —
 # see GPU_SETUP_GUIDE.md for details.
-rtmpose-directml = ["rtmlib==0.0.14", "onnxruntime-directml"]
+rtmpose-directml = ["rtmlib==0.0.14", "onnxruntime-directml", "onnx"]
 
 # RECOMMENDED - regular mediapipe with GPU RTMPose.
 recommended = [
     "mediapipe==0.10.33",
     "rtmlib==0.0.14",
     "onnxruntime-gpu",
+    "onnx",
     "nvidia-cuda-runtime-cu12",
     "nvidia-cublas-cu12",
     "nvidia-cufft-cu12",

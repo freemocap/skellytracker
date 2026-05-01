@@ -28,12 +28,15 @@ from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
+import onnx
 import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 from rtmlib import Wholebody
 from rtmlib.tools.object_detection.post_processings import multiclass_nms
 from rtmlib.tools.pose_estimation.post_processings import convert_coco_to_openpose, get_simcc_maximum
+
+from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import ensure_dynamic_batch
 
 logger = logging.getLogger(__name__)
 
@@ -122,12 +125,17 @@ class RTMPoseSession:
         # provider options, TRT engine cache, and explicit SessionOptions.
         # The .onnx_model attribute on each BaseTool is the absolute path to
         # the (already-downloaded) model file.
+        # YOLOX path: rewrite the ONNX to declare a symbolic batch dim before
+        # opening the ORT session. rtmlib's checkpoints ship with static batch=1,
+        # which would otherwise force serial per-image inference for N cameras.
         det_session = _build_tuned_ort_session(
             onnx_path=wholebody.det_model.onnx_model,
             provider=active_provider,
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
             log_label="yolox",
+            make_dynamic_batch=True,
+            max_batch_size=config.max_batch_size,
         )
         wholebody.det_model.session = det_session
         wholebody.pose_model.session = _build_tuned_ort_session(
@@ -136,6 +144,8 @@ class RTMPoseSession:
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
             log_label="rtmpose",
+            make_dynamic_batch=False,
+            max_batch_size=config.max_batch_size,
         )
 
         # Probe whether YOLOX accepts batch > 1. ONNX exports often have a fixed
@@ -369,16 +379,25 @@ class RTMPoseSession:
     def _warmup(self) -> None:
         h, w = self.config.warmup_image_shape
         synthetic = np.full((h, w, 3), 128, dtype=np.uint8)
-        # Run a small batch so any batch-size-specific kernels are also primed.
-        warmup_batch_size = min(self.config.max_batch_size, 2)
-        try:
-            self.predict_batch([synthetic] * warmup_batch_size)
-        except Exception as e:
-            logger.warning(f"RTMPoseSession warmup failed (non-fatal): {e!r}")
-        else:
+        # Hit both extremes of the TRT optimization profile / cuDNN algo cache
+        # so the first real frame at either size doesn't pay re-search cost.
+        # Dedup if max_batch_size == 1 (degenerate config).
+        sizes = sorted({1, max(1, self.config.max_batch_size)})
+        warmed: list[int] = []
+        for batch_size in sizes:
+            try:
+                self.predict_batch([synthetic] * batch_size)
+            except Exception as e:
+                logger.warning(
+                    f"RTMPoseSession warmup at batch_size={batch_size} failed "
+                    f"(non-fatal): {e!r}"
+                )
+                continue
+            warmed.append(batch_size)
+        if warmed:
             logger.info(
                 f"RTMPoseSession warmup OK on {self._active_provider!r} "
-                f"(batch_size={warmup_batch_size}, image_shape={(h, w)})"
+                f"(batch_sizes={warmed}, image_shape={(h, w)})"
             )
 
 
@@ -386,41 +405,6 @@ class RTMPoseSession:
 # CPU-only person detector (for camera nodes in centralized GPU mode)
 # ============================================================================
 
-
-@dataclass
-class CpuPersonDetector:
-    """CPU-only YOLOX person detector.
-
-    Each camera node constructs one of these when centralized GPU inference
-    is enabled. Running YOLOX on CPU in each camera's own process means all
-    N cameras detect people **in parallel** (each on its own CPU core) rather
-    than serially on the GPU. The detected bboxes are passed to the centralized
-    RTMPoseSession (GPU) which runs a single batched RTMPose call.
-
-    Constructing this does NOT create any CUDA context.
-    """
-    _det_model: Any  # rtmlib YOLOX instance
-
-    @classmethod
-    def create(cls, mode: str = "balanced") -> "CpuPersonDetector":
-        """Create a CPU-only YOLOX detector for the given Wholebody mode.
-
-        Uses the same model checkpoint as the centralized RTMPoseSession so
-        the bboxes are compatible with its pose model.
-        """
-        safe_mode = mode if mode in ("performance", "lightweight", "balanced") else "balanced"
-        wholebody = Wholebody(
-            to_openpose=False,
-            mode=safe_mode,
-            backend="onnxruntime",
-            device="cpu",
-        )
-        logger.info(f"CpuPersonDetector created (mode={safe_mode!r}, device='cpu')")
-        return cls(_det_model=wholebody.det_model)
-
-    def detect(self, image: NDArray[np.uint8]) -> NDArray:
-        """Detect persons in image. Returns (N, 4) bboxes array (xyxy format)."""
-        return self._det_model(image)
 
 
 # ============================================================================
@@ -471,8 +455,18 @@ def _build_tuned_ort_session(
         engine_cache_dir: Path,
         fp16: bool,
         log_label: str,
+        make_dynamic_batch: bool = False,
+        max_batch_size: int = 8,
 ) -> ort.InferenceSession:
-    """Construct an ORT session with explicit SessionOptions + provider options."""
+    """Construct an ORT session with explicit SessionOptions + provider options.
+
+    When `make_dynamic_batch=True`, the ONNX model is first rewritten so its
+    leading input/output axes are symbolic. This is needed for YOLOX checkpoints
+    shipped with static batch=1.
+    """
+    if make_dynamic_batch:
+        onnx_path = str(ensure_dynamic_batch(onnx_path))
+
     sess_options = ort.SessionOptions()
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     # We expect this session to be pegged on the GPU. CPU-side parallelism per
@@ -481,19 +475,31 @@ def _build_tuned_ort_session(
     sess_options.intra_op_num_threads = 1
     sess_options.inter_op_num_threads = 1
 
+    # TensorRT engines compiled against a static-batch graph cannot be reused
+    # for a dynamic-batch graph (and vice versa). Bucket dynamic-batch caches
+    # under a versioned subdir so the two never collide.
+    if make_dynamic_batch:
+        engine_cache_dir = engine_cache_dir / "dynbatch_v1"
+        engine_cache_dir.mkdir(parents=True, exist_ok=True)
+
     providers: list[tuple[str, dict] | str] = []
     if provider == "trt":
-        providers.append((
-            "TensorrtExecutionProvider",
-            {
-                "trt_fp16_enable": fp16,
-                "trt_engine_cache_enable": True,
-                "trt_engine_cache_path": str(engine_cache_dir),
-                "trt_timing_cache_enable": True,
-                "trt_timing_cache_path": str(engine_cache_dir),
-                "trt_max_workspace_size": 2 * 1024 * 1024 * 1024,  # 2 GiB
-            },
-        ))
+        trt_options: dict[str, Any] = {
+            "trt_fp16_enable": fp16,
+            "trt_engine_cache_enable": True,
+            "trt_engine_cache_path": str(engine_cache_dir),
+            "trt_timing_cache_enable": True,
+            "trt_timing_cache_path": str(engine_cache_dir),
+            "trt_max_workspace_size": 2 * 1024 * 1024 * 1024,  # 2 GiB
+        }
+        if make_dynamic_batch:
+            trt_options.update(
+                _trt_dynamic_batch_profile(
+                    onnx_path=onnx_path,
+                    max_batch_size=max(1, max_batch_size),
+                )
+            )
+        providers.append(("TensorrtExecutionProvider", trt_options))
         # Always include CUDA + CPU as fallback EPs in the provider list. If
         # TRT can't compile a subgraph, ORT falls through to CUDA.
         providers.append((
@@ -519,6 +525,52 @@ def _build_tuned_ort_session(
     actual = session.get_providers()
     logger.debug(f"{log_label!r} session active providers: {actual}")
     return session
+
+
+def _trt_dynamic_batch_profile(
+        *,
+        onnx_path: str,
+        max_batch_size: int,
+) -> dict[str, str]:
+    """Build TensorRT optimization profile shape strings for a YOLOX ONNX with
+    a symbolic batch axis.
+
+    TRT requires explicit min/opt/max shapes when any input dim is dynamic.
+    We pin H/W from the ONNX (YOLOX letterboxes to a fixed model_input_size)
+    and let batch range from 1 to `max_batch_size`.
+    """
+    model = onnx.load(onnx_path)
+    inp = model.graph.input[0]
+    name = inp.name
+    dims = inp.type.tensor_type.shape.dim
+    # YOLOX is (batch, channels, H, W). Pull C/H/W from the static dims.
+    fixed_shape = []
+    for i, d in enumerate(dims):
+        if i == 0:
+            continue  # batch — handled separately
+        if d.HasField("dim_value") and d.dim_value > 0:
+            fixed_shape.append(int(d.dim_value))
+        else:
+            # Shouldn't happen for YOLOX, but bail rather than guess.
+            logger.warning(
+                f"TRT profile: input dim {i} of {name!r} is non-static; "
+                f"skipping dynamic-batch profile."
+            )
+            return {}
+    fixed_str = "x".join(str(x) for x in fixed_shape)
+    min_str = f"{name}:1x{fixed_str}"
+    opt_str = f"{name}:{max_batch_size}x{fixed_str}"
+    max_str = f"{name}:{max_batch_size}x{fixed_str}"
+    logger.info(
+        f"TRT optimization profile for {name!r}: "
+        f"min={min_str.split(':')[1]}, opt={opt_str.split(':')[1]}, "
+        f"max={max_str.split(':')[1]}"
+    )
+    return {
+        "trt_profile_min_shapes": min_str,
+        "trt_profile_opt_shapes": opt_str,
+        "trt_profile_max_shapes": max_str,
+    }
 
 
 def _cuda_provider_options() -> dict:
