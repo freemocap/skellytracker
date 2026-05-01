@@ -672,6 +672,14 @@ def _build_tuned_ort_session(
     provider_names = [p if isinstance(p, str) else p[0] for p in providers]
     logger.info(f"Building tuned ORT session for {log_label!r} with providers={provider_names}")
 
+    if provider == "trt":
+        logger.info(
+            f"  TRT: building {log_label!r} session "
+            f"(engine cache: {engine_cache_dir}) — "
+            f"first-run TRT compilation can take 1-5 minutes; "
+            f"subsequent runs load from cache instantly."
+        )
+
     t0 = time.perf_counter()
     session = ort.InferenceSession(
         path_or_bytes=onnx_path,
@@ -681,6 +689,11 @@ def _build_tuned_ort_session(
     elapsed_s = time.perf_counter() - t0
     actual = session.get_providers()
     logger.info(f"  {log_label!r} session ready in {elapsed_s:.1f}s (active providers: {actual})")
+    if provider == "trt" and elapsed_s > 30:
+        logger.info(
+            f"  TRT engine for {log_label!r} compiled and cached to {engine_cache_dir} — "
+            f"next run will load in seconds."
+        )
     return session
 
 

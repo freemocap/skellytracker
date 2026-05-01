@@ -127,7 +127,7 @@ class RTMPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"
-    device: str = "trt"
+    device: str = "cuda"
     # New, optional. When set, takes precedence over `device`. Drives the actual
     # ORT provider selection in `RTMPoseSession`.
     execution_provider: ExecutionProviderName | None = None
