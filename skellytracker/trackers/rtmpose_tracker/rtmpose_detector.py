@@ -1,5 +1,6 @@
 import ctypes
 import importlib.util
+import logging
 import os
 import sys
 from dataclasses import dataclass
@@ -9,10 +10,16 @@ from typing import Literal
 import numpy as np
 import onnxruntime
 from numpy.typing import NDArray
-from rtmlib import Wholebody
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig, TrackerType
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
+from skellytracker.trackers.rtmpose_tracker.rtmpose_session import (
+    ExecutionProviderName,
+    RTMPoseSession,
+    RTMPoseSessionConfig,
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _make_nvidia_pip_dlls_discoverable_on_windows() -> None:
@@ -79,42 +86,101 @@ def _make_nvidia_pip_dlls_discoverable_on_windows() -> None:
         ctypes.WinDLL(str(dll_path))
 
 
+def _verify_ort_install_sane() -> None:
+    """Sanity-check the ONNX Runtime install before constructing a session.
+
+    rtmlib's `onnxruntime` (CPU) and accelerated builds (`onnxruntime-gpu`,
+    `onnxruntime-directml`) all share the `onnxruntime` namespace and clobber
+    each other on disk. If a previous broken install left the package in a
+    half-installed state, calls like `get_available_providers()` raise
+    AttributeError. Surface a clear remediation message instead of letting the
+    obscure ORT error reach the user.
+    """
+    try:
+        providers = onnxruntime.get_available_providers()
+    except AttributeError as e:
+        raise RuntimeError(
+            "ONNX Runtime install appears broken — "
+            "`onnxruntime.get_available_providers()` is missing. "
+            "This usually means CPU `onnxruntime` and GPU `onnxruntime-gpu` "
+            "(or `onnxruntime-directml`) collided on disk. Reinstall a single "
+            "build, e.g. `pip install --force-reinstall onnxruntime-gpu`."
+        ) from e
+    if not providers:
+        raise RuntimeError(
+            "ONNX Runtime reports no execution providers. The install is broken."
+        )
+
+
+# Backwards-compatible alias maintained for existing callers / configs that
+# still pass `device="cuda"`. New code should use `execution_provider`.
+_DEVICE_TO_PROVIDER: dict[str, ExecutionProviderName] = {
+    "cuda": "cuda",
+    "trt": "trt",
+    "tensorrt": "trt",
+    "cpu": "cpu",
+}
+
+
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     tracker_type: Literal[TrackerType.RTMPOSE] = TrackerType.RTMPOSE
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"
     device: str = "cuda"
+    # New, optional. When set, takes precedence over `device`. Drives the actual
+    # ORT provider selection in `RTMPoseSession`.
+    execution_provider: ExecutionProviderName | None = None
+
+    def resolved_provider(self) -> ExecutionProviderName:
+        if self.execution_provider is not None:
+            return self.execution_provider
+        return _DEVICE_TO_PROVIDER.get(self.device, "cuda")
 
 
 @dataclass
 class RTMPoseDetector(BaseDetector):
+    """Single-image detector wrapper, kept API-compatible with prior versions.
+
+    Internally holds an `RTMPoseSession`. The webcam demo path still uses this
+    one-detector-per-process shape; the multi-camera realtime pipeline should
+    construct an `RTMPoseSession` directly in a centralized inference node and
+    bypass this class entirely.
+    """
     config: RTMPoseDetectorConfig
-    detector: Wholebody
+    session: RTMPoseSession
 
     @classmethod
     def create(cls, config: RTMPoseDetectorConfig | None = None) -> "RTMPoseDetector":
         config = config or RTMPoseDetectorConfig()
-        if config.device == "cuda":
-            if sys.platform == "win32":
-                _make_nvidia_pip_dlls_discoverable_on_windows()
+        _verify_ort_install_sane()
+
+        provider = config.resolved_provider()
+        if provider in ("cuda", "trt") and sys.platform == "win32":
+            _make_nvidia_pip_dlls_discoverable_on_windows()
+        if provider in ("cuda", "trt"):
             onnxruntime.preload_dlls()
-        detector = Wholebody(
-            to_openpose=False,
-            mode=config.mode,
-            backend=config.backend,
-            device=config.device,
+
+        session = RTMPoseSession.create(
+            RTMPoseSessionConfig(
+                mode=config.mode if config.mode in ("performance", "lightweight", "balanced") else "balanced",
+                execution_provider=provider,
+            ),
         )
-        return cls(config=config, detector=detector)
+        return cls(config=config, session=session)
 
     def detect(self, frame_number: int, image: NDArray[np.uint8]) -> RTMPoseObservation:
         # rtmlib's type stubs are incorrect — keypoints is float64 at runtime, scores is float32.
-        keypoints: NDArray[np.float64]
-        scores: NDArray[np.float32]
-        keypoints, scores = self.detector(image)
+        keypoints, scores = self.session.predict_single(image)
         return RTMPoseObservation.from_detection_results(
             frame_number=frame_number,
             keypoints=keypoints,
             scores=scores,
             image_size=(int(image.shape[0]), int(image.shape[1])),
         )
+
+    @property
+    def detector(self):
+        """Backwards-compatible alias — older code accessed `.detector` to get
+        rtmlib's `Wholebody`. Forward to the underlying session."""
+        return self.session.wholebody
