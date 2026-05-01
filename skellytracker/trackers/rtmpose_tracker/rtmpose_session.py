@@ -25,7 +25,7 @@ import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 import onnxruntime as ort
@@ -170,6 +170,27 @@ class RTMPoseSession:
         keypoints is `(num_persons, 133, 2)` and scores is `(num_persons, 133)`."""
         results = self.predict_batch([image])
         return results[0]
+
+    def predict_pose_from_bboxes(
+            self,
+            images: list[NDArray[np.uint8]],
+            bboxes_per_image: list[NDArray],
+    ) -> list[tuple[NDArray, NDArray]]:
+        """Run RTMPose on pre-detected person bboxes, skipping YOLOX entirely.
+
+        Used by the centralized inference node when YOLOX has already run in
+        camera nodes (CPU, parallel across cameras). Only RTMPose (GPU, batched)
+        runs here.
+
+        Args:
+            images: one image per camera, in the same order as bboxes_per_image.
+            bboxes_per_image: one (N, 4) bbox array per camera, from CpuPersonDetector.
+
+        Returns one (keypoints, scores) tuple per input image, in the same order.
+        """
+        if not images:
+            return []
+        return self._estimate_pose_batched(images, bboxes_per_image)
 
     def predict_batch(
             self,
@@ -359,6 +380,47 @@ class RTMPoseSession:
                 f"RTMPoseSession warmup OK on {self._active_provider!r} "
                 f"(batch_size={warmup_batch_size}, image_shape={(h, w)})"
             )
+
+
+# ============================================================================
+# CPU-only person detector (for camera nodes in centralized GPU mode)
+# ============================================================================
+
+
+@dataclass
+class CpuPersonDetector:
+    """CPU-only YOLOX person detector.
+
+    Each camera node constructs one of these when centralized GPU inference
+    is enabled. Running YOLOX on CPU in each camera's own process means all
+    N cameras detect people **in parallel** (each on its own CPU core) rather
+    than serially on the GPU. The detected bboxes are passed to the centralized
+    RTMPoseSession (GPU) which runs a single batched RTMPose call.
+
+    Constructing this does NOT create any CUDA context.
+    """
+    _det_model: Any  # rtmlib YOLOX instance
+
+    @classmethod
+    def create(cls, mode: str = "balanced") -> "CpuPersonDetector":
+        """Create a CPU-only YOLOX detector for the given Wholebody mode.
+
+        Uses the same model checkpoint as the centralized RTMPoseSession so
+        the bboxes are compatible with its pose model.
+        """
+        safe_mode = mode if mode in ("performance", "lightweight", "balanced") else "balanced"
+        wholebody = Wholebody(
+            to_openpose=False,
+            mode=safe_mode,
+            backend="onnxruntime",
+            device="cpu",
+        )
+        logger.info(f"CpuPersonDetector created (mode={safe_mode!r}, device='cpu')")
+        return cls(_det_model=wholebody.det_model)
+
+    def detect(self, image: NDArray[np.uint8]) -> NDArray:
+        """Detect persons in image. Returns (N, 4) bboxes array (xyxy format)."""
+        return self._det_model(image)
 
 
 # ============================================================================
