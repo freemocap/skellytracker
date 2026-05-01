@@ -36,7 +36,12 @@ from rtmlib import Wholebody
 from rtmlib.tools.object_detection.post_processings import multiclass_nms
 from rtmlib.tools.pose_estimation.post_processings import convert_coco_to_openpose, get_simcc_maximum
 
-from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import ensure_dynamic_batch
+from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
+    PRENMS_BBOX_OUTPUT,
+    PRENMS_CONF_OUTPUT,
+    ensure_dynamic_batch,
+    ensure_prenms_model,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +91,12 @@ class RTMPoseSession:
     # exported with a static batch=1 dim; we probe this once at construction and
     # skip the stack + batched run entirely for those models.
     _yolox_supports_batch: bool = False
+    # Dedicated ORT session built from the stripped prenms ONNX (backbone+decode
+    # only, no Squeeze/NMS). ORT's CUDA EP runs the full compiled graph even when
+    # only a subset of outputs is requested, so we can't skip Squeeze by requesting
+    # pre-NMS outputs from the main session. Instead, this session is physically
+    # stripped of those nodes and used for batch>1 YOLOX inference.
+    _yolox_prenms_session: ort.InferenceSession | None = None
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -153,11 +164,35 @@ class RTMPoseSession:
         # skip the doomed stack + session.run entirely (no warning spam).
         yolox_supports_batch = _probe_supports_batch(det_session, label="yolox")
 
+        # Build a dedicated pre-NMS session for batch>1 YOLOX inference.
+        # ORT's CUDA EP runs the full compiled graph even when only a subset of
+        # outputs is requested, so we can't skip Squeeze_axis0 by requesting pre-NMS
+        # outputs from the main session. Instead we use onnx.utils.extract_model to
+        # create a stripped backbone-only ONNX and build a separate session from it.
+        yolox_prenms_session: ort.InferenceSession | None = None
+        det_dynbatch_path = ensure_dynamic_batch(wholebody.det_model.onnx_model)
+        prenms_path = ensure_prenms_model(det_dynbatch_path)
+        if prenms_path is not None:
+            logger.info(
+                f"Building pre-NMS ORT session for batch>1 YOLOX inference "
+                f"({prenms_path.name})"
+            )
+            yolox_prenms_session = _build_tuned_ort_session(
+                onnx_path=str(prenms_path),
+                provider=active_provider,
+                engine_cache_dir=config.engine_cache_dir,
+                fp16=config.fp16,
+                log_label="yolox_prenms",
+                make_dynamic_batch=False,
+                max_batch_size=config.max_batch_size,
+            )
+
         session = cls(
             config=config,
             wholebody=wholebody,
             _active_provider=active_provider,
             _yolox_supports_batch=yolox_supports_batch,
+            _yolox_prenms_session=yolox_prenms_session,
         )
 
         # Step 3: warmup. With TRT this is what triggers engine compilation; can
@@ -188,13 +223,9 @@ class RTMPoseSession:
     ) -> list[tuple[NDArray, NDArray]]:
         """Run RTMPose on pre-detected person bboxes, skipping YOLOX entirely.
 
-        Used by the centralized inference node when YOLOX has already run in
-        camera nodes (CPU, parallel across cameras). Only RTMPose (GPU, batched)
-        runs here.
-
         Args:
             images: one image per camera, in the same order as bboxes_per_image.
-            bboxes_per_image: one (N, 4) bbox array per camera, from CpuPersonDetector.
+            bboxes_per_image: one (N, 4) bbox array per camera in xyxy format.
 
         Returns one (keypoints, scores) tuple per input image, in the same order.
         """
@@ -236,9 +267,13 @@ class RTMPoseSession:
     ) -> list[NDArray]:
         """Run YOLOX over N images. Returns one bbox array per image.
 
-        When the YOLOX ONNX export has a static batch=1 input dim (the common
-        case for humanart checkpoints), skips the stack attempt and runs N
-        separate session.run calls. Still benefits from a single CUDA context."""
+        For rtmlib checkpoints the YOLOX ONNX has NMS baked in, which contains
+        a Squeeze(axis=0) that only works for batch=1. When the dynamic-batch
+        rewrite has exposed pre-NMS tensors (_yolox_has_prenms=True) we bypass
+        that subgraph entirely for batch>1: request only the pre-NMS outputs
+        (ORT skips Squeeze+NMS) and run Python NMS per image.
+
+        For YOLOX models without baked-in NMS the standard batched path works."""
         det = self.wholebody.det_model
 
         # Fast path: model has static batch=1 or only one image — skip stacking.
@@ -256,6 +291,37 @@ class RTMPoseSession:
         ).astype(np.float32, copy=False)
         batch = np.ascontiguousarray(batch)
 
+        # Pre-NMS bypass path: YOLOX-with-baked-NMS, batch > 1.
+        # Use the dedicated prenms session (stripped ONNX, no Squeeze/NMS nodes).
+        # ORT's CUDA EP compiles and runs the full graph even when only a subset
+        # of outputs is requested, so we can't skip Squeeze by requesting pre-NMS
+        # outputs from the main session — a physically separate session is needed.
+        if self._yolox_prenms_session is not None:
+            input_name = self._yolox_prenms_session.get_inputs()[0].name
+            try:
+                bboxes_batch, conf_batch = self._yolox_prenms_session.run(
+                    [PRENMS_BBOX_OUTPUT, PRENMS_CONF_OUTPUT],
+                    {input_name: batch},
+                )
+            except Exception as e:
+                logger.warning(
+                    f"YOLOX pre-NMS batched run failed ({e!r}); "
+                    f"falling back to per-image inference."
+                )
+                return [det(img) for img in images]
+
+            return [
+                _yolox_postprocess_prenms(
+                    bboxes_one=bboxes_batch[i],
+                    conf_one=conf_batch[i],
+                    ratio=preprocessed[i][1],
+                    nms_thr=det.nms_thr,
+                    score_thr=det.score_thr,
+                )
+                for i in range(len(images))
+            ]
+
+        # Standard batched path: YOLOX without baked-in NMS.
         try:
             outputs = _session_run_batched(det.session, batch)
         except Exception as e:
@@ -265,7 +331,7 @@ class RTMPoseSession:
             )
             return [det(img) for img in images]
 
-        det_output = outputs[0]  # (N, num_anchors, 6) for non-NMS export
+        det_output = outputs[0]  # (N, num_anchors, C)
 
         bboxes_per_image: list[NDArray] = []
         for i, (_, ratio) in enumerate(preprocessed):
@@ -399,12 +465,6 @@ class RTMPoseSession:
                 f"RTMPoseSession warmup OK on {self._active_provider!r} "
                 f"(batch_sizes={warmed}, image_shape={(h, w)})"
             )
-
-
-# ============================================================================
-# CPU-only person detector (for camera nodes in centralized GPU mode)
-# ============================================================================
-
 
 
 # ============================================================================
@@ -645,6 +705,43 @@ def _ensure_cuda_dlls_loaded() -> None:
 # rtmlib post-processing helpers, lifted to module scope so they can run on a
 # single output slice rather than the (1, ...) batch the rtmlib classes assume.
 # ============================================================================
+
+
+def _yolox_postprocess_prenms(
+        *,
+        bboxes_one: NDArray,
+        conf_one: NDArray,
+        ratio: float,
+        nms_thr: float,
+        score_thr: float,
+) -> NDArray:
+    """Postprocess pre-NMS YOLOX tensors for a single image.
+
+    Used by the pre-NMS bypass path when the YOLOX ONNX has NMS baked in.
+
+    Args:
+        bboxes_one: (num_anchors, 4) decoded bboxes in model-input pixel coords,
+                    x1y1x2y2 format. The ONNX decode subgraph runs before TopK
+                    so these are already in xyxy (not cxcywh).
+        conf_one:   (num_anchors,) combined obj*cls confidence per anchor.
+        ratio:      letterbox scale factor (model_size / image_size). Divide
+                    model-coord boxes by this to get image-coord boxes.
+        nms_thr:    IoU threshold for NMS.
+        score_thr:  Confidence threshold for NMS pre-filter.
+
+    Returns:
+        (num_persons, 4) bboxes in image pixel coords, x1y1x2y2.
+    """
+    bboxes_img = bboxes_one / ratio  # model coords → image coords
+    scores_2d = conf_one[:, np.newaxis]  # (num_anchors, 1) for multiclass_nms
+    dets, _ = multiclass_nms(bboxes_img, scores_2d, nms_thr=nms_thr, score_thr=score_thr)
+    if dets is None:
+        return np.empty((0, 4), dtype=np.float64)
+    final_boxes = dets[:, :4]
+    final_scores = dets[:, 4]
+    final_cls_inds = dets[:, 5]
+    keep = (final_scores > 0.3) & (final_cls_inds == 0)
+    return final_boxes[keep]
 
 
 def _yolox_postprocess_one(
