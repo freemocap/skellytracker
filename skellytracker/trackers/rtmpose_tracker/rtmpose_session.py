@@ -105,10 +105,13 @@ class RTMPoseSession:
         config = config or RTMPoseSessionConfig()
 
         # rtmlib's `device` arg takes a string in {"cuda", "cpu", "rocm", "mps"}.
-        # We resolve TRT down to "cuda" for the rtmlib container and override the
-        # session afterwards (TRT has no separate rtmlib code path).
-        rtmlib_device = "cuda" if config.execution_provider in ("trt", "cuda") else "cpu"
-        if rtmlib_device == "cuda":
+        # Always init rtmlib with "cpu": Wholebody is used as a container for
+        # model paths and preprocessing code; both its sessions are replaced with
+        # our own tuned CUDA/TRT sessions immediately below. Initialising with
+        # "cuda" would allocate ~580 MB of CUDA sessions that are discarded
+        # 3 lines later, needlessly reducing VRAM headroom for inference.
+        rtmlib_device = "cpu"
+        if config.execution_provider in ("trt", "cuda"):
             _ensure_cuda_dlls_loaded()
 
         active_provider = _resolve_provider(
@@ -404,6 +407,15 @@ class RTMPoseSession:
         try:
             outputs = _session_run_batched(pose.session, batch)
         except Exception as e:
+            e_str = str(e)
+            if "BFCArena" in e_str or "Available memory" in e_str:
+                # GPU is out of VRAM. wholebody.pose_model uses the same CUDA
+                # session (it was replaced in create()) and would also OOM.
+                # Re-raise as MemoryError so the inference node's
+                # restart-and-rebuild handler can fire instead of crashing.
+                raise MemoryError(
+                    f"GPU Out of Memory in RTMPose batched pose inference: {e}"
+                ) from e
             logger.warning(
                 f"RTMPose batched session.run failed ({e!r}); "
                 f"falling back to per-crop inference."
