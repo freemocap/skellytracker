@@ -312,6 +312,80 @@ def session_run_batched(
 
 
 # =============================================================================
+# Dynamic-batch ONNX rewriting
+# =============================================================================
+
+_DYNBATCH_PARAM = "N"
+_DYNBATCH_SUFFIX = ".dynbatch.onnx"
+
+
+def ensure_dynamic_batch_onnx(
+    src_path: str | Path,
+    dst_path: str | Path | None = None,
+) -> Path:
+    """Rewrite an ONNX model to accept dynamic batch sizes.
+
+    Changes ``dim[0]`` from a static ``dim_value=1`` to the symbolic
+    ``dim_param="N"`` on the first graph input and all graph outputs.
+
+    **No Reshape surgery is performed.**  Models whose graph contains
+    Reshape nodes that hardcode ``batch=1`` will continue to fail.
+    For YOLOX-style models see ``_yolox_dynamic_batch.py`` for the full
+    Reshape fixup pipeline.
+
+    Parameters
+    ----------
+    src_path : Path
+        Path to the static-batch ONNX model.
+    dst_path : Path or None
+        Where to write the modified model.  Defaults to
+        ``<src_stem>.dynbatch.onnx`` in the same directory.
+
+    Returns
+    -------
+    Path
+        Path to the dynamic-batch model (cached if it already exists).
+    """
+    import onnx
+
+    src = Path(src_path)
+    dst = Path(dst_path) if dst_path else src.with_suffix("").with_suffix(_DYNBATCH_SUFFIX)
+    if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
+        logger.info(f"Using cached dynamic-batch model: {dst}")
+        return dst
+
+    logger.info(f"Rewriting static-batch ONNX → dynamic batch: {src}")
+    model = onnx.load(str(src))
+
+    # --- Symbolize batch dim on first input ---
+    graph = model.graph
+    if graph.input:
+        _symbolize_batch_dim(graph.input[0])
+
+    # --- Symbolize batch dim on all outputs ---
+    for out in graph.output:
+        _symbolize_batch_dim(out)
+
+    onnx.save(model, str(dst))
+    logger.info(f"Dynamic-batch model written: {dst}")
+    return dst
+
+
+def _symbolize_batch_dim(value_info) -> None:
+    """Replace a hard ``dim_value=1`` on the leading axis with ``dim_param='N'``."""
+    tensor_type = value_info.type.tensor_type
+    shape = tensor_type.shape
+    if not shape.dim:
+        return
+    leading = shape.dim[0]
+    if leading.HasField("dim_value") and leading.dim_value == 1:
+        leading.ClearField("dim_value")
+        leading.dim_param = _DYNBATCH_PARAM
+    elif not leading.HasField("dim_param"):
+        leading.dim_param = _DYNBATCH_PARAM
+
+
+# =============================================================================
 # Windows GPU DLL helpers
 # =============================================================================
 

@@ -41,6 +41,11 @@ class CompositeGPUObservation(BaseObservation):
     face_keypoints: NDArray[np.float64] = field(default_factory=lambda: np.empty((0, 106, 0), dtype=np.float64))
     face_scores: NDArray[np.float32] = field(default_factory=lambda: np.empty((0, 106), dtype=np.float32))
 
+    # Pre-cleanup hand keypoints (before wrist blending + anthropometry filter).
+    # Same shape as hands_keypoints: (1, 42, 2) / (1, 42).
+    raw_hands_keypoints: NDArray[np.float64] = field(default_factory=lambda: np.empty((0, 42, 0), dtype=np.float64))
+    raw_hands_scores: NDArray[np.float32] = field(default_factory=lambda: np.empty((0, 42), dtype=np.float32))
+
     # ROI crop boxes (for debug visualization)
     right_hand_roi: ROIBox | None = None
     left_hand_roi: ROIBox | None = None
@@ -61,6 +66,8 @@ class CompositeGPUObservation(BaseObservation):
         right_hand_roi: ROIBox | None = None,
         left_hand_roi: ROIBox | None = None,
         face_roi: ROIBox | None = None,
+        raw_hands_keypoints: NDArray[np.float64] | None = None,
+        raw_hands_scores: NDArray[np.float32] | None = None,
     ) -> "CompositeGPUObservation":
         """
         Build a composite observation from raw sub-model outputs.
@@ -110,4 +117,14 @@ class CompositeGPUObservation(BaseObservation):
             right_hand_roi=right_hand_roi,
             left_hand_roi=left_hand_roi,
             face_roi=face_roi,
+            raw_hands_keypoints=(
+                raw_hands_keypoints
+                if raw_hands_keypoints is not None
+                else np.empty((0, 42, 0), dtype=np.float64)
+            ),
+            raw_hands_scores=(
+                raw_hands_scores
+                if raw_hands_scores is not None
+                else np.empty((0, 42), dtype=np.float32)
+            ),
         )

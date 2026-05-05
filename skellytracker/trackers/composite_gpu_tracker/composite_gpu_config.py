@@ -29,6 +29,11 @@ class CompositeGPUImageAnnotatorConfig(BaseImageAnnotatorConfig):
     show_body: bool = True
     show_hands: bool = True
     show_face: bool = True
+    show_raw_hands: bool = True
+    """Draw the raw hand model outputs (before wrist blending and
+    anthropometry cleanup) alongside the cleaned-up hand tracks.
+    Raw hands are drawn as thin white lines; cleaned hands use the
+    standard colour-coded skeleton."""
     body_kpt_thr: float = 0.3
     hand_kpt_thr: float = 0.3
     face_kpt_thr: float = 0.3

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 import os
+import shutil
 import tempfile
 import zipfile
 from enum import Enum
@@ -95,6 +96,31 @@ MODEL_URLS: dict[str, str] = {
         "https://download.openmmlab.com/mmpose/v1/projects/rtmw/onnx_sdk/"
         "rtmw-dw-x-l_simcc-cocktail14_270e-384x288_20231122.zip"
     ),
+    # -- MediaPipe hand landmark (PINTO dynamic-batch ONNX, NCHW, 21 kpt) --
+    "mediapipe-hand-landmark": (
+        "https://raw.githubusercontent.com/PINTO0309/"
+        "hand-gesture-recognition-using-onnx/main/model/"
+        "hand_landmark/hand_landmark_sparse_Nx3x224x224.onnx"
+    ),
+    # -- MediaPipe pose landmark (OpenCV ONNX conversion, 33 keypoints) --
+    "mediapipe-pose-landmark": (
+        "https://huggingface.co/opencv/pose_estimation_mediapipe/"
+        "resolve/main/pose_estimation_mediapipe_2023mar.onnx"
+    ),
+    # -- MediaPipe palm detection (OpenCV ONNX conversion) --
+    "mediapipe-palm-detector": (
+        "https://huggingface.co/opencv/palm_detection_mediapipe/"
+        "resolve/main/palm_detection_mediapipe_2023feb.onnx"
+    ),
+    # -- MediaPipe face detection + landmarks (Qualcomm ONNX) --
+    "mediapipe-face-detector-short": (
+        "https://huggingface.co/qualcomm/MediaPipe-Face-Detection/"
+        "resolve/main/MediaPipeFaceDetector.onnx"
+    ),
+    "mediapipe-face-landmark": (
+        "https://huggingface.co/qualcomm/MediaPipe-Face-Detection/"
+        "resolve/main/MediaPipeFaceLandmarkDetector.onnx"
+    ),
 }
 
 
@@ -157,10 +183,15 @@ class ModelSpec(BaseModel):
 
     # -- preprocessing contract --------------------------------------------
 
-    preprocess_mode: Literal["rtmo", "rtmpose_letterbox", "simple_letterbox", "none"] = (
-        "simple_letterbox"
-    )
-    """Which preprocessing pipeline to use."""
+    preprocess_mode: Literal[
+        "rtmo", "rtmpose_letterbox", "simple_letterbox", "mediapipe", "none"
+    ] = "simple_letterbox"
+    """Which preprocessing pipeline to use.
+
+    ``"mediapipe"`` — RGB conversion + [0,1] scaling + resize to input_size.
+    Used by MediaPipe-derived models (hand landmark, pose landmark, etc.).
+    Outputs are direct coordinate regression (not SIMCC / heatmaps).
+    """
 
     mean: tuple[float, float, float] | None = None
     """BGR channel-wise mean for normalization.  ``None`` = skip."""
@@ -172,6 +203,17 @@ class ModelSpec(BaseModel):
 
     simcc_split_ratio: float | None = None
     """SIMCC label resolution divisor.  Only set for SIMCC-based pose models."""
+
+    # -- batch support ------------------------------------------------------
+
+    supports_batching: bool | None = None
+    """Whether the model supports batched (N > 1) inference.
+
+    - ``None`` (default): probe at runtime via ``probe_supports_batch()``.
+    - ``True``: known to support batching.
+    - ``False``: known to NOT support batching — the inference pipeline
+      should fall back to sequential per-crop inference and log a warning.
+    """
 
     # ======================================================================
     # Convenience constructors
@@ -232,6 +274,91 @@ class ModelSpec(BaseModel):
             mean=(123.675, 116.28, 103.53),
             std=(58.395, 57.12, 57.375),
             simcc_split_ratio=2.0,
+        )
+
+    # -- MediaPipe hand landmark (OpenCV ONNX, 21 keypoints, 224×224) --------
+
+    @classmethod
+    def mediapipe_hand_landmark(cls) -> "ModelSpec":
+        """MediaPipe hand landmark model converted to ONNX by OpenCV Zoo.
+
+        Estimates 21 hand keypoints (x, y, z) from a 224×224 RGB hand crop.
+        Input: float32 RGB [0, 1].  Output: direct coordinate regression.
+        """
+        return cls(
+            source=ModelSource(url=MODEL_URLS["mediapipe-hand-landmark"]),
+            input_size=(224, 224),
+            num_keypoints=21,
+            preprocess_mode="mediapipe",
+        )
+
+    # -- MediaPipe pose landmark (OpenCV ONNX, 33 keypoints) -----------------
+
+    @classmethod
+    def mediapipe_pose_landmark(cls) -> "ModelSpec":
+        """MediaPipe pose landmark model converted to ONNX by OpenCV Zoo.
+
+        Estimates 33 body keypoints + segmentation mask from a person crop.
+        Input: float32 RGB [0, 1].  Output: direct coordinate regression.
+        Requires a person detector (e.g. ``mediapipe_palm_detector``) upstream.
+        """
+        return cls(
+            source=ModelSource(url=MODEL_URLS["mediapipe-pose-landmark"]),
+            input_size=(256, 256),
+            num_keypoints=33,
+            preprocess_mode="mediapipe",
+        )
+
+    # -- MediaPipe palm detector (OpenCV ONNX) --------------------------------
+
+    @classmethod
+    def mediapipe_palm_detector(cls) -> "ModelSpec":
+        """MediaPipe BlazePalm palm detection model converted to ONNX by OpenCV Zoo.
+
+        Detects palm bounding boxes and 7 palm keypoints from a full image.
+        Used as the upstream detector for hand landmark models.
+        """
+        return cls(
+            source=ModelSource(url=MODEL_URLS["mediapipe-palm-detector"]),
+            input_size=(192, 192),
+            num_keypoints=7,
+            preprocess_mode="mediapipe",
+        )
+
+    # -- MediaPipe face detector (Qualcomm ONNX, short-range) -----------------
+
+    @classmethod
+    def mediapipe_face_detector_short(cls) -> "ModelSpec":
+        """MediaPipe BlazeFace short-range detector converted to ONNX by Qualcomm.
+
+        Detects face bounding boxes from a full image.  Designed for
+        selfie-range faces (within ~2m).
+        """
+        return cls(
+            source=ModelSource(url=MODEL_URLS["mediapipe-face-detector-short"]),
+            input_size=(128, 128),
+            num_keypoints=6,
+            preprocess_mode="mediapipe",
+        )
+
+    # -- MediaPipe face landmark (Qualcomm ONNX) -------------------------------
+
+    @classmethod
+    def mediapipe_face_landmark(cls) -> "ModelSpec":
+        """MediaPipe face landmark model converted to ONNX by Qualcomm.
+
+        Estimates 6 facial landmarks (eyes, nose, mouth corners, ear tragions)
+        from a face crop.  Input: float32 RGB [0, 1].
+
+        Note: this is the *sparse* 6-point model, not the full MediaPipe
+        Face Mesh (468 points).  The full face mesh ONNX is available from
+        PINTO model zoo (model 030_BlazeFace).
+        """
+        return cls(
+            source=ModelSource(url=MODEL_URLS["mediapipe-face-landmark"]),
+            input_size=(192, 192),
+            num_keypoints=6,
+            preprocess_mode="mediapipe",
         )
 
 
@@ -324,17 +451,50 @@ def _resolve_from_url(
 ) -> Path:
     """Download a model from a URL, caching the result.
 
-    Handles the OpenMMLab CDN convention: the URL points to a ``.zip`` that
-    contains one (or more) ``.onnx`` files.  The first ``.onnx`` found is
-    cached by its expected filename.  If the file already exists in the cache
-    the download is skipped entirely.
+    Handles two URL conventions:
+
+    - **OpenMMLab CDN**: the URL points to a ``.zip`` containing one or more
+      ``.onnx`` files.  The first ``.onnx`` found is cached by its expected
+      filename.
+    - **Direct .onnx URL**: the URL points directly to an ``.onnx`` file
+      (e.g. Hugging Face resolve links).  The file is downloaded and cached
+      as-is.
     """
     cache = Path(cache_dir) if cache_dir else _default_cache()
+    filename = url.rsplit("/", 1)[-1]
 
+    # --- Direct .onnx download (Hugging Face, etc.) ---
+    if filename.endswith(".onnx"):
+        cached_onnx = cache / filename
+        if cached_onnx.exists():
+            logger.info(f"Using cached model: {cached_onnx}")
+            return cached_onnx
+
+        logger.info(f"Downloading model from {url} ...")
+        response = requests.get(url, stream=True, timeout=120)
+        response.raise_for_status()
+
+        # Download to a temp file, then atomically move to cache.
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
+        try:
+            total = 0
+            for chunk in response.iter_content(chunk_size=8192):
+                tmp.write(chunk)
+                total += len(chunk)
+            tmp.close()
+            logger.info(f"Downloaded {total / 1024 / 1024:.1f} MiB")
+            shutil.move(tmp.name, str(cached_onnx))
+        finally:
+            if os.path.exists(tmp.name):
+                os.unlink(tmp.name)
+
+        logger.info(f"Model cached: {cached_onnx}")
+        return cached_onnx
+
+    # --- OpenMMLab CDN .zip convention ---
     # Derive the expected ONNX filename from the URL stem.
     # e.g.  ".../rtmo-m_..._20231211.zip"  →  "rtmo-m_..._20231211.onnx"
-    zip_name = url.rsplit("/", 1)[-1]
-    onnx_name = zip_name.replace(".zip", ".onnx")
+    onnx_name = filename.replace(".zip", ".onnx")
     cached_onnx = cache / onnx_name
 
     if cached_onnx.exists():

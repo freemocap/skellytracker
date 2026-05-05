@@ -35,6 +35,8 @@ LEFT_HAND_COLOR = (255, 0, 0)   # blue (BGR)
 FACE_COLOR = (0, 255, 255)   # yellow
 
 
+
+
 @dataclass
 class CompositeGPUImageAnnotator(BaseImageAnnotator):
     config: CompositeGPUImageAnnotatorConfig
@@ -99,6 +101,10 @@ class CompositeGPUImageAnnotator(BaseImageAnnotator):
                 color = FACE_COLOR
             cv2.circle(annotated, (int(pts_2d[i, 0]), int(pts_2d[i, 1])), 2, color, -1)
 
+        # --- Draw raw (pre-cleanup) hands ---
+        if self.config.show_raw_hands:
+            self._draw_raw_hands(annotated, observation)
+
         # --- Draw ROI debug boxes ---
         self._draw_roi_box(annotated, observation.right_hand_roi, RIGHT_HAND_COLOR, "R Hand")
         self._draw_roi_box(annotated, observation.left_hand_roi, LEFT_HAND_COLOR, "L Hand")
@@ -120,6 +126,39 @@ class CompositeGPUImageAnnotator(BaseImageAnnotator):
                                     cv2.FONT_HERSHEY_SIMPLEX, 0.4, wrist_color, 1)
 
         return annotated
+
+    def _draw_raw_hands(
+        self,
+        image: NDArray[np.uint8],
+        observation: "CompositeGPUObservation",
+    ) -> None:
+        """Draw raw hand model outputs (pre-blend, pre-anthropometry) as thin
+        white skeleton lines overlaid on the standard coloured tracks."""
+        if (observation.raw_hands_keypoints.shape[0] == 0
+                or observation.raw_hands_keypoints.shape[1] < 42):
+            return
+
+        raw_xy = observation.raw_hands_keypoints[0, :42, :2]
+        raw_sc = observation.raw_hands_scores[0, :42]
+
+        # The connection indices from the hybrid definition map cleaned-hand
+        # positions (17-58).  Offset by _BODY_END (17) to index into the
+        # flat raw-hands array: right=0..20, left=21..41.
+        for si, ei in self._connection_indices:
+            if si < _BODY_END or si >= _FACE_START:
+                continue  # body or face connection — skip
+            rsi = si - _BODY_END
+            rei = ei - _BODY_END
+            if rsi >= 42 or rei >= 42:
+                continue
+            pt1 = raw_xy[rsi]
+            pt2 = raw_xy[rei]
+            if (not np.isnan(pt1).any() and not np.isnan(pt2).any()
+                    and raw_sc[rsi] > 0.1 and raw_sc[rei] > 0.1):
+                cv2.line(image,
+                         (int(pt1[0]), int(pt1[1])),
+                         (int(pt2[0]), int(pt2[1])),
+                         (255, 255, 255), 1, cv2.LINE_AA)
 
     @staticmethod
     def _draw_roi_box(

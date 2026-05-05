@@ -45,6 +45,7 @@ class CompositeGPUDetector(BaseDetector):
         result = self.session.predict_single(image)
 
         # RTMO returns float32; cast keypoints to float64 for beartype + PointCloud.
+        raw_hands = result.get("raw_hands")
         return CompositeGPUObservation.from_detection_results(
             frame_number=frame_number,
             image_size=(int(image.shape[0]), int(image.shape[1])),
@@ -57,4 +58,6 @@ class CompositeGPUDetector(BaseDetector):
             right_hand_roi=result.get("right_hand_roi"),
             left_hand_roi=result.get("left_hand_roi"),
             face_roi=result.get("face_roi"),
+            raw_hands_keypoints=raw_hands[0].astype(np.float64) if raw_hands is not None else None,
+            raw_hands_scores=raw_hands[1] if raw_hands is not None else None,
         )
