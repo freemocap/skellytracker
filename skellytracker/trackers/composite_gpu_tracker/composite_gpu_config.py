@@ -6,12 +6,10 @@ from skellytracker.trackers.base_tracker.base_tracker_abcs import (
     BaseDetectorConfig,
     BaseImageAnnotatorConfig,
     BaseTrackerConfig,
-    TrackerType,
 )
 from skellytracker.trackers.composite_gpu_tracker.composite_gpu_session import (
     CompositeGPUSessionConfig,
 )
-from skellytracker.trackers.gpu_utils.ort_session_utils import ExecutionProviderName
 
 
 class CompositeGPUDetectorConfig(BaseDetectorConfig):

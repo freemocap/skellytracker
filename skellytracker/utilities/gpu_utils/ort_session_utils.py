@@ -266,7 +266,8 @@ def build_tuned_ort_session(
     )
     elapsed_s = time.perf_counter() - t0
     actual = session.get_providers()
-    logger.info(f"  {log_label!r} session ready in {elapsed_s:.1f}s (active providers: {actual})")
+    actual_string = ", ".join(map(str, actual))
+    logger.info(f"  {log_label!r} session ready in {elapsed_s:.1f}s (active providers: {actual_string})")
     if provider == "trt" and elapsed_s > 30:
         logger.info(
             f"  TRT engine for {log_label!r} compiled and cached to {engine_cache_dir} — "

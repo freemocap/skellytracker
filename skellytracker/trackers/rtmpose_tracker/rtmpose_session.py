@@ -36,15 +36,13 @@ from rtmlib import Wholebody
 from rtmlib.tools.object_detection.post_processings import multiclass_nms
 from rtmlib.tools.pose_estimation.post_processings import convert_coco_to_openpose, get_simcc_maximum
 
-from skellytracker.trackers.gpu_utils.ort_session_utils import (
+from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ExecutionProviderName,
     build_tuned_ort_session,
-    cuda_provider_options,
     ensure_cuda_dlls_loaded,
     probe_supports_batch,
     resolve_provider,
     session_run_batched,
-    validate_engine_cache,
 )
 from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
     PRENMS_BBOX_OUTPUT,

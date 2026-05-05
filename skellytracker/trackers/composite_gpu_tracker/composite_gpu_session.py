@@ -26,7 +26,7 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 from rtmlib.tools.pose_estimation.post_processings import get_simcc_maximum
 
-from skellytracker.trackers.gpu_utils.ort_session_utils import (
+from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ExecutionProviderName,
     build_tuned_ort_session,
     ensure_cuda_dlls_loaded,
@@ -87,9 +87,13 @@ class CompositeGPUSessionConfig(BaseModel):
 
     # ------------------------------------------------------------------
     # ROI crop parameters (face crop size is derived dynamically from
-    # head landmarks × face_roi_scale; hand crop size is fixed.)
+    # head landmarks × face_roi_scale; hand crop size is derived from
+    # the smoothed face crop × hand_roi_face_scale.)
     # ------------------------------------------------------------------
-    hand_crop_size: int = 300
+    hand_roi_face_scale: float = 1.5
+    hand_roi_image_fraction: float = 0.2
+    hand_roi_center_offset: float = 0.17
+    hand_wrist_bias: float = 1.5
 
     # Body keypoint indices for ROI cropping (COCO 17 order)
     body_left_wrist_index: int = 9
@@ -360,7 +364,6 @@ class CompositeGPUSession:
             return ([_empty_hands_result(spec.num_keypoints) for _ in images],
                     [None] * n, [None] * n)
 
-        crop_sz = self.config.hand_crop_size
         model_sz = spec.input_size
         all_crops: list[tuple[int, NDArray, ROIBox, int]] = []
 
@@ -369,6 +372,12 @@ class CompositeGPUSession:
                 continue
             body_xy = body_kpts[0]
             image_h, image_w = image.shape[:2]
+
+            # Hand crop size from smoothed face ROI (prev frame), or image fraction
+            if self._smooth_face_roi is not None:
+                crop_sz = int(self._smooth_face_roi[2] * self.config.hand_roi_face_scale)
+            else:
+                crop_sz = int(min(image_w, image_h) * self.config.hand_roi_image_fraction)
 
             for side_flag, wrist_idx, elbow_idx in [
                 (0, self.config.body_right_wrist_index, self.config.body_right_elbow_index),
@@ -379,14 +388,17 @@ class CompositeGPUSession:
                 if np.isnan(wrist_xy).any() or np.isnan(elbow_xy).any():
                     continue
 
-                # Project hand center past wrist along forearm direction
+                # Project hand center past wrist along forearm direction.
+                # Offset is proportional to crop size so the wrist sits ~1/3 in,
+                # giving ~2/3 of the crop to the fingers.
                 forearm = wrist_xy - elbow_xy
                 flen = float(np.linalg.norm(forearm))
                 if flen < 1.0:
                     continue
                 forearm_dir = forearm / flen
-                hand_cx = wrist_xy[0] + forearm_dir[0] * 60.0
-                hand_cy = wrist_xy[1] + forearm_dir[1] * 60.0
+                offset = crop_sz * self.config.hand_roi_center_offset
+                hand_cx = wrist_xy[0] + forearm_dir[0] * offset
+                hand_cy = wrist_xy[1] + forearm_dir[1] * offset
 
                 # Smooth center
                 prev = (self._smooth_right_hand_center if side_flag == 0
@@ -478,15 +490,21 @@ class CompositeGPUSession:
                             r_kpts = np.full((1, n_kpt, 2), np.nan, dtype=np.float64)
                             r_sc = np.zeros((1, n_kpt), dtype=np.float32)
 
-            # Wrist snapping + anthropometry filter
+            # Wrist blending + anthropometry filter
             if body_kpts_i.shape[0] > 0:
                 body = body_kpts_i[0].astype(np.float64)
-                r_kpts, r_sc = _snap_and_validate_hand(
-                    r_kpts, r_sc, body, self.config.body_right_wrist_index,
+                body_sc = body_results[img_idx][1][0]
+                r_kpts, r_sc, body = _blend_and_validate_hand(
+                    r_kpts, r_sc, body, body_sc,
+                    self.config.body_right_wrist_index,
+                    hand_wrist_bias=self.config.hand_wrist_bias,
                 )
-                l_kpts, l_sc = _snap_and_validate_hand(
-                    l_kpts, l_sc, body, self.config.body_left_wrist_index,
+                l_kpts, l_sc, body = _blend_and_validate_hand(
+                    l_kpts, l_sc, body, body_sc,
+                    self.config.body_left_wrist_index,
+                    hand_wrist_bias=self.config.hand_wrist_bias,
                 )
+                body_kpts_i[0, :, :] = body
 
             all_k = np.concatenate([r_kpts, l_kpts], axis=1)
             all_s = np.concatenate([r_sc, l_sc], axis=1)
@@ -633,47 +651,40 @@ _HAND_MIDDLE_TIP = 12       # middle-finger tip
 _HAND_PINKY_MCP = 17        # pinky knuckle (palm boundary)
 
 
-def _snap_and_validate_hand(
+def _blend_and_validate_hand(
     kpts: NDArray[np.float64],
     scores: NDArray[np.float32],
     body: NDArray[np.float64],
+    body_scores: NDArray[np.float32],
     body_wrist_idx: int,
-) -> tuple[NDArray[np.float64], NDArray[np.float32]]:
-    """Snap hand wrist to body wrist, then reject implausible hand shapes."""
+    *,
+    hand_wrist_bias: float = 1.5,
+) -> tuple[NDArray[np.float64], NDArray[np.float32], NDArray[np.float64]]:
+    """Validate hand geometry, then confidence-weighted blend with body wrist."""
     if np.isnan(kpts[0, _HAND_ROOT]).any():
-        return kpts, scores
+        return kpts, scores, body
 
-    # --- wrist snapping ---
-    body_wrist = body[body_wrist_idx]
-    if not np.isnan(body_wrist).any():
-        offset = body_wrist - kpts[0, _HAND_ROOT]
-        kpts = kpts + offset.astype(np.float64)
-
-    # --- anthropometry filter ---
+    # --- anthropometry filter (position-independent — validate first) ---
     valid = kpts[0]
     valid_mask = ~np.isnan(valid).any(axis=1)
     valid_pts = valid[valid_mask]
 
-    # Need at least 4 valid keypoints to judge proportions.
     if valid_mask.sum() < 4:
-        return _empty_single_hand()
+        return _empty_single_hand() + (body,)
 
-    # Bounding-box diagonal must be in a sane range.
     min_xy = valid_pts.min(axis=0)
     max_xy = valid_pts.max(axis=0)
     bbox_w = max_xy[0] - min_xy[0]
     bbox_h = max_xy[1] - min_xy[1]
     diag = float(np.linalg.norm([bbox_w, bbox_h]))
     if diag < 30.0 or diag > 280.0:
-        return _empty_single_hand()
+        return _empty_single_hand() + (body,)
 
-    # Aspect ratio must be plausible (hand is wider than tall).
     if bbox_w > 0 and bbox_h > 0:
         aspect = bbox_w / bbox_h
         if aspect < 0.25 or aspect > 4.0:
-            return _empty_single_hand()
+            return _empty_single_hand() + (body,)
 
-    # Middle-finger length must dominate palm width.
     if (valid_mask[_HAND_MIDDLE_TIP] and valid_mask[_HAND_ROOT]
             and valid_mask[_HAND_FOREFINGER_MCP] and valid_mask[_HAND_PINKY_MCP]):
         finger_len = float(np.linalg.norm(
@@ -681,9 +692,31 @@ def _snap_and_validate_hand(
         palm_w = float(np.linalg.norm(
             valid[_HAND_FOREFINGER_MCP] - valid[_HAND_PINKY_MCP]))
         if palm_w > 0 and finger_len / palm_w < 1.2:
-            return _empty_single_hand()
+            return _empty_single_hand() + (body,)
 
-    return kpts, scores
+    # --- wrist blending ---
+    hand_root = kpts[0, _HAND_ROOT]
+    hand_conf = float(scores[0, _HAND_ROOT])
+    body_wrist = body[body_wrist_idx]
+    body_conf = float(body_scores[body_wrist_idx])
+
+    if np.isnan(body_wrist).any():
+        return kpts, scores, body
+
+    # Confidence-weighted blend — hand bias pulls toward hand estimate
+    hw = hand_conf * hand_wrist_bias
+    bw = body_conf
+    blended = (body_wrist * bw + hand_root * hw) / (bw + hw)
+
+    # Translate hand so its root lands at blended wrist
+    offset = blended - hand_root
+    kpts = kpts + offset.astype(np.float64)
+
+    # Write blended wrist back into body
+    body = body.copy()
+    body[body_wrist_idx] = blended
+
+    return kpts, scores, body
 
 
 def _empty_single_hand(num_keypoints: int = 21) -> tuple[NDArray[np.float64], NDArray[np.float32]]:
