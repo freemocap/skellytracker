@@ -3,7 +3,7 @@
 Uses selectable ONNX models for each body part:
 - Body: RTMO (one-stage, 17 COCO keypoints)
 - Hands: RTMPose hand ONNX (21 keypoints per hand, crop from body wrists)
-- Face: RTMPose face ONNX (68 keypoints, crop from body head landmarks)
+- Face: RTMPose face ONNX (106 LaPa keypoints, crop from body head landmarks)
 
 All models share a single ONNX Runtime CUDA context with batched inference.
 """
@@ -24,6 +24,10 @@ from skellytracker.trackers.composite_gpu_tracker.composite_gpu_detector import 
 from skellytracker.trackers.composite_gpu_tracker.composite_gpu_observation import (
     CompositeGPUObservation,
 )
+from skellytracker.trackers.composite_gpu_tracker.sub_model_spec import (
+    SubModelSpec,
+    TrackerPreset,
+)
 
 __all__ = [
     "CompositeGPUTracker",
@@ -32,4 +36,6 @@ __all__ = [
     "CompositeGPUSessionConfig",
     "CompositeGPUDetector",
     "CompositeGPUObservation",
+    "SubModelSpec",
+    "TrackerPreset",
 ]

@@ -15,7 +15,6 @@ Batch inference pipeline:
 """
 
 import logging
-import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,11 +39,23 @@ from skellytracker.trackers.composite_gpu_tracker.roi_crop_utils import (
     collect_visible_head_points,
     compute_face_crop_params,
     compute_square_roi,
-    hand_bbox_diagonal,
     smooth_roi_params,
+)
+from skellytracker.trackers.composite_gpu_tracker.sub_model_spec import (
+    SubModelSpec,
+    TrackerPreset,
 )
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Default ONNX model URLs (used when SubModelSpec.onnx_path is None)
+# ---------------------------------------------------------------------------
+_FACE_ONNX_URL = (
+    "https://download.openmmlab.com/mmpose/v1/projects/"
+    "rtmposev1/onnx_sdk/"
+    "rtmpose-m_simcc-face6_pt-in1k_120e-256x256-72a37400_20230529.zip"
+)
 
 # =============================================================================
 # Config
@@ -67,14 +78,18 @@ class CompositeGPUSessionConfig(BaseModel):
     detect_hands: bool = True
     detect_face: bool = True
 
-    # Fixed crop sizes (pixels) — simpler and more stable than dynamic sizing.
-    hand_crop_size: int = 300
-    face_crop_size: int = 400
+    # ------------------------------------------------------------------
+    # Model specs (ONNX path, input size, keypoint count, preprocessing)
+    # ------------------------------------------------------------------
+    body_spec: SubModelSpec = Field(default_factory=SubModelSpec.rtmo_medium)
+    hand_spec: SubModelSpec = Field(default_factory=SubModelSpec.rtmpose_hand)
+    face_spec: SubModelSpec = Field(default_factory=SubModelSpec.rtmpose_face)
 
-    # Model input sizes
-    body_input_size: tuple[int, int] = (640, 640)
-    hand_input_size: tuple[int, int] = (256, 256)
-    face_input_size: tuple[int, int] = (256, 256)
+    # ------------------------------------------------------------------
+    # ROI crop parameters (face crop size is derived dynamically from
+    # head landmarks × face_roi_scale; hand crop size is fixed.)
+    # ------------------------------------------------------------------
+    hand_crop_size: int = 300
 
     # Body keypoint indices for ROI cropping (COCO 17 order)
     body_left_wrist_index: int = 9
@@ -90,26 +105,34 @@ class CompositeGPUSessionConfig(BaseModel):
     # Face crop scale
     face_roi_scale: float = 2.0
 
-    # Model paths (if None, auto-downloaded via rtmlib)
-    body_onnx_path: str | None = None
-    hand_pose_onnx_path: str | None = None
-    face_pose_onnx_path: str | None = None
+    # ==================================================================
+    # Convenience constructors
+    # ==================================================================
 
+    @classmethod
+    def preset(cls, tier: TrackerPreset | str) -> "CompositeGPUSessionConfig":
+        """Return a config with all sub-model specs set to *tier*."""
+        if isinstance(tier, str):
+            tier = TrackerPreset(tier)
 
-# =============================================================================
-# Keypoint counts
-# =============================================================================
-
-RTMO_BODY_NUM_KPT = 17
-RTMPOSE_HAND_NUM_KPT = 21
-RTMPOSE_FACE_NUM_KPT = 106
-SIMCC_SPLIT_RATIO = 2.0
-
-# RTMPose hand/face models are trained with ImageNet BGR normalization applied
-# before the first convolution. The ONNX graphs have no Sub/Div nodes on the
-# input branch, so the caller must normalize. Values match rtmlib.RTMPose defaults.
-_RTMPOSE_MEAN = (123.675, 116.28, 103.53)
-_RTMPOSE_STD = (58.395, 57.12, 57.375)
+        if tier == TrackerPreset.light:
+            return cls(
+                body_spec=SubModelSpec.rtmo_light(),
+                hand_spec=SubModelSpec.rtmpose_hand(),
+                face_spec=SubModelSpec.rtmpose_face(),
+            )
+        elif tier == TrackerPreset.medium:
+            return cls(
+                body_spec=SubModelSpec.rtmo_medium(),
+                hand_spec=SubModelSpec.rtmpose_hand(),
+                face_spec=SubModelSpec.rtmpose_face(),
+            )
+        else:  # heavy
+            return cls(
+                body_spec=SubModelSpec.rtmo_heavy(),
+                hand_spec=SubModelSpec.rtmpose_hand(),
+                face_spec=SubModelSpec.rtmpose_face(),
+            )
 
 
 # =============================================================================
@@ -164,64 +187,69 @@ class CompositeGPUSession:
         return session
 
     def _build_body(self, provider: ExecutionProviderName) -> None:
-        cfg = self.config
-        if cfg.body_onnx_path is not None:
-            body_onnx = cfg.body_onnx_path
+        spec = self.config.body_spec
+        if spec.onnx_path is not None:
+            body_onnx = spec.onnx_path
         else:
             from rtmlib import Body
-            body_rtmlib = Body(pose='rtmo', mode='balanced', backend='onnxruntime', device='cpu')
+            body_rtmlib = Body(pose='rtmo', mode=spec.rtmlib_mode or 'balanced',
+                               backend='onnxruntime', device='cpu')
             self._rtmo_model = body_rtmlib.pose_model
             body_onnx = str(body_rtmlib.pose_model.onnx_model)
             logger.info(f"RTMO body model: {body_onnx}")
         self._body_session = build_tuned_ort_session(
-            onnx_path=body_onnx, provider=provider, engine_cache_dir=cfg.engine_cache_dir,
-            fp16=cfg.fp16, log_label="rtmo_body", max_batch_size=cfg.max_batch_size,
+            onnx_path=body_onnx, provider=provider, engine_cache_dir=self.config.engine_cache_dir,
+            fp16=self.config.fp16, log_label="rtmo_body",
+            max_batch_size=self.config.max_batch_size,
         )
         if self._rtmo_model is not None:
             self._rtmo_model.session = self._body_session
         self._body_supports_batch = probe_supports_batch(self._body_session, label="rtmo_body")
 
     def _build_hands(self, provider: ExecutionProviderName) -> None:
-        cfg = self.config
-        if not cfg.detect_hands:
+        if not self.config.detect_hands:
             return
-        if cfg.hand_pose_onnx_path is not None:
-            hand_onnx = cfg.hand_pose_onnx_path
+        spec = self.config.hand_spec
+        if spec.onnx_path is not None:
+            hand_onnx = spec.onnx_path
         else:
             from rtmlib import Hand
-            h = Hand(mode='lightweight', backend='onnxruntime', device='cpu')
+            h = Hand(mode=spec.rtmlib_mode or 'lightweight',
+                     backend='onnxruntime', device='cpu')
             hand_onnx = str(h.pose_model.onnx_model)
             logger.info(f"Hand model: {hand_onnx}")
         self._hand_session = build_tuned_ort_session(
-            onnx_path=hand_onnx, provider=provider, engine_cache_dir=cfg.engine_cache_dir,
-            fp16=cfg.fp16, log_label="rtmpose_hand", max_batch_size=cfg.max_batch_size,
+            onnx_path=hand_onnx, provider=provider,
+            engine_cache_dir=self.config.engine_cache_dir,
+            fp16=self.config.fp16, log_label="rtmpose_hand",
+            max_batch_size=self.config.max_batch_size,
         )
         self._hand_supports_batch = probe_supports_batch(self._hand_session, label="rtmpose_hand")
 
     def _build_face(self, provider: ExecutionProviderName) -> None:
-        cfg = self.config
-        if not cfg.detect_face:
+        if not self.config.detect_face:
             return
-        if cfg.face_pose_onnx_path is not None:
-            face_onnx = cfg.face_pose_onnx_path
+        spec = self.config.face_spec
+        if spec.onnx_path is not None:
+            face_onnx = spec.onnx_path
         else:
             from rtmlib import RTMPose
-            _FACE_URL = ("https://download.openmmlab.com/mmpose/v1/projects/"
-                         "rtmposev1/onnx_sdk/"
-                         "rtmpose-m_simcc-face6_pt-in1k_120e-256x256-72a37400_20230529.zip")
             try:
-                face_rtm = RTMPose(onnx_model=_FACE_URL, model_input_size=(256, 256),
+                face_rtm = RTMPose(onnx_model=_FACE_ONNX_URL,
+                                   model_input_size=spec.input_size,
                                    backend='onnxruntime', device='cpu')
                 face_onnx = str(face_rtm.onnx_model)
                 logger.info(f"Face model: {face_onnx}")
             except Exception as e:
                 logger.warning(f"Face model download failed ({e!r}); face disabled.")
-                cfg.detect_face = False
+                self.config.detect_face = False
                 return
 
         self._face_session = build_tuned_ort_session(
-            onnx_path=face_onnx, provider=provider, engine_cache_dir=cfg.engine_cache_dir,
-            fp16=cfg.fp16, log_label="rtmpose_face", max_batch_size=cfg.max_batch_size,
+            onnx_path=face_onnx, provider=provider,
+            engine_cache_dir=self.config.engine_cache_dir,
+            fp16=self.config.fp16, log_label="rtmpose_face",
+            max_batch_size=self.config.max_batch_size,
         )
         self._face_supports_batch = probe_supports_batch(self._face_session, label="rtmpose_face")
 
@@ -286,14 +314,16 @@ class CompositeGPUSession:
         if self._rtmo_model is not None:
             preprocessed = [self._rtmo_model.preprocess(img) for img in images]
         else:
-            preprocessed = [_simple_letterbox(img, self.config.body_input_size) for img in images]
+            spec = self.config.body_spec
+            preprocessed = [_simple_letterbox(img, spec.input_size, spec.mean, spec.std)
+                            for img in images]
 
         batch = np.stack([p[0].transpose(2, 0, 1).astype(np.float32) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
             outputs = session_run_batched(self._body_session, batch)
         except Exception as e:
-            logger.warning(f"RTMO batched failed ({e!r})")
+            logger.error(f"RTMO batched inference failed: {e!r}")
             return [_empty_body_result() for _ in images]
 
         results: list[tuple[NDArray, NDArray]] = []
@@ -311,6 +341,11 @@ class CompositeGPUSession:
                     logger.warning(f"RTMO postprocess failed: {e!r}")
                     results.append(_empty_body_result())
             else:
+                logger.error(
+                    "Body inference has no postprocess hook "
+                    "(rtmlib model was not initialised). "
+                    "Set body_spec.preprocess_mode='rtmo' or provide a custom ONNX path."
+                )
                 results.append(_empty_body_result())
         return results
 
@@ -320,11 +355,13 @@ class CompositeGPUSession:
         self, images: list[NDArray[np.uint8]], body_results: list[tuple[NDArray, NDArray]],
     ) -> tuple[list[tuple[NDArray, NDArray]], list[ROIBox | None], list[ROIBox | None]]:
         n = len(images)
+        spec = self.config.hand_spec
         if self._hand_session is None or not self.config.detect_hands:
-            return ([_empty_hands_result() for _ in images], [None] * n, [None] * n)
+            return ([_empty_hands_result(spec.num_keypoints) for _ in images],
+                    [None] * n, [None] * n)
 
         crop_sz = self.config.hand_crop_size
-        model_sz = self.config.hand_input_size
+        model_sz = spec.input_size
         all_crops: list[tuple[int, NDArray, ROIBox, int]] = []
 
         for i, (image, (body_kpts, _)) in enumerate(zip(images, body_results)):
@@ -372,18 +409,18 @@ class CompositeGPUSession:
                     all_crops.append((i, crop, roi, side_flag))
 
         if not all_crops:
-            return ([_empty_hands_result() for _ in images], [None] * n, [None] * n)
+            return ([_empty_hands_result(spec.num_keypoints) for _ in images], [None] * n, [None] * n)
 
         # Letterbox each crop → batch → SIMCC decode
-        preprocessed = [_simple_letterbox(crop, model_sz, _RTMPOSE_MEAN, _RTMPOSE_STD)
+        preprocessed = [_simple_letterbox(crop, model_sz, spec.mean, spec.std)
                         for _, crop, _, _ in all_crops]
         batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
             outputs = session_run_batched(self._hand_session, batch)
         except Exception as e:
-            logger.warning(f"Hand batched failed ({e!r})")
-            return ([_empty_hands_result() for _ in images], [None] * n, [None] * n)
+            logger.error(f"Hand batched inference failed: {e!r}")
+            return ([_empty_hands_result(spec.num_keypoints) for _ in images], [None] * n, [None] * n)
 
         simcc_x, simcc_y = outputs
         hand_results_per_image: list[list[tuple[NDArray, NDArray, int]]] = [[] for _ in images]
@@ -391,7 +428,7 @@ class CompositeGPUSession:
         for j, (img_idx, _, roi, side_flag) in enumerate(all_crops):
             sx, sy = simcc_x[j:j + 1], simcc_y[j:j + 1]
             locs, scores = get_simcc_maximum(sx, sy)
-            kpts_model = locs / SIMCC_SPLIT_RATIO
+            kpts_model = locs / spec.simcc_split_ratio
             ratio = preprocessed[j][1]
             kpts = kpts_model / ratio
             kpts[:, :, 0] += float(roi.x)
@@ -405,15 +442,16 @@ class CompositeGPUSession:
         kpt_results: list[tuple[NDArray, NDArray]] = []
         right_rois: list[ROIBox | None] = []
         left_rois: list[ROIBox | None] = []
+        n_kpt = spec.num_keypoints
 
         for img_idx in range(n):
             per_img = hand_results_per_image[img_idx]
             body_kpts_i = body_results[img_idx][0]
 
-            r_kpts = np.full((1, RTMPOSE_HAND_NUM_KPT, 2), np.nan, dtype=np.float64)
-            r_sc = np.zeros((1, RTMPOSE_HAND_NUM_KPT), dtype=np.float32)
-            l_kpts = np.full((1, RTMPOSE_HAND_NUM_KPT, 2), np.nan, dtype=np.float64)
-            l_sc = np.zeros((1, RTMPOSE_HAND_NUM_KPT), dtype=np.float32)
+            r_kpts = np.full((1, n_kpt, 2), np.nan, dtype=np.float64)
+            r_sc = np.zeros((1, n_kpt), dtype=np.float32)
+            l_kpts = np.full((1, n_kpt, 2), np.nan, dtype=np.float64)
+            l_sc = np.zeros((1, n_kpt), dtype=np.float32)
 
             for kpts, scores, sf in per_img:
                 if kpts.shape[0] == 0:
@@ -434,11 +472,21 @@ class CompositeGPUSession:
                     if not np.isnan(brw).any() and not np.isnan(blw).any():
                         mid = (rw + lw) / 2
                         if float(np.linalg.norm(mid - brw)) <= float(np.linalg.norm(mid - blw)):
-                            l_kpts = np.full((1, RTMPOSE_HAND_NUM_KPT, 2), np.nan, dtype=np.float64)
-                            l_sc = np.zeros((1, RTMPOSE_HAND_NUM_KPT), dtype=np.float32)
+                            l_kpts = np.full((1, n_kpt, 2), np.nan, dtype=np.float64)
+                            l_sc = np.zeros((1, n_kpt), dtype=np.float32)
                         else:
-                            r_kpts = np.full((1, RTMPOSE_HAND_NUM_KPT, 2), np.nan, dtype=np.float64)
-                            r_sc = np.zeros((1, RTMPOSE_HAND_NUM_KPT), dtype=np.float32)
+                            r_kpts = np.full((1, n_kpt, 2), np.nan, dtype=np.float64)
+                            r_sc = np.zeros((1, n_kpt), dtype=np.float32)
+
+            # Wrist snapping + anthropometry filter
+            if body_kpts_i.shape[0] > 0:
+                body = body_kpts_i[0].astype(np.float64)
+                r_kpts, r_sc = _snap_and_validate_hand(
+                    r_kpts, r_sc, body, self.config.body_right_wrist_index,
+                )
+                l_kpts, l_sc = _snap_and_validate_hand(
+                    l_kpts, l_sc, body, self.config.body_left_wrist_index,
+                )
 
             all_k = np.concatenate([r_kpts, l_kpts], axis=1)
             all_s = np.concatenate([r_sc, l_sc], axis=1)
@@ -454,10 +502,12 @@ class CompositeGPUSession:
         self, images: list[NDArray[np.uint8]], body_results: list[tuple[NDArray, NDArray]],
     ) -> tuple[list[tuple[NDArray, NDArray]], list[ROIBox | None]]:
         n = len(images)
+        spec = self.config.face_spec
         if self._face_session is None or not self.config.detect_face:
-            return ([_empty_face_result() for _ in images], [None] * n)
+            return ([_empty_face_result(spec.num_keypoints) for _ in images],
+                    [None] * n)
 
-        model_sz = self.config.face_input_size
+        model_sz = spec.input_size
         all_crops: list[tuple[int, NDArray, ROIBox]] = []
 
         for i, (image, (body_kpts, body_scores)) in enumerate(zip(images, body_results)):
@@ -506,18 +556,19 @@ class CompositeGPUSession:
                 all_crops.append((i, crop, roi))
 
         if not all_crops:
-            return ([_empty_face_result() for _ in images], [None] * n)
+            return ([_empty_face_result(spec.num_keypoints) for _ in images], [None] * n)
 
         # Letterbox → batch → SIMCC decode
-        preprocessed = [_simple_letterbox(crop, model_sz, _RTMPOSE_MEAN, _RTMPOSE_STD)
+        preprocessed = [_simple_letterbox(crop, model_sz, spec.mean, spec.std)
                         for _, crop, _ in all_crops]
         batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
             outputs = session_run_batched(self._face_session, batch)
         except Exception as e:
-            logger.warning(f"Face batched failed ({e!r})")
-            return ([_empty_face_result() for _ in images], [None] * n)
+            logger.error(f"Face batched inference failed: {e!r}")
+            return ([_empty_face_result(spec.num_keypoints) for _ in images],
+                    [None] * n)
 
         simcc_x, simcc_y = outputs
         face_results: list[tuple[NDArray, NDArray] | None] = [None] * n
@@ -525,7 +576,7 @@ class CompositeGPUSession:
         for j, (img_idx, _, roi) in enumerate(all_crops):
             sx, sy = simcc_x[j:j + 1], simcc_y[j:j + 1]
             locs, scores = get_simcc_maximum(sx, sy)
-            kpts_model = locs / SIMCC_SPLIT_RATIO
+            kpts_model = locs / spec.simcc_split_ratio
             ratio = preprocessed[j][1]
             kpts = kpts_model / ratio
             kpts[:, :, 0] += float(roi.x)
@@ -540,7 +591,7 @@ class CompositeGPUSession:
                     found = roi; break
             face_rois_out.append(found)
 
-        return ([r if r is not None else _empty_face_result() for r in face_results], face_rois_out)
+        return ([r if r is not None else _empty_face_result(spec.num_keypoints) for r in face_results], face_rois_out)
 
 
 # =============================================================================
@@ -575,16 +626,83 @@ def _find_roi_for_side(
     return None
 
 
+# Hand anthropometry constants (keypoint indices for the RTMPose 21-point hand).
+_HAND_ROOT = 0
+_HAND_FOREFINGER_MCP = 5   # index-finger knuckle (palm boundary)
+_HAND_MIDDLE_TIP = 12       # middle-finger tip
+_HAND_PINKY_MCP = 17        # pinky knuckle (palm boundary)
+
+
+def _snap_and_validate_hand(
+    kpts: NDArray[np.float64],
+    scores: NDArray[np.float32],
+    body: NDArray[np.float64],
+    body_wrist_idx: int,
+) -> tuple[NDArray[np.float64], NDArray[np.float32]]:
+    """Snap hand wrist to body wrist, then reject implausible hand shapes."""
+    if np.isnan(kpts[0, _HAND_ROOT]).any():
+        return kpts, scores
+
+    # --- wrist snapping ---
+    body_wrist = body[body_wrist_idx]
+    if not np.isnan(body_wrist).any():
+        offset = body_wrist - kpts[0, _HAND_ROOT]
+        kpts = kpts + offset.astype(np.float64)
+
+    # --- anthropometry filter ---
+    valid = kpts[0]
+    valid_mask = ~np.isnan(valid).any(axis=1)
+    valid_pts = valid[valid_mask]
+
+    # Need at least 4 valid keypoints to judge proportions.
+    if valid_mask.sum() < 4:
+        return _empty_single_hand()
+
+    # Bounding-box diagonal must be in a sane range.
+    min_xy = valid_pts.min(axis=0)
+    max_xy = valid_pts.max(axis=0)
+    bbox_w = max_xy[0] - min_xy[0]
+    bbox_h = max_xy[1] - min_xy[1]
+    diag = float(np.linalg.norm([bbox_w, bbox_h]))
+    if diag < 30.0 or diag > 280.0:
+        return _empty_single_hand()
+
+    # Aspect ratio must be plausible (hand is wider than tall).
+    if bbox_w > 0 and bbox_h > 0:
+        aspect = bbox_w / bbox_h
+        if aspect < 0.25 or aspect > 4.0:
+            return _empty_single_hand()
+
+    # Middle-finger length must dominate palm width.
+    if (valid_mask[_HAND_MIDDLE_TIP] and valid_mask[_HAND_ROOT]
+            and valid_mask[_HAND_FOREFINGER_MCP] and valid_mask[_HAND_PINKY_MCP]):
+        finger_len = float(np.linalg.norm(
+            valid[_HAND_MIDDLE_TIP] - valid[_HAND_ROOT]))
+        palm_w = float(np.linalg.norm(
+            valid[_HAND_FOREFINGER_MCP] - valid[_HAND_PINKY_MCP]))
+        if palm_w > 0 and finger_len / palm_w < 1.2:
+            return _empty_single_hand()
+
+    return kpts, scores
+
+
+def _empty_single_hand(num_keypoints: int = 21) -> tuple[NDArray[np.float64], NDArray[np.float32]]:
+    return (
+        np.full((1, num_keypoints, 2), np.nan, dtype=np.float64),
+        np.zeros((1, num_keypoints), dtype=np.float32),
+    )
+
+
 def _empty_body_result() -> tuple[NDArray, NDArray]:
-    return (np.empty((0, RTMO_BODY_NUM_KPT, 2), dtype=np.float64),
-            np.empty((0, RTMO_BODY_NUM_KPT), dtype=np.float32))
+    return (np.empty((0, 17, 2), dtype=np.float64),
+            np.empty((0, 17), dtype=np.float32))
 
 
-def _empty_hands_result() -> tuple[NDArray, NDArray]:
-    return (np.empty((0, 2 * RTMPOSE_HAND_NUM_KPT, 2), dtype=np.float64),
-            np.empty((0, 2 * RTMPOSE_HAND_NUM_KPT), dtype=np.float32))
+def _empty_hands_result(num_keypoints: int = 21) -> tuple[NDArray, NDArray]:
+    return (np.empty((0, 2 * num_keypoints, 2), dtype=np.float64),
+            np.empty((0, 2 * num_keypoints), dtype=np.float32))
 
 
-def _empty_face_result() -> tuple[NDArray, NDArray]:
-    return (np.empty((0, RTMPOSE_FACE_NUM_KPT, 2), dtype=np.float64),
-            np.empty((0, RTMPOSE_FACE_NUM_KPT), dtype=np.float32))
+def _empty_face_result(num_keypoints: int = 106) -> tuple[NDArray, NDArray]:
+    return (np.empty((0, num_keypoints, 2), dtype=np.float64),
+            np.empty((0, num_keypoints), dtype=np.float32))

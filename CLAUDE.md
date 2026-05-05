@@ -24,6 +24,7 @@ isort skellytracker/
 # Run the webcam demo (defaults to mediapipe_holistic)
 python -m skellytracker
 # Or with a specific tracker:
+python -m skellytracker composite_gpu
 python -m skellytracker mediapipe_holistic
 
 # Run a specific tracker's demo directly
@@ -57,8 +58,9 @@ Each tracker has a `tracked_object_definitions/` or `names_and_connections/` dir
 
 | Tracker | Location | Notes |
 |---------|----------|-------|
+| CompositeGPU | `trackers/composite_gpu_tracker/` | RTMO body + RTMPose hands + RTMPose face, single CUDA context with batched inference. Configurable via `SubModelSpec` presets (light/medium/heavy). |
 | MediapipeComposite | `trackers/mediapipe_tracker/` | Holistic full-body (pose + hands + face). MediaPipe's native Python API. |
-| RTMPose | `trackers/rtmpose_tracker/` | 133-keypoint whole-body via ONNX Runtime (RTMLib). Primary GPU-accelerated tracker. |
+| RTMPose | `trackers/rtmpose_tracker/` | 133-keypoint whole-body via ONNX Runtime (RTMLib). |
 | VitPose | `trackers/vitpose_tracker/` | ViT-based pose estimation. |
 | Charuco | `trackers/charuco_tracker/` | OpenCV Charuco board detection. |
 | BrightestPoint | `trackers/brightest_point_tracker/` | Simple brightest-point-in-frame tracker. |
@@ -66,7 +68,12 @@ Each tracker has a `tracked_object_definitions/` or `names_and_connections/` dir
 
 ### GPU / ONNX Runtime
 
-RTMPose uses ONNX Runtime under the hood. The execution provider is selected via `RTMPoseDetectorConfig.resolved_provider()`:
+All GPU trackers use ONNX Runtime. The execution provider is selected via config:
+
+- **CompositeGPU**: `CompositeGPUSessionConfig(execution_provider="cuda")`. Sub-model selection uses `SubModelSpec` presets — `CompositeGPUSessionConfig.preset("light")` for rtmo-s body, `"medium"` (default) for rtmo-m, `"heavy"` for rtmo-l. Hand and face models can be overridden per-component via `body_spec`/`hand_spec`/`face_spec` fields.
+- **RTMPose**: `RTMPoseDetectorConfig.resolved_provider()`.
+
+Execution providers:
 
 - **`cuda`** — CUDA 12 + cuDNN 9. On Windows, skellytracker patches `PATH` and proactively loads NVIDIA DLLs from pip-installed `nvidia-*` packages so users don't need separate CUDA Toolkit/cuDNN system installs.
 - **`trt`** — TensorRT engine (2-5x faster than CUDA EP). First run compiles engines (1-5 min); cached thereafter.
