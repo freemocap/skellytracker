@@ -15,6 +15,7 @@ Batch inference pipeline:
 """
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -24,8 +25,18 @@ import numpy as np
 import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
-from rtmlib.tools.pose_estimation.post_processings import get_simcc_maximum
 
+from skellytracker.utilities.gpu_utils.model_registry import (
+    ModelSpec,
+    resolve_model_path,
+)
+from skellytracker.utilities.gpu_utils.rtm_postprocessing import (
+    get_simcc_maximum,
+)
+from skellytracker.utilities.gpu_utils.rtm_preprocessing import (
+    rtmo_postprocess,
+    rtmo_preprocess,
+)
 from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ExecutionProviderName,
     build_tuned_ort_session,
@@ -42,20 +53,10 @@ from skellytracker.trackers.composite_gpu_tracker.roi_crop_utils import (
     smooth_roi_params,
 )
 from skellytracker.trackers.composite_gpu_tracker.sub_model_spec import (
-    SubModelSpec,
     TrackerPreset,
 )
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Default ONNX model URLs (used when SubModelSpec.onnx_path is None)
-# ---------------------------------------------------------------------------
-_FACE_ONNX_URL = (
-    "https://download.openmmlab.com/mmpose/v1/projects/"
-    "rtmposev1/onnx_sdk/"
-    "rtmpose-m_simcc-face6_pt-in1k_120e-256x256-72a37400_20230529.zip"
-)
 
 # =============================================================================
 # Config
@@ -81,9 +82,9 @@ class CompositeGPUSessionConfig(BaseModel):
     # ------------------------------------------------------------------
     # Model specs (ONNX path, input size, keypoint count, preprocessing)
     # ------------------------------------------------------------------
-    body_spec: SubModelSpec = Field(default_factory=SubModelSpec.rtmo_medium)
-    hand_spec: SubModelSpec = Field(default_factory=SubModelSpec.rtmpose_hand)
-    face_spec: SubModelSpec = Field(default_factory=SubModelSpec.rtmpose_face)
+    body_spec: ModelSpec = Field(default_factory=ModelSpec.rtmo_medium)
+    hand_spec: ModelSpec = Field(default_factory=ModelSpec.rtmpose_hand)
+    face_spec: ModelSpec = Field(default_factory=ModelSpec.rtmpose_face)
 
     # ------------------------------------------------------------------
     # ROI crop parameters (face crop size is derived dynamically from
@@ -121,21 +122,21 @@ class CompositeGPUSessionConfig(BaseModel):
 
         if tier == TrackerPreset.light:
             return cls(
-                body_spec=SubModelSpec.rtmo_light(),
-                hand_spec=SubModelSpec.rtmpose_hand(),
-                face_spec=SubModelSpec.rtmpose_face(),
+                body_spec=ModelSpec.rtmo_light(),
+                hand_spec=ModelSpec.rtmpose_hand(),
+                face_spec=ModelSpec.rtmpose_face(),
             )
         elif tier == TrackerPreset.medium:
             return cls(
-                body_spec=SubModelSpec.rtmo_medium(),
-                hand_spec=SubModelSpec.rtmpose_hand(),
-                face_spec=SubModelSpec.rtmpose_face(),
+                body_spec=ModelSpec.rtmo_medium(),
+                hand_spec=ModelSpec.rtmpose_hand(),
+                face_spec=ModelSpec.rtmpose_face(),
             )
         else:  # heavy
             return cls(
-                body_spec=SubModelSpec.rtmo_heavy(),
-                hand_spec=SubModelSpec.rtmpose_hand(),
-                face_spec=SubModelSpec.rtmpose_face(),
+                body_spec=ModelSpec.rtmo_heavy(),
+                hand_spec=ModelSpec.rtmpose_hand(),
+                face_spec=ModelSpec.rtmpose_face(),
             )
 
 
@@ -156,8 +157,9 @@ class CompositeGPUSession:
     _hand_supports_batch: bool = False
     _face_supports_batch: bool = False
 
-    # rtmlib RTMO body — kept for preprocess/postprocess only
-    _rtmo_model: Any = field(default=None, init=False, repr=False)
+    # NMS thresholds for RTMO body postprocessing
+    _body_nms_thr: float = 0.45
+    _body_score_thr: float = 0.7
 
     # Per-side smoothed ROI center: (cx, cy) or None
     _smooth_left_hand_center: tuple[float, float] | None = field(default=None, init=False, repr=False)
@@ -192,36 +194,21 @@ class CompositeGPUSession:
 
     def _build_body(self, provider: ExecutionProviderName) -> None:
         spec = self.config.body_spec
-        if spec.onnx_path is not None:
-            body_onnx = spec.onnx_path
-        else:
-            from rtmlib import Body
-            body_rtmlib = Body(pose='rtmo', mode=spec.rtmlib_mode or 'balanced',
-                               backend='onnxruntime', device='cpu')
-            self._rtmo_model = body_rtmlib.pose_model
-            body_onnx = str(body_rtmlib.pose_model.onnx_model)
-            logger.info(f"RTMO body model: {body_onnx}")
+        body_onnx = str(resolve_model_path(spec.source))
+        logger.info(f"RTMO body model: {body_onnx}")
         self._body_session = build_tuned_ort_session(
             onnx_path=body_onnx, provider=provider, engine_cache_dir=self.config.engine_cache_dir,
             fp16=self.config.fp16, log_label="rtmo_body",
             max_batch_size=self.config.max_batch_size,
         )
-        if self._rtmo_model is not None:
-            self._rtmo_model.session = self._body_session
         self._body_supports_batch = probe_supports_batch(self._body_session, label="rtmo_body")
 
     def _build_hands(self, provider: ExecutionProviderName) -> None:
         if not self.config.detect_hands:
             return
         spec = self.config.hand_spec
-        if spec.onnx_path is not None:
-            hand_onnx = spec.onnx_path
-        else:
-            from rtmlib import Hand
-            h = Hand(mode=spec.rtmlib_mode or 'lightweight',
-                     backend='onnxruntime', device='cpu')
-            hand_onnx = str(h.pose_model.onnx_model)
-            logger.info(f"Hand model: {hand_onnx}")
+        hand_onnx = str(resolve_model_path(spec.source))
+        logger.info(f"Hand model: {hand_onnx}")
         self._hand_session = build_tuned_ort_session(
             onnx_path=hand_onnx, provider=provider,
             engine_cache_dir=self.config.engine_cache_dir,
@@ -234,20 +221,13 @@ class CompositeGPUSession:
         if not self.config.detect_face:
             return
         spec = self.config.face_spec
-        if spec.onnx_path is not None:
-            face_onnx = spec.onnx_path
-        else:
-            from rtmlib import RTMPose
-            try:
-                face_rtm = RTMPose(onnx_model=_FACE_ONNX_URL,
-                                   model_input_size=spec.input_size,
-                                   backend='onnxruntime', device='cpu')
-                face_onnx = str(face_rtm.onnx_model)
-                logger.info(f"Face model: {face_onnx}")
-            except Exception as e:
-                logger.warning(f"Face model download failed ({e!r}); face disabled.")
-                self.config.detect_face = False
-                return
+        try:
+            face_onnx = str(resolve_model_path(spec.source))
+            logger.info(f"Face model: {face_onnx}")
+        except Exception as e:
+            logger.warning(f"Face model download failed ({e!r}); face disabled.")
+            self.config.detect_face = False
+            return
 
         self._face_session = build_tuned_ort_session(
             onnx_path=face_onnx, provider=provider,
@@ -268,14 +248,24 @@ class CompositeGPUSession:
     # ------------------------------------------------------------------ warmup
 
     def _warmup(self) -> None:
+        """Run synthetic frames through the full pipeline once per batch size
+        so that GPU JIT / cuDNN auto-tune / TRT compilation is paid up-front."""
         h, w = 480, 640
         synthetic = np.full((h, w, 3), 128, dtype=np.uint8)
         sizes = sorted({1, max(1, self.config.max_batch_size)})
         for batch_size in sizes:
+            t0 = time.perf_counter()
+            logger.info(f"Warmup starting (batch_size={batch_size}) ...")
             try:
                 self.predict_batch([synthetic] * batch_size)
+                elapsed = time.perf_counter() - t0
+                logger.info(f"Warmup OK (batch_size={batch_size}, elapsed={elapsed:.1f}s)")
             except Exception as e:
-                logger.warning(f"Warmup at batch_size={batch_size} failed (non-fatal): {e!r}")
+                elapsed = time.perf_counter() - t0
+                logger.warning(
+                    f"Warmup failed at batch_size={batch_size} "
+                    f"(elapsed={elapsed:.1f}s, non-fatal): {e!r}"
+                )
 
     # ------------------------------------------------------------------ inference
 
@@ -286,19 +276,25 @@ class CompositeGPUSession:
         if not images:
             return []
 
+        n = len(images)
+        logger.info(f"predict_batch: {n} image(s)")
+
         body_results = self._run_body_batch(images)
+        logger.info(f"predict_batch: body done ({body_results[0][0].shape[0]} person(s))")
 
         if self._executor is not None:
+            logger.info("predict_batch: submitting hands + face to thread pool")
             fh = self._executor.submit(self._run_hands_batch, images, body_results)
             ff = self._executor.submit(self._run_face_batch, images, body_results)
             hand_kpts, right_rois, left_rois = fh.result()
             face_kpts, face_rois = ff.result()
+            logger.info("predict_batch: hands + face futures resolved")
         else:
             hand_kpts, right_rois, left_rois = self._run_hands_batch(images, body_results)
             face_kpts, face_rois = self._run_face_batch(images, body_results)
 
         merged: list[dict[str, Any]] = []
-        for i in range(len(images)):
+        for i in range(n):
             merged.append({
                 "body": body_results[i],
                 "hands": hand_kpts[i],
@@ -315,13 +311,14 @@ class CompositeGPUSession:
         if self._body_session is None:
             return [_empty_body_result() for _ in images]
 
-        if self._rtmo_model is not None:
-            preprocessed = [self._rtmo_model.preprocess(img) for img in images]
-        else:
-            spec = self.config.body_spec
-            preprocessed = [_simple_letterbox(img, spec.input_size, spec.mean, spec.std)
-                            for img in images]
+        t0 = time.perf_counter()
+        spec = self.config.body_spec
+        preprocessed = [rtmo_preprocess(img, spec.input_size, spec.mean, spec.std)
+                        for img in images]
+        logger.info(f"_run_body_batch: preprocessed {len(images)} image(s) "
+                     f"in {(time.perf_counter() - t0)*1000:.0f}ms")
 
+        t1 = time.perf_counter()
         batch = np.stack([p[0].transpose(2, 0, 1).astype(np.float32) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
@@ -329,28 +326,27 @@ class CompositeGPUSession:
         except Exception as e:
             logger.error(f"RTMO batched inference failed: {e!r}")
             return [_empty_body_result() for _ in images]
+        logger.info(f"_run_body_batch: ONNX inference "
+                     f"in {(time.perf_counter() - t1)*1000:.0f}ms")
 
+        t2 = time.perf_counter()
         results: list[tuple[NDArray, NDArray]] = []
         for i in range(len(images)):
-            if self._rtmo_model is not None:
-                outputs_i = [o[i:i + 1] for o in outputs]
-                try:
-                    kpts, scores = self._rtmo_model.postprocess(
-                        outputs_i, preprocessed[i][1],
-                        nms_thr=self._rtmo_model.nms_thr,
-                        score_thr=self._rtmo_model.score_thr,
-                    )
-                    results.append((kpts, scores))
-                except Exception as e:
-                    logger.warning(f"RTMO postprocess failed: {e!r}")
-                    results.append(_empty_body_result())
-            else:
-                logger.error(
-                    "Body inference has no postprocess hook "
-                    "(rtmlib model was not initialised). "
-                    "Set body_spec.preprocess_mode='rtmo' or provide a custom ONNX path."
+            outputs_i = [o[i:i + 1] for o in outputs]
+            try:
+                kpts, scores = rtmo_postprocess(
+                    outputs_i,
+                    ratio=preprocessed[i][1],
+                    nms_thr=self._body_nms_thr,
+                    score_thr=self._body_score_thr,
                 )
+                results.append((kpts, scores))
+            except Exception as e:
+                logger.warning(f"RTMO postprocess failed: {e!r}")
                 results.append(_empty_body_result())
+        logger.info(f"_run_body_batch: postprocess "
+                     f"in {(time.perf_counter() - t2)*1000:.0f}ms "
+                     f"(total={results[0][0].shape[0]} person(s))")
         return results
 
     # ------------------------------------------------------------------ hands
@@ -358,6 +354,7 @@ class CompositeGPUSession:
     def _run_hands_batch(
         self, images: list[NDArray[np.uint8]], body_results: list[tuple[NDArray, NDArray]],
     ) -> tuple[list[tuple[NDArray, NDArray]], list[ROIBox | None], list[ROIBox | None]]:
+        t0 = time.perf_counter()
         n = len(images)
         spec = self.config.hand_spec
         if self._hand_session is None or not self.config.detect_hands:
@@ -512,6 +509,8 @@ class CompositeGPUSession:
             right_rois.append(_find_roi_for_side(all_crops, img_idx, 0))
             left_rois.append(_find_roi_for_side(all_crops, img_idx, 1))
 
+        logger.info(f"_run_hands_batch: {len(all_crops)} crops → "
+                     f"{(time.perf_counter() - t0)*1000:.0f}ms total")
         return kpt_results, right_rois, left_rois
 
     # ------------------------------------------------------------------ face
@@ -519,6 +518,7 @@ class CompositeGPUSession:
     def _run_face_batch(
         self, images: list[NDArray[np.uint8]], body_results: list[tuple[NDArray, NDArray]],
     ) -> tuple[list[tuple[NDArray, NDArray]], list[ROIBox | None]]:
+        t0 = time.perf_counter()
         n = len(images)
         spec = self.config.face_spec
         if self._face_session is None or not self.config.detect_face:
@@ -609,6 +609,8 @@ class CompositeGPUSession:
                     found = roi; break
             face_rois_out.append(found)
 
+        logger.info(f"_run_face_batch: {len(all_crops)} crops → "
+                     f"{(time.perf_counter() - t0)*1000:.0f}ms total")
         return ([r if r is not None else _empty_face_result(spec.num_keypoints) for r in face_results], face_rois_out)
 
 

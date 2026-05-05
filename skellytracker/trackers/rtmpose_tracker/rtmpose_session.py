@@ -32,10 +32,22 @@ import numpy as np
 import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
-from rtmlib import Wholebody
-from rtmlib.tools.object_detection.post_processings import multiclass_nms
-from rtmlib.tools.pose_estimation.post_processings import convert_coco_to_openpose, get_simcc_maximum
 
+from skellytracker.utilities.gpu_utils.model_registry import (
+    MODEL_URLS,
+    ModelSource,
+    resolve_model_path,
+)
+from skellytracker.utilities.gpu_utils.rtm_postprocessing import (
+    convert_coco_to_openpose,
+    get_simcc_maximum,
+    multiclass_nms,
+)
+from skellytracker.utilities.gpu_utils.rtm_preprocessing import (
+    rtmpose_letterbox_postprocess,
+    rtmpose_letterbox_preprocess,
+    yolox_letterbox_preprocess,
+)
 from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ExecutionProviderName,
     build_tuned_ort_session,
@@ -78,6 +90,24 @@ class RTMPoseSessionConfig(BaseModel):
     on_provider_missing: Literal["fallback", "raise"] = "fallback"
 
 
+# Mapping from RTMPoseSessionConfig.mode → (det_url_key, det_input_size,
+# pose_url_key, pose_input_size).  Mirrors rtmlib's Wholebody.MODE.
+WHOLEBODY_MODE_CONFIG: dict[str, tuple[str, tuple[int, int], str, tuple[int, int]]] = {
+    "performance": (
+        "yolox-m", (640, 640),
+        "rtmw-x-l_384x288", (288, 384),
+    ),
+    "lightweight": (
+        "yolox-tiny", (416, 416),
+        "rtmw-l-m_256x192", (192, 256),
+    ),
+    "balanced": (
+        "yolox-m", (640, 640),
+        "rtmw-x-l_256x192", (192, 256),
+    ),
+}
+
+
 @dataclass
 class _PoseCrop:
     """Holds preprocessed RTMPose input + the metadata needed to postprocess it.
@@ -91,8 +121,19 @@ class _PoseCrop:
 @dataclass
 class RTMPoseSession:
     config: RTMPoseSessionConfig
-    wholebody: Wholebody
     _active_provider: ExecutionProviderName
+
+    # Direct attribute storage (replaces rtmlib's Wholebody class)
+    _det_session: ort.InferenceSession | None = None
+    _pose_session: ort.InferenceSession | None = None
+    _det_input_size: tuple[int, int] = (640, 640)
+    _pose_input_size: tuple[int, int] = (288, 384)
+    _det_nms_thr: float = 0.45
+    _det_score_thr: float = 0.7
+    _pose_mean: tuple[float, float, float] = (123.675, 116.28, 103.53)
+    _pose_std: tuple[float, float, float] = (58.395, 57.12, 57.375)
+    _pose_to_openpose: bool = False
+
     # True when the YOLOX ONNX model accepts batch > 1. Many checkpoints are
     # exported with a static batch=1 dim; we probe this once at construction and
     # skip the stack + batched run entirely for those models.
@@ -108,13 +149,6 @@ class RTMPoseSession:
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
         config = config or RTMPoseSessionConfig()
 
-        # rtmlib's `device` arg takes a string in {"cuda", "cpu", "rocm", "mps"}.
-        # Always init rtmlib with "cpu": Wholebody is used as a container for
-        # model paths and preprocessing code; both its sessions are replaced with
-        # our own tuned CUDA/TRT sessions immediately below. Initialising with
-        # "cuda" would allocate ~580 MB of CUDA sessions that are discarded
-        # 3 lines later, needlessly reducing VRAM headroom for inference.
-        rtmlib_device = "cpu"
         if config.execution_provider in ("trt", "cuda"):
             ensure_cuda_dlls_loaded()
 
@@ -125,6 +159,11 @@ class RTMPoseSession:
 
         config.engine_cache_dir.mkdir(parents=True, exist_ok=True)
 
+        # Resolve mode → model URLs + input sizes
+        det_key, det_input_size, pose_key, pose_input_size = WHOLEBODY_MODE_CONFIG[
+            config.mode
+        ]
+
         logger.info(
             f"Constructing RTMPoseSession (mode={config.mode!r}, "
             f"requested_provider={config.execution_provider!r}, "
@@ -132,29 +171,18 @@ class RTMPoseSession:
             f"max_batch_size={config.max_batch_size}, fp16={config.fp16})"
         )
 
-        # Step 1: let rtmlib construct Wholebody normally. This downloads the
-        # ONNX files and builds a basic ORT session per sub-model.
-        wholebody = Wholebody(
-            to_openpose=False,
-            mode=config.mode,
-            backend="onnxruntime",
-            device=rtmlib_device,
-        )
+        # Download both ONNX models
+        det_url = MODEL_URLS[det_key]
+        pose_url = MODEL_URLS[pose_key]
+        det_onnx_raw = str(resolve_model_path(ModelSource(url=det_url)))
+        pose_onnx_raw = str(resolve_model_path(ModelSource(url=pose_url)))
 
-        # Step 2: replace each sub-model's session with a tuned one so we get
-        # provider options, TRT engine cache, and explicit SessionOptions.
-        # The .onnx_model attribute on each BaseTool is the absolute path to
-        # the (already-downloaded) model file.
-        # YOLOX path: rewrite the ONNX to declare a symbolic batch dim before
-        # opening the ORT session. rtmlib's checkpoints ship with static batch=1,
-        # which would otherwise force serial per-image inference for N cameras.
-        #
-        # The full YOLOX ONNX has NMS baked in, which contains a TopK node whose
-        # K exceeds TRT's compile-time limit (~3840). Build the full det_session
-        # with CUDA EP even when TRT is requested — it is only used as a per-image
-        # fallback (N=1 or prenms unavailable). The prenms session below gets TRT.
+        # Build ORT sessions.
+        # YOLOX path: rewrite the ONNX to declare a symbolic batch dim.
+        # The full YOLOX ONNX has NMS baked in — build the full det_session
+        # with CUDA EP even when TRT is requested.
         det_provider = "cuda" if active_provider == "trt" else active_provider
-        det_onnx_path = str(ensure_dynamic_batch(wholebody.det_model.onnx_model))
+        det_onnx_path = str(ensure_dynamic_batch(det_onnx_raw))
         det_session = build_tuned_ort_session(
             onnx_path=det_onnx_path,
             provider=det_provider,
@@ -164,9 +192,8 @@ class RTMPoseSession:
             max_batch_size=config.max_batch_size,
             trt_set_batch_profile=True,
         )
-        wholebody.det_model.session = det_session
-        wholebody.pose_model.session = build_tuned_ort_session(
-            onnx_path=wholebody.pose_model.onnx_model,
+        pose_session = build_tuned_ort_session(
+            onnx_path=pose_onnx_raw,
             provider=active_provider,
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
@@ -174,18 +201,11 @@ class RTMPoseSession:
             max_batch_size=config.max_batch_size,
         )
 
-        # Probe whether YOLOX accepts batch > 1. ONNX exports often have a fixed
-        # batch=1 dimension; detect it once here so _detect_persons_batched can
-        # skip the doomed stack + session.run entirely (no warning spam).
         yolox_supports_batch = probe_supports_batch(det_session, label="yolox")
 
         # Build a dedicated pre-NMS session for batch>1 YOLOX inference.
-        # ORT's CUDA EP runs the full compiled graph even when only a subset of
-        # outputs is requested, so we can't skip Squeeze_axis0 by requesting pre-NMS
-        # outputs from the main session. Instead we use onnx.utils.extract_model to
-        # create a stripped backbone-only ONNX and build a separate session from it.
         yolox_prenms_session: ort.InferenceSession | None = None
-        det_dynbatch_path = ensure_dynamic_batch(wholebody.det_model.onnx_model)
+        det_dynbatch_path = ensure_dynamic_batch(det_onnx_raw)
         prenms_path = ensure_prenms_model(det_dynbatch_path)
         if prenms_path is not None:
             logger.info(
@@ -204,8 +224,11 @@ class RTMPoseSession:
 
         session = cls(
             config=config,
-            wholebody=wholebody,
             _active_provider=active_provider,
+            _det_session=det_session,
+            _pose_session=pose_session,
+            _det_input_size=det_input_size,
+            _pose_input_size=pose_input_size,
             _yolox_supports_batch=yolox_supports_batch,
             _yolox_prenms_session=yolox_prenms_session,
         )
@@ -289,14 +312,17 @@ class RTMPoseSession:
         (ORT skips Squeeze+NMS) and run Python NMS per image.
 
         For YOLOX models without baked-in NMS the standard batched path works."""
-        det = self.wholebody.det_model
 
-        # Fast path: model has static batch=1 or only one image — use rtmlib's
-        # standard single-image YOLOX path (includes baked-in NMS, works on CUDA).
+        # Fast path: model has static batch=1 or only one image — per-image
+        # YOLOX path (includes baked-in NMS, works on CUDA).
         if not self._yolox_supports_batch or len(images) == 1:
-            return [det(img) for img in images]
+            return [_single_image_yolox(
+                img, self._det_session, self._det_input_size,
+                self._det_nms_thr, self._det_score_thr,
+            ) for img in images]
 
-        preprocessed = [det.preprocess(img) for img in images]
+        preprocessed = [yolox_letterbox_preprocess(img, self._det_input_size)
+                        for img in images]
 
         # Stack to (N, 3, H, W). All padded images share the same shape because
         # YOLOX letterboxes to a fixed model_input_size.
@@ -319,8 +345,8 @@ class RTMPoseSession:
                         bboxes_one=bboxes_batch[i],
                         conf_one=conf_batch[i],
                         ratio=preprocessed[i][1],
-                        nms_thr=det.nms_thr,
-                        score_thr=det.score_thr,
+                        nms_thr=self._det_nms_thr,
+                        score_thr=self._det_score_thr,
                     )
                     for i in range(len(images))
                 ]
@@ -329,17 +355,23 @@ class RTMPoseSession:
                     f"YOLOX pre-NMS batched run failed ({e!r}); "
                     f"falling back to per-image inference."
                 )
-                return [det(img) for img in images]
+                return [_single_image_yolox(
+                    img, self._det_session, self._det_input_size,
+                    self._det_nms_thr, self._det_score_thr,
+                ) for img in images]
 
         # Fallback batched path: YOLOX session without baked-in NMS (uncommon).
         try:
-            outputs = session_run_batched(det.session, batch)
+            outputs = session_run_batched(self._det_session, batch)
         except Exception as e:
             logger.warning(
                 f"YOLOX batched session.run failed ({e!r}); "
                 f"falling back to per-image inference."
             )
-            return [det(img) for img in images]
+            return [_single_image_yolox(
+                img, self._det_session, self._det_input_size,
+                self._det_nms_thr, self._det_score_thr,
+            ) for img in images]
 
         det_output = outputs[0]  # (N, num_anchors, C)
 
@@ -350,9 +382,9 @@ class RTMPoseSession:
                 _yolox_postprocess_one(
                     outputs_one=per_image_output,
                     ratio=ratio,
-                    model_input_size=det.model_input_size,
-                    nms_thr=det.nms_thr,
-                    score_thr=det.score_thr,
+                    model_input_size=self._det_input_size,
+                    nms_thr=self._det_nms_thr,
+                    score_thr=self._det_score_thr,
                 )
             )
         return bboxes_per_image
@@ -366,12 +398,6 @@ class RTMPoseSession:
     ) -> list[tuple[NDArray, NDArray]]:
         """Run RTMPose over the union of all (image, bbox) crops. Returns one
         (keypoints, scores) tuple per input image."""
-        pose = self.wholebody.pose_model
-
-        # Materialize mean/std as arrays once (rtmlib does this lazily inside
-        # preprocess but mutates self.mean each time — we stay out of that path).
-        mean = np.asarray(pose.mean, dtype=np.float32) if pose.mean is not None else None
-        std = np.asarray(pose.std, dtype=np.float32) if pose.std is not None else None
 
         # Per-image crops + a flat list of all crops with provenance.
         crops: list[_PoseCrop] = []
@@ -379,18 +405,13 @@ class RTMPoseSession:
         for image, bboxes in zip(images, bboxes_per_image):
             start = len(crops)
             if len(bboxes) == 0:
-                # rtmlib's behavior: when no bbox, use the whole image as one bbox.
-                # But for centralized inference we'd rather return an empty
-                # detection than silently invent a person — keeps the per-camera
-                # output honest. Aggregator handles "no skeleton this frame".
                 crop_ranges.append((start, start))
                 continue
             for bbox in bboxes:
-                resized_img, center, scale = pose.preprocess(image, bbox)
-                if mean is not None and std is not None:
-                    # `pose.preprocess` already did the normalization — it
-                    # mutates self.mean/std so we just trust its output.
-                    pass
+                resized_img, center, scale = rtmpose_letterbox_preprocess(
+                    image, bbox=list(bbox), model_input_size=self._pose_input_size,
+                    mean=self._pose_mean, std=self._pose_std,
+                )
                 crops.append(_PoseCrop(
                     resized_img=resized_img.astype(np.float32, copy=False),
                     center=np.asarray(center, dtype=np.float64),
@@ -408,14 +429,10 @@ class RTMPoseSession:
         batch = np.ascontiguousarray(batch)
 
         try:
-            outputs = session_run_batched(pose.session, batch)
+            outputs = session_run_batched(self._pose_session, batch)
         except Exception as e:
             e_str = str(e)
             if "BFCArena" in e_str or "Available memory" in e_str:
-                # GPU is out of VRAM. wholebody.pose_model uses the same CUDA
-                # session (it was replaced in create()) and would also OOM.
-                # Re-raise as MemoryError so the inference node's
-                # restart-and-rebuild handler can fire instead of crashing.
                 raise MemoryError(
                     f"GPU Out of Memory in RTMPose batched pose inference: {e}"
                 ) from e
@@ -424,7 +441,12 @@ class RTMPoseSession:
                 f"falling back to per-crop inference."
             )
             return [
-                self.wholebody.pose_model(images[i], bboxes=list(bboxes_per_image[i]))
+                _single_image_rtmpose(
+                    images[i], bboxes=list(bboxes_per_image[i]),
+                    session=self._pose_session, pose_input_size=self._pose_input_size,
+                    pose_mean=self._pose_mean, pose_std=self._pose_std,
+                    to_openpose=self._pose_to_openpose,
+                )
                 if len(bboxes_per_image[i]) > 0 else _empty_pose_result()
                 for i in range(len(images))
             ]
@@ -447,14 +469,14 @@ class RTMPoseSession:
                     simcc_y=sy,
                     center=crops[ci].center,
                     scale=crops[ci].scale,
-                    model_input_size=pose.model_input_size,
+                    model_input_size=self._pose_input_size,
                 )
                 kpts_per_person.append(kpts)
                 scores_per_person.append(scr)
 
             keypoints = np.concatenate(kpts_per_person, axis=0)
             scores = np.concatenate(scores_per_person, axis=0)
-            if pose.to_openpose:
+            if self._pose_to_openpose:
                 keypoints, scores = convert_coco_to_openpose(keypoints, scores)
             results.append((keypoints, scores))
         return results
@@ -641,6 +663,79 @@ def _yolox_postprocess_one(
         return boxes[scores > 0.3]
 
     raise RuntimeError(f"Unexpected YOLOX output shape: {outputs_one.shape}")
+
+
+def _single_image_yolox(
+    image: NDArray[np.uint8],
+    session: ort.InferenceSession | None,
+    input_size: tuple[int, int],
+    nms_thr: float,
+    score_thr: float,
+) -> NDArray:
+    """Per-image YOLOX: preprocess → session.run → postprocess.
+
+    Replaces ``rtmlib.YOLOX.__call__``.
+    """
+    if session is None:
+        return np.empty((0, 4), dtype=np.float64)
+
+    padded, ratio = yolox_letterbox_preprocess(image, input_size)
+    inp = np.ascontiguousarray(padded.transpose(2, 0, 1)[None].astype(np.float32))
+    outputs = session.run(None, {session.get_inputs()[0].name: inp})
+    return _yolox_postprocess_one(
+        outputs_one=outputs[0],
+        ratio=ratio,
+        model_input_size=input_size,
+        nms_thr=nms_thr,
+        score_thr=score_thr,
+    )
+
+
+def _single_image_rtmpose(
+    image: NDArray[np.uint8],
+    bboxes: list[NDArray],
+    session: ort.InferenceSession | None,
+    pose_input_size: tuple[int, int],
+    pose_mean: tuple[float, float, float],
+    pose_std: tuple[float, float, float],
+    to_openpose: bool = False,
+) -> tuple[NDArray, NDArray]:
+    """Per-image RTMPose: preprocess each bbox → session.run → postprocess.
+
+    Replaces ``rtmlib.RTMPose.__call__``.
+    """
+    if session is None or len(bboxes) == 0:
+        return _empty_pose_result()
+
+    if len(bboxes) == 1 and bboxes[0].shape == (4,):
+        bbox_list: list[NDArray] = [bboxes[0]]
+    else:
+        bbox_list = list(bboxes)
+
+    kpts_list: list[NDArray] = []
+    scores_list: list[NDArray] = []
+    for bbox in bbox_list:
+        resized, center, scale = rtmpose_letterbox_preprocess(
+            image, bbox=list(bbox), model_input_size=pose_input_size,
+            mean=pose_mean, std=pose_std,
+        )
+        inp = np.ascontiguousarray(resized.transpose(2, 0, 1)[None].astype(np.float32))
+        outputs = session.run(None, {session.get_inputs()[0].name: inp})
+        sx, sy = outputs[0], outputs[1]
+        kpts, scr = rtmpose_letterbox_postprocess(
+            simcc_x=sx, simcc_y=sy,
+            center=center, scale=scale,
+            model_input_size=pose_input_size,
+            simcc_split_ratio=2.0,
+        )
+        kpts_list.append(kpts)
+        scores_list.append(scr)
+
+    keypoints = np.concatenate(kpts_list, axis=0)
+    scores = np.concatenate(scores_list, axis=0)
+    if to_openpose:
+        keypoints, scores = convert_coco_to_openpose(keypoints, scores)
+    return keypoints, scores
 
 
 def _rtmpose_decode_one(

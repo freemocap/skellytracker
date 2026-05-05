@@ -146,9 +146,6 @@ conflicts = [[
     { package = "skellytracker", extra = "recommended" },
 ]]
 
-[manifest]
-excludes = ["onnxruntime"]
-
 [[package]]
 name = "absl-py"
 version = "2.4.0"
@@ -1740,21 +1737,6 @@ wheels = [
 ]
 
 [[package]]
-name = "rtmlib"
-version = "0.0.14"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy", marker = "(extra == 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-mediapipe') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt')" },
-    { name = "opencv-contrib-python", marker = "(extra == 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-mediapipe') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt')" },
-    { name = "opencv-python", marker = "(extra == 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-mediapipe') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt')" },
-    { name = "tqdm", marker = "(extra == 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-mediapipe') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-recommended') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-directml') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-gpu') or (extra != 'extra-13-skellytracker-legacy-mediapipe' and extra == 'extra-13-skellytracker-rtmpose-trt')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/1e/74/b3a33e88f1961a3fa80d7a6a3e2910670ebbb10b9c1d06d334ac2115843b/rtmlib-0.0.14.tar.gz", hash = "sha256:2d3090b1e93f7eddcedb01233f2181fb6f974ab3250e356eb94eae872358317a", size = 40656, upload-time = "2025-11-05T16:54:56.993Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/c4/d5/3c55515efe506ea33c221e29b12d9d9ddfff7e4995eb8fbcb47589fbdcb3/rtmlib-0.0.14-py3-none-any.whl", hash = "sha256:dbba2a0a8d7de7bfd8bfb3fa557607f7a9ad6266ace3ceff89665c2d743bfe58", size = 51464, upload-time = "2025-11-05T16:54:55.732Z" },
-]
-
-[[package]]
 name = "ruff"
 version = "0.15.11"
 source = { registry = "https://pypi.org/simple" }
@@ -1871,13 +1853,11 @@ recommended = [
     { name = "nvidia-cufft-cu12" },
     { name = "onnx" },
     { name = "onnxruntime-gpu" },
-    { name = "rtmlib" },
     { name = "tensorrt" },
 ]
 rtmpose-directml = [
     { name = "onnx" },
     { name = "onnxruntime-directml" },
-    { name = "rtmlib" },
 ]
 rtmpose-gpu = [
     { name = "nvidia-cublas-cu12" },
@@ -1886,7 +1866,6 @@ rtmpose-gpu = [
     { name = "nvidia-cufft-cu12" },
     { name = "onnx" },
     { name = "onnxruntime-gpu" },
-    { name = "rtmlib" },
 ]
 rtmpose-trt = [
     { name = "nvidia-cublas-cu12" },
@@ -1895,7 +1874,6 @@ rtmpose-trt = [
     { name = "nvidia-cufft-cu12" },
     { name = "onnx" },
     { name = "onnxruntime-gpu" },
-    { name = "rtmlib" },
     { name = "tensorrt" },
 ]
 yolo = [
@@ -1944,10 +1922,6 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.*" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.32.3" },
-    { name = "rtmlib", marker = "extra == 'recommended'", specifier = "==0.0.14" },
-    { name = "rtmlib", marker = "extra == 'rtmpose-directml'", specifier = "==0.0.14" },
-    { name = "rtmlib", marker = "extra == 'rtmpose-gpu'", specifier = "==0.0.14" },
-    { name = "rtmlib", marker = "extra == 'rtmpose-trt'", specifier = "==0.0.14" },
     { name = "tensorrt", marker = "extra == 'recommended'" },
     { name = "tensorrt", marker = "extra == 'rtmpose-trt'" },
     { name = "tqdm", specifier = "==4.*" },

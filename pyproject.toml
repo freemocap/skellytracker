@@ -85,7 +85,6 @@ yolo = ["ultralytics~=8.0.202"]
 # Code must call `onnxruntime.preload_dlls(directory="")` before creating a session
 # so ORT finds these pip-installed DLLs — skellytracker already does this.
 rtmpose-gpu = [
-    "rtmlib==0.0.14",
     "onnxruntime-gpu",
     "onnx",
     "nvidia-cuda-runtime-cu12",
@@ -96,15 +95,12 @@ rtmpose-gpu = [
 
 # RTMPose — any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm)
 # No CUDA toolkit needed. Just pip install and go.
-# Note: requires a one-line patch to rtmlib to add 'directml' device support —
-# see GPU_SETUP_GUIDE.md for details.
-rtmpose-directml = ["rtmlib==0.0.14", "onnxruntime-directml", "onnx"]
+rtmpose-directml = ["onnxruntime-directml", "onnx"]
 
 # RTMPose — NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone)
 # Requires an NVIDIA GPU. First run triggers engine compilation (1-5 min); cached thereafter.
 # Install with: uv pip install -e ".[rtmpose-trt]"
 rtmpose-trt = [
-    "rtmlib==0.0.14",
     "onnxruntime-gpu",
     "onnx",
     "nvidia-cuda-runtime-cu12",
@@ -118,7 +114,6 @@ rtmpose-trt = [
 # Requires an NVIDIA GPU. First run compiles TRT engines (1-5 min); cached thereafter.
 recommended = [
     "mediapipe==0.10.33",
-    "rtmlib==0.0.14",
     "onnxruntime-gpu",
     "onnx",
     "nvidia-cuda-runtime-cu12",
@@ -134,25 +129,6 @@ dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
 
 [tool.uv]
 default-groups = ["dev"]
-
-# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. We want the
-# GPU build (`onnxruntime-gpu`) or the DirectML build (`onnxruntime-directml`)
-# instead, pulled in via the relevant extra. All three packages provide the
-# same top-level `onnxruntime` Python import, but they cannot coexist on disk:
-# they share the same namespace directory and their DLLs / .pyd files clobber
-# each other, producing a broken install that fails at import with things like
-# `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
-#
-# `exclude-dependencies` drops the CPU `onnxruntime` package from the resolution
-# graph entirely, even when rtmlib requests it transitively. rtmlib still works
-# at runtime because whichever accelerated build is installed provides the
-# `onnxruntime` import.
-#
-# Caveat: this setting only takes effect when uv resolves this workspace. A
-# downstream `pip install skellytracker[recommended]` will NOT honor it and
-# will reintroduce the conflict. The upstream fix is for rtmlib to stop pinning
-# `onnxruntime` as a hard dependency.
-exclude-dependencies = ["onnxruntime"]
 
 conflicts = [
     [
