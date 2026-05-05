@@ -22,15 +22,13 @@ What "tuned" means here:
   algo-search / TRT-compile cost.
 """
 import logging
-import sys
 import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Literal
 
 import numpy as np
-import onnx
 import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
@@ -38,6 +36,16 @@ from rtmlib import Wholebody
 from rtmlib.tools.object_detection.post_processings import multiclass_nms
 from rtmlib.tools.pose_estimation.post_processings import convert_coco_to_openpose, get_simcc_maximum
 
+from skellytracker.trackers.gpu_utils.ort_session_utils import (
+    ExecutionProviderName,
+    build_tuned_ort_session,
+    cuda_provider_options,
+    ensure_cuda_dlls_loaded,
+    probe_supports_batch,
+    resolve_provider,
+    session_run_batched,
+    validate_engine_cache,
+)
 from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
     PRENMS_BBOX_OUTPUT,
     PRENMS_CONF_OUTPUT,
@@ -46,8 +54,6 @@ from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
 )
 
 logger = logging.getLogger(__name__)
-
-ExecutionProviderName = Literal["trt", "cuda", "cpu"]
 
 
 def _default_engine_cache_dir() -> Path:
@@ -112,9 +118,9 @@ class RTMPoseSession:
         # 3 lines later, needlessly reducing VRAM headroom for inference.
         rtmlib_device = "cpu"
         if config.execution_provider in ("trt", "cuda"):
-            _ensure_cuda_dlls_loaded()
+            ensure_cuda_dlls_loaded()
 
-        active_provider = _resolve_provider(
+        active_provider = resolve_provider(
             requested=config.execution_provider,
             on_missing=config.on_provider_missing,
         )
@@ -150,30 +156,30 @@ class RTMPoseSession:
         # with CUDA EP even when TRT is requested — it is only used as a per-image
         # fallback (N=1 or prenms unavailable). The prenms session below gets TRT.
         det_provider = "cuda" if active_provider == "trt" else active_provider
-        det_session = _build_tuned_ort_session(
-            onnx_path=wholebody.det_model.onnx_model,
+        det_onnx_path = str(ensure_dynamic_batch(wholebody.det_model.onnx_model))
+        det_session = build_tuned_ort_session(
+            onnx_path=det_onnx_path,
             provider=det_provider,
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
             log_label="yolox",
-            make_dynamic_batch=True,
             max_batch_size=config.max_batch_size,
+            trt_set_batch_profile=True,
         )
         wholebody.det_model.session = det_session
-        wholebody.pose_model.session = _build_tuned_ort_session(
+        wholebody.pose_model.session = build_tuned_ort_session(
             onnx_path=wholebody.pose_model.onnx_model,
             provider=active_provider,
             engine_cache_dir=config.engine_cache_dir,
             fp16=config.fp16,
             log_label="rtmpose",
-            make_dynamic_batch=False,
             max_batch_size=config.max_batch_size,
         )
 
         # Probe whether YOLOX accepts batch > 1. ONNX exports often have a fixed
         # batch=1 dimension; detect it once here so _detect_persons_batched can
         # skip the doomed stack + session.run entirely (no warning spam).
-        yolox_supports_batch = _probe_supports_batch(det_session, label="yolox")
+        yolox_supports_batch = probe_supports_batch(det_session, label="yolox")
 
         # Build a dedicated pre-NMS session for batch>1 YOLOX inference.
         # ORT's CUDA EP runs the full compiled graph even when only a subset of
@@ -188,14 +194,13 @@ class RTMPoseSession:
                 f"Building pre-NMS ORT session for batch>1 YOLOX inference "
                 f"({prenms_path.name})"
             )
-            yolox_prenms_session = _build_tuned_ort_session(
+            yolox_prenms_session = build_tuned_ort_session(
                 onnx_path=str(prenms_path),
                 provider=active_provider,
                 engine_cache_dir=config.engine_cache_dir,
                 fp16=config.fp16,
                 log_label="yolox_prenms",
-                make_dynamic_batch=False,
-                trt_set_batch_profile=True,  # prenms ONNX already has dynamic batch
+                trt_set_batch_profile=True,
                 max_batch_size=config.max_batch_size,
             )
 
@@ -330,7 +335,7 @@ class RTMPoseSession:
 
         # Fallback batched path: YOLOX session without baked-in NMS (uncommon).
         try:
-            outputs = _session_run_batched(det.session, batch)
+            outputs = session_run_batched(det.session, batch)
         except Exception as e:
             logger.warning(
                 f"YOLOX batched session.run failed ({e!r}); "
@@ -405,7 +410,7 @@ class RTMPoseSession:
         batch = np.ascontiguousarray(batch)
 
         try:
-            outputs = _session_run_batched(pose.session, batch)
+            outputs = session_run_batched(pose.session, batch)
         except Exception as e:
             e_str = str(e)
             if "BFCArena" in e_str or "Available memory" in e_str:
@@ -523,282 +528,8 @@ class RTMPoseSession:
 # ============================================================================
 # Free functions (kept module-level so they are easy to test in isolation)
 # ============================================================================
-
-
-def _resolve_provider(
-        *,
-        requested: ExecutionProviderName,
-        on_missing: Literal["fallback", "raise"],
-) -> ExecutionProviderName:
-    """Pick the actual EP to use given what's available. Falls back trt -> cuda
-    -> cpu unless `on_missing="raise"`."""
-    available = set(ort.get_available_providers())
-    needs = {
-        "trt": "TensorrtExecutionProvider",
-        "cuda": "CUDAExecutionProvider",
-        "cpu": "CPUExecutionProvider",
-    }
-    if needs[requested] in available:
-        return requested
-    if on_missing == "raise":
-        raise RuntimeError(
-            f"Requested execution_provider={requested!r} but ONNX Runtime "
-            f"only sees providers={sorted(available)}. Install onnxruntime-gpu "
-            f"(and a TensorRT-enabled build for trt) to enable GPU execution."
-        )
-    # Fallback chain.
-    fallback_order: list[ExecutionProviderName] = ["trt", "cuda", "cpu"]
-    start = fallback_order.index(requested)
-    for candidate in fallback_order[start:]:
-        if needs[candidate] in available:
-            if candidate != requested:
-                logger.warning(
-                    f"Requested execution_provider={requested!r} not available "
-                    f"({sorted(available)}); falling back to {candidate!r}."
-                )
-            return candidate
-    # Should be unreachable — CPU EP is always available.
-    raise RuntimeError(f"No supported ONNX Runtime providers found: {sorted(available)}")
-
-
-def _validate_engine_cache(engine_cache_dir: Path) -> None:
-    """Delete stale TRT engine files when TRT or ORT version has changed.
-
-    Writes a cache_manifest.json recording the current versions. On the next call,
-    if stored versions differ from current, all .engine and .timing files are
-    deleted so ORT/TRT will recompile fresh engines.
-    """
-    import json
-    manifest_path = engine_cache_dir / "cache_manifest.json"
-
-    try:
-        import tensorrt as _trt
-        current_trt = _trt.__version__
-    except Exception:
-        current_trt = "unavailable"
-    current = {"trt_version": current_trt, "ort_version": ort.__version__}
-
-    if manifest_path.exists():
-        try:
-            stored = json.loads(manifest_path.read_text())
-        except Exception:
-            stored = {}
-        if stored != current:
-            logger.warning(
-                f"TRT engine cache version mismatch "
-                f"(stored={stored}, current={current}). "
-                f"Deleting stale engines in {engine_cache_dir} — "
-                f"they will be recompiled on this run."
-            )
-            for stale in engine_cache_dir.glob("*.engine"):
-                stale.unlink(missing_ok=True)
-            for stale in engine_cache_dir.glob("*.timing"):
-                stale.unlink(missing_ok=True)
-
-    manifest_path.write_text(json.dumps(current, indent=2))
-
-
-def _build_tuned_ort_session(
-        *,
-        onnx_path: str,
-        provider: ExecutionProviderName,
-        engine_cache_dir: Path,
-        fp16: bool,
-        log_label: str,
-        make_dynamic_batch: bool = False,
-        max_batch_size: int = 8,
-        trt_set_batch_profile: bool | None = None,
-) -> ort.InferenceSession:
-    """Construct an ORT session with explicit SessionOptions + provider options.
-
-    When `make_dynamic_batch=True`, the ONNX model is first rewritten so its
-    leading input/output axes are symbolic. This is needed for YOLOX checkpoints
-    shipped with static batch=1.
-
-    `trt_set_batch_profile`: when True, sets the TRT optimization profile
-    (min=1, opt=max_batch_size, max=max_batch_size) even if `make_dynamic_batch`
-    is False. Required for sessions whose ONNX already has a symbolic batch dim
-    (e.g. the prenms session, built from the already-dynamic-batched YOLOX ONNX).
-    Defaults to `make_dynamic_batch` when not set.
-    """
-    if trt_set_batch_profile is None:
-        trt_set_batch_profile = make_dynamic_batch
-
-    if make_dynamic_batch:
-        onnx_path = str(ensure_dynamic_batch(onnx_path))
-
-    sess_options = ort.SessionOptions()
-    sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    # We expect this session to be pegged on the GPU. CPU-side parallelism per
-    # session would just cause cache thrash with the camera-node + aggregator
-    # processes that share the same cores.
-    sess_options.intra_op_num_threads = 1
-    sess_options.inter_op_num_threads = 1
-
-    # TensorRT engines compiled against a static-batch graph cannot be reused
-    # for a dynamic-batch graph (and vice versa). Bucket dynamic-batch caches
-    # under a versioned subdir so the two never collide. This applies both when
-    # we rewrote the ONNX (make_dynamic_batch) and when we set a TRT batch
-    # profile on an already-dynamic ONNX (trt_set_batch_profile).
-    if trt_set_batch_profile:
-        engine_cache_dir = engine_cache_dir / "dynbatch_v1"
-        engine_cache_dir.mkdir(parents=True, exist_ok=True)
-
-    if provider == "trt":
-        _validate_engine_cache(engine_cache_dir)
-
-    providers: list[tuple[str, dict] | str] = []
-    if provider == "trt":
-        trt_options: dict[str, Any] = {
-            "trt_fp16_enable": fp16,
-            "trt_engine_cache_enable": True,
-            "trt_engine_cache_path": str(engine_cache_dir),
-            "trt_timing_cache_enable": True,
-            "trt_timing_cache_path": str(engine_cache_dir),
-            "trt_max_workspace_size": 2 * 1024 * 1024 * 1024,  # 2 GiB
-        }
-        if trt_set_batch_profile:
-            trt_options.update(
-                _trt_dynamic_batch_profile(
-                    onnx_path=onnx_path,
-                    max_batch_size=max(1, max_batch_size),
-                )
-            )
-        providers.append(("TensorrtExecutionProvider", trt_options))
-        # Always include CUDA + CPU as fallback EPs in the provider list. If
-        # TRT can't compile a subgraph, ORT falls through to CUDA.
-        providers.append((
-            "CUDAExecutionProvider",
-            _cuda_provider_options(),
-        ))
-        providers.append("CPUExecutionProvider")
-    elif provider == "cuda":
-        providers.append((
-            "CUDAExecutionProvider",
-            _cuda_provider_options(),
-        ))
-        providers.append("CPUExecutionProvider")
-    else:  # cpu
-        providers.append("CPUExecutionProvider")
-
-    provider_names = [p if isinstance(p, str) else p[0] for p in providers]
-    logger.info(f"Building tuned ORT session for {log_label!r} with providers={provider_names}")
-
-    if provider == "trt":
-        logger.info(
-            f"  TRT: building {log_label!r} session "
-            f"(engine cache: {engine_cache_dir}) — "
-            f"first-run TRT compilation can take 1-5 minutes; "
-            f"subsequent runs load from cache instantly."
-        )
-
-    t0 = time.perf_counter()
-    session = ort.InferenceSession(
-        path_or_bytes=onnx_path,
-        sess_options=sess_options,
-        providers=providers,
-    )
-    elapsed_s = time.perf_counter() - t0
-    actual = session.get_providers()
-    logger.info(f"  {log_label!r} session ready in {elapsed_s:.1f}s (active providers: {actual})")
-    if provider == "trt" and elapsed_s > 30:
-        logger.info(
-            f"  TRT engine for {log_label!r} compiled and cached to {engine_cache_dir} — "
-            f"next run will load in seconds."
-        )
-    return session
-
-
-def _trt_dynamic_batch_profile(
-        *,
-        onnx_path: str,
-        max_batch_size: int,
-) -> dict[str, str]:
-    """Build TensorRT optimization profile shape strings for a YOLOX ONNX with
-    a symbolic batch axis.
-
-    TRT requires explicit min/opt/max shapes when any input dim is dynamic.
-    We pin H/W from the ONNX (YOLOX letterboxes to a fixed model_input_size)
-    and let batch range from 1 to `max_batch_size`.
-    """
-    model = onnx.load(onnx_path)
-    inp = model.graph.input[0]
-    name = inp.name
-    dims = inp.type.tensor_type.shape.dim
-    # YOLOX is (batch, channels, H, W). Pull C/H/W from the static dims.
-    fixed_shape = []
-    for i, d in enumerate(dims):
-        if i == 0:
-            continue  # batch — handled separately
-        if d.HasField("dim_value") and d.dim_value > 0:
-            fixed_shape.append(int(d.dim_value))
-        else:
-            # Shouldn't happen for YOLOX, but bail rather than guess.
-            logger.warning(
-                f"TRT profile: input dim {i} of {name!r} is non-static; "
-                f"skipping dynamic-batch profile."
-            )
-            return {}
-    fixed_str = "x".join(str(x) for x in fixed_shape)
-    min_str = f"{name}:1x{fixed_str}"
-    opt_str = f"{name}:{max_batch_size}x{fixed_str}"
-    max_str = f"{name}:{max_batch_size}x{fixed_str}"
-    logger.info(
-        f"TRT optimization profile for {name!r}: "
-        f"min={min_str.split(':')[1]}, opt={opt_str.split(':')[1]}, "
-        f"max={max_str.split(':')[1]}"
-    )
-    return {
-        "trt_profile_min_shapes": min_str,
-        "trt_profile_opt_shapes": opt_str,
-        "trt_profile_max_shapes": max_str,
-    }
-
-
-def _cuda_provider_options() -> dict:
-    return {
-        "cudnn_conv_algo_search": "EXHAUSTIVE",
-        "arena_extend_strategy": "kSameAsRequested",
-        "do_copy_in_default_stream": True,
-        # 2 GiB. Enough for both YOLOX + RTMPose under either model size.
-        "gpu_mem_limit": 2 * 1024 * 1024 * 1024,
-    }
-
-
-def _probe_supports_batch(session: ort.InferenceSession, label: str = "") -> bool:
-    """Return True if the session's first input has a dynamic (or > 1) batch dim.
-
-    ONNX exports from rtmlib's humanart YOLOX checkpoint ship with a static
-    batch=1 first dimension. Attempting session.run with N > 1 raises
-    `InvalidArgument: Got invalid dimensions for input: index: 0 Got: N Expected: 1`.
-    We detect this once at construction so callers can skip the doomed path."""
-    try:
-        first_input_shape = session.get_inputs()[0].shape
-    except Exception:
-        return True  # can't probe — optimistic
-    if not first_input_shape:
-        return True
-    batch_dim = first_input_shape[0]
-    # Dynamic batch: the dim is a string like "batch" or "N".
-    if isinstance(batch_dim, str):
-        return True
-    # Static dim: must be > 1 to support any real batching.
-    supports = int(batch_dim) > 1
-    if not supports:
-        logger.debug(
-            f"{label!r} ONNX model has static batch_size={batch_dim}; "
-            f"per-image inference will be used (single CUDA context still applies)."
-        )
-    return supports
-
-
-def _session_run_batched(session: ort.InferenceSession, batch: NDArray) -> list[NDArray]:
-    """Run an ORT session with a (N,3,H,W) batched input. Wraps the same
-    boilerplate that rtmlib's `BaseTool.inference` does for the single-image case."""
-    sess_input_name = session.get_inputs()[0].name
-    sess_output_names = [o.name for o in session.get_outputs()]
-    return session.run(sess_output_names, {sess_input_name: batch})
-
+# Provider, session-building, and batched-inference utilities are imported from
+# skellytracker.trackers.gpu_utils.ort_session_utils (shared with CompositeGPUSession).
 
 _WHOLEBODY_NUM_KPT = 133  # RTMPose wholebody keypoint count
 
@@ -811,20 +542,6 @@ def _empty_pose_result() -> tuple[NDArray, NDArray]:
         np.empty((0, _WHOLEBODY_NUM_KPT, 2), dtype=np.float64),
         np.empty((0, _WHOLEBODY_NUM_KPT), dtype=np.float32),
     )
-
-
-def _ensure_cuda_dlls_loaded() -> None:
-    """Layered Windows DLL discovery so cuDNN's lazy LoadLibrary calls succeed.
-    Delegates to the existing helper in `rtmpose_detector` to avoid duplicating
-    the three-layer fix described there."""
-    if sys.platform != "win32":
-        ort.preload_dlls()
-        return
-    from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import (
-        _make_nvidia_pip_dlls_discoverable_on_windows,
-    )
-    _make_nvidia_pip_dlls_discoverable_on_windows()
-    ort.preload_dlls()
 
 
 # ============================================================================

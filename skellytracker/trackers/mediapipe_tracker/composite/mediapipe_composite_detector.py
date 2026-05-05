@@ -1,21 +1,13 @@
 import logging
 import time
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass, field
 
 import cv2
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.mediapipe_tracker.body.mediapipe_pose_detector import MediapipePoseDetector
-from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import \
-    MediapipeCompositeDetectorConfig
-from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_observation import (
-    MediapipeCompositeObservation,
-    ROIBox,
-)
-from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_detector import MediapipeFaceDetector
-from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
 from skellytracker.trackers.mediapipe_tracker.composite.composite_tracker_mappings import (
     HAND_WRIST_INDEX,
     POSE_LEFT_EAR_INDEX,
@@ -34,6 +26,14 @@ from skellytracker.trackers.mediapipe_tracker.composite.composite_tracker_mappin
     POSE_RIGHT_EYE_OUTER_INDEX,
     POSE_RIGHT_WRIST_INDEX,
 )
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_config import \
+    MediapipeCompositeDetectorConfig
+from skellytracker.trackers.mediapipe_tracker.composite.mediapipe_composite_observation import (
+    MediapipeCompositeObservation,
+    ROIBox,
+)
+from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_detector import MediapipeFaceDetector
+from skellytracker.trackers.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
 from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_detector import MediapipeHandDetector
 from skellytracker.trackers.mediapipe_tracker.hands.mediapipe_hand_observation import (
     NUM_HAND_LANDMARKS,
@@ -96,6 +96,11 @@ class MediapipeCompositeDetector(BaseDetector):
     smooth_right_hand_roi: tuple[float, float, float] | None = None
     smooth_face_roi: tuple[float, float, float] | None = None
 
+    # Persistent thread pool for hand+face+pose parallelism. MediaPipe's C++
+    # inference releases the GIL, so ThreadPoolExecutor gives real concurrency.
+    # Created once at construction and reused across all detect() calls.
+    _executor: ThreadPoolExecutor | None = field(default=None, init=False, repr=False)
+
     @classmethod
     def create(cls, config: MediapipeCompositeDetectorConfig) -> "MediapipeCompositeDetector":
         pose_detector = MediapipePoseDetector.create(config=config.pose_config)
@@ -108,13 +113,20 @@ class MediapipeCompositeDetector(BaseDetector):
         if config.detect_face:
             face_detector = MediapipeFaceDetector.create(config=config.face_config)
 
-        return cls(
+        detector = cls(
             config=config,
             pose_detector=pose_detector,
             hand_detector=hand_detector,
             face_detector=face_detector,
             tracked_object=MEDIAPIPE_HOLISTIC_DEFINITION,
         )
+
+        # Persistent thread pool — avoids per-frame thread spawn cost in the hot loop.
+        max_workers = sum([1, 1 if config.detect_hands else 0, 1 if config.detect_face else 0])
+        if max_workers > 1:
+            detector._executor = ThreadPoolExecutor(max_workers=max_workers)
+
+        return detector
 
     def detect(self, frame_number: int, image: np.ndarray) -> MediapipeCompositeObservation:
         image_h, image_w = image.shape[:2]
@@ -142,18 +154,18 @@ class MediapipeCompositeDetector(BaseDetector):
         body_xyz = pose_obs.body_landmarks_xyz
         body_vis = pose_obs.body_visibility
 
-        # Step 2: Run hand and face detection in parallel.
-        # MediaPipe's C++ inference releases the GIL, so ThreadPoolExecutor
-        # gives real parallelism here — all three sub-detections can run
-        # simultaneously on separate threads.
+        # Step 2: Run hand and face detection in parallel using the persistent
+        # thread pool (created once at construction, reused across all frames).
+        # MediaPipe's C++ inference releases the GIL — real concurrency here.
         hand_obs: MediapipeHandObservation | None = None
         left_hand_roi: ROIBox | None = None
         right_hand_roi: ROIBox | None = None
         face_obs: MediapipeFaceObservation | None = None
         face_roi_box: ROIBox | None = None
 
-        futures = {}
-        with ThreadPoolExecutor(max_workers=3) as pool:
+        futures: dict[str, Future] = {}
+        pool = self._executor
+        if pool is not None:
             if self.hand_detector is not None:
                 futures["right_hand"] = pool.submit(
                     self._detect_hand,
@@ -537,6 +549,8 @@ class MediapipeCompositeDetector(BaseDetector):
             )
 
     def close(self) -> None:
+        if self._executor is not None:
+            self._executor.shutdown(wait=False)
         self.pose_detector.close()
         if self.hand_detector is not None:
             self.hand_detector.close()

@@ -171,3 +171,4 @@ recorded_objects.npy
 *.zip
 
 .claude/*
+.CLAUDE.md
