@@ -33,7 +33,7 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
-from skellytracker.utilities.gpu_utils.model_registry import (
+from skellytracker.core.model_registry import (
     MODEL_URLS,
     ModelSource,
     resolve_model_path,
@@ -409,7 +409,7 @@ class RTMPoseSession:
                 continue
             for bbox in bboxes:
                 resized_img, center, scale = rtmpose_letterbox_preprocess(
-                    image, bbox=list(bbox), model_input_size=self._pose_input_size,
+                    image, bbox=np.asarray(bbox, dtype=np.float64), model_input_size=self._pose_input_size,
                     mean=self._pose_mean, std=self._pose_std,
                 )
                 crops.append(_PoseCrop(
@@ -716,7 +716,7 @@ def _single_image_rtmpose(
     scores_list: list[NDArray] = []
     for bbox in bbox_list:
         resized, center, scale = rtmpose_letterbox_preprocess(
-            image, bbox=list(bbox), model_input_size=pose_input_size,
+            image, bbox=np.asarray(bbox, dtype=np.float64), model_input_size=pose_input_size,
             mean=pose_mean, std=pose_std,
         )
         inp = np.ascontiguousarray(resized.transpose(2, 0, 1)[None].astype(np.float32))

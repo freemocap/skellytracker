@@ -11,9 +11,9 @@ landmark_schema: composite
 composed_of:
   - path: rtmo_body_17.yaml
     prefix: ""
-  - path: ../../rtmpose_tracker/names_and_connections/rtmpose_hand.yaml
+  - path: ../../mediapipe_tracker/names_and_connections/mediapipe_hand.yaml
     prefix: "right_hand_"
-  - path: ../../rtmpose_tracker/names_and_connections/rtmpose_hand.yaml
+  - path: ../../mediapipe_tracker/names_and_connections/mediapipe_hand.yaml
     prefix: "left_hand_"
   - path: rtmpose_face_106.yaml
     prefix: ""

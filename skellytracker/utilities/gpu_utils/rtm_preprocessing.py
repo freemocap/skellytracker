@@ -199,7 +199,7 @@ def top_down_affine(
         np.hstack([bh * aspect_ratio, bh]),
     )
 
-    warp_mat = get_warp_matrix(bbox_center, bbox_scale, 0, output_size=(w, h))
+    warp_mat = get_warp_matrix(bbox_center, bbox_scale, 0.0, output_size=(w, h))
     img_out = cv2.warpAffine(img, warp_mat, warp_size, flags=cv2.INTER_LINEAR)
 
     return img_out, bbox_scale
@@ -237,7 +237,7 @@ def yolox_letterbox_preprocess(
 
 def rtmpose_letterbox_preprocess(
     img: NDArray[np.uint8],
-    bbox: list[float],
+    bbox: NDArray[np.floating],
     model_input_size: tuple[int, int],
     mean: tuple[float, float, float] | None = None,
     std: tuple[float, float, float] | None = None,

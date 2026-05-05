@@ -5,7 +5,7 @@ They now live in ``skellytracker.utilities.gpu_utils.model_registry`` as
 ``ModelSpec`` and ``TrackerPreset`` respectively.
 """
 
-from skellytracker.utilities.gpu_utils.model_registry import (  # noqa: F401
+from skellytracker.core.model_registry import (  # noqa: F401
     ModelSpec as SubModelSpec,
     TrackerPreset,
 )

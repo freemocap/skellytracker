@@ -26,6 +26,7 @@ from typing import Literal
 
 import numpy as np
 
+from skellytracker.core.model_registry import ModelSource, ModelSpec
 from skellytracker.trackers.composite_gpu_tracker.composite_gpu_session import (
     CompositeGPUSession,
     CompositeGPUSessionConfig,
@@ -65,26 +66,43 @@ def run(
         f"image_shape=({image_h}, {image_w}), iters_per_size={iterations}\n"
     )
 
+    # Allow env-var overrides for local model paths.
+    body_spec = ModelSpec.rtmo_medium()
+    hand_spec = ModelSpec.mediapipe_hand_landmark()
+    face_spec = ModelSpec.rtmpose_face()
+    body_env = os.environ.get("SKEL_GPU_BODY_ONNX")
+    hand_env = os.environ.get("SKEL_GPU_HAND_ONNX")
+    face_env = os.environ.get("SKEL_GPU_FACE_ONNX")
+
+    has_models = bool(body_env or hand_env or face_env)
+    if not has_models:
+        print("No SKEL_GPU_*_ONNX env vars set — models will be auto-downloaded.\n")
+
+    if body_env:
+        body_spec = body_spec.model_copy(update={"source": ModelSource(local_path=body_env)})
+    if hand_env:
+        hand_spec = hand_spec.model_copy(update={"source": ModelSource(local_path=hand_env)})
+    if face_env:
+        face_spec = face_spec.model_copy(update={"source": ModelSource(local_path=face_env)})
+
     config = CompositeGPUSessionConfig(
         execution_provider=provider,
         max_batch_size=max(batch_sizes),
-        body_onnx_path=os.environ.get("SKEL_GPU_BODY_ONNX"),
-        hand_pose_onnx_path=os.environ.get("SKEL_GPU_HAND_ONNX"),
-        face_pose_onnx_path=os.environ.get("SKEL_GPU_FACE_ONNX"),
-        detect_hands=os.environ.get("SKEL_GPU_HAND_ONNX") is not None,
-        detect_face=os.environ.get("SKEL_GPU_FACE_ONNX") is not None,
+        body_spec=body_spec,
+        hand_spec=hand_spec,
+        face_spec=face_spec,
+        detect_hands=True,
+        detect_face=True,
     )
 
     model_count = sum([
-        1 if config.body_onnx_path else 0,
-        1 if config.hand_pose_onnx_path else 0,
-        1 if config.face_pose_onnx_path else 0,
+        1 if body_env else 1,
+        1 if hand_env else 1,
+        1 if face_env else 1,
     ])
-    print(f"Models configured: {model_count}/3")
-    if model_count == 0:
-        print("Skipping actual inference — no ONNX models provided.")
-        print("Set SKEL_GPU_BODY_ONNX / SKEL_GPU_HAND_ONNX / SKEL_GPU_FACE_ONNX env vars.")
-        return
+    print(f"Models: body={'local' if body_env else 'download'}, "
+          f"hand={'local' if hand_env else 'download'}, "
+          f"face={'local' if face_env else 'download'}")
 
     session = CompositeGPUSession.create(config)
     print(f"active provider: {session.active_provider!r}\n")

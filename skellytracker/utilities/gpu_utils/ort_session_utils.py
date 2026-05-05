@@ -302,13 +302,22 @@ def probe_supports_batch(session: ort.InferenceSession, label: str = "") -> bool
 
 
 def session_run_batched(
-    session: ort.InferenceSession, batch: NDArray
+    session: ort.InferenceSession,
+    batch: NDArray,
+    *,
+    input_name: str | None = None,
+    output_names: list[str] | None = None,
 ) -> list[NDArray]:
-    """Run an ORT session with a batched input. Wraps the standard session.run
-    boilerplate for multi-image inference."""
-    sess_input_name = session.get_inputs()[0].name
-    sess_output_names = [o.name for o in session.get_outputs()]
-    return session.run(sess_output_names, {sess_input_name: batch})
+    """Run an ORT session with a batched input.
+
+    Prefer passing *input_name* and *output_names* (cached at session build
+    time) to avoid per-frame graph-metadata traversal overhead.
+    """
+    if input_name is None:
+        input_name = session.get_inputs()[0].name
+    if output_names is None:
+        output_names = [o.name for o in session.get_outputs()]
+    return session.run(output_names, {input_name: batch})
 
 
 # =============================================================================

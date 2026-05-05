@@ -29,9 +29,11 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
-from skellytracker.utilities.gpu_utils.model_registry import (
+from skellytracker.core.model_registry import (
+    ModelSource,
     ModelSpec,
     resolve_model_path,
+    resolve_model_paths_parallel,
 )
 from skellytracker.utilities.gpu_utils.rtm_postprocessing import (
     get_simcc_maximum,
@@ -57,6 +59,9 @@ from skellytracker.trackers.composite_gpu_tracker.roi_crop_utils import (
 )
 from skellytracker.trackers.composite_gpu_tracker.sub_model_spec import (
     TrackerPreset,
+)
+from skellytracker.trackers.composite_gpu_tracker.names_and_connections import (
+    RTMO_BODY_17_DEFINITION,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,17 +99,21 @@ class CompositeGPUSessionConfig(BaseModel):
     # head landmarks × face_roi_scale; hand crop size is derived from
     # the smoothed face crop × hand_roi_face_scale.)
     # ------------------------------------------------------------------
-    hand_roi_face_scale: float = 1.5
-    hand_roi_image_fraction: float = 0.2
+    hand_roi_face_scale: float = 1.6
+    hand_roi_image_fraction: float = 0.4
     hand_roi_center_offset: float = 0.17
     hand_wrist_bias: float = 1.5
 
-    # Body keypoint indices for ROI cropping (COCO 17 order)
-    body_left_wrist_index: int = 9
-    body_right_wrist_index: int = 10
-    body_left_elbow_index: int = 7
-    body_right_elbow_index: int = 8
-    body_head_indices: list[int] = Field(default_factory=lambda: [0, 1, 2, 3, 4])
+    # Body keypoint names for ROI cropping — resolved to indices at session
+    # build time from the body model's tracked object definition YAML.
+    # These names are the stable contract across body model swaps.
+    body_left_wrist_name: str = "left_wrist"
+    body_right_wrist_name: str = "right_wrist"
+    body_left_elbow_name: str = "left_elbow"
+    body_right_elbow_name: str = "right_elbow"
+    body_head_point_names: list[str] = Field(
+        default_factory=lambda: ["nose", "left_eye", "right_eye", "left_ear", "right_ear"]
+    )
 
     # ROI smoothing
     roi_visibility_threshold: float = 0.3
@@ -217,6 +226,15 @@ class CompositeGPUSession:
     _hand_supports_batch: bool = False
     _face_supports_batch: bool = False
 
+    # Cached ORT I/O names — immutable for session lifetime, avoids per-frame
+    # graph-metadata traversal overhead in session_run_batched().
+    _body_input_name: str = field(default="", init=False, repr=False)
+    _body_output_names: list[str] = field(default_factory=list, init=False, repr=False)
+    _hand_input_name: str = field(default="", init=False, repr=False)
+    _hand_output_names: list[str] = field(default_factory=list, init=False, repr=False)
+    _face_input_name: str = field(default="", init=False, repr=False)
+    _face_output_names: list[str] = field(default_factory=list, init=False, repr=False)
+
     # NMS thresholds for RTMO body postprocessing
     _body_nms_thr: float = 0.45
     _body_score_thr: float = 0.7
@@ -232,6 +250,21 @@ class CompositeGPUSession:
 
     _executor: ThreadPoolExecutor | None = field(default=None, init=False, repr=False)
 
+    # Anatomical keypoint indices resolved from the body tracked object
+    # definition at session build time (names → indices via YAML).
+    _body_left_wrist: int = field(default=9, init=False, repr=False)
+    _body_right_wrist: int = field(default=10, init=False, repr=False)
+    _body_left_elbow: int = field(default=7, init=False, repr=False)
+    _body_right_elbow: int = field(default=8, init=False, repr=False)
+    _body_head_indices: tuple[int, ...] = field(default=(0, 1, 2, 3, 4), init=False, repr=False)
+
+    # Hand anthropometry indices resolved from the hand tracked object
+    # definition.  Constant across all 21-point hand models.
+    _hand_root: int = field(default=0, init=False, repr=False)
+    _hand_forefinger_mcp: int = field(default=5, init=False, repr=False)
+    _hand_middle_tip: int = field(default=12, init=False, repr=False)
+    _hand_pinky_mcp: int = field(default=17, init=False, repr=False)
+
     @classmethod
     def create(cls, config: CompositeGPUSessionConfig | None = None) -> "CompositeGPUSession":
         config = config or CompositeGPUSessionConfig()
@@ -245,10 +278,29 @@ class CompositeGPUSession:
         logger.info(f"Constructing CompositeGPUSession (provider={active_provider!r}, "
                     f"max_batch={config.max_batch_size}, hands={config.detect_hands}, face={config.detect_face})")
 
+        # Pre-resolve all model paths in parallel (downloads happen concurrently).
+        sources_to_resolve: list[tuple[str, ModelSource]] = [
+            ("body", config.body_spec.source),
+        ]
+        if config.detect_hands:
+            sources_to_resolve.append(("hand", config.hand_spec.source))
+        if config.detect_face:
+            sources_to_resolve.append(("face", config.face_spec.source))
+
+        resolved = resolve_model_paths_parallel(
+            [s for _, s in sources_to_resolve],
+        )
+        resolved_by_label: dict[str, Path] = {
+            label: resolved[i]
+            for i, (label, _) in enumerate(sources_to_resolve)
+            if i in resolved
+        }
+
         session = cls(config=config, _active_provider=active_provider)
-        session._build_body(active_provider)
-        session._build_hands(active_provider)
-        session._build_face(active_provider)
+        session._resolve_anatomical_indices()
+        session._build_body(active_provider, pre_resolved=resolved_by_label.get("body"))
+        session._build_hands(active_provider, pre_resolved=resolved_by_label.get("hand"))
+        session._build_face(active_provider, pre_resolved=resolved_by_label.get("face"))
 
         # Warn about non-batchable sub-models — critical for multi-camera pipelines.
         for label, supports_batch in [
@@ -269,9 +321,35 @@ class CompositeGPUSession:
         session._warmup()
         return session
 
-    def _build_body(self, provider: ExecutionProviderName) -> None:
+    def _resolve_anatomical_indices(self) -> None:
+        """Resolve body keypoint names → indices from the tracked object definition.
+
+        Called once at session build time.  Uses the body definition's
+        ``tracked_points`` to map semantic names (``"left_wrist"``) to array
+        indices, so swapping the body model YAML auto-updates ROI cropping.
+        """
+        body_names = list(RTMO_BODY_17_DEFINITION.tracked_points)
+        cfg = self.config
+
+        def _idx(name: str) -> int:
+            try:
+                return body_names.index(name)
+            except ValueError:
+                logger.warning(
+                    f"Body keypoint {name!r} not found in tracked points "
+                    f"{body_names}.  ROI cropping may be wrong."
+                )
+                return 0
+
+        self._body_left_wrist = _idx(cfg.body_left_wrist_name)
+        self._body_right_wrist = _idx(cfg.body_right_wrist_name)
+        self._body_left_elbow = _idx(cfg.body_left_elbow_name)
+        self._body_right_elbow = _idx(cfg.body_right_elbow_name)
+        self._body_head_indices = tuple(_idx(n) for n in cfg.body_head_point_names)
+
+    def _build_body(self, provider: ExecutionProviderName, *, pre_resolved: Path | None = None) -> None:
         spec = self.config.body_spec
-        body_onnx = str(resolve_model_path(spec.source))
+        body_onnx = str(pre_resolved) if pre_resolved is not None else str(resolve_model_path(spec.source))
         logger.info(f"RTMO body model: {body_onnx}")
         self._body_session = build_tuned_ort_session(
             onnx_path=body_onnx, provider=provider, engine_cache_dir=self.config.engine_cache_dir,
@@ -279,27 +357,31 @@ class CompositeGPUSession:
             max_batch_size=self.config.max_batch_size,
         )
         self._body_supports_batch = probe_supports_batch(self._body_session, label="rtmo_body")
+        self._body_input_name = self._body_session.get_inputs()[0].name
+        self._body_output_names = [o.name for o in self._body_session.get_outputs()]
 
-    def _build_hands(self, provider: ExecutionProviderName) -> None:
+    def _build_hands(self, provider: ExecutionProviderName, *, pre_resolved: Path | None = None) -> None:
         if not self.config.detect_hands:
             return
         spec = self.config.hand_spec
-        hand_onnx = str(resolve_model_path(spec.source))
+        hand_onnx = str(pre_resolved) if pre_resolved is not None else str(resolve_model_path(spec.source))
         logger.info(f"Hand model: {hand_onnx}")
         self._hand_session = build_tuned_ort_session(
             onnx_path=hand_onnx, provider=provider,
             engine_cache_dir=self.config.engine_cache_dir,
-            fp16=self.config.fp16, log_label="rtmpose_hand",
+            fp16=self.config.fp16, log_label="mediapipe_hand",
             max_batch_size=self.config.max_batch_size,
         )
-        self._hand_supports_batch = probe_supports_batch(self._hand_session, label="rtmpose_hand")
+        self._hand_supports_batch = probe_supports_batch(self._hand_session, label="mediapipe_hand")
+        self._hand_input_name = self._hand_session.get_inputs()[0].name
+        self._hand_output_names = [o.name for o in self._hand_session.get_outputs()]
 
-    def _build_face(self, provider: ExecutionProviderName) -> None:
+    def _build_face(self, provider: ExecutionProviderName, *, pre_resolved: Path | None = None) -> None:
         if not self.config.detect_face:
             return
         spec = self.config.face_spec
         try:
-            face_onnx = str(resolve_model_path(spec.source))
+            face_onnx = str(pre_resolved) if pre_resolved is not None else str(resolve_model_path(spec.source))
             logger.info(f"Face model: {face_onnx}")
         except Exception as e:
             logger.warning(f"Face model download failed ({e!r}); face disabled.")
@@ -313,6 +395,8 @@ class CompositeGPUSession:
             max_batch_size=self.config.max_batch_size,
         )
         self._face_supports_batch = probe_supports_batch(self._face_session, label="rtmpose_face")
+        self._face_input_name = self._face_session.get_inputs()[0].name
+        self._face_output_names = [o.name for o in self._face_session.get_outputs()]
 
     @property
     def active_provider(self) -> ExecutionProviderName:
@@ -325,8 +409,13 @@ class CompositeGPUSession:
     # ------------------------------------------------------------------ warmup
 
     def _warmup(self) -> None:
-        """Run synthetic frames through the full pipeline once per batch size
-        so that GPU JIT / cuDNN auto-tune / TRT compilation is paid up-front."""
+        """Run synthetic inputs through every ORT session so that GPU JIT /
+        cuDNN auto-tune / TRT compilation is paid up-front.
+
+        The full-pipeline warmup exercises the body model.  Hand and face
+        sessions are warmed separately with synthetic crops because the body
+        warmup produces no valid keypoints → hand/face pipelines never run.
+        """
         h, w = 480, 640
         synthetic = np.full((h, w, 3), 128, dtype=np.uint8)
         sizes = sorted({1, max(1, self.config.max_batch_size)})
@@ -343,6 +432,42 @@ class CompositeGPUSession:
                     f"Warmup failed at batch_size={batch_size} "
                     f"(elapsed={elapsed:.1f}s, non-fatal): {e!r}"
                 )
+
+        # Warm hand/face sessions directly — the full-pipeline warmup above
+        # produces no body detections, so hand/face never get exercised.
+        if self._hand_session is not None:
+            spec = self.config.hand_spec
+            th, tw = spec.input_size
+            # MediaPipe hand input: float32 RGB in [0, 1], NCHW
+            if spec.preprocess_mode == "mediapipe":
+                hand_synthetic = np.full(
+                    (1, 3, th, tw), 0.5, dtype=np.float32,
+                )
+            else:
+                hand_synthetic = np.full(
+                    (1, 3, th, tw), 0.0, dtype=np.float32,
+                )
+            try:
+                self._hand_session.run(
+                    self._hand_output_names,
+                    {self._hand_input_name: np.ascontiguousarray(hand_synthetic)},
+                )
+                logger.info(f"Hand session warmup OK ({th}x{tw})")
+            except Exception as e:
+                logger.warning(f"Hand session warmup failed (non-fatal): {e!r}")
+
+        if self._face_session is not None:
+            spec = self.config.face_spec
+            th, tw = spec.input_size
+            face_synthetic = np.full((1, 3, th, tw), 0.0, dtype=np.float32)
+            try:
+                self._face_session.run(
+                    self._face_output_names,
+                    {self._face_input_name: np.ascontiguousarray(face_synthetic)},
+                )
+                logger.info(f"Face session warmup OK ({th}x{tw})")
+            except Exception as e:
+                logger.warning(f"Face session warmup failed (non-fatal): {e!r}")
 
     # ------------------------------------------------------------------ inference
 
@@ -391,7 +516,11 @@ class CompositeGPUSession:
         batch = np.stack([p[0].transpose(2, 0, 1).astype(np.float32) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
-            outputs = session_run_batched(self._body_session, batch)
+            outputs = session_run_batched(
+                self._body_session, batch,
+                input_name=self._body_input_name,
+                output_names=self._body_output_names,
+            )
         except Exception as e:
             logger.error(f"RTMO batched inference failed: {e!r}")
             return [_empty_body_result() for _ in images]
@@ -426,6 +555,7 @@ class CompositeGPUSession:
 
         model_sz = spec.input_size
         all_crops: list[tuple[int, NDArray, ROIBox, int]] = []
+        roi_map: dict[tuple[int, int], ROIBox] = {}
 
         for i, (image, (body_kpts, _)) in enumerate(zip(images, body_results)):
             if body_kpts.shape[0] == 0:
@@ -440,8 +570,8 @@ class CompositeGPUSession:
                 crop_sz = int(min(image_w, image_h) * self.config.hand_roi_image_fraction)
 
             for side_flag, wrist_idx, elbow_idx in [
-                (0, self.config.body_right_wrist_index, self.config.body_right_elbow_index),
-                (1, self.config.body_left_wrist_index, self.config.body_left_elbow_index),
+                (0, self._body_right_wrist, self._body_right_elbow),
+                (1, self._body_left_wrist, self._body_left_elbow),
             ]:
                 wrist_xy = body_xy[wrist_idx]
                 elbow_xy = body_xy[elbow_idx]
@@ -486,6 +616,7 @@ class CompositeGPUSession:
                 crop = roi.crop_image(image)
                 if crop.size > 0:
                     all_crops.append((i, crop, roi, side_flag))
+                    roi_map[(i, side_flag)] = roi
 
         if not all_crops:
             return ([_empty_hands_result(spec.num_keypoints) for _ in images], [_empty_hands_result(spec.num_keypoints) for _ in images],
@@ -512,7 +643,11 @@ class CompositeGPUSession:
                 batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
             batch = np.ascontiguousarray(batch)
             try:
-                outputs = session_run_batched(self._hand_session, batch)
+                outputs = session_run_batched(
+                    self._hand_session, batch,
+                    input_name=self._hand_input_name,
+                    output_names=self._hand_output_names,
+                )
             except Exception as e:
                 logger.error(f"Hand batched inference failed: {e!r}")
                 return ([_empty_hands_result(spec.num_keypoints) for _ in images], [_empty_hands_result(spec.num_keypoints) for _ in images],
@@ -520,8 +655,6 @@ class CompositeGPUSession:
         else:
             # Per-crop fallback for non-batchable models.
             outputs = []
-            input_name = self._hand_session.get_inputs()[0].name
-            output_names = [o.name for o in self._hand_session.get_outputs()]
             for j in range(ncrops):
                 if use_mediapipe:
                     inp = np.ascontiguousarray(
@@ -531,7 +664,8 @@ class CompositeGPUSession:
                     inp = np.ascontiguousarray(
                         preprocessed[j][0].transpose(2, 0, 1)[np.newaxis, ...]
                     )
-                crop_out = self._hand_session.run(output_names, {input_name: inp})
+                crop_out = self._hand_session.run(
+                    self._hand_output_names, {self._hand_input_name: inp})
                 outputs.append(crop_out)
             # Transpose: list-of-per-crop-outputs → per-output-name list of stacked arrays.
             outputs = [np.concatenate([crop_out[k] for crop_out in outputs], axis=0)
@@ -539,8 +673,7 @@ class CompositeGPUSession:
 
         # ── decode ───────────────────────────────────────────────────
         if use_mediapipe:
-            output_names = [o.name for o in self._hand_session.get_outputs()]
-            outputs_by_name = dict(zip(output_names, outputs, strict=True))
+            outputs_by_name = dict(zip(self._hand_output_names, outputs, strict=True))
             landmark_tensor = outputs_by_name.get("xyz_x21")
             score_tensor = outputs_by_name.get("hand_score")
             if landmark_tensor is None:
@@ -604,8 +737,8 @@ class CompositeGPUSession:
                 rw, lw = r_kpts[0, 0], l_kpts[0, 0]
                 if float(np.linalg.norm(rw - lw)) < self.config.hand_overlap_distance:
                     body = body_kpts_i[0]
-                    brw = body[self.config.body_right_wrist_index]
-                    blw = body[self.config.body_left_wrist_index]
+                    brw = body[self._body_right_wrist]
+                    blw = body[self._body_left_wrist]
                     if not np.isnan(brw).any() and not np.isnan(blw).any():
                         mid = (rw + lw) / 2
                         if float(np.linalg.norm(mid - brw)) <= float(np.linalg.norm(mid - blw)):
@@ -638,7 +771,7 @@ class CompositeGPUSession:
 
                 r_kpts, r_sc, body = _blend_and_validate_hand(
                     r_kpts, r_sc, body, body_sc,
-                    cfg.body_right_wrist_index,
+                    self._body_right_wrist,
                     hand_wrist_bias=cfg.hand_wrist_bias,
                     validation_enabled=cfg.hand_validation_enabled,
                     wrist_blend_enabled=cfg.hand_wrist_blend_enabled,
@@ -654,7 +787,7 @@ class CompositeGPUSession:
                 )
                 l_kpts, l_sc, body = _blend_and_validate_hand(
                     l_kpts, l_sc, body, body_sc,
-                    cfg.body_left_wrist_index,
+                    self._body_left_wrist,
                     hand_wrist_bias=cfg.hand_wrist_bias,
                     validation_enabled=cfg.hand_validation_enabled,
                     wrist_blend_enabled=cfg.hand_wrist_blend_enabled,
@@ -695,8 +828,8 @@ class CompositeGPUSession:
             all_k = np.concatenate([r_kpts, l_kpts], axis=1)
             all_s = np.concatenate([r_sc, l_sc], axis=1)
             kpt_results.append((all_k, all_s))
-            right_rois.append(_find_roi_for_side(all_crops, img_idx, 0))
-            left_rois.append(_find_roi_for_side(all_crops, img_idx, 1))
+            right_rois.append(roi_map.get((img_idx, 0)))
+            left_rois.append(roi_map.get((img_idx, 1)))
 
         return kpt_results, raw_kpt_results, right_rois, left_rois
 
@@ -713,6 +846,7 @@ class CompositeGPUSession:
 
         model_sz = spec.input_size
         all_crops: list[tuple[int, NDArray, ROIBox]] = []
+        face_roi_map: dict[int, ROIBox] = {}
 
         for i, (image, (body_kpts, body_scores)) in enumerate(zip(images, body_results)):
             if body_kpts.shape[0] == 0:
@@ -723,7 +857,7 @@ class CompositeGPUSession:
 
             head_pts = collect_visible_head_points(
                 body_xyz=np.column_stack([body_xy, np.zeros((body_xy.shape[0],))]),
-                body_vis=body_vis, head_indices=self.config.body_head_indices,
+                body_vis=body_vis, head_indices=list(self._body_head_indices),
                 visibility_threshold=self.config.roi_visibility_threshold,
             )
             if head_pts is None:
@@ -758,21 +892,42 @@ class CompositeGPUSession:
             crop = roi.crop_image(image)
             if crop.size > 0:
                 all_crops.append((i, crop, roi))
+                face_roi_map[i] = roi
 
         if not all_crops:
             return ([_empty_face_result(spec.num_keypoints) for _ in images], [None] * n)
 
-        # Letterbox → batch → SIMCC decode
+        # Letterbox → batch or per-crop fallback → SIMCC decode
         preprocessed = [_simple_letterbox(crop, model_sz, spec.mean, spec.std)
                         for _, crop, _ in all_crops]
-        batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
-        batch = np.ascontiguousarray(batch)
-        try:
-            outputs = session_run_batched(self._face_session, batch)
-        except Exception as e:
-            logger.error(f"Face batched inference failed: {e!r}")
-            return ([_empty_face_result(spec.num_keypoints) for _ in images],
-                    [None] * n)
+        ncrops = len(all_crops)
+
+        if self._face_supports_batch:
+            batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
+            batch = np.ascontiguousarray(batch)
+            try:
+                outputs = session_run_batched(
+                    self._face_session, batch,
+                    input_name=self._face_input_name,
+                    output_names=self._face_output_names,
+                )
+            except Exception as e:
+                logger.error(f"Face batched inference failed: {e!r}")
+                return ([_empty_face_result(spec.num_keypoints) for _ in images],
+                        [None] * n)
+        else:
+            outputs = []
+            for j in range(ncrops):
+                inp = np.ascontiguousarray(
+                    preprocessed[j][0].transpose(2, 0, 1)[np.newaxis, ...]
+                )
+                crop_out = self._face_session.run(
+                    self._face_output_names,
+                    {self._face_input_name: inp},
+                )
+                outputs.append(crop_out)
+            outputs = [np.concatenate([crop_out[k] for crop_out in outputs], axis=0)
+                       for k in range(len(outputs[0]))]
 
         simcc_x, simcc_y = outputs
         face_results: list[tuple[NDArray, NDArray] | None] = [None] * n
@@ -787,13 +942,9 @@ class CompositeGPUSession:
             kpts[:, :, 1] += float(roi.y)
             face_results[img_idx] = (kpts.astype(np.float64), scores.astype(np.float32))
 
-        face_rois_out: list[ROIBox | None] = []
-        for img_idx in range(n):
-            found = None
-            for ci, _, roi in all_crops:
-                if ci == img_idx:
-                    found = roi; break
-            face_rois_out.append(found)
+        face_rois_out: list[ROIBox | None] = [
+            face_roi_map.get(img_idx) for img_idx in range(n)
+        ]
 
         return ([r if r is not None else _empty_face_result(spec.num_keypoints) for r in face_results], face_rois_out)
 
@@ -876,15 +1027,6 @@ def _decode_mediapipe_hand_output(
         scores = np.ones((landmarks.shape[0], n_kpt), dtype=np.float32)
 
     return kpts_xy.astype(np.float64), scores
-
-
-def _find_roi_for_side(
-    all_crops: list[tuple[int, Any, ROIBox, int]], img_idx: int, side_flag: int,
-) -> ROIBox | None:
-    for ci, _, roi, sf in all_crops:
-        if ci == img_idx and sf == side_flag:
-            return roi
-    return None
 
 
 # Hand anthropometry constants (keypoint indices for the 21-point hand).

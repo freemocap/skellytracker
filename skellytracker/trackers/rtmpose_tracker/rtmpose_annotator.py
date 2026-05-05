@@ -31,7 +31,7 @@ class RTMPoseImageAnnotator(BaseImageAnnotator):
             # RTMPose confidence scores are in arbitrary units based on heatmap
             # peak height. A threshold of 2.0 filters out weak detections better
             # than the default 0.5.
-            kpt_thr=2,
+            kpt_thr=2.0,
             scores=observation.scores,
         )
         return annotated_image
