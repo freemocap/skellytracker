@@ -88,7 +88,7 @@ class CompositeGPUSessionConfig(BaseModel):
     roi_smoothing: float = 0.7
 
     # Face crop scale
-    face_roi_scale: float = 3.0
+    face_roi_scale: float = 2.0
 
     # Model paths (if None, auto-downloaded via rtmlib)
     body_onnx_path: str | None = None
@@ -104,6 +104,12 @@ RTMO_BODY_NUM_KPT = 17
 RTMPOSE_HAND_NUM_KPT = 21
 RTMPOSE_FACE_NUM_KPT = 106
 SIMCC_SPLIT_RATIO = 2.0
+
+# RTMPose hand/face models are trained with ImageNet BGR normalization applied
+# before the first convolution. The ONNX graphs have no Sub/Div nodes on the
+# input branch, so the caller must normalize. Values match rtmlib.RTMPose defaults.
+_RTMPOSE_MEAN = (123.675, 116.28, 103.53)
+_RTMPOSE_STD = (58.395, 57.12, 57.375)
 
 
 # =============================================================================
@@ -369,8 +375,9 @@ class CompositeGPUSession:
             return ([_empty_hands_result() for _ in images], [None] * n, [None] * n)
 
         # Letterbox each crop → batch → SIMCC decode
-        preprocessed = [_simple_letterbox(crop, model_sz) for _, crop, _, _ in all_crops]
-        batch = np.stack([p[0].transpose(2, 0, 1).astype(np.float32) for p in preprocessed], axis=0)
+        preprocessed = [_simple_letterbox(crop, model_sz, _RTMPOSE_MEAN, _RTMPOSE_STD)
+                        for _, crop, _, _ in all_crops]
+        batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
             outputs = session_run_batched(self._hand_session, batch)
@@ -450,7 +457,6 @@ class CompositeGPUSession:
         if self._face_session is None or not self.config.detect_face:
             return ([_empty_face_result() for _ in images], [None] * n)
 
-        crop_sz = self.config.face_crop_size
         model_sz = self.config.face_input_size
         all_crops: list[tuple[int, NDArray, ROIBox]] = []
 
@@ -474,15 +480,25 @@ class CompositeGPUSession:
             if face_params is None:
                 continue
 
-            (raw_cx, raw_cy), _ = face_params
-            cx, cy, _ = smooth_roi_params(
-                raw_cx=raw_cx, raw_cy=raw_cy, raw_size=float(crop_sz),
+            (raw_cx, raw_cy), raw_crop_sz = face_params
+            # Head bbox width from visible points — used to bias the center
+            # downward because the face extends ~40 % of its width below the
+            # eye-line centre while the forehead is only ~20 % above.
+            head_w = float(head_pts[:, 0].max() - head_pts[:, 0].min())
+            raw_cy += head_w * 0.20
+            # Clamp crop size: small enough for the model to localise the
+            # face (RTMPose was trained with ~1.25× face-bbox padding),
+            # large enough to contain the full jawline contour.
+            raw_crop_sz = max(120.0, min(600.0, raw_crop_sz))
+            cx, cy, smoothed_sz = smooth_roi_params(
+                raw_cx=raw_cx, raw_cy=raw_cy, raw_size=raw_crop_sz,
                 prev_smoothed=self._smooth_face_roi, alpha=0.7,
             )
-            self._smooth_face_roi = (cx, cy, float(crop_sz))
+            self._smooth_face_roi = (cx, cy, smoothed_sz)
+            crop_sz_int = int(smoothed_sz)
 
             roi = compute_square_roi(
-                center_x=int(cx), center_y=int(cy), size=crop_sz,
+                center_x=int(cx), center_y=int(cy), size=crop_sz_int,
                 image_w=image_w, image_h=image_h,
             )
             crop = roi.crop_image(image)
@@ -493,8 +509,9 @@ class CompositeGPUSession:
             return ([_empty_face_result() for _ in images], [None] * n)
 
         # Letterbox → batch → SIMCC decode
-        preprocessed = [_simple_letterbox(crop, model_sz) for _, crop, _ in all_crops]
-        batch = np.stack([p[0].transpose(2, 0, 1).astype(np.float32) for p in preprocessed], axis=0)
+        preprocessed = [_simple_letterbox(crop, model_sz, _RTMPOSE_MEAN, _RTMPOSE_STD)
+                        for _, crop, _ in all_crops]
+        batch = np.stack([p[0].transpose(2, 0, 1) for p in preprocessed], axis=0)
         batch = np.ascontiguousarray(batch)
         try:
             outputs = session_run_batched(self._face_session, batch)
@@ -530,15 +547,22 @@ class CompositeGPUSession:
 # Helpers
 # =============================================================================
 
-def _simple_letterbox(image: NDArray[np.uint8], target_size: tuple[int, int]) -> tuple[NDArray, float]:
+def _simple_letterbox(
+    image: NDArray[np.uint8],
+    target_size: tuple[int, int],
+    mean: tuple[float, float, float] | None = None,
+    std: tuple[float, float, float] | None = None,
+) -> tuple[NDArray[np.float32], float]:
     import cv2
     h, w = image.shape[:2]
     th, tw = target_size
     ratio = min(th / h, tw / w)
     nw, nh = int(w * ratio), int(h * ratio)
     resized = cv2.resize(image, (nw, nh), interpolation=cv2.INTER_LINEAR)
-    canvas = np.full((th, tw, 3), 114, dtype=np.uint8)
-    canvas[:nh, :nw] = resized
+    canvas = np.full((th, tw, 3), 114, dtype=np.float32)
+    canvas[:nh, :nw] = resized.astype(np.float32)
+    if mean is not None and std is not None:
+        canvas = (canvas - np.array(mean, dtype=np.float32)) / np.array(std, dtype=np.float32)
     return canvas, ratio
 
 
