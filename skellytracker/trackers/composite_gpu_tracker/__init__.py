@@ -24,10 +24,6 @@ from skellytracker.trackers.composite_gpu_tracker.composite_gpu_detector import 
 from skellytracker.trackers.composite_gpu_tracker.composite_gpu_observation import (
     CompositeGPUObservation,
 )
-from skellytracker.trackers.composite_gpu_tracker.sub_model_spec import (
-    SubModelSpec,
-    TrackerPreset,
-)
 
 __all__ = [
     "CompositeGPUTracker",
@@ -36,6 +32,4 @@ __all__ = [
     "CompositeGPUSessionConfig",
     "CompositeGPUDetector",
     "CompositeGPUObservation",
-    "SubModelSpec",
-    "TrackerPreset",
 ]
