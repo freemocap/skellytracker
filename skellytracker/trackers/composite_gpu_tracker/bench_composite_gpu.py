@@ -26,7 +26,7 @@ from typing import Literal
 
 import numpy as np
 
-from skellytracker.core.model_registry import ModelSource, ModelSpec
+from skellytracker.utilities.gpu_utils.model_registry import ModelSource, ModelSpec
 from skellytracker.trackers.composite_gpu_tracker.composite_gpu_session import (
     CompositeGPUSession,
     CompositeGPUSessionConfig,

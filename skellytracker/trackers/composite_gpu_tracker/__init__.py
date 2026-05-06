@@ -8,7 +8,7 @@ Uses selectable ONNX models for each body part:
 All models share a single ONNX Runtime CUDA context with batched inference.
 """
 
-from skellytracker.trackers.composite_gpu_tracker.composite_gpu_tracker import (
+from skellytracker.trackers.composite_gpu_tracker.__composite_gpu_tracker import (
     CompositeGPUTracker,
 )
 from skellytracker.trackers.composite_gpu_tracker.composite_gpu_config import (

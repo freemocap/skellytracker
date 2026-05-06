@@ -33,7 +33,7 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field
 
-from skellytracker.core.model_registry import (
+from skellytracker.utilities.gpu_utils.model_registry import (
     MODEL_URLS,
     ModelSource,
     resolve_model_path,
