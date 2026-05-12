@@ -1,0 +1,55 @@
+name: charuco_tracked_object
+tracker_type: charuco
+landmark_schema: charuco
+tracked_points:
+  - CharucoCorner-0
+  - CharucoCorner-1
+  - CharucoCorner-2
+  - CharucoCorner-3
+  - CharucoCorner-4
+  - CharucoCorner-5
+  - CharucoCorner-6
+  - CharucoCorner-7
+  - CharucoCorner-8
+  - CharucoCorner-9
+  - CharucoCorner-10
+  - CharucoCorner-11
+  - CharucoCorner-12
+  - CharucoCorner-13
+  - CharucoCorner-14
+  - CharucoCorner-15
+  - CharucoCorner-16
+  - CharucoCorner-17
+  - CharucoCorner-18
+  - CharucoCorner-19
+  - CharucoCorner-20
+  - CharucoCorner-21
+  - CharucoCorner-22
+  - CharucoCorner-23
+  - CharucoCorner-24
+  - CharucoCorner-25
+  - CharucoCorner-26
+  - CharucoCorner-27
+  - CharucoCorner-28
+  - CharucoCorner-29
+  - CharucoCorner-30
+  - CharucoCorner-31
+  - CharucoCorner-32
+  - CharucoCorner-33
+  - CharucoCorner-34
+  - CharucoCorner-35
+  - CharucoCorner-36
+  - CharucoCorner-37
+  - CharucoCorner-38
+  - CharucoCorner-39
+  - CharucoCorner-40
+  - CharucoCorner-41
+  - CharucoCorner-42
+  - CharucoCorner-43
+  - CharucoCorner-44
+  - CharucoCorner-45
+  - CharucoCorner-46
+  - CharucoCorner-47
+  - CharucoCorner-48
+  - CharucoCorner-49
+connections: []
