@@ -118,9 +118,9 @@ recommended = [
     "onnx",
     "nvidia-cuda-runtime-cu12",
     "nvidia-cublas-cu12",
-    "nvidia-cufft-cu12",
     "nvidia-cudnn-cu12",
-    "tensorrt",
+    #    "nvidia-cufft-cu12",
+    #    "tensorrt",
 ]
 
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
@@ -132,7 +132,7 @@ default-groups = ["dev"]
 
 conflicts = [
     [
-#        { extra = "rtmpose-cpu" },
+        #        { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
         { extra = "rtmpose-trt" },
         { extra = "rtmpose-directml" },
