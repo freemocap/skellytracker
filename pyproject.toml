@@ -119,8 +119,8 @@ recommended = [
     "nvidia-cuda-runtime-cu12",
     "nvidia-cublas-cu12",
     "nvidia-cudnn-cu12",
-    #    "nvidia-cufft-cu12",
-    #    "tensorrt",
+    "nvidia-cufft-cu12",
+    "tensorrt",
 ]
 
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
