@@ -1,8 +1,8 @@
 """Demo — uses the built-in WebcamDemoViewer with Rust/Python hot-swappable backends.
 
 Usage:
-    python test_demo.py          # Rust backend (default)
-    python test_demo.py --python # Python backend
+    python webcam_demo.py          # Rust backend (default)
+    python webcam_demo.py --python # Python backend
 
 Once running:
     b  — switch to BrightestPointTracker
@@ -32,11 +32,12 @@ if __name__ == "__main__":
 
     tracker = get_brightest_point_tracker(num_points=3, luminance_threshold=200)
     backend = "Rust" if not use_python else "Python"
-    print(f"Starting webcam demo — backend: {backend}, tracker: {tracker.__class__.__name__}")
     print("Hotkeys: b=switch tracker  r=toggle Rust/Python  h=controls  i=info  q=quit")
 
     from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
 
     viewer = WebcamDemoViewer(tracker=tracker)
     viewer.use_rust_backend = not use_python
+    print(f"Starting webcam demo — backend: {backend}, tracker: {tracker.__class__.__name__}")
     viewer.run()
+    print("Done!")

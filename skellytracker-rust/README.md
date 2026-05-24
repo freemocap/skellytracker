@@ -136,13 +136,10 @@ python -c "import _skellytracker_rust; print(_skellytracker_rust.BrightestPointT
 
 ```bash
 # Webcam demo (Rust backend):
-python skellytracker-rust/test_demo.py
+python skellytracker-rust/webcam_demo.py
 
 # Webcam demo (Python fallback):
-python skellytracker-rust/test_demo.py --python
-
-# Single image test:
-python skellytracker-rust/test_demo.py --image path/to/image.jpg
+python skellytracker-rust/webcam_demo.py --python
 
 # Run pytest suite:
 poe test
@@ -175,7 +172,7 @@ skellytracker-rust/
 ├── pyproject.toml          maturin config — module-name, no python-source
 ├── build.rs                Build script — copies OpenCV DLLs to cargo target dirs
 ├── .cargo/config.toml      OpenCV env vars (LINK_PATHS, INCLUDE_PATHS)
-├── test_demo.py            End-to-end webcam demo (Rust + Python fallback)
+├── webcam_demo.py          End-to-end webcam demo (Rust + Python fallback)
 └── src/
     ├── lib.rs              Crate root — declares modules
     ├── traits.rs           Tracker, Detector, Annotator, Observation traits

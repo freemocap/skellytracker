@@ -105,7 +105,7 @@ class WebcamDemoViewer:
         Run the camera viewer.
         """
 
-        port_number = 1
+        port_number = 0
         frame_number = 0
         cap: cv2.VideoCapture | None = None
         while port_number < 10:
@@ -186,7 +186,23 @@ class WebcamDemoViewer:
             elif key == KEY_TOGGLE_RUST_BACKEND:
                 self.use_rust_backend = not self.use_rust_backend
                 backend = "Rust" if self.use_rust_backend else "Python"
-                logger.info(f"Backend toggled to: {backend} (will apply on next tracker switch)")
+                tracker_name = self.tracker.__class__.__name__
+
+                if "brightestpoint" in tracker_name.lower():
+                    # BrightestPoint has both backends — swap immediately.
+                    if self.use_rust_backend:
+                        logger.info("Switching to BrightestPointTracker (Rust)")
+                        from skellytracker.trackers.brightest_point_tracker.rust_bridge import RustBrightestPointTracker
+                        self.tracker = RustBrightestPointTracker.create()
+                    else:
+                        logger.info("Switching to BrightestPointTracker (Python)")
+                        from skellytracker.trackers.brightest_point_tracker import BrightestPointTracker
+                        self.tracker = BrightestPointTracker.create()
+                else:
+                    logger.warning(
+                        f"NOT IMPLEMENTED: {tracker_name} has no {backend} backend "
+                        f"— only BrightestPointTracker supports Rust/Python hot-swap"
+                    )
 
             elif key == KEY_USE_CHARUCO_TRACKER:
                 if "charuco" not in self.tracker.__class__.__name__.lower():

@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use opencv::core::Point;
+
 use crate::point_cloud::PointCloud;
 use crate::traits::Observation;
 
@@ -8,6 +10,10 @@ pub struct BrightPatch {
     pub area: f64,
     pub centroid_x: i32,
     pub centroid_y: i32,
+    /// Contour polygon from findContours — used to draw blob outlines.
+    /// Not serialized to JSON (drawing only).
+    #[allow(dead_code)]
+    pub contour: Vec<Point>,
 }
 
 #[derive(Debug, Clone)]
