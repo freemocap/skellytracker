@@ -152,7 +152,7 @@ class RustBrightestPointTracker(BaseTracker):
     def luminance_threshold(self) -> int:
         return self._inner.luminance_threshold
 
-    def process_image(self, frame_number: int, image: np.ndarray) -> dict:
+    def process_image(self, frame_number: int, image: np.ndarray, record_observation: bool = True) -> dict:
         """Run detection via Rust. Returns a dict with xy, visibility, etc."""
         return self._inner.process_image(frame_number, image)
 

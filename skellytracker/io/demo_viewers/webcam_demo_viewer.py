@@ -152,8 +152,11 @@ class WebcamDemoViewer:
                 frame_number += 1
 
                 tracker_tik = time.perf_counter()
-                observation = self.tracker.process_image(frame_number=frame_number,
-                                                                      image=image)
+                observation = self.tracker.process_image(
+                    frame_number=frame_number,
+                    image=image,
+                    record_observation=False,
+                )
                 tracker_tok = time.perf_counter()
                 tracker_durations.append(tracker_tok - tracker_tik)
 
@@ -282,6 +285,12 @@ class WebcamDemoViewer:
                 overlay_string,
             )
             cv2.imshow(self.window_title, annotated_image)
+
+            # Explicit release — prevents OpenCV internal buffer accumulation
+            # on long-running sessions (Windows HighGUI can hold frame refs).
+            if not paused and frame_number % 60 == 0:
+                import gc
+                gc.collect()
 
         cap.release()
         cv2.destroyAllWindows()
