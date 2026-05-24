@@ -1,0 +1,25 @@
+[package]
+name = "skellytracker"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "skellytracker"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["python-bindings"]
+python-bindings = ["pyo3/extension-module"]
+
+[dependencies]
+ndarray = { version = "0.16", features = ["serde"] }
+ndarray-npy = "0.9"
+opencv = "0.98"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+pyo3 = "0.23"
+numpy = "0.23"
+
+[profile.release]
+opt-level = 3
+lto = true

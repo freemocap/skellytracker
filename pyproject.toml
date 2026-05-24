@@ -60,6 +60,7 @@ dependencies = [
     "requests>=2.32.3",
     "beartype>=0.19",
     "pyyaml>=6.0",
+    "skellytracker-rust",
 ]
 requires-python = ">=3.11,<3.13"
 
@@ -125,7 +126,15 @@ recommended = [
 
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
 [dependency-groups]
-dev = ["black", "bumpver", "isort", "pip-tools", "pytest", "ruff"]
+dev = [
+    "black",
+    "bumpver",
+    "isort",
+    "pip-tools",
+    "poethepoet>=0.32.0",
+    "pytest",
+    "ruff",
+]
 
 [tool.uv]
 default-groups = ["dev"]
@@ -168,3 +177,24 @@ extend-select = ["B", "S", "C4", "ISC", "PERF"]
 [project.scripts]
 skellytracker = "skellytracker.__main__:cli_main"
 skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
+
+[tool.uv.sources]
+skellytracker-rust = { path = "skellytracker-rust" }
+
+# =============================================================================
+# Task runner (poethepoet)
+# =============================================================================
+# List all tasks:        uv run poe --help
+#
+#   uv run poe rebuild     Rebuild Rust engine (verbose cargo output)
+#   uv run poe lint        Run all ruff lint rules
+#   uv run poe lint-fix    Auto-fix all ruff lint violations
+#   uv run poe test        Run pytest
+#
+# =============================================================================
+
+[tool.poe.tasks]
+rebuild  = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker", help = "Rebuild Rust engine with full cargo output" }
+lint     = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules" }
+lint-fix = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
+test     = { cmd = "pytest", help = "Run test suite" }
