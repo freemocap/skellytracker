@@ -14,6 +14,7 @@ logger = logging.getLogger(__name__)
 KEY_USE_BRIGHTEST_POINT_TRACKER = ord("b")
 KEY_USE_CHARUCO_TRACKER = ord("c")
 KEY_USE_MEDIAPIPE_TRACKER = ord("m")
+KEY_TOGGLE_RUST_BACKEND = ord("r")
 
 KEY_SHOW_CONTROLS = ord("h")
 KEY_SHOW_OVERLAY = ord("o")
@@ -49,7 +50,8 @@ class WebcamDemoViewer:
         Initialize with a tracker and optional window title and default exposure.
         """
 
-        self.tracker:BaseTracker|None = tracker
+        self.tracker: BaseTracker | None = tracker
+        self.use_rust_backend: bool = True  # True → Rust PyO3, False → Python OpenCV
         self.default_exposure = default_exposure
         if window_title is None:
             window_title = f"SkellyTracker - {tracker.__class__.__name__}"
@@ -173,9 +175,18 @@ class WebcamDemoViewer:
                 paused = not paused
             elif key == KEY_USE_BRIGHTEST_POINT_TRACKER:
                 if "brightestpoint" not in self.tracker.__class__.__name__.lower():
-                    logger.info("Switching to BrightestPointTracker")
-                    from skellytracker.trackers.brightest_point_tracker import BrightestPointTracker
-                    self.tracker = BrightestPointTracker.create()
+                    if self.use_rust_backend:
+                        logger.info("Switching to BrightestPointTracker (Rust)")
+                        from skellytracker.trackers.brightest_point_tracker.rust_bridge import RustBrightestPointTracker
+                        self.tracker = RustBrightestPointTracker.create()
+                    else:
+                        logger.info("Switching to BrightestPointTracker (Python)")
+                        from skellytracker.trackers.brightest_point_tracker import BrightestPointTracker
+                        self.tracker = BrightestPointTracker.create()
+            elif key == KEY_TOGGLE_RUST_BACKEND:
+                self.use_rust_backend = not self.use_rust_backend
+                backend = "Rust" if self.use_rust_backend else "Python"
+                logger.info(f"Backend toggled to: {backend} (will apply on next tracker switch)")
 
             elif key == KEY_USE_CHARUCO_TRACKER:
                 if "charuco" not in self.tracker.__class__.__name__.lower():
@@ -221,6 +232,7 @@ class WebcamDemoViewer:
             exposure_string += f"({(2 ** exposure) * 1000:.2f}ms)" if not auto_exposure else "\n"
             exposure_string += f"(~ {(2 ** exposure) * 1000:.2f}ms)\n\n" if not auto_exposure else "\n\n"
             info_string = exposure_string
+            info_string += f"Backend: {'Rust' if 'Rust' in self.tracker.__class__.__name__ else 'Python'}\n"
             info_string += f"Mean Luminance: {mean_luminance / 255:.2f}\n"
             info_string += f"Mean FPS: {mean_frames_per_second:.2f}\n"
             info_string += f"Mean Frame Duration: {mean_frame_duration * 1000:.2f} ms\n"
@@ -236,6 +248,8 @@ class WebcamDemoViewer:
                     f"'{chr(KEY_USE_BRIGHTEST_POINT_TRACKER)})': Use BrightestPointTracker\n"
                     f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Use CharucoTracker\n"
                     f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': Use MediaPipeTracker\n"
+                    f"'{chr(KEY_TOGGLE_RUST_BACKEND)}': Toggle Rust/Python backend (currently "
+                    f"{'Rust' if self.use_rust_backend else 'Python'})\n"
                     f"'{chr(KEY_SHOW_INFO)}': {'show info' if not show_info else 'hide info'}\n"
                     f"'{chr(KEY_SHOW_OVERLAY)}': show overlay\n"
                     f"'{chr(KEY_SET_AUTO_EXPOSURE)}': auto-exposure\n"

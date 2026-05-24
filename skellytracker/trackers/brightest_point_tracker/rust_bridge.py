@@ -22,6 +22,25 @@ from typing import Any
 
 import numpy as np
 
+from skellytracker.trackers.base_tracker.base_tracker_abcs import (
+    BaseTracker,
+    BaseTrackerConfig,
+    BaseDetector,
+    BaseImageAnnotator,
+    BaseRecorder,
+)
+from skellytracker.trackers.brightest_point_tracker.brightest_point_detector import (
+    BrightestPointDetector,
+    BrightestPointDetectorConfig,
+)
+from skellytracker.trackers.brightest_point_tracker.brightest_point_annotator import (
+    BrightestPointImageAnnotator,
+    BrightestPointAnnotatorConfig,
+)
+from skellytracker.trackers.brightest_point_tracker.__brightest_point_tracker import (
+    BrightestPointTrackerConfig,
+)
+
 logger = logging.getLogger(__name__)
 
 # ── Backend selector ────────────────────────────────────────────────────────
@@ -77,16 +96,53 @@ def _get_native():
 
 # ── Rust adapter ────────────────────────────────────────────────────────────
 
-class RustBrightestPointTracker:
+class RustBrightestPointTracker(BaseTracker):
     """Adapter wrapping the Rust ``_skellytracker_rust.BrightestPointTracker``.
 
-    Exposes the same interface as ``BrightestPointTracker`` so callers can
-    swap backends by changing ``USE_RUST_BACKEND``.
+    Subclasses ``BaseTracker`` so beartype accepts it anywhere a
+    ``BaseTracker`` is expected (WebcamDemoViewer, etc).  The
+    ``config`` / ``detector`` / ``annotator`` / ``recorder`` fields
+    are populated with lightweight Python stubs that are never used
+    for detection — ``process_image`` and ``annotate_image`` are
+    overridden to delegate directly to the Rust native module.
     """
 
+    config: BrightestPointTrackerConfig
+    detector: BrightestPointDetector
+    annotator: BrightestPointImageAnnotator
+    recorder: BaseRecorder | None
+
     def __init__(self, num_points: int = 1, luminance_threshold: int = 200):
+        # Build minimal stubs to satisfy the BaseTracker dataclass contract.
+        # These are never called for detection/annotation — those methods are
+        # overridden below and delegate to the Rust inner tracker.
+        cfg = BrightestPointTrackerConfig()
+        cfg.detector_config.num_tracked_points = num_points
+        cfg.detector_config.luminance_threshold = luminance_threshold
+        detector = BrightestPointDetector.create(cfg.detector_config)
+        annotator = BrightestPointImageAnnotator.create(cfg.annotator_config)
+
+        super().__init__(
+            config=cfg,
+            detector=detector,
+            annotator=annotator,
+            recorder=None,
+        )
+
         native = _get_native()
         self._inner = native.BrightestPointTracker(num_points, luminance_threshold)
+
+    @classmethod
+    def create(cls, config: BrightestPointTrackerConfig | None = None):
+        """Match ``BrightestPointTracker.create()`` interface."""
+        num_points = 1
+        luminance_threshold = 200
+        if config is not None:
+            detector_cfg = getattr(config, "detector_config", None)
+            if detector_cfg is not None:
+                num_points = getattr(detector_cfg, "num_tracked_points", num_points)
+                luminance_threshold = getattr(detector_cfg, "luminance_threshold", luminance_threshold)
+        return cls(num_points=num_points, luminance_threshold=luminance_threshold)
 
     @property
     def num_points(self) -> int:
@@ -97,11 +153,11 @@ class RustBrightestPointTracker:
         return self._inner.luminance_threshold
 
     def process_image(self, frame_number: int, image: np.ndarray) -> dict:
-        """Run detection. Returns a dict with xy, visibility, point_names, etc."""
+        """Run detection via Rust. Returns a dict with xy, visibility, etc."""
         return self._inner.process_image(frame_number, image)
 
     def annotate_image(self, image: np.ndarray, observation: dict) -> np.ndarray:
-        """Draw cross markers from a previous ``process_image`` result."""
+        """Draw cross markers from a previous ``process_image`` result (Rust)."""
         return self._inner.annotate_image(image, observation)
 
     def __repr__(self) -> str:
