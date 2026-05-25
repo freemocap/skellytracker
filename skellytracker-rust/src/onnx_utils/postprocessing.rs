@@ -110,8 +110,11 @@ pub fn rtmpose_letterbox_postprocess(
     let cy = center[[0, 1]];
     let s0 = scale[[0, 0]];
     let s1 = scale[[0, 1]];
-    let mip_h = model_input_size.0 as f64;
-    let mip_w = model_input_size.1 as f64;
+    // model_input_size is (H, W) convention but top_down_affine unpacks as (w, h).
+    // So .0 = warped image WIDTH, .1 = warped image HEIGHT.
+    // x must be divided by width (.0), y by height (.1).
+    let model_w = model_input_size.0 as f64;
+    let model_h = model_input_size.1 as f64;
 
     let mut keypoints = Array3::<f64>::zeros((n, k, 2));
 
@@ -120,8 +123,8 @@ pub fn rtmpose_letterbox_postprocess(
             let lx = locs[[i, j, 0]] as f64;
             let ly = locs[[i, j, 1]] as f64;
 
-            let kpx = lx / simcc_split_ratio as f64 / mip_w * s0 + cx - s0 / 2.0;
-            let kpy = ly / simcc_split_ratio as f64 / mip_h * s1 + cy - s1 / 2.0;
+            let kpx = lx / simcc_split_ratio as f64 / model_w * s0 + cx - s0 / 2.0;
+            let kpy = ly / simcc_split_ratio as f64 / model_h * s1 + cy - s1 / 2.0;
 
             keypoints[[i, j, 0]] = kpx;
             keypoints[[i, j, 1]] = kpy;

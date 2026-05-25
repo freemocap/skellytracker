@@ -89,6 +89,9 @@ pub struct RtmPoseObservation {
     pub keypoints: Array3<f64>,
     /// Raw scores in rtmlib's NATIVE order: shape (num_persons, 133) float32.
     pub scores: Array2<f32>,
+    /// YOLOX person bounding box [x1, y1, x2, y2] in image coords (first person only).
+    /// Not in Python's observation — added for Rust annotation.
+    pub person_bbox: Option<[f64; 4]>,
 }
 
 impl RtmPoseObservation {
@@ -145,6 +148,7 @@ impl RtmPoseObservation {
             points: cloud,
             keypoints,
             scores,
+            person_bbox: None,
         }
     }
 
