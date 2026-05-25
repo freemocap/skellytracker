@@ -83,7 +83,7 @@ impl PyBrightestPointTracker {
         py: Python<'_>,
         frame_number: u64,
         image: PyReadonlyArrayDyn<u8>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let mat = numpy_to_mat(&image)?;
         let obs = self.inner.process_image(frame_number, &mat);
         let json_str = obs.to_json();
@@ -95,8 +95,8 @@ impl PyBrightestPointTracker {
             .downcast_ref::<BrightestPointObservation>()
             .cloned();
 
-        let result: PyObject = py
-            .import_bound("json")?
+        let result: Py<PyAny> = py
+            .import("json")?
             .call_method1("loads", (json_str,))?
             .into();
         Ok(result)
@@ -219,7 +219,7 @@ impl PyCharucoTracker {
         py: Python<'_>,
         frame_number: u64,
         image: PyReadonlyArrayDyn<u8>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let mat = numpy_to_mat(&image)?;
         let obs = {
             let tracker = self.inner.lock().unwrap();
@@ -229,8 +229,8 @@ impl PyCharucoTracker {
 
         *self.last_obs.lock().unwrap() = Some(obs);
 
-        let result: PyObject = py
-            .import_bound("json")?
+        let result: Py<PyAny> = py
+            .import("json")?
             .call_method1("loads", (json_str,))?
             .into();
         Ok(result)
@@ -324,7 +324,7 @@ impl PyRtmPoseTracker {
         py: Python<'_>,
         frame_number: u64,
         image: PyReadonlyArrayDyn<u8>,
-    ) -> PyResult<PyObject> {
+    ) -> PyResult<Py<PyAny>> {
         let mat = numpy_to_mat(&image)?;
         let obs = {
             let mut tracker = self.inner.lock().unwrap();
@@ -334,8 +334,8 @@ impl PyRtmPoseTracker {
 
         *self.last_obs.lock().unwrap() = Some(obs);
 
-        let result: PyObject = py
-            .import_bound("json")?
+        let result: Py<PyAny> = py
+            .import("json")?
             .call_method1("loads", (json_str,))?
             .into();
         Ok(result)
