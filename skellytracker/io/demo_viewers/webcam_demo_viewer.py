@@ -15,8 +15,8 @@ logger = logging.getLogger(__name__)
 KEY_USE_BRIGHTEST_POINT_TRACKER = ord("b")
 KEY_USE_CHARUCO_TRACKER = ord("c")
 KEY_USE_MEDIAPIPE_TRACKER = ord("m")
-KEY_USE_RTMPOSE_TRACKER = ord("t")
-KEY_TOGGLE_RUST_BACKEND = ord("r")
+KEY_USE_RTMPOSE_TRACKER = ord("r")          # "r" = RTMpose
+KEY_TOGGLE_RUST_BACKEND = ord("p")          # "p" = Python/Rust toggle
 KEY_SHOW_CONTROLS = ord("h")
 KEY_SHOW_OVERLAY = ord("o")
 KEY_SHOW_INFO = ord("i")
@@ -25,7 +25,6 @@ KEY_INCREASE_EXPOSURE = ord("w")
 KEY_DECREASE_EXPOSURE = ord("s")
 KEY_RESET_EXPOSURE = ord("0")  # "0" = reset to default (was ord("r"), conflicted with Rust toggle)
 KEY_PAUSE_SPACE = ord(" ")
-KEY_PAUSE_P = ord("p")
 KEY_QUIT_Q = ord("q")
 KEY_QUIT_ESC = 27
 
@@ -50,9 +49,8 @@ class WebcamDemoViewer:
         self.tracker: BaseTracker | None = tracker
         self.use_rust_backend: bool = True
         self.default_exposure = default_exposure
-        if window_title is None:
-            window_title = f"SkellyTracker - {tracker.__class__.__name__}"
-        self.window_title = window_title
+        self.window_name = window_title or "SkellyTracker"
+        self.window_title = self.window_name
 
         # Display toggles — session state promoted to instance attrs so key
         # handlers don't need nonlocal closures.
@@ -60,8 +58,25 @@ class WebcamDemoViewer:
         self.show_controls = False
         self.show_overlay = True
         self.show_info = True
+        self._update_window_title()
 
     # ── Tracker switching helpers ──────────────────────────────────────
+
+    def _set_active_tracker(self, tracker: BaseTracker) -> None:
+        """Set the active tracker and refresh the window title."""
+        self.tracker = tracker
+        self._update_window_title()
+
+    def _update_window_title(self) -> None:
+        """Sync the OpenCV window title to the current tracker name."""
+        name = self.tracker.__class__.__name__
+        backend = "Rust" if "Rust" in name else "Python"
+        tracker_name = name.replace("Rust", "").replace("Tracker", "")
+        self.window_title = f"SkellyTracker — {tracker_name} ({backend})"
+        try:
+            cv2.setWindowTitle(self.window_name, self.window_title)
+        except cv2.error:
+            pass  # window not created yet
 
     def _is_using_tracker(self, name_fragment: str) -> bool:
         return name_fragment in self.tracker.__class__.__name__.lower()
@@ -79,7 +94,7 @@ class WebcamDemoViewer:
 
     def _switch_to_brightest_point(self) -> None:
         if not self._is_using_tracker("brightestpoint"):
-            self.tracker = self._create_brightest_point_tracker()
+            self._set_active_tracker(self._create_brightest_point_tracker())
 
     def _create_charuco_tracker(self) -> BaseTracker:
         """Create a CharucoTracker in the currently selected backend."""
@@ -105,34 +120,45 @@ class WebcamDemoViewer:
 
     def _switch_to_rtmpose(self) -> None:
         if not self._is_using_tracker("rtmpose"):
-            self.tracker = self._create_rtmpose_tracker()
+            self._set_active_tracker(self._create_rtmpose_tracker())
 
     def _toggle_rust_backend(self) -> None:
         self.use_rust_backend = not self.use_rust_backend
         tracker_name = self.tracker.__class__.__name__
 
         if "brightestpoint" in tracker_name.lower():
-            self.tracker = self._create_brightest_point_tracker()
+            self._set_active_tracker(self._create_brightest_point_tracker())
         elif "charuco" in tracker_name.lower():
-            self.tracker = self._create_charuco_tracker()
+            self._set_active_tracker(self._create_charuco_tracker())
         elif "rtmpose" in tracker_name.lower():
-            self.tracker = self._create_rtmpose_tracker()
+            self._set_active_tracker(self._create_rtmpose_tracker())
+        elif "mediapipe" in tracker_name.lower():
+            self._set_active_tracker(self._create_mediapipe_tracker())
         else:
             backend = "Rust" if self.use_rust_backend else "Python"
             logger.warning(
                 f"NOT IMPLEMENTED: {tracker_name} has no {backend} backend "
-                f"— only BrightestPointTracker, CharucoTracker, and RTMPoseTracker support Rust/Python hot-swap"
+                f"— BrightestPoint, Charuco, RTMPose, and MediaPipe support Rust/Python hot-swap"
             )
 
     def _switch_to_charuco(self) -> None:
         if not self._is_using_tracker("charuco"):
-            self.tracker = self._create_charuco_tracker()
+            self._set_active_tracker(self._create_charuco_tracker())
+
+    def _create_mediapipe_tracker(self) -> BaseTracker:
+        """Create a MediaPipe tracker in the currently selected backend."""
+        if self.use_rust_backend:
+            logger.info("Switching to MediaPipeTracker (Rust)")
+            from skellytracker.trackers.mediapipe_tracker.rust_bridge import RustMediapipeTracker
+            return RustMediapipeTracker.create()
+        else:
+            logger.info("Switching to MediaPipeTracker (Python)")
+            from skellytracker.trackers.mediapipe_tracker import MediapipeTracker
+            return MediapipeTracker.create()
 
     def _switch_to_mediapipe(self) -> None:
         if not self._is_using_tracker("mediapipe"):
-            logger.info("Switching to MediaPipeTracker")
-            from skellytracker.trackers.mediapipe_tracker import MediapipeTracker
-            self.tracker = MediapipeTracker.create()
+            self._set_active_tracker(self._create_mediapipe_tracker())
 
     # ── Camera helpers ─────────────────────────────────────────────────
 
@@ -250,7 +276,6 @@ class WebcamDemoViewer:
             KEY_QUIT_Q: _quit,
             KEY_QUIT_ESC: _quit,
             KEY_PAUSE_SPACE: _pause,
-            KEY_PAUSE_P: _pause,
             KEY_USE_BRIGHTEST_POINT_TRACKER: _brightest_point,
             KEY_TOGGLE_RUST_BACKEND: _toggle_rust,
             KEY_USE_CHARUCO_TRACKER: _charuco,
@@ -267,6 +292,12 @@ class WebcamDemoViewer:
 
     def _build_overlay_string(self, exposure, auto_exposure) -> str:
         """Build the overlay text for the current frame."""
+        # Prominent tracker name banner — always visible
+        name = self.tracker.__class__.__name__
+        backend = "Rust" if "Rust" in name else "Python"
+        tracker_label = name.replace("Rust", "").replace("Tracker", "")
+        overlay = f"TRACKER: {tracker_label} ({backend})\n\n"
+
         mean_luminance = self._image.mean() / 3
         mean_frame_duration = (
             sum(self._frame_durations) / len(self._frame_durations)
@@ -292,20 +323,17 @@ class WebcamDemoViewer:
         info_string += f"Mean Tracker Processing Duration: {mean_tracker_duration * 1000:.2f} ms\n"
         info_string += f"Mean Annotation Duration: {mean_annotation_duration * 1000:.2f} ms\n"
 
-        overlay = ""
         if self.show_info:
             overlay += info_string
         if self.show_controls:
             overlay += (
                 "Controls:\n"
-                f"'SPACE'/'{chr(KEY_PAUSE_P)}': pause\n"
-                f"'Current Tracker: {self.tracker.__class__.__name__}\n"
-                f"'{chr(KEY_USE_BRIGHTEST_POINT_TRACKER)})': Use BrightestPointTracker\n"
-                f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Use CharucoTracker\n"
-                f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': Use MediaPipeTracker\n"
-                f"'{chr(KEY_USE_RTMPOSE_TRACKER)})': Use RTMPoseTracker\n"
-                f"'{chr(KEY_TOGGLE_RUST_BACKEND)}': Toggle Rust/Python backend (currently "
-                f"{'Rust' if self.use_rust_backend else 'Python'})\n"
+                f"'SPACE': pause\n"
+                f"'{chr(KEY_USE_BRIGHTEST_POINT_TRACKER)})': BrightestPoint\n"
+                f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Charuco\n"
+                f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': MediaPipe\n"
+                f"'{chr(KEY_USE_RTMPOSE_TRACKER)})': RTMpose\n"
+                f"'{chr(KEY_TOGGLE_RUST_BACKEND)}': Toggle Rust/Python ({'Rust' if self.use_rust_backend else 'Python'})\n"
                 f"'{chr(KEY_SHOW_INFO)}': {'show info' if not self.show_info else 'hide info'}\n"
                 f"'{chr(KEY_SHOW_OVERLAY)}': show overlay\n"
                 f"'{chr(KEY_SET_AUTO_EXPOSURE)}': auto-exposure\n"
@@ -347,7 +375,7 @@ class WebcamDemoViewer:
             cap, exposure_container, auto_exposure_container
         )
 
-        cv2.namedWindow(self.window_title)
+        cv2.namedWindow(self.window_name)
         self._frame_durations = deque(maxlen=30)
         self._tracker_durations = deque(maxlen=30)
         self._annotation_durations = deque(maxlen=30)
@@ -398,7 +426,7 @@ class WebcamDemoViewer:
             )
 
             self._show_overlay(annotated_image, overlay_string)
-            cv2.imshow(self.window_title, annotated_image)
+            cv2.imshow(self.window_name, annotated_image)
 
             # Periodic GC prevents OpenCV internal buffer accumulation
             # on long-running Windows sessions.

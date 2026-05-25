@@ -9,6 +9,8 @@ use crate::trackers::brightest_point::BrightestPointTracker;
 use crate::trackers::brightest_point::observation::BrightestPointObservation;
 use crate::trackers::charuco::CharucoTracker;
 use crate::trackers::charuco::observation::CharucoObservation;
+use crate::trackers::mediapipe::MediaPipeTracker;
+use crate::trackers::mediapipe::observation::MediaPipeObservation;
 use crate::trackers::rtmpose::RtmPoseTracker;
 use crate::trackers::rtmpose::observation::RtmPoseObservation;
 use crate::traits::{Observation, Tracker};
@@ -386,6 +388,101 @@ impl PyRtmPoseTracker {
 }
 
 // ============================================================================
+// MediaPipeTracker — Python wrapper (reverse PyO3 bridge)
+// ============================================================================
+
+#[pyclass(name = "MediaPipeTracker")]
+struct PyMediaPipeTracker {
+    inner: std::sync::Mutex<MediaPipeTracker>,
+    last_obs: std::sync::Mutex<Option<MediaPipeObservation>>,
+}
+
+#[pymethods]
+impl PyMediaPipeTracker {
+    /// Create from pre-constructed Python detector and annotator objects.
+    ///
+    /// The Python adapter (rust_bridge.py) creates the MediapipeCompositeDetector
+    /// and MediapipeCompositeAnnotator, then passes them here. Rust stores them as
+    /// PyObject refs and calls them via PyO3 during detect() / annotate().
+    #[new]
+    fn new(detector: Py<PyAny>, annotator: Py<PyAny>) -> Self {
+        PyMediaPipeTracker {
+            inner: std::sync::Mutex::new(MediaPipeTracker::new(detector, annotator)),
+            last_obs: std::sync::Mutex::new(None),
+        }
+    }
+
+    /// Run composite detection on a numpy (H, W, 3) uint8 BGR image.
+    /// Delegates to Python MediapipeCompositeDetector.detect() via PyO3.
+    /// Returns a dict with: tracker_type, frame_number, image_size,
+    /// point_names, xy, visibility, has_pose, has_right_hand,
+    /// has_left_hand, has_face.
+    /// The full Rust observation is held internally for `annotate_image`.
+    #[allow(deprecated)]
+    fn process_image(
+        &mut self,
+        py: Python<'_>,
+        frame_number: u64,
+        image: PyReadonlyArrayDyn<u8>,
+    ) -> PyResult<Py<PyAny>> {
+        let mat = numpy_to_mat(&image)?;
+        let obs = {
+            let tracker = self.inner.lock().unwrap();
+            tracker.detect(py, frame_number, &mat)
+        };
+        let json_str = obs.to_json();
+
+        *self.last_obs.lock().unwrap() = Some(obs);
+
+        let result: Py<PyAny> = py
+            .import("json")?
+            .call_method1("loads", (json_str,))?
+            .into();
+        Ok(result)
+    }
+
+    /// Draw skeleton/hands/face by delegating to Python annotator via PyO3.
+    /// The `observation` dict parameter is accepted for API compatibility but
+    /// is NOT used for drawing — the Python annotator uses the stored
+    /// Python observation from the last detect() call.
+    /// Returns a numpy (H, W, 3) uint8 BGR array.
+    fn annotate_image(
+        &self,
+        py: Python<'_>,
+        image: PyReadonlyArrayDyn<u8>,
+        _observation: &Bound<'_, PyDict>,
+    ) -> PyResult<Py<PyAny>> {
+        let arr = image.as_array();
+        let out = arr.to_owned();
+        let out_ptr = out.as_ptr() as *mut std::ffi::c_void;
+
+        let mut annotated = unsafe {
+            Mat::new_rows_cols_with_data_unsafe_def(
+                arr.shape()[0] as i32,
+                arr.shape()[1] as i32,
+                CV_8UC3,
+                out_ptr,
+            )
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Mat::new: {e}")))?
+        };
+
+        {
+            let tracker = self.inner.lock().unwrap();
+            tracker.draw_markers_into(py, &mut annotated);
+        }
+
+        drop(annotated);
+
+        let bound_arr = out.into_pyarray(py);
+        Ok(bound_arr.into_any().unbind())
+    }
+
+    fn __repr__(&self) -> String {
+        "MediaPipeTracker(reverse PyO3 bridge)".to_string()
+    }
+}
+
+// ============================================================================
 // Python module entry point
 // ============================================================================
 
@@ -393,6 +490,7 @@ impl PyRtmPoseTracker {
 fn _skellytracker_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBrightestPointTracker>()?;
     m.add_class::<PyCharucoTracker>()?;
+    m.add_class::<PyMediaPipeTracker>()?;
     m.add_class::<PyRtmPoseTracker>()?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;
     Ok(())

@@ -4,6 +4,7 @@
 //! with the same name, same type, and same semantics.
 
 use std::any::Any;
+use std::sync::LazyLock;
 
 use ndarray::{Array2, Array3};
 use ndarray::Axis;
@@ -48,7 +49,25 @@ const FACE_NAMES: &[&str] = &[
     "face_0065", "face_0066", "face_0067",
 ];
 
-/// Build the 133 element name list in schema order.
+static RTMPOSE_NAMES: LazyLock<Vec<String>> = LazyLock::new(|| {
+    let mut names: Vec<String> = Vec::with_capacity(133);
+    names.extend(BODY_NAMES.iter().map(|s| s.to_string()));
+    names.extend(HAND_NAMES.iter().map(|s| format!("right_hand_{s}")));
+    names.extend(HAND_NAMES.iter().map(|s| format!("left_hand_{s}")));
+    names.extend(FACE_NAMES.iter().map(|s| s.to_string()));
+    names
+});
+
+static RTMLIB_TO_SCHEMA_PERM: LazyLock<Vec<usize>> = LazyLock::new(|| {
+    let mut perm: Vec<usize> = Vec::with_capacity(133);
+    perm.extend(0..23);
+    perm.extend(112..133);
+    perm.extend(91..112);
+    perm.extend(23..91);
+    perm
+});
+
+/// Build the 133 element name list in schema order. (deprecated: use &RTMPOSE_NAMES)
 pub fn rtmpose_names() -> Vec<String> {
     let mut names: Vec<String> = Vec::with_capacity(133);
     names.extend(BODY_NAMES.iter().map(|s| s.to_string()));
@@ -105,8 +124,8 @@ impl RtmPoseObservation {
         scores: Array2<f32>,
         image_size: (u32, u32),
     ) -> Self {
-        let names = rtmpose_names();
-        let perm = rtmlib_to_schema_perm();
+        let names = &*RTMPOSE_NAMES;
+        let perm = &*RTMLIB_TO_SCHEMA_PERM;
         let n = names.len(); // 133
 
         let (points_2d, confidence) = if keypoints.shape()[0] > 0 {
@@ -139,7 +158,7 @@ impl RtmPoseObservation {
             xyz[[i, 2]] = 0.0;
         }
 
-        let cloud = PointCloud::new(names, xyz, confidence);
+        let cloud = PointCloud::new(names.clone(), xyz, confidence);
 
         Self {
             tracker_type: "rtmpose",
@@ -177,7 +196,7 @@ impl Observation for RtmPoseObservation {
         let vis: Vec<f64> = self.points.visibility.to_vec();
 
         // Raw keypoints/scores in rtmlib native order
-        let kp_shape = self.keypoints.shape();
+        let _kp_shape = self.keypoints.shape();
         let kp_json: Vec<Vec<Vec<f64>>> = self
             .keypoints
             .axis_iter(Axis(0))

@@ -1,5 +1,7 @@
 pub mod observation;
 
+use std::collections::HashSet;
+
 use observation::CharucoObservation;
 
 use opencv::core::{Mat, Point2f, Scalar, Size, Vector};
@@ -41,6 +43,10 @@ pub struct CharucoTracker {
     detector: objdetect::CharucoDetector,
     pub all_charuco_ids: Vec<i32>,
     pub all_aruco_ids: Vec<i32>,
+    /// O(1) lookup for board membership test in marker loop
+    all_aruco_set: HashSet<i32>,
+    /// Cached corner names ("CharucoCorner-0", ...)
+    corner_names: Vec<String>,
 
     /// Pre-computed from board.get_chessboard_corners().
     all_charuco_corners_3d: Vec<[f64; 3]>,
@@ -99,6 +105,9 @@ impl CharucoTracker {
             }
         }
 
+        let all_aruco_set: HashSet<i32> = all_aruco_ids.iter().copied().collect();
+        let corner_names: Vec<String> = format_corner_names(n_corners);
+
         Ok(CharucoTracker {
             squares_x,
             squares_y,
@@ -109,6 +118,8 @@ impl CharucoTracker {
             detector,
             all_charuco_ids,
             all_aruco_ids,
+            all_aruco_set,
+            corner_names,
             all_charuco_corners_3d,
             all_aruco_corners_3d,
         })
@@ -208,7 +219,7 @@ impl CharucoTracker {
         for i in 0..n_markers {
             let id = marker_ids_mat
                 .at_2d::<i32>(i as i32, 0).ok().copied().unwrap_or(-1);
-            if id < 0 || !self.all_aruco_ids.contains(&id) {
+            if id < 0 || !self.all_aruco_set.contains(&id) {
                 continue;
             }
             if let Ok(inner) = marker_corners.get(i) {
@@ -296,8 +307,7 @@ impl CharucoTracker {
     }
 
     fn build_point_cloud(&self, detected_ids: &[i32], image_coords: &[[f64; 2]]) -> PointCloud {
-        let n_corners = ((self.squares_x - 1) * (self.squares_y - 1)) as usize;
-        let names: Vec<String> = format_corner_names(n_corners);
+        let n_corners = self.corner_names.len();
         let mut xyz = ndarray::Array2::from_elem((n_corners, 3), f64::NAN);
         let mut visibility = ndarray::Array1::zeros(n_corners);
 
@@ -311,7 +321,7 @@ impl CharucoTracker {
             }
         }
 
-        PointCloud::new(names, xyz, visibility)
+        PointCloud::new(self.corner_names.clone(), xyz, visibility)
     }
 
     /// Draw charuco corner markers, aruco bounding boxes, labels, and
@@ -360,8 +370,14 @@ impl CharucoTracker {
         }
 
         // ── Undetected corners list ──────────────────────────────────────
-        let mut undetected: Vec<i32> = o.all_charuco_ids.clone();
-        undetected.retain(|id| !o.detected_charuco_corner_ids.contains(id));
+        // Compute undetected corners WITHOUT cloning + O(n²) retain
+        let detected_set: HashSet<i32> = o.detected_charuco_corner_ids.iter().copied().collect();
+        let mut undetected: Vec<i32> = vec![];
+        for &id in &o.all_charuco_ids {
+            if !detected_set.contains(&id) {
+                undetected.push(id);
+            }
+        }
         if !undetected.is_empty() {
             let panel_x = o.image_size.0 as i32 - 220;
             let _ = draw_text(image, "Undetected Corners:", panel_x, 20);

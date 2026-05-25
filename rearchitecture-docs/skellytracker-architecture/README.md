@@ -9,7 +9,7 @@
 | **BrightestPoint** | ✅ Complete | Full Python→Rust translation with hot-swappable backends |
 | **Charuco** | ✅ Complete | OpenCV Charuco board detection + annotation, full data model parity, hot-swappable |
 | **RTMPose** | ✅ Phase 1 | Two-stage ONNX pipeline (YOLOX + RTMPose), 133 keypoints, CPU inference, hot-swappable. Phase 2 (CUDA/TRT) deferred. |
-| MediaPipe Holistic | 🔜 Later | MediaPipe bindings |
+| **MediaPipe Holistic** | ✅ Phase 1 | Reverse PyO3 bridge — Rust wraps Python composite detector/annotator, 211-point data model, hot-swappable. Phase 2 (Rust ROI/fusion/rayon) deferred. |
 | CompositeGPU | 🔜 Later | Multi-model pipeline |
 
 ## Documents
@@ -23,6 +23,7 @@
 | 05 | [Lessons Learned](./05-lessons-learned.md) | Mistakes, gotchas, patterns to reuse — what to do and NOT do for the next tracker |
 | 06 | [Charuco Translation](./06-charuco-translation.md) | detectMarkers→detectBoard decomposition, output type compatibility, data model parity (18 fields), annotation pipeline |
 | 07 | [RTMPose Translation](./07-rtmpose-translation.md) | YOLOX + RTMPose two-stage ONNX pipeline, SIMCC decode, affine warp coordinate mapping, `ort` crate integration, CPU inference |
+| 08 | [MediaPipe Translation](./08-mediapipe-translation.md) | Reverse PyO3 bridge Phase 1 — Rust wraps Python composite detector/annotator via `Py<PyAny>`, 211-point observation, Mat↔numpy round-trip, Phase 2 roadmap |
 
 ## Key Constraints Discovered
 
@@ -50,8 +51,8 @@ python skellytracker-rust/webcam_demo.py --python  # Python fallback
 # Hotkeys in demo:
 #   b — switch to BrightestPointTracker
 #   c — switch to CharucoTracker
-#   t — switch to RTMPoseTracker
-#   r — toggle Rust ↔ Python (works for BrightestPoint, Charuco, AND RTMPose)
-#   m — switch to MediaPipe
+#   r — switch to RTMPoseTracker
+#   m — switch to MediaPipeTracker
+#   p — toggle Rust ↔ Python (works for all 4 trackers)
 #   h — show controls    i — toggle info    q — quit
 ```

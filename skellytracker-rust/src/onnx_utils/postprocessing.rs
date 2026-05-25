@@ -17,74 +17,47 @@ pub fn get_simcc_maximum(
 ) -> (Array3<f32>, Array2<f32>) {
     let n = simcc_x.shape()[0];
     let k = simcc_x.shape()[1];
-    let wx = simcc_x.shape()[2];
-    let wy = simcc_y.shape()[2];
 
-    // Reshape to (N*K, W)
-    let simcc_x_2d = simcc_x
-        .view()
-        .into_shape((n * k, wx))
-        .unwrap()
-        .to_owned();
-    let simcc_y_2d = simcc_y
-        .view()
-        .into_shape((n * k, wy))
-        .unwrap()
-        .to_owned();
+    // Iterate over keypoints directly on the 3D arrays (no reshape/copy)
+    let total = n * k;
+    let mut locs = Vec::with_capacity(total * 2);
+    let mut vals = Vec::with_capacity(total);
 
-    // argmax along axis=1
-    let x_locs: Vec<i32> = simcc_x_2d
-        .axis_iter(Axis(0))
-        .map(|row| {
-            row.iter()
-                .enumerate()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                .map(|(i, _)| i as i32)
-                .unwrap_or(-1)
-        })
-        .collect();
+    for person in 0..n {
+        for kp in 0..k {
+            let person_x = simcc_x.index_axis(Axis(0), person);
+            let x_row = person_x.index_axis(Axis(0), kp);
+            let person_y = simcc_y.index_axis(Axis(0), person);
+            let y_row = person_y.index_axis(Axis(0), kp);
 
-    let y_locs: Vec<i32> = simcc_y_2d
-        .axis_iter(Axis(0))
-        .map(|row| {
-            row.iter()
-                .enumerate()
-                .max_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())
-                .map(|(i, _)| i as i32)
-                .unwrap_or(-1)
-        })
-        .collect();
+            // argmax + max value for x
+            let (x_loc, x_max) = x_row.iter().enumerate()
+                .fold((-1i32, f32::NEG_INFINITY), |(bi, bv), (i, &v)| {
+                    if v > bv { (i as i32, v) } else { (bi, bv) }
+                });
 
-    // Max values
-    let max_val_x: Vec<f32> = simcc_x_2d
-        .axis_iter(Axis(0))
-        .map(|col| col.iter().cloned().fold(f32::NEG_INFINITY, f32::max))
-        .collect();
-    let max_val_y: Vec<f32> = simcc_y_2d
-        .axis_iter(Axis(0))
-        .map(|col| col.iter().cloned().fold(f32::NEG_INFINITY, f32::max))
-        .collect();
+            // argmax + max value for y
+            let (y_loc, y_max) = y_row.iter().enumerate()
+                .fold((-1i32, f32::NEG_INFINITY), |(bi, bv), (i, &v)| {
+                    if v > bv { (i as i32, v) } else { (bi, bv) }
+                });
 
-    let total = (n * k) as usize;
-    let mut locs_data = Vec::with_capacity(total * 2);
-    let mut vals_data = Vec::with_capacity(total);
-
-    for i in 0..total {
-        let val = 0.5 * (max_val_x[i] + max_val_y[i]);
-        if val <= 0.0 {
-            locs_data.push(-1.0_f32);
-            locs_data.push(-1.0_f32);
-        } else {
-            locs_data.push(x_locs[i] as f32);
-            locs_data.push(y_locs[i] as f32);
+            let val = 0.5 * (x_max + y_max);
+            if val <= 0.0 {
+                locs.push(-1.0_f32);
+                locs.push(-1.0_f32);
+            } else {
+                locs.push(x_loc as f32);
+                locs.push(y_loc as f32);
+            }
+            vals.push(val);
         }
-        vals_data.push(val);
     }
 
-    let locs = Array3::from_shape_vec((n as usize, k as usize, 2), locs_data).unwrap();
-    let vals = Array2::from_shape_vec((n as usize, k as usize), vals_data).unwrap();
+    let locs_arr = Array3::from_shape_vec((n, k, 2), locs).unwrap();
+    let vals_arr = Array2::from_shape_vec((n, k), vals).unwrap();
 
-    (locs, vals)
+    (locs_arr, vals_arr)
 }
 
 /// Decode SIMCC outputs back to original image coordinates.

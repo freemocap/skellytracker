@@ -233,7 +233,20 @@ This is what `detectBoard()` does internally anyway (detect markers → interpol
 | Affine warp debugging | ~0.5h | Third point computation bug in get_warp_matrix |
 | **RTMPose Phase 1 Total** | **~6.5h** | CPU inference end-to-end, skeleton annotation, hot-swappable |
 | | | |
-| **Grand Total** | **~25h** | Three trackers translated |
+| RTMPose ONNX crate + model download | ~1.5h | `ort` crate integration, ndarray version bump, model caching |
+| RTMPose preprocessing/postprocessing | ~2h | YOLOX letterbox, affine warp, NMS, SIMCC decode |
+| RTMPose tracker + observation | ~1.5h | Two-stage pipeline, 133-point data model, permutation |
+| PyO3 bridge + adapter + demo | ~1h | Mutex wrapping, hot-swappable adapter, webcam hotkey |
+| Affine warp debugging | ~0.5h | Third point computation bug in get_warp_matrix |
+| **RTMPose Phase 1 Total** | **~6.5h** | CPU inference end-to-end, skeleton annotation, hot-swappable |
+| | | |
+| MediaPipe reverse bridge exploration | ~0.5h | Py<PyAny> API, call_method1, Mat↔numpy round-trip |
+| MediaPipe tracker + observation | ~1.5h | Reverse PyO3 bridge, 211-point data model, black-box wrapper |
+| PyO3 bridge + adapter + demo | ~1h | Python detector/annotator hand-off, Mutex wrapping, hotkey |
+| Docs + cleanup | ~0.5h | Translation doc, README update, lessons learned |
+| **MediaPipe Phase 1 Total** | **~3.5h** | Reverse bridge end-to-end, hot-swappable |
+| | | |
+| **Grand Total** | **~28.5h** | Four trackers translated |
 
 ### 12. `ort` crate v2.0.0-rc.x is the standard despite "rc" label
 
@@ -275,3 +288,69 @@ The Python `get_warp_matrix` function computes three source/destination point pa
 **Fix:** Compute the exact same 3 point pairs in Rust and call `imgproc::get_affine_transform()`. Don't try to derive the 2×3 matrix manually.
 
 **Rule:** When porting geometric transforms, replicate the point computation exactly and delegate to OpenCV for the matrix.
+
+### 17. `Py<PyAny>` is Send + Sync — no Mutex needed for the tracker
+
+Unlike `ort::Session` (requires `&mut self` for `run()`) and `CharucoBoard` (contains raw C++ pointers), `Py<PyAny>` is a reference-counted Python object handle that's `Send + Sync` (GIL-protected). Trackers storing only `Py<PyAny>` fields + primitives don't need `Mutex<T>` wrapping on the tracker itself.
+
+In practice we still wrap in `Mutex` because `detect()` mutates `last_python_obs` and trait methods take `&self`. The `Mutex` provides interior mutability for the state fields.
+
+**Rule:** `Py<PyAny>` is safe to store directly. Only wrap in `Mutex` when you need `&self` methods to mutate state.
+
+### 18. `#[new]` accepts Python objects as `Py<PyAny>` parameters
+
+The Python adapter creates the Python-side objects (detector, annotator) and passes them across the bridge:
+
+```python
+# Python side
+python_detector = MediapipeCompositeDetector.create(config)
+python_annotator = MediapipeCompositeAnnotator.create(config)
+self._inner = native.MediaPipeTracker(python_detector, python_annotator)
+```
+
+```rust
+// Rust side
+#[new]
+fn new(detector: Py<PyAny>, annotator: Py<PyAny>) -> Self { ... }
+```
+
+PyO3 automatically extracts the Python objects. No serialization, no type conversion — the Rust side gets a direct reference-counted handle to the live Python object.
+
+**Rule:** Pass complex Python objects to Rust as `Py<PyAny>` parameters in `#[new]`. Don't try to serialize or re-create them in Rust.
+
+### 19. `call_method1` is the PyO3 equivalent of `obj.method(arg)`
+
+```rust
+// Python equivalent: detector.detect(frame_number, numpy_image)
+let result = detector.call_method1(py, "detect", (frame_number, numpy_image))?;
+```
+
+Returns `PyResult<Py<PyAny>>`. The tuple `(arg1, arg2, ...)` maps to positional Python arguments. For keyword arguments, use `call_method()` with a `PyDict`.
+
+**Rule:** `call_method1(py, "method_name", (arg1, arg2))` = `obj.method_name(arg1, arg2)` in Python.
+
+### 20. Mat ↔ numpy round-trips cost one copy per direction
+
+Each Mat→numpy conversion extracts raw pixels row-by-row (`copy_from_slice` from the OpenCV step-padded buffer into a contiguous ndarray). Each numpy→Mat conversion copies back the same way. At 720p this is ~2.7MB per copy, ~5.5MB for the full detect + annotate round-trip.
+
+For Phase 1 (black-box wrapper with two crossings per frame) this is acceptable. For Phase 2 (finer-grained calls — one per Landmarker), consider minimizing crossings by batching or using shared memory.
+
+**Rule:** Two Mat↔numpy crossings per frame is fine. Ten is not. Design the bridge to minimize the number of crossings.
+
+### 21. The `Tracker` trait can't call PyO3 APIs directly
+
+```rust
+pub trait Tracker {
+    fn process_image(&mut self, frame_number: u64, image: &Mat) -> Box<dyn Observation>;
+    fn annotate_image(&self, image: &Mat, obs: &dyn Observation) -> Mat;
+}
+```
+
+Neither method has a `Python<'py>` token, so they can't call `Py<PyAny>::call_method1()` or any PyO3 API. In Phase 1 the trait methods are stubs that return empty/default values. The real detection/annotation happens in the `#[pymethods]` which receive `py: Python<'_>`.
+
+Solutions for Phase 2:
+- Add `py: Python<'_>` to the trait methods (but `Python<'py>` is `!Send`, limiting use from spawned threads)
+- Use `unsafe { Python::assume_gil_acquired() }` inside the trait methods (safe because we know we're always called from Python)
+- Keep the pyclass methods as the primary API and the trait as a secondary path
+
+**Rule:** The `Tracker` trait is designed for pure-Rust trackers. Reverse-bridge trackers need the `Python<'py>` token, which the trait doesn't provide. Use `#[pymethods]` as the primary API.

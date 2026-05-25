@@ -21,7 +21,7 @@ pub fn yolox_letterbox_preprocess(
     let mut resized = Mat::default();
     imgproc::resize(img, &mut resized, Size::new(nw, nh), 0.0, 0.0, imgproc::INTER_LINEAR)?;
 
-    let mut padded = Mat::new_rows_cols_with_default(th as i32, tw as i32, resized.typ(), Scalar::all(114.0))?;
+    let padded = Mat::new_rows_cols_with_default(th as i32, tw as i32, resized.typ(), Scalar::all(114.0))?;
 
     // Copy resized image into top-left of padded using raw pointers
     let src_step = resized.mat_step()[0] as usize;

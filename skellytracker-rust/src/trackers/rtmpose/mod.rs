@@ -50,7 +50,10 @@ fn keypoint_color(idx: usize) -> Scalar {
     }
 }
 
-fn skeleton_links_with_colors() -> Vec<(usize, usize, Scalar)> {
+use std::sync::LazyLock;
+static SKELETON_LINKS: LazyLock<Vec<(usize, usize, Scalar)>> = LazyLock::new(build_skeleton_links);
+
+fn build_skeleton_links() -> Vec<(usize, usize, Scalar)> {
     let green = Scalar::new(0.0, 255.0, 0.0, 0.0);
     let orange = Scalar::new(255.0, 128.0, 0.0, 0.0);
     let blue_orange_1 = Scalar::new(51.0, 153.0, 255.0, 0.0);
@@ -163,29 +166,26 @@ impl RtmPoseTracker {
     fn run_yolox(&mut self, image: &Mat) -> Result<Vec<[f64; 4]>, Box<dyn std::error::Error>> {
         let (padded, ratio) = yolox_letterbox_preprocess(image, self.det_input_size)?;
 
-        // Mat → ndarray: extract raw pixels, HWC → CHW → add batch dim
+        // Extract pixels directly from Mat → CHW f32 Vec in one pass
         let h = padded.rows() as usize;
         let w = padded.cols() as usize;
         let step = padded.mat_step()[0] as usize;
-        let mut data = vec![0u8; h * w * 3];
+        let mut flat = vec![0f32; 3 * h * w];
         unsafe {
             let ptr = padded.data() as *const u8;
-            for r in 0..h {
-                let src = std::slice::from_raw_parts(ptr.add(r * step), w * 3);
-                let dst_start = r * w * 3;
-                data[dst_start..dst_start + w * 3].copy_from_slice(src);
+            for c in 0..3 {
+                let offset = c * h * w;
+                for r in 0..h {
+                    let src = std::slice::from_raw_parts(ptr.add(r * step), w * 3);
+                    let dst_row = &mut flat[offset + r * w..offset + (r + 1) * w];
+                    for col in 0..w {
+                        dst_row[col] = src[col * 3 + c] as f32;
+                    }
+                }
             }
         }
 
-        let array_hwc = Array3::from_shape_vec((h, w, 3), data)?;
-        let array_chw = array_hwc.permuted_axes([2, 0, 1]);
-        let array_float = array_chw.mapv(|v| v as f32);
-
-        // Build (1, 3, H, W) tensor
-        let shape = [1, array_float.shape()[0], array_float.shape()[1], array_float.shape()[2]];
-        let flat: Vec<f32> = array_float.iter().cloned().collect();
-        let input_arr = Array4::from_shape_vec(shape, flat)?;
-
+        let input_arr = Array4::from_shape_vec([1, 3, h, w], flat)?;
         let det_input = Tensor::from_array(input_arr)
             .map_err(|e| format!("YOLOX tensor from_array: {e}"))?;
         let outputs = self.session.det_session.run(ort::inputs![det_input])?;
@@ -193,7 +193,6 @@ impl RtmPoseTracker {
         let det_view = outputs[0].try_extract_array::<f32>()?;
         let shape = det_view.shape();
         let n_dets = shape[1];
-
         let det_slice = det_view.as_slice().ok_or("non-contiguous det output")?;
         let det_array = Array3::from_shape_vec((1, n_dets, shape[2]), det_slice.to_vec())?;
 
@@ -208,39 +207,29 @@ impl RtmPoseTracker {
     ) -> Result<(Array3<f64>, Array2<f32>), Box<dyn std::error::Error>> {
         let (cropped, center, scale) = rtmpose_letterbox_preprocess(image, bbox, self.pose_input_size)?;
 
-        // Extract float32 pixels → ndarray → normalize → CHW → batch dim
+        // Extract float32 pixels direct from Mat → CHW f32 Vec with normalize in one pass
         let h = cropped.rows() as usize;
         let w = cropped.cols() as usize;
-        let step = cropped.mat_step();
-        let step = step[0] as usize;
-
-        let mut data = vec![0f32; h * w * 3];
+        let step = cropped.mat_step()[0] as usize;
+        let mut flat = vec![0f32; 3 * h * w];
         unsafe {
             let ptr = cropped.data() as *const u8;
-            for r in 0..h {
-                let row_bytes = std::slice::from_raw_parts(ptr.add(r * step), w * 3 * 4);
-                let dst_start = r * w * 3;
-                // reinterpret u8 bytes as f32
-                let f32_ptr = row_bytes.as_ptr() as *const f32;
-                let f32_row = std::slice::from_raw_parts(f32_ptr, w * 3);
-                data[dst_start..dst_start + w * 3].copy_from_slice(f32_row);
+            for c in 0..3 {
+                let mean = POSE_MEAN[c] as f32;
+                let inv_std = 1.0 / POSE_STD[c] as f32;
+                let offset = c * h * w;
+                for r in 0..h {
+                    let src = std::slice::from_raw_parts(ptr.add(r * step), w * 3 * 4);
+                    let f32_src: &[f32] = std::slice::from_raw_parts(src.as_ptr() as *const f32, w * 3);
+                    let dst_row = &mut flat[offset + r * w..offset + (r + 1) * w];
+                    for col in 0..w {
+                        dst_row[col] = (f32_src[col * 3 + c] - mean) * inv_std;
+                    }
+                }
             }
         }
 
-        let mut array_hwc = Array3::from_shape_vec((h, w, 3), data)?;
-
-        // Normalize: (pixel - mean) / std — done in ndarray space
-        for c in 0..3 {
-            let mean = POSE_MEAN[c] as f32;
-            let std = POSE_STD[c] as f32;
-            let inv_std = 1.0 / std;
-            array_hwc.index_axis_mut(ndarray::Axis(2), c).mapv_inplace(|v| (v - mean) * inv_std);
-        }
-
-        let array_chw = array_hwc.permuted_axes([2, 0, 1]);
-        let shape = [1, array_chw.shape()[0], array_chw.shape()[1], array_chw.shape()[2]];
-        let flat: Vec<f32> = array_chw.iter().cloned().collect();
-        let input_arr = Array4::from_shape_vec(shape, flat)?;
+        let input_arr = Array4::from_shape_vec([1, 3, h, w], flat)?;
 
         let pose_input = Tensor::from_array(input_arr)
             .map_err(|e| format!("pose tensor from_array: {e}"))?;
@@ -299,8 +288,8 @@ impl RtmPoseTracker {
         }
 
         // Draw skeleton lines with per-connection colors
-        let links = skeleton_links_with_colors();
-        for &(i0, i1, color) in &links {
+        let links = &*SKELETON_LINKS;
+        for &(i0, i1, color) in links {
             if i0 >= 133 || i1 >= 133 { continue; }
             if !visible[i0] || !visible[i1] { continue; }
             let x0 = o.keypoints[[0, i0, 0]] as f32;
