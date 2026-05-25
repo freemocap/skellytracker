@@ -7,7 +7,7 @@
 | Tracker | Status | Notes |
 |---------|--------|-------|
 | **BrightestPoint** | ✅ Complete | Full Python→Rust translation with hot-swappable backends |
-| Charuco | 🔜 Next | OpenCV-based, follows same pattern |
+| **Charuco** | ✅ Complete | OpenCV Charuco board detection + annotation, full data model parity, hot-swappable |
 | RTMPose | 🔜 Planned | ONNX Runtime — most complex, will stress-test the trait design |
 | MediaPipe Holistic | 🔜 Later | MediaPipe bindings |
 | CompositeGPU | 🔜 Later | Multi-model pipeline |
@@ -19,8 +19,9 @@
 | 01 | [Tracker Trait Architecture](./01-tracker-trait-architecture.md) | `Tracker` / `Detector` / `Annotator` / `Observation` traits, `PointCloud`, `Recorder` — the core framework |
 | 02 | [BrightestPointTracker Translation](./02-brightest-point-translation.md) | Python → Rust side-by-side: detection, annotation, contour drawing, error handling |
 | 03 | [PyO3 Bridge Pattern](./03-pyo3-bridge-pattern.md) | `_skellytracker_rust` native module, `pyo3_bridge/` layout, numpy↔Mat interop, contour data flow |
-| 04 | [Hot-Swappable Backend](./04-hot-swappable-backend.md) | `USE_RUST_BACKEND` flag, `RustBrightestPointTracker` adapter, `BaseTracker` subclassing for beartype |
+| 04 | [Hot-Swappable Backend](./04-hot-swappable-backend.md) | `USE_RUST_BACKEND` flag, `Rust*Tracker` adapters, `BaseTracker` subclassing for beartype |
 | 05 | [Lessons Learned](./05-lessons-learned.md) | Mistakes, gotchas, patterns to reuse — what to do and NOT do for the next tracker |
+| 06 | [Charuco Translation](./06-charuco-translation.md) | detectMarkers→detectBoard decomposition, output type compatibility, data model parity (18 fields), annotation pipeline |
 
 ## Key Constraints Discovered
 
@@ -32,6 +33,12 @@
 
 4. **Frame copies add up** — every `Mat::clone()` or `data.to_vec()` is a 2.7MB allocation at 720p. The annotation path must do exactly one copy: source numpy → writable buffer → draw → return.
 
+5. **opencv crate OutputArray type compatibility** — `detectBoard` requires pre-populated `InputOutputArray` containers for marker data. Pass empty containers → C++ assertion failure. Solution: run `detectMarkers` first to populate marker vectors, then pass them to `detectBoard` for charuco corner interpolation.
+
+6. **Dictionary enum values match across Python and Rust** — `cv2.aruco.DICT_4X4_250 = 2` (same as OpenCV C++ `DICT_4X4_250`). Do not assume enum values from one binding match another without verifying.
+
+7. **`ndarray::from_shape_fn` closure overhead** — 2.77M closure calls per 720p frame (~3ms). Use `to_owned()` for straight copies (single memcpy). Always profile per-frame allocations.
+
 ## Build & Test
 
 ```bash
@@ -41,8 +48,8 @@ python skellytracker-rust/webcam_demo.py --python  # Python fallback
 
 # Hotkeys in demo:
 #   b — switch to BrightestPointTracker
-#   r — toggle Rust ↔ Python (instant swap for BrightestPoint)
+#   c — switch to CharucoTracker
+#   r — toggle Rust ↔ Python (works for BrightestPoint AND Charuco)
 #   m — switch to MediaPipe
-#   c — switch to Charuco
 #   h — show controls    i — toggle info    q — quit
 ```
