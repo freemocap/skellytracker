@@ -1,8 +1,8 @@
 //! ONNX Runtime utilities: session management, model download, and inference.
 //!
-//! For Phase 1 (CPU single-image), this provides:
+//! Phase 2 (GPU): CUDA + TensorRT execution providers.
 //! - Model download from OpenMMLab CDN (zip → cached .onnx)
-//! - ORT session creation (CPU execution provider)
+//! - GPU-tuned ORT session creation (CUDA for YOLOX detection, TRT/CUDA for pose)
 //! - Single-image YOLOX + RTMPose two-stage inference
 
 pub mod preprocessing;
@@ -13,6 +13,7 @@ use std::io::Read;
 use std::path::PathBuf;
 
 use ort::session::Session;
+use crate::onnx_utils::session_builder::Provider;
 
 // ---------------------------------------------------------------------------
 // Model URLs (from Python model_registry.py)
@@ -171,9 +172,15 @@ pub const SIMCC_SPLIT_RATIO: f32 = 2.0;
 
 impl RtmPoseOrtSession {
     /// Create a new GPU-tuned session pair, downloading models if needed.
-    /// Uses CUDA → CPU fallback. TensorRT deferred to a later phase.
-    pub fn new(mode: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        use crate::onnx_utils::session_builder::{Provider, build_tuned_ort_session};
+    ///
+    /// Provider strategy (matching Python `rtmpose_session.py`):
+    ///   - YOLOX detection: always CUDA (NMS-baked ONNX graph hangs TRT)
+    ///   - RTMPose pose: CUDA or TensorRT based on `provider`
+    pub fn new(
+        mode: &str,
+        pose_provider: Provider,
+    ) -> Result<Self, Box<dyn std::error::Error>> {
+        use crate::onnx_utils::session_builder::build_tuned_ort_session;
 
         let cfg = mode_config(mode);
 
@@ -181,14 +188,21 @@ impl RtmPoseOrtSession {
         let det_path = resolve_model(cfg.det_key)?;
         let pose_path = resolve_model(cfg.pose_key)?;
 
+        // YOLOX always uses CUDA — the NMS post-processing baked into the ONNX
+        // graph causes TensorRT engine compilation to hang.
         eprintln!("[skellytracker-rust] Building YOLOX session (CUDA)...");
         let det_session = build_tuned_ort_session(
             &det_path, Provider::CUDA, None, true, "yolox",
         )?;
 
-        eprintln!("[skellytracker-rust] Building RTMPose session (CUDA)...");
+        let pose_prov_str = match pose_provider {
+            Provider::TensorRT => "TensorRT",
+            Provider::CUDA => "CUDA",
+            Provider::CPU => "CPU",
+        };
+        eprintln!("[skellytracker-rust] Building RTMPose session ({pose_prov_str})...");
         let pose_session = build_tuned_ort_session(
-            &pose_path, Provider::CUDA, None, true, "rtmpose",
+            &pose_path, pose_provider, None, true, "rtmpose",
         )?;
 
         Ok(Self {

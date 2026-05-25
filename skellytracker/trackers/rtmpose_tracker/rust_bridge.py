@@ -218,6 +218,7 @@ def _get_native():
 # -- Defaults ------------------------------------------------------------------
 
 DEFAULT_MODE = "balanced"
+DEFAULT_PROVIDER = "cuda"
 
 
 # -- Rust adapter --------------------------------------------------------------
@@ -234,7 +235,11 @@ class RustRtmPoseTracker(BaseTracker):
     annotator: RTMPoseImageAnnotator
     recorder: BaseRecorder | None
 
-    def __init__(self, mode: str = DEFAULT_MODE):
+    def __init__(
+        self,
+        mode: str = DEFAULT_MODE,
+        provider: str = DEFAULT_PROVIDER,
+    ):
         cfg = RTMPoseTrackerConfig()
         cfg.detector_config.mode = mode
         detector = RTMPoseDetector.create(cfg.detector_config)
@@ -248,21 +253,27 @@ class RustRtmPoseTracker(BaseTracker):
         )
 
         native = _get_native()
-        self._inner = native.RtmPoseTracker(mode)
+        self._inner = native.RtmPoseTracker(mode, provider)
 
     @classmethod
     def create(cls, config: Any = None):
         """Match ``RTMPoseTracker.create()`` interface."""
         mode = DEFAULT_MODE
+        provider = DEFAULT_PROVIDER
         if config is not None:
             detector_cfg = getattr(config, "detector_config", None)
             if detector_cfg is not None:
                 mode = getattr(detector_cfg, "mode", DEFAULT_MODE)
-        return cls(mode=mode)
+                provider = getattr(detector_cfg, "execution_provider", DEFAULT_PROVIDER)
+        return cls(mode=mode, provider=provider)
 
     @property
     def mode(self) -> str:
         return self._inner.mode
+
+    @property
+    def provider(self) -> str:
+        return self._inner.provider
 
     def process_image(
         self, frame_number: int, image: np.ndarray, record_observation: bool = True
@@ -273,15 +284,18 @@ class RustRtmPoseTracker(BaseTracker):
         return self._inner.annotate_image(image, observation)
 
     def __repr__(self) -> str:
-        return f"RustRtmPoseTracker(mode={self._inner.mode})"
+        return (
+            f"RustRtmPoseTracker(mode={self._inner.mode}, "
+            f"provider={self._inner.provider})"
+        )
 
 
 # -- Factory -------------------------------------------------------------------
 
-def get_rtmpose_tracker(mode: str = DEFAULT_MODE):
+def get_rtmpose_tracker(mode: str = DEFAULT_MODE, provider: str = DEFAULT_PROVIDER):
     """Return the active RTMPose backend based on ``USE_RUST_BACKEND``."""
     if USE_RUST_BACKEND:
-        return RustRtmPoseTracker(mode=mode)
+        return RustRtmPoseTracker(mode=mode, provider=provider)
     else:
         from skellytracker.trackers.rtmpose_tracker.__rtmpose_tracker import (
             RTMPoseTracker,

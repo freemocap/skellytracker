@@ -13,6 +13,7 @@ use ort::value::Tensor;
 use crate::onnx_utils::{
     RtmPoseOrtSession, POSE_MEAN, POSE_STD, DET_NMS_THR, DET_SCORE_THR, SIMCC_SPLIT_RATIO,
 };
+use crate::onnx_utils::session_builder::Provider;
 use crate::onnx_utils::preprocessing::{yolox_letterbox_preprocess, rtmpose_letterbox_preprocess};
 use crate::onnx_utils::postprocessing::{yolox_postprocess, rtmpose_letterbox_postprocess};
 use crate::trackers::rtmpose::observation::RtmPoseObservation;
@@ -103,16 +104,18 @@ fn build_skeleton_links() -> Vec<(usize, usize, Scalar)> {
 
 pub struct RtmPoseTracker {
     pub mode: String,
+    pub provider: Provider,
     session: RtmPoseOrtSession,
     det_input_size: (u32, u32),
     pose_input_size: (u32, u32),
 }
 
 impl RtmPoseTracker {
-    pub fn new(mode: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let session = RtmPoseOrtSession::new(mode)?;
+    pub fn new(mode: &str, provider: Provider) -> Result<Self, Box<dyn std::error::Error>> {
+        let session = RtmPoseOrtSession::new(mode, provider)?;
         Ok(Self {
             mode: mode.to_string(),
+            provider,
             det_input_size: session.det_input_size,
             pose_input_size: session.pose_input_size,
             session,

@@ -9,6 +9,7 @@ use crate::trackers::brightest_point::BrightestPointTracker;
 use crate::trackers::brightest_point::observation::BrightestPointObservation;
 use crate::trackers::charuco::CharucoTracker;
 use crate::trackers::charuco::observation::CharucoObservation;
+use crate::onnx_utils::session_builder::Provider;
 use crate::trackers::mediapipe::MediaPipeTracker;
 use crate::trackers::mediapipe::observation::MediaPipeObservation;
 use crate::trackers::rtmpose::RtmPoseTracker;
@@ -301,14 +302,28 @@ struct PyRtmPoseTracker {
 #[pymethods]
 impl PyRtmPoseTracker {
     #[new]
-    fn new(mode: &str) -> PyResult<Self> {
-        match RtmPoseTracker::new(mode) {
+    #[pyo3(signature = (mode, provider = "cuda"))]
+    fn new(mode: &str, provider: &str) -> PyResult<Self> {
+        let ep = match provider {
+            "trt" | "tensorrt" => Provider::TensorRT,
+            "cuda" => Provider::CUDA,
+            "cpu" => Provider::CPU,
+            other => return Err(pyo3::exceptions::PyValueError::new_err(
+                format!("Unknown provider: {other}. Use 'trt', 'cuda', or 'cpu'.")
+            )),
+        };
+        match RtmPoseTracker::new(mode, ep) {
             Ok(inner) => Ok(PyRtmPoseTracker {
                 inner: std::sync::Mutex::new(inner),
                 last_obs: std::sync::Mutex::new(None),
             }),
             Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
         }
+    }
+
+    #[getter]
+    fn provider(&self) -> String {
+        format!("{:?}", self.inner.lock().unwrap().provider).to_lowercase()
     }
 
     #[getter]
