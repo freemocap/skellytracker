@@ -2,6 +2,18 @@
 
 > Mistakes, gotchas, and patterns to reuse. Everything we'd tell ourselves if we were starting the next tracker translation tomorrow.
 
+## RULE #0 — DATA MODEL PARITY IS NON-NEGOTIABLE
+
+**The Rust Observation MUST have every field the Python Observation has, with the same names, same types, and same semantics.** Downstream consumers MUST NOT be able to tell whether an observation came from the Rust or Python backend.
+
+- Match field names exactly (e.g. `detected_charuco_corners_image_coordinates`, not `detected_charuco_corners`)
+- Match types (e.g. `Vec<[f64; 2]>` not `Vec<Point2f>` — arrays serialize the same as Python lists)
+- Include deferred fields as `None` — they exist but aren't populated yet
+- The `to_json()` output must include every field the Python `to_json_string()` would
+- Every `#[getter]` / property Python exposes must have a Rust equivalent accessible via JSON
+
+**Verification:** serialize both Python and Rust observations for the same frame to JSON and assert the dicts are identical.
+
 ## Mistakes That Cost Hours
 
 ### 1. `unwrap_or_default()` on OpenCV calls — DO NOT DO THIS
