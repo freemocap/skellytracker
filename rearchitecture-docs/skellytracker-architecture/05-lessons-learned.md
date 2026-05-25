@@ -180,7 +180,12 @@ This is what `detectBoard()` does internally anyway (detect markers → interpol
 - [ ] NOT IMPLEMENTED warning for trackers without Rust backend
 - [ ] Dictionary enum values verified identical in Python and Rust
 - [ ] Board geometry stored in observation (object coordinates for calibration)
-- [ ] `Mutex<T>` wrapping if tracker contains opencv types
+- [ ] `Mutex<T>` wrapping if tracker contains opencv types OR ort::Session (requires `&mut self`)
+- [ ] ndarray version matches ort crate (otherwise Tensor::from_array silently fails)
+- [ ] Affine transforms use getAffineTransform with exact point pairs (never hand-roll the matrix)
+- [ ] ONNX model input/output names verified (or use positional indexing)
+- [ ] Normalization done in ndarray space after Mat→ndarray conversion (simpler than OpenCV channel splitting)
+- [ ] `inputs!` macro not wrapped in `?` (it returns array, not Result)
 - [ ] `cargo check` compiles before `poe rebuild`
 
 ## Constraints
@@ -193,6 +198,9 @@ This is what `detectBoard()` does internally anyway (detect markers → interpol
 6. **maturin 1.x** — `module-name` must match `#[pymodule]` name exactly
 7. **Edition 2021** — not 2024 like skellycam (toolchain compatibility)
 8. **No `log` crate** — use `eprintln!` for Rust-side logging (avoids adding deps)
+9. **`ort` 2.0.0-rc.12** — ONNX Runtime via `ort` crate (default `download` feature = CPU-only binaries; GPU needs `cuda`/`tensorrt` features + system ORT)
+10. **ureq 2.x, zip 2.x, dirs 5.x** — HTTP download, zip extraction, cache directories
+11. **ndarray must match `ort`'s version (0.17)** — version mismatch silently breaks `Tensor::from_array()`
 
 ## Timeline
 
@@ -217,4 +225,53 @@ This is what `detectBoard()` does internally anyway (detect markers → interpol
 | | | |
 | **Grand Total** | **~18.5h** | Two trackers translated |
 
-Expected for RTMPose: ~6-8h (ONNX Runtime complexity, batched inference, different output shapes).
+| | | |
+| RTMPose ONNX crate + model download | ~1.5h | `ort` crate integration, ndarray version bump, model caching |
+| RTMPose preprocessing/postprocessing | ~2h | YOLOX letterbox, affine warp, NMS, SIMCC decode |
+| RTMPose tracker + observation | ~1.5h | Two-stage pipeline, 133-point data model, permutation |
+| PyO3 bridge + adapter + demo | ~1h | Mutex wrapping, hot-swappable adapter, webcam hotkey |
+| Affine warp debugging | ~0.5h | Third point computation bug in get_warp_matrix |
+| **RTMPose Phase 1 Total** | **~6.5h** | CPU inference end-to-end, skeleton annotation, hot-swappable |
+| | | |
+| **Grand Total** | **~25h** | Three trackers translated |
+
+### 12. `ort` crate v2.0.0-rc.x is the standard despite "rc" label
+
+The `ort` crate 2.0.0-rc.x series wraps ONNX Runtime 1.24 and has ~1.27M downloads/month across 766 dependent crates. There is no stable 2.0.0 release — the "rc" label reflects API stability, not production readiness. The 1.x stable line (`1.16.3`) wraps an older ORT 1.20 with a completely different API.
+
+**Rule:** Use `ort = "2.0.0-rc.12"` (or latest rc). Don't use the 1.x line.
+
+### 13. ndarray version must match exactly across the dependency graph
+
+The `ort` crate depends on `ndarray 0.17` and implements `OwnedTensorArrayData` for `ndarray::Array<T, D>`. If your crate has `ndarray 0.16`, Cargo pulls in both versions and the trait implementation doesn't apply to your arrays — `Tensor::from_array(my_array)` fails with a mysterious trait bound error.
+
+**Fix:** Bump your `ndarray` version to match `ort`'s. This cascades to `ndarray-npy` (bump to 0.10). Check `numpy` (PyO3) compatibility — it should be fine across minor ndarray versions.
+
+**Rule:** When adding a crate that re-exports ndarray traits, verify version alignment. `cargo tree -i ndarray` shows all ndarray versions in the graph.
+
+### 14. `Session::run()` takes `&mut self` — trackers need interior mutability or `&mut self` methods
+
+Unlike Python's `onnxruntime.InferenceSession` which is thread-safe and reentrant, the `ort` crate's `Session::run()` requires `&mut self`. This means the tracker's `detect()` and `process_image()` methods must take `&mut self` too (not `&self`). In the PyO3 bridge, the tracker is wrapped in `Mutex<T>` so the lock provides exclusive access.
+
+**Rule:** Any tracker containing an `ort::Session` needs `Mutex<T>` wrapping in the pyclass. Method signatures must use `&mut self` for inference.
+
+### 15. `inputs!` macro returns a fixed-size array, not `Result`
+
+```rust
+// WRONG — inputs! does not return Result
+session.run(ort::inputs![tensor]?)?;
+
+// RIGHT — only Tensor::from_array and session.run are fallible
+let tensor = Tensor::from_array(arr).map_err(|e| format!("..."))?;
+let outputs = session.run(ort::inputs![tensor])?;
+```
+
+The `inputs!` macro with positional args returns `[SessionInputValue; N]` directly — the `Into` conversion from `Tensor` to `SessionInputValue` is infallible.
+
+### 16. Affine warp: always use OpenCV's `getAffineTransform`, never hand-roll the matrix
+
+The Python `get_warp_matrix` function computes three source/destination point pairs and calls `cv2.getAffineTransform()`. It uses a `_get_3rd_point(a, b)` helper that computes `b + [-direction[1], direction[0]]`. Hand-rolling this in Rust with a direct matrix construction is error-prone — the third point's perpendicular direction is easy to get wrong (wrong quadrant, wrong axis).
+
+**Fix:** Compute the exact same 3 point pairs in Rust and call `imgproc::get_affine_transform()`. Don't try to derive the 2×3 matrix manually.
+
+**Rule:** When porting geometric transforms, replicate the point computation exactly and delegate to OpenCV for the matrix.

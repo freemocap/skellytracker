@@ -194,7 +194,7 @@ skellytracker-rust = { path = "skellytracker-rust" }
 # =============================================================================
 
 [tool.poe.tasks]
-rebuild  = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker", help = "Rebuild Rust engine with full cargo output" }
+rebuild  = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker --extra recommended", help = "Rebuild Rust engine with full cargo output" }
 lint     = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules" }
 lint-fix = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
 test     = { cmd = "pytest", help = "Run test suite" }

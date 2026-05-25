@@ -12,13 +12,20 @@ default = ["python-bindings"]
 python-bindings = ["pyo3/extension-module"]
 
 [dependencies]
-ndarray = { version = "0.16", features = ["serde"] }
-ndarray-npy = "0.9"
+ndarray = { version = "0.17", features = ["serde"] }
+ndarray-npy = "0.10"
 opencv = "0.98"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 pyo3 = "0.23"
 numpy = "0.23"
+ort = { version = "2.0.0-rc.12", default-features = false, features = [
+    "std", "ndarray", "tracing", "load-dynamic", "cuda", "tensorrt",
+    "tls-native", "copy-dylibs", "api-24",
+] }
+ureq = "2.10"
+zip = "2.2"
+dirs = "5"
 
 [profile.release]
 opt-level = 3

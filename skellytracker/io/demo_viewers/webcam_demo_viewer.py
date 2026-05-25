@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 KEY_USE_BRIGHTEST_POINT_TRACKER = ord("b")
 KEY_USE_CHARUCO_TRACKER = ord("c")
 KEY_USE_MEDIAPIPE_TRACKER = ord("m")
+KEY_USE_RTMPOSE_TRACKER = ord("t")
 KEY_TOGGLE_RUST_BACKEND = ord("r")
 KEY_SHOW_CONTROLS = ord("h")
 KEY_SHOW_OVERLAY = ord("o")
@@ -91,6 +92,21 @@ class WebcamDemoViewer:
             from skellytracker.trackers.charuco_tracker import CharucoTracker
             return CharucoTracker.create()
 
+    def _create_rtmpose_tracker(self) -> BaseTracker:
+        """Create an RTMPoseTracker in the currently selected backend."""
+        if self.use_rust_backend:
+            logger.info("Switching to RTMPoseTracker (Rust)")
+            from skellytracker.trackers.rtmpose_tracker.rust_bridge import RustRtmPoseTracker
+            return RustRtmPoseTracker.create()
+        else:
+            logger.info("Switching to RTMPoseTracker (Python)")
+            from skellytracker.trackers.rtmpose_tracker.__rtmpose_tracker import RTMPoseTracker
+            return RTMPoseTracker.create()
+
+    def _switch_to_rtmpose(self) -> None:
+        if not self._is_using_tracker("rtmpose"):
+            self.tracker = self._create_rtmpose_tracker()
+
     def _toggle_rust_backend(self) -> None:
         self.use_rust_backend = not self.use_rust_backend
         tracker_name = self.tracker.__class__.__name__
@@ -99,11 +115,13 @@ class WebcamDemoViewer:
             self.tracker = self._create_brightest_point_tracker()
         elif "charuco" in tracker_name.lower():
             self.tracker = self._create_charuco_tracker()
+        elif "rtmpose" in tracker_name.lower():
+            self.tracker = self._create_rtmpose_tracker()
         else:
             backend = "Rust" if self.use_rust_backend else "Python"
             logger.warning(
                 f"NOT IMPLEMENTED: {tracker_name} has no {backend} backend "
-                f"— only BrightestPointTracker and CharucoTracker support Rust/Python hot-swap"
+                f"— only BrightestPointTracker, CharucoTracker, and RTMPoseTracker support Rust/Python hot-swap"
             )
 
     def _switch_to_charuco(self) -> None:
@@ -194,6 +212,9 @@ class WebcamDemoViewer:
         def _mediapipe() -> None:
             self._switch_to_mediapipe()
 
+        def _rtmpose() -> None:
+            self._switch_to_rtmpose()
+
         def _show_overlay() -> None:
             self.show_overlay = not self.show_overlay
             if hasattr(self.tracker.config.annotator_config, "show_overlay"):
@@ -234,6 +255,7 @@ class WebcamDemoViewer:
             KEY_TOGGLE_RUST_BACKEND: _toggle_rust,
             KEY_USE_CHARUCO_TRACKER: _charuco,
             KEY_USE_MEDIAPIPE_TRACKER: _mediapipe,
+            KEY_USE_RTMPOSE_TRACKER: _rtmpose,
             KEY_SHOW_OVERLAY: _show_overlay,
             KEY_SHOW_INFO: _show_info,
             KEY_SET_AUTO_EXPOSURE: _auto_exposure,
@@ -281,6 +303,7 @@ class WebcamDemoViewer:
                 f"'{chr(KEY_USE_BRIGHTEST_POINT_TRACKER)})': Use BrightestPointTracker\n"
                 f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Use CharucoTracker\n"
                 f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': Use MediaPipeTracker\n"
+                f"'{chr(KEY_USE_RTMPOSE_TRACKER)})': Use RTMPoseTracker\n"
                 f"'{chr(KEY_TOGGLE_RUST_BACKEND)}': Toggle Rust/Python backend (currently "
                 f"{'Rust' if self.use_rust_backend else 'Python'})\n"
                 f"'{chr(KEY_SHOW_INFO)}': {'show info' if not self.show_info else 'hide info'}\n"

@@ -1,3 +1,4 @@
+pub mod onnx_utils;
 pub mod point_cloud;
 pub mod recorder;
 pub mod traits;

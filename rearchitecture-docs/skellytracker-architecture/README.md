@@ -8,7 +8,7 @@
 |---------|--------|-------|
 | **BrightestPoint** | ✅ Complete | Full Python→Rust translation with hot-swappable backends |
 | **Charuco** | ✅ Complete | OpenCV Charuco board detection + annotation, full data model parity, hot-swappable |
-| RTMPose | 🔜 Planned | ONNX Runtime — most complex, will stress-test the trait design |
+| **RTMPose** | ✅ Phase 1 | Two-stage ONNX pipeline (YOLOX + RTMPose), 133 keypoints, CPU inference, hot-swappable. Phase 2 (CUDA/TRT) deferred. |
 | MediaPipe Holistic | 🔜 Later | MediaPipe bindings |
 | CompositeGPU | 🔜 Later | Multi-model pipeline |
 
@@ -22,6 +22,7 @@
 | 04 | [Hot-Swappable Backend](./04-hot-swappable-backend.md) | `USE_RUST_BACKEND` flag, `Rust*Tracker` adapters, `BaseTracker` subclassing for beartype |
 | 05 | [Lessons Learned](./05-lessons-learned.md) | Mistakes, gotchas, patterns to reuse — what to do and NOT do for the next tracker |
 | 06 | [Charuco Translation](./06-charuco-translation.md) | detectMarkers→detectBoard decomposition, output type compatibility, data model parity (18 fields), annotation pipeline |
+| 07 | [RTMPose Translation](./07-rtmpose-translation.md) | YOLOX + RTMPose two-stage ONNX pipeline, SIMCC decode, affine warp coordinate mapping, `ort` crate integration, CPU inference |
 
 ## Key Constraints Discovered
 
@@ -49,7 +50,8 @@ python skellytracker-rust/webcam_demo.py --python  # Python fallback
 # Hotkeys in demo:
 #   b — switch to BrightestPointTracker
 #   c — switch to CharucoTracker
-#   r — toggle Rust ↔ Python (works for BrightestPoint AND Charuco)
+#   t — switch to RTMPoseTracker
+#   r — toggle Rust ↔ Python (works for BrightestPoint, Charuco, AND RTMPose)
 #   m — switch to MediaPipe
 #   h — show controls    i — toggle info    q — quit
 ```
