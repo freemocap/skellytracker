@@ -1,6 +1,6 @@
-# RTMPose Tracker — Python → Rust Translation (Phase 1: CPU)
+# RTMPose Tracker — Python → Rust Translation (Phase 2: GPU)
 
-> Third tracker translated after BrightestPoint and Charuco. The most complex so far: a two-stage ONNX Runtime pipeline (YOLOX person detection + RTMPose keypoint estimation) producing 133 full-body keypoints.
+> Third tracker translated after BrightestPoint and Charuco. A two-stage ONNX Runtime pipeline (YOLOX person detection + RTMPose keypoint estimation) producing 133 full-body keypoints. CUDA GPU inference at ~25ms/frame — 1.8× faster than the Python CUDA path.
 
 ## What was translated
 
@@ -116,9 +116,27 @@ This is the first tracker requiring a non-OpenCV ML framework:
 | Tensor ↔ ndarray | Transparent (numpy) | `Tensor::from_array(ndarray)` / `output.try_extract_array::<T>()` |
 | Model download | Python `requests` + `zipfile` | `ureq` + `zip` crate |
 
-### Phase 1 limitation: CPU only
+### Phase 2: GPU execution providers
 
-The `ort` crate's default `download` feature pulls CPU-only ONNX Runtime binaries. At runtime this produces ~500-700ms/frame vs Python's CUDA ~45ms/frame. The Rust *inference itself* is fast — the gap is entirely CPU vs GPU execution provider. Adding the `cuda` feature (Phase 2) will close this gap by linking against GPU ONNX Runtime.
+CUDA execution provider is fully working. The `ort` crate's `load-dynamic` feature loads `onnxruntime.dll` at runtime — the Python bridge (`rust_bridge.py`) pre-loads the GPU ORT DLL from the pip-installed `onnxruntime-gpu` package. YOLOX detection always uses CUDA (the NMS-baked ONNX graph hangs TensorRT engine compilation). RTMPose pose estimation uses CUDA or TensorRT depending on `provider` config.
+
+Results on a single 480×640 BGR image (balanced mode, RTX GPU):
+
+| Provider | Rust | Python |
+|----------|------|--------|
+| CUDA | ~25ms | ~45ms |
+| TensorRT | hangs (`ort` crate bug) | ~24ms |
+| CPU | ~500-700ms | ~200ms |
+
+The provider is configurable:
+
+```python
+t = RustRtmPoseTracker(mode="balanced", provider="cuda")  # default
+t = RustRtmPoseTracker(mode="balanced", provider="trt")   # hangs
+t = RustRtmPoseTracker(mode="balanced", provider="cpu")   # fallback
+```
+
+CUDA is the default. TensorRT in Rust hangs during `commit_from_file()` — likely an `ort` crate TRT EP logging callback issue. Python TRT works but saves only ~1ms vs CUDA. Not worth debugging further.
 
 ### SIMCC: Simple Multi-Domain Coordinate Classification
 
@@ -159,10 +177,10 @@ skellytracker/io/demo_viewers/
 └── webcam_demo_viewer.py   # + 't' hotkey, r-key toggle for RTMPose
 ```
 
-## What's deferred to Phase 2+
+## What's deferred
 
-- **CUDA/TensorRT execution providers** (`ort` crate `cuda`/`tensorrt` features)
+- **TensorRT execution provider** — Python works (~24ms, 1ms faster than CUDA). Rust hangs (`ort` crate TRT EP compatibility). Wait for upstream fix.
 - **Batched multi-image inference** (`predict_batch` — stack N images into one ONNX call)
-- **TRT engine compilation + caching** (FP16 engine cache, first-run compilation ticker)
+- **TRT engine compilation + caching** — TRT EP infra is built in `session_builder.rs`, just blocked on the TRT hang
 - **Multi-person support** (currently takes first detected person only)
 - **YAML-based skeleton connections** (currently uses hardcoded COCO-133 simplified links from `_skeleton_viz.py`)

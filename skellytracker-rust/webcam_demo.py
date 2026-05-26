@@ -1,30 +1,32 @@
-"""Demo — uses the built-in WebcamDemoViewer with Rust/Python hot-swappable backends.
+"""Demo — WebcamDemoViewer with Rust/Python hot-swappable backends.
 
 Usage:
     python webcam_demo.py          # Rust backend (default)
     python webcam_demo.py --python # Python backend
 
-Once running:
-    b  — switch to BrightestPointTracker
-    r  — toggle Rust / Python backend (applies on next tracker switch)
-    h  — show/hide controls
-    i  — show/hide info overlay
-    space / p  — pause
-    q / ESC    — quit
+Tracker hotkeys:
+    b  — BrightestPoint     c  — Charuco
+    r  — RTMpose            m  — MediaPipe
+    g  — CompositeGPU
+
+Controls:
+    p  — toggle Rust / Python backend for current tracker
+    h  — show/hide controls    i  — toggle info overlay
+    space — pause              q / ESC — quit
 """
 
 import sys
 from pathlib import Path
-
+from skellytracker.trackers.brightest_point_tracker.rust_bridge import (
+    get_brightest_point_tracker,
+)
+import skellytracker.trackers.brightest_point_tracker.rust_bridge as bridge
 # Make the parent skellytracker package importable from this directory.
 _parent = Path(__file__).resolve().parent.parent
 if str(_parent) not in sys.path:
     sys.path.insert(0, str(_parent))
 
-from skellytracker.trackers.brightest_point_tracker.rust_bridge import (
-    get_brightest_point_tracker,
-)
-import skellytracker.trackers.brightest_point_tracker.rust_bridge as bridge
+
 
 if __name__ == "__main__":
     use_python = "--python" in sys.argv

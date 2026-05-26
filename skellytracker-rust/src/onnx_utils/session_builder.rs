@@ -2,6 +2,11 @@
 //!
 //! Ports provider resolution, CUDA/TRT options, engine cache management from
 //! `skellytracker/utilities/gpu_utils/ort_session_utils.py`.
+//!
+//! CUDA EP is the default and works reliably. TRT EP is wired in but hangs
+//! on `commit_from_file()` with the `ort` crate v2.0.0-rc.12 — likely a TRT
+//! logging callback issue in the Rust FFI layer. Python TRT works but saves
+//! only ~1ms vs CUDA. Deferred until upstream fix.
 
 use std::path::{Path, PathBuf};
 use std::time::Instant;

@@ -1,17 +1,10 @@
 """Hot-swappable Rust backend for BrightestPointTracker.
 
-Pattern copied from skellycam's ``camera_group_manager.py``:
-
 - ``USE_RUST_BACKEND = True`` selects the Rust PyO3 bridge
 - ``USE_RUST_BACKEND = False`` falls back to the original Python OpenCV implementation
-- ``get_brightest_point_tracker()`` is the single factory function — callers don't
-  need to know which backend they're getting
+- ``get_brightest_point_tracker()`` is the single factory function
 
-OpenCV DLL discovery on Windows:
-    The compiled ``_skellytracker_rust.pyd`` links against OpenCV DLLs.
-    Before importing, we add the chocolatey OpenCV bin dir to the DLL search path
-    via ``os.add_dll_directory()``.  This replaces the old approach of copying
-    DLLs into a ``python/`` package directory (which no longer exists).
+OpenCV is statically linked via vcpkg x64-windows-static — no DLL discovery needed.
 """
 
 import logging
@@ -48,38 +41,8 @@ logger = logging.getLogger(__name__)
 # False → Python OpenCV engine (original)
 USE_RUST_BACKEND: bool = True
 
-# ── OpenCV DLL discovery (Windows) ───────────────────────────────────────────
-
-_OPENCV_BIN_DIR = r"C:\tools\opencv\build\x64\vc16\bin"
-
-
-def _setup_opencv_dlls() -> None:
-    """Add the OpenCV bin directory to the Windows DLL search path.
-
-    Must be called BEFORE ``import _skellytracker_rust`` so the OS loader
-    finds ``opencv_world4130.dll`` and friends when loading the ``.pyd``.
-    """
-    if platform.system() != "Windows":
-        return
-    if not os.path.isdir(_OPENCV_BIN_DIR):
-        logger.warning(
-            "OpenCV bin dir not found at %s — Rust tracker import may fail",
-            _OPENCV_BIN_DIR,
-        )
-        return
-    try:
-        os.add_dll_directory(_OPENCV_BIN_DIR)
-    except OSError:
-        # Already added (e.g. called a second time or from another module).
-        pass
-
-    # Also put the bin dir on PATH so any transitive DLL loads work.
-    current_path = os.environ.get("PATH", "")
-    if _OPENCV_BIN_DIR not in current_path:
-        os.environ["PATH"] = f"{_OPENCV_BIN_DIR};{current_path}"
-
-
-_setup_opencv_dlls()
+from skellytracker.trackers._opencv_setup import setup as _setup_opencv
+_setup_opencv()
 
 # ── Lazy import of the native module ────────────────────────────────────────
 

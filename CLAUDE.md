@@ -2,33 +2,32 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## CRITICAL — Build Environment Rules
+
+- **NEVER create a `.venv` inside any subdirectory** (e.g. `skellytracker-rust/.venv`). There must be exactly ONE `.venv` at the repo root. A nested `.venv` causes `poe rebuild` to install wheels into the wrong environment, producing stale `.pyd` files and DLL import failures that are extremely confusing to debug. If you see a nested `.venv`, delete it immediately.
+- **NEVER use `import *`** (wildcard import) anywhere, in any file, for any reason. Always use explicit named imports. Wildcard imports obscure what symbols are available, break static analysis, and make debugging import failures nearly impossible.
+- **Use `poe rebuild` for ALL builds.** No manual `pip install`, no `maturin build` by hand. The single supported build command is `uv run poe rebuild`.
+
 ## Commands
 
 ```bash
 # Install with dev dependencies and recommended GPU extras
 uv sync --extra recommended
 
+# Rebuild Rust native module after changes to skellytracker-rust/
+uv run poe rebuild
+
+# Run Rust type check (fast, no Python)
+cd skellytracker-rust && cargo check
+
 # Run all tests
 pytest skellytracker/tests
-
-# Run a single test file
-pytest skellytracker/tests/test_mediapipe_holistic_tracker.py
 
 # Lint
 ruff check skellytracker/
 
-# Format
-black skellytracker/
-isort skellytracker/
-
-# Run the webcam demo (defaults to mediapipe_holistic)
-python -m skellytracker
-# Or with a specific tracker:
-python -m skellytracker composite_gpu
-python -m skellytracker mediapipe_holistic
-
-# Run a specific tracker's demo directly
-python -m skellytracker.trackers.mediapipe_tracker
+# Run the webcam demo (press h for controls, p toggles Rust/Python)
+python skellytracker-rust/webcam_demo.py
 ```
 
 ## Architecture
@@ -56,31 +55,66 @@ Each tracker has a `tracked_object_definitions/` or `names_and_connections/` dir
 
 ### Tracker implementations
 
+#### Python trackers (in `skellytracker/trackers/`)
+
 | Tracker | Location | Notes |
 |---------|----------|-------|
-| CompositeGPU | `trackers/composite_gpu_tracker/` | RTMO body + RTMPose hands + RTMPose face, single CUDA context with batched inference. Configurable via `SubModelSpec` presets (light/medium/heavy). |
-| MediapipeComposite | `trackers/mediapipe_tracker/` | Holistic full-body (pose + hands + face). MediaPipe's native Python API. |
-| RTMPose | `trackers/rtmpose_tracker/` | 133-keypoint whole-body via ONNX Runtime (RTMLib). |
-| VitPose | `trackers/vitpose_tracker/` | ViT-based pose estimation. |
-| Charuco | `trackers/charuco_tracker/` | OpenCV Charuco board detection. |
-| BrightestPoint | `trackers/brightest_point_tracker/` | Simple brightest-point-in-frame tracker. |
-| Legacy (v1) | `trackers/v1/` | Old tracker implementations (YOLO, OpenPose, MMPose, etc.). Not actively maintained. |
+| CompositeGPU | `trackers/composite_gpu_tracker/` | RTMO body + RTMPose hands + RTMPose face, single CUDA context with batched inference |
+| MediapipeComposite | `trackers/mediapipe_tracker/` | Holistic full-body via MediaPipe Python API (PoseLandmarker + HandLandmarker + FaceLandmarker) |
+| RTMPose | `trackers/rtmpose_tracker/` | 133-keypoint whole-body via ONNX Runtime (Python path; has Rust CUDA backend) |
+| Charuco | `trackers/charuco_tracker/` | OpenCV Charuco board detection (has Rust backend) |
+| BrightestPoint | `trackers/brightest_point_tracker/` | Simple brightest-point tracker (has Rust backend) |
+| Legacy (v1) | `trackers/v1/` | Old implementations (YOLO, OpenPose, MMPose, etc.). Not actively maintained. |
+
+#### Rust trackers (in `skellytracker-rust/src/trackers/`)
+
+Each implements the `Tracker` trait and has a `PyO3` bridge pyclass in `skellytracker-rust/src/pyo3_bridge/mod.rs`. Python adapters live in each tracker's `rust_bridge.py`.
+
+| Tracker | Directory | Detection backend | Key pattern |
+|---------|-----------|-------------------|-------------|
+| BrightestPoint | `brightest_point/` | OpenCV `findContours` | Pure Rust, concrete pyclass |
+| Charuco | `charuco/` | OpenCV `detectMarkers`→`detectBoard` | Mutex-wrapped (raw C++ ptrs) |
+| RTMPose | `rtmpose/` | ONNX Runtime CUDA (YOLOX + RTMPose) | `ort` crate, CUDA EP, `Provider` enum |
+| MediaPipe | `mediapipe/` | Python `mediapipe` via PyO3 reverse bridge | `Py<PyAny>` refs, `call_method1` |
 
 ### GPU / ONNX Runtime
 
-All GPU trackers use ONNX Runtime. The execution provider is selected via config:
+GPU trackers use ONNX Runtime with the `ort` crate v2.0.0-rc.12 (`load-dynamic` feature — loads `onnxruntime.dll` at runtime from the pip-installed package).
 
-- **CompositeGPU**: `CompositeGPUSessionConfig(execution_provider="cuda")`. Sub-model selection uses `SubModelSpec` presets — `CompositeGPUSessionConfig.preset("light")` for rtmo-s body, `"medium"` (default) for rtmo-m, `"heavy"` for rtmo-l. Hand and face models can be overridden per-component via `body_spec`/`hand_spec`/`face_spec` fields.
-- **RTMPose**: `RTMPoseDetectorConfig.resolved_provider()`.
+**RTMPose** (`RtmPoseTracker::new(mode, provider)`):
+- Default provider: `CUDA` (~25ms/frame, 1.8× faster than Python CUDA)
+- `TensorRT`: wired in but hangs (`ort` crate TRT EP compatibility). Python TRT works (~24ms) but only 1ms faster — not worth debugging.
+- `CPU`: fallback (~500-700ms)
+- YOLOX detection always uses CUDA (NMS-baked ONNX graph hangs TRT engine compilation)
 
-Execution providers:
+**CompositeGPU** (Python-only, Rust port planned):
+- `CompositeGPUSessionConfig(execution_provider="cuda")`
+- Sub-model presets via `SubModelSpec` (light/medium/heavy)
 
-- **`cuda`** — CUDA 12 + cuDNN 9. On Windows, skellytracker patches `PATH` and proactively loads NVIDIA DLLs from pip-installed `nvidia-*` packages so users don't need separate CUDA Toolkit/cuDNN system installs.
-- **`trt`** — TensorRT engine (2-5x faster than CUDA EP). First run compiles engines (1-5 min); cached thereafter.
-- **`directml`** — DirectML for non-NVIDIA GPUs on Windows.
-- **`cpu`** — CPU fallback.
+**NVIDIA DLL discovery:** `rust_bridge.py` pre-loads CUDA/cuDNN/ORT DLLs before importing `_skellytracker_rust`, avoiding PATH-order issues on Windows.
 
-The `pyproject.toml` extras (`rtmpose-gpu`, `rtmpose-trt`, `rtmpose-directml`, `recommended`) pull in the correct ONNX Runtime build and NVIDIA runtime packages. Conflicting extras are declared in `[tool.uv].conflicts`. CPU `onnxruntime` is excluded from resolution via `exclude-dependencies`.
+The `pyproject.toml` extras (`rtmpose-gpu`, `recommended`) pull in `onnxruntime-gpu` and NVIDIA runtime packages.
+
+### Rust re-architecture (`skellytracker-rust/`)
+
+The Rust crate provides native-performance tracker implementations behind a consistent `Tracker` trait, exposed to Python via PyO3 as `_skellytracker_rust`.
+
+**Core traits** (`src/traits.rs`):
+- `Observation` — per-frame detection result: `frame_number()`, `point_cloud()`, `to_json()`
+- `Tracker` — orchestrator: `process_image(&mut self, frame, &Mat) → Box<dyn Observation>`, `annotate_image(&self, image, obs) → Mat`
+- `PointCloud` (`src/point_cloud.rs`) — the canonical data primitive: names `Vec<String>`, xyz `Array2<f64>`, visibility `Array1<f64>`
+
+**PyO3 bridge** (`src/pyo3_bridge/mod.rs`):
+- Each tracker gets a pyclass (e.g. `PyRtmPoseTracker`) wrapping the Rust struct
+- `#[new]` receives config params (and optionally Python objects for reverse bridges)
+- `process_image(numpy_image) → dict` — runs detection, stashes Rust observation, returns JSON
+- `annotate_image(numpy_image, dict) → numpy` — draws from stored observation (NOT JSON-reconstructed)
+
+**Hot-swappable pattern:**
+1. `rust_bridge.py` — `Rust*Tracker(BaseTracker)` adapter with `USE_RUST_BACKEND` flag
+2. Factory function (`get_*_tracker()`) dispatches to Rust or Python backend
+3. Webcam demo: tracker hotkeys + `p` toggles Rust↔Python
+4. beartype requires adapters to subclass `BaseTracker` (duck-typing alone fails)
 
 ### Key structural conventions
 

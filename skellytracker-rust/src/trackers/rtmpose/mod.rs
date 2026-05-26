@@ -1,6 +1,8 @@
 //! RTMPose tracker — two-stage ONNX pipeline (YOLOX detection + RTMPose keypoints).
 //!
-//! Phase 1: CPU single-image inference following the established BPT/Charuco pattern.
+//! Phase 2 (GPU): CUDA execution provider for pose inference (~25ms/frame).
+//! YOLOX detection always uses CUDA (NMS graph hangs TRT). Provider is
+//! configurable via `RtmPoseTracker::new(mode, provider)`.
 
 pub mod observation;
 

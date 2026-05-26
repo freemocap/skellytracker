@@ -1,6 +1,6 @@
 //! Postprocessing functions ported from Python's rtm_postprocessing.py.
 
-use ndarray::{Array1, Array2, Array3, Axis};
+use ndarray::{Array1, Array2, Array3, Array4, Axis};
 
 /// Decode SIMCC heatmaps to (x, y) coordinates with confidence scores.
 /// Port of Python's `get_simcc_maximum`.
@@ -162,6 +162,93 @@ pub fn nms(boxes: &Array2<f32>, scores: &Array1<f32>, nms_thr: f32) -> Vec<usize
 }
 
 /// YOLOX postprocessing for a single image.
+/// Multiclass NMS — handles boxes with class-specific scores.
+///
+/// Port of Python's `multiclass_nms()` from `rtm_postprocessing.py`.
+/// boxes: (N, 4) in xyxy format. scores: (N, num_classes).
+/// Returns (kept_box_indices, kept_scores) after NMS across all classes.
+pub fn multiclass_nms(
+    boxes: &Array2<f32>,
+    scores: &Array2<f32>,
+    nms_thr: f32,
+    score_thr: f32,
+) -> (Vec<usize>, Vec<f32>) {
+    let n = boxes.nrows();
+    let n_classes = scores.ncols();
+    if n == 0 || n_classes == 0 {
+        return (Vec::new(), Vec::new());
+    }
+
+    let mut keep_inds = Vec::new();
+    let mut keep_scores = Vec::new();
+
+    // For each class, run single-class NMS
+    for c in 0..n_classes {
+        let class_scores = scores.column(c);
+        let kept = nms(boxes, &class_scores.to_owned(), nms_thr);
+        for &i in &kept {
+            let s = class_scores[i];
+            if s > score_thr {
+                keep_inds.push(i);
+                keep_scores.push(s);
+            }
+        }
+    }
+
+    (keep_inds, keep_scores)
+}
+
+/// Decode RTMO model outputs → keypoints + scores.
+///
+/// Port of Python's `rtmo_postprocess()`.
+/// outputs[0] — det_outputs: (1, N_det, 5) [x1, y1, x2, y2, score]
+/// outputs[1] — pose_outputs: (1, N_det, K, 3) [x, y, score]
+/// ratio: letterbox scale factor.
+/// Returns (keypoints_per_person, scores_per_person) — each person has (K, 2) kpts.
+pub fn rtmo_postprocess(
+    det_output: &Array3<f32>,
+    pose_output: &Array4<f32>,
+    ratio: f64,
+    nms_thr: f32,
+    score_thr: f32,
+) -> (Vec<Array2<f64>>, Vec<Array1<f32>>) {
+    let n_dets = det_output.shape()[1];
+    let num_kpts = pose_output.shape()[2];
+
+    // Extract boxes + scores
+    let mut boxes = Array2::<f32>::zeros((n_dets, 4));
+    let mut class_scores = Array2::<f32>::zeros((n_dets, 1));
+
+    for i in 0..n_dets {
+        boxes[[i, 0]] = det_output[[0, i, 0]] / ratio as f32;
+        boxes[[i, 1]] = det_output[[0, i, 1]] / ratio as f32;
+        boxes[[i, 2]] = det_output[[0, i, 2]] / ratio as f32;
+        boxes[[i, 3]] = det_output[[0, i, 3]] / ratio as f32;
+        class_scores[[i, 0]] = det_output[[0, i, 4]];
+    }
+
+    let (keep_inds, _keep_scores) = multiclass_nms(&boxes, &class_scores, nms_thr, score_thr);
+
+    let mut keypoints_per_person: Vec<Array2<f64>> = Vec::with_capacity(keep_inds.len());
+    let mut scores_per_person: Vec<Array1<f32>> = Vec::with_capacity(keep_inds.len());
+
+    for &ki in &keep_inds {
+        if ki < n_dets {
+            let mut kpts = Array2::<f64>::zeros((num_kpts, 2));
+            let mut sc = Array1::<f32>::zeros(num_kpts);
+            for k in 0..num_kpts {
+                kpts[[k, 0]] = pose_output[[0, ki, k, 0]] as f64 / ratio;
+                kpts[[k, 1]] = pose_output[[0, ki, k, 1]] as f64 / ratio;
+                sc[k] = pose_output[[0, ki, k, 2]];
+            }
+            keypoints_per_person.push(kpts);
+            scores_per_person.push(sc);
+        }
+    }
+
+    (keypoints_per_person, scores_per_person)
+}
+
 /// Takes the raw YOLOX output and returns detected person bboxes in image coordinates.
 ///
 /// det_output: shape (1, N, 5) — [x1, y1, x2, y2, score] already in model coordinates

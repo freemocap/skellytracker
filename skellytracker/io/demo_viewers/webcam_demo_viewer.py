@@ -16,6 +16,7 @@ KEY_USE_BRIGHTEST_POINT_TRACKER = ord("b")
 KEY_USE_CHARUCO_TRACKER = ord("c")
 KEY_USE_MEDIAPIPE_TRACKER = ord("m")
 KEY_USE_RTMPOSE_TRACKER = ord("r")          # "r" = RTMpose
+KEY_USE_COMPOSITE_GPU_TRACKER = ord("g")    # "g" = Composite GPU
 KEY_TOGGLE_RUST_BACKEND = ord("p")          # "p" = Python/Rust toggle
 KEY_SHOW_CONTROLS = ord("h")
 KEY_SHOW_OVERLAY = ord("o")
@@ -134,11 +135,13 @@ class WebcamDemoViewer:
             self._set_active_tracker(self._create_rtmpose_tracker())
         elif "mediapipe" in tracker_name.lower():
             self._set_active_tracker(self._create_mediapipe_tracker())
+        elif "composite" in tracker_name.lower():
+            self._set_active_tracker(self._create_composite_gpu_tracker())
         else:
             backend = "Rust" if self.use_rust_backend else "Python"
             logger.warning(
                 f"NOT IMPLEMENTED: {tracker_name} has no {backend} backend "
-                f"— BrightestPoint, Charuco, RTMPose, and MediaPipe support Rust/Python hot-swap"
+                f"— all 5 trackers support Rust/Python hot-swap"
             )
 
     def _switch_to_charuco(self) -> None:
@@ -159,6 +162,21 @@ class WebcamDemoViewer:
     def _switch_to_mediapipe(self) -> None:
         if not self._is_using_tracker("mediapipe"):
             self._set_active_tracker(self._create_mediapipe_tracker())
+
+    def _create_composite_gpu_tracker(self) -> BaseTracker:
+        """Create a CompositeGPU tracker in the currently selected backend."""
+        if self.use_rust_backend:
+            logger.info("Switching to CompositeGPU (Rust)")
+            from skellytracker.trackers.composite_gpu_tracker.rust_bridge import RustCompositeGpuTracker
+            return RustCompositeGpuTracker.create()
+        else:
+            logger.info("Switching to CompositeGPU (Python)")
+            from skellytracker.trackers.composite_gpu_tracker import CompositeGPUTracker
+            return CompositeGPUTracker.create()
+
+    def _switch_to_composite_gpu(self) -> None:
+        if not self._is_using_tracker("composite"):
+            self._set_active_tracker(self._create_composite_gpu_tracker())
 
     # ── Camera helpers ─────────────────────────────────────────────────
 
@@ -241,6 +259,9 @@ class WebcamDemoViewer:
         def _rtmpose() -> None:
             self._switch_to_rtmpose()
 
+        def _composite_gpu() -> None:
+            self._switch_to_composite_gpu()
+
         def _show_overlay() -> None:
             self.show_overlay = not self.show_overlay
             if hasattr(self.tracker.config.annotator_config, "show_overlay"):
@@ -281,6 +302,7 @@ class WebcamDemoViewer:
             KEY_USE_CHARUCO_TRACKER: _charuco,
             KEY_USE_MEDIAPIPE_TRACKER: _mediapipe,
             KEY_USE_RTMPOSE_TRACKER: _rtmpose,
+            KEY_USE_COMPOSITE_GPU_TRACKER: _composite_gpu,
             KEY_SHOW_OVERLAY: _show_overlay,
             KEY_SHOW_INFO: _show_info,
             KEY_SET_AUTO_EXPOSURE: _auto_exposure,
@@ -333,6 +355,7 @@ class WebcamDemoViewer:
                 f"'{chr(KEY_USE_CHARUCO_TRACKER)})': Charuco\n"
                 f"'{chr(KEY_USE_MEDIAPIPE_TRACKER)})': MediaPipe\n"
                 f"'{chr(KEY_USE_RTMPOSE_TRACKER)})': RTMpose\n"
+                f"'{chr(KEY_USE_COMPOSITE_GPU_TRACKER)})': CompositeGPU\n"
                 f"'{chr(KEY_TOGGLE_RUST_BACKEND)}': Toggle Rust/Python ({'Rust' if self.use_rust_backend else 'Python'})\n"
                 f"'{chr(KEY_SHOW_INFO)}': {'show info' if not self.show_info else 'hide info'}\n"
                 f"'{chr(KEY_SHOW_OVERLAY)}': show overlay\n"

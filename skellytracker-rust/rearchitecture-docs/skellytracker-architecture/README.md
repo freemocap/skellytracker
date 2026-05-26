@@ -8,9 +8,9 @@
 |---------|--------|-------|
 | **BrightestPoint** | ✅ Complete | Full Python→Rust translation with hot-swappable backends |
 | **Charuco** | ✅ Complete | OpenCV Charuco board detection + annotation, full data model parity, hot-swappable |
-| **RTMPose** | ✅ Phase 1 | Two-stage ONNX pipeline (YOLOX + RTMPose), 133 keypoints, CPU inference, hot-swappable. Phase 2 (CUDA/TRT) deferred. |
+| **RTMPose** | ✅ Phase 2 | Two-stage ONNX pipeline (YOLOX + RTMPose), 133 keypoints, CUDA GPU inference (~25ms/frame), hot-swappable. TRT wired but hangs (`ort` crate bug). |
 | **MediaPipe Holistic** | ✅ Phase 1 | Reverse PyO3 bridge — Rust wraps Python composite detector/annotator, 211-point data model, hot-swappable. Phase 2 (Rust ROI/fusion/rayon) deferred. |
-| CompositeGPU | 🔜 Later | Multi-model pipeline |
+| CompositeGPU | 🟡 Phase 1 | Multi-model GPU pipeline (RTMO body + hands + face). Infrastructure (ROI geometry, model registry, RTMO pre/postprocessing) complete. Phase 2 (session + pipeline) in progress. |
 
 ## Documents
 
@@ -24,6 +24,7 @@
 | 06 | [Charuco Translation](./06-charuco-translation.md) | detectMarkers→detectBoard decomposition, output type compatibility, data model parity (18 fields), annotation pipeline |
 | 07 | [RTMPose Translation](./07-rtmpose-translation.md) | YOLOX + RTMPose two-stage ONNX pipeline, SIMCC decode, affine warp coordinate mapping, `ort` crate integration, CPU inference |
 | 08 | [MediaPipe Translation](./08-mediapipe-translation.md) | Reverse PyO3 bridge Phase 1 — Rust wraps Python composite detector/annotator via `Py<PyAny>`, 211-point observation, Mat↔numpy round-trip, Phase 2 roadmap |
+| 09 | [CompositeGPU Handoff](./09-composite-gpu-handoff.md) | Three-model composable pipeline (RTMO body + hand + face), batched inference, ROI cropping, hand post-processing, ModelSpec presets — handoff doc ready for translation |
 
 ## Key Constraints Discovered
 

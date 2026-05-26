@@ -246,7 +246,13 @@ This is what `detectBoard()` does internally anyway (detect markers → interpol
 | Docs + cleanup | ~0.5h | Translation doc, README update, lessons learned |
 | **MediaPipe Phase 1 Total** | **~3.5h** | Reverse bridge end-to-end, hot-swappable |
 | | | |
-| **Grand Total** | **~28.5h** | Four trackers translated |
+| RTMPose Phase 2 GPU (CUDA EP) | ~0.5h | Already working — verified at ~25ms/frame, repointed provider |
+| TRT investigation + Python cross-check | ~1h | Python TRT works (~24ms), Rust hangs (`ort` crate bug) |
+| Provider plumbing (Python→Rust) | ~0.5h | `RtmPoseTracker::new(mode, provider)`, `#[pyo3(signature)]` |
+| Docs update (CUDA/TRT status) | ~0.5h | Updated 07-rtmpose-translation.md, session_builder docstring |
+| **RTMPose Phase 2 Total** | **~2.5h** | CUDA confirmed, TRT wired but blocked |
+| | | |
+| **Grand Total** | **~31h** | Four trackers translated, GPU inference working |
 
 ### 12. `ort` crate v2.0.0-rc.x is the standard despite "rc" label
 
@@ -354,3 +360,28 @@ Solutions for Phase 2:
 - Keep the pyclass methods as the primary API and the trait as a secondary path
 
 **Rule:** The `Tracker` trait is designed for pure-Rust trackers. Reverse-bridge trackers need the `Python<'py>` token, which the trait doesn't provide. Use `#[pymethods]` as the primary API.
+
+### 22. Test GPUs on the Python side first — then port to Rust
+
+When debugging execution provider issues (CUDA hangs, TRT timeouts), the Python `onnxruntime` library is the ground truth. It's battle-tested and has clear error messages. The `ort` crate wraps the same C API but may have subtle FFI issues (TRT logging callbacks, version mismatches).
+
+The workflow that uncovered the TRT hang:
+1. Test TRT on Python → works, 24ms/frame
+2. Compare Python vs Rust TRT config → found mismatch (Rust was using TRT on YOLOX)
+3. Fix config to match Python (CUDA for YOLOX, TRT for pose)
+4. Test again → Rust still hangs
+5. Conclusion: `ort` crate TRT EP compatibility issue, not config
+
+**Rule:** Always cross-validate GPU EP behavior on the Python side before debugging the Rust side. Python tells you what SHOULD work; Rust tells you whether the `ort` crate can deliver it.
+
+### 23. YOLOX ONNX with baked NMS hangs TRT engine compilation
+
+The YOLOX detection model has Non-Maximum Suppression post-processing baked into the ONNX graph. This graph pattern causes TensorRT engine compilation to hang (infinite optimization loop). Python's `rtmpose_session.py` works around this by using CUDA for YOLOX even when TRT is requested for the pose model:
+
+```python
+det_provider = "cuda" if active_provider == "trt" else active_provider
+```
+
+The Rust side must mirror this exactly. TRT is only viable for the RTMPose model.
+
+**Rule:** Models with baked post-processing (NMS, ROI align) may not compile under TRT. Use CUDA for those, TRT only for clean feed-forward models.

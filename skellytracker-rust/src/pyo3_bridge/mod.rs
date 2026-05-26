@@ -10,6 +10,8 @@ use crate::trackers::brightest_point::observation::BrightestPointObservation;
 use crate::trackers::charuco::CharucoTracker;
 use crate::trackers::charuco::observation::CharucoObservation;
 use crate::onnx_utils::session_builder::Provider;
+use crate::trackers::composite_gpu::CompositeGpuTracker;
+use crate::trackers::composite_gpu::observation::CompositeGpuObservation;
 use crate::trackers::mediapipe::MediaPipeTracker;
 use crate::trackers::mediapipe::observation::MediaPipeObservation;
 use crate::trackers::rtmpose::RtmPoseTracker;
@@ -498,6 +500,102 @@ impl PyMediaPipeTracker {
 }
 
 // ============================================================================
+// CompositeGpuTracker — Python wrapper (Mutex-wrapped, like RTMPose)
+// ============================================================================
+
+#[pyclass(name = "CompositeGpuTracker")]
+struct PyCompositeGpuTracker {
+    inner: std::sync::Mutex<CompositeGpuTracker>,
+    last_obs: std::sync::Mutex<Option<CompositeGpuObservation>>,
+}
+
+#[pymethods]
+impl PyCompositeGpuTracker {
+    #[new]
+    #[pyo3(signature = (mode = "medium", provider = "cuda"))]
+    fn new(mode: &str, provider: &str) -> PyResult<Self> {
+        let ep = match provider {
+            "cuda" => Provider::CUDA,
+            "cpu" => Provider::CPU,
+            other => return Err(pyo3::exceptions::PyValueError::new_err(
+                format!("Unknown provider: {other}. Use 'cuda' or 'cpu'.")
+            )),
+        };
+        match CompositeGpuTracker::new(mode, ep) {
+            Ok(inner) => Ok(PyCompositeGpuTracker {
+                inner: std::sync::Mutex::new(inner),
+                last_obs: std::sync::Mutex::new(None),
+            }),
+            Err(e) => Err(pyo3::exceptions::PyValueError::new_err(e.to_string())),
+        }
+    }
+
+    #[getter]
+    fn mode(&self) -> String {
+        self.inner.lock().unwrap().preset.clone()
+    }
+
+    #[allow(deprecated)]
+    fn process_image(
+        &mut self,
+        py: Python<'_>,
+        frame_number: u64,
+        image: PyReadonlyArrayDyn<u8>,
+    ) -> PyResult<Py<PyAny>> {
+        let mat = numpy_to_mat(&image)?;
+        let obs = {
+            let mut tracker = self.inner.lock().unwrap();
+            tracker.detect(frame_number, &mat)
+        };
+        let json_str = obs.to_json();
+        *self.last_obs.lock().unwrap() = Some(obs);
+
+        let result: Py<PyAny> = py
+            .import("json")?
+            .call_method1("loads", (json_str,))?
+            .into();
+        Ok(result)
+    }
+
+    fn annotate_image(
+        &self,
+        py: Python<'_>,
+        image: PyReadonlyArrayDyn<u8>,
+        _observation: &Bound<'_, PyDict>,
+    ) -> PyResult<Py<PyAny>> {
+        let arr = image.as_array();
+        let out = arr.to_owned();
+        let out_ptr = out.as_ptr() as *mut std::ffi::c_void;
+
+        let mut annotated = unsafe {
+            Mat::new_rows_cols_with_data_unsafe_def(
+                arr.shape()[0] as i32,
+                arr.shape()[1] as i32,
+                CV_8UC3,
+                out_ptr,
+            )
+            .map_err(|e| pyo3::exceptions::PyRuntimeError::new_err(format!("Mat::new: {e}")))?
+        };
+
+        {
+            let tracker = self.inner.lock().unwrap();
+            let last_obs = self.last_obs.lock().unwrap();
+            if let Some(ref obs) = *last_obs {
+                tracker.draw_markers_into(&mut annotated, obs);
+            }
+        }
+
+        drop(annotated);
+        let bound_arr = out.into_pyarray(py);
+        Ok(bound_arr.into_any().unbind())
+    }
+
+    fn __repr__(&self) -> String {
+        format!("CompositeGpuTracker(mode={})", self.inner.lock().unwrap().preset)
+    }
+}
+
+// ============================================================================
 // Python module entry point
 // ============================================================================
 
@@ -505,6 +603,7 @@ impl PyMediaPipeTracker {
 fn _skellytracker_rust(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PyBrightestPointTracker>()?;
     m.add_class::<PyCharucoTracker>()?;
+    m.add_class::<PyCompositeGpuTracker>()?;
     m.add_class::<PyMediaPipeTracker>()?;
     m.add_class::<PyRtmPoseTracker>()?;
     m.add("__version__", env!("CARGO_PKG_VERSION"))?;

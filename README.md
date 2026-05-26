@@ -1,49 +1,48 @@
 # skellytracker
 
-The tracking backend for freemocap. Collects different pose estimation tools and aggregates them using a consistent API. Can run pose estimation on images, webcams, and videos.
+The tracking backend for freemocap. Collects different pose estimation tools and aggregates them using a consistent API built around the **Tracker → Detector / Annotator / Recorder** pattern.
 
-## Run skelly_tracker
+## Quick start
 
-Installation: `pip install skellytracker`
-Then it can be run with `skellytracker`.
+```bash
+# Install with GPU extras
+uv sync --extra recommended
 
-Running the basic `skellytracker` will open the first webcam port on your computer and run pose estimaiton in realtime with mediapipe holistic as a tracker. You can specify the tracker with `skellytracker TRACKER_NAME`, where `TRACKER_NAME` is the name of an available tracker. To view the names of all available trackers, see `RUN_ME.py`.
+# Run the webcam demo (press h for controls)
+python -m skellytracker
 
-It will take some time to initialize the tracker the first time you run it, as it will likely need to download the model.
+# Build the Rust native module (after changes to skellytracker-rust/)
+uv run poe rebuild
+```
 
-## Using skellytracker in your project
+## Trackers
 
-To use skellytracker in your project, import a tracker like `from skellytracker import YOLOPoseTracker`, then instantiate it with your desired parameters like `tracker = YOLOPoseTracker(model_size="medium")`, and then use `tracker.process_image(frame)` or `tracker.process_video(video_filepath)`. Processing image by image will let you access each individual annotated frame with `tracker.annotated_image`, and you can optionally record the data with `tracker.recorder.record()`. Access recorded data with `tracker.recorder.process_tracked_objects()`. The running, recording, and processing are done separately to give control over the amount of processing done at each step in the pipeline. Processing an entire video allows you to save the annotated frames as a video, and optionally saves and returns the data as a numpy array. Each tracker has an associated `ModelInfo` class to access model attributes.
+| Tracker | Backend | Hotkey | Rust? | Notes |
+|---------|---------|--------|-------|-------|
+| MediaPipe Holistic | Python `mediapipe` (C++ TFLite) | `m` | ✅ Phase 1 | Reverse PyO3 bridge — 211-point full-body |
+| RTMPose | ONNX Runtime (CUDA) | `r` | ✅ Phase 2 | 133-keypoint whole-body, ~25ms/frame GPU |
+| Charuco | OpenCV ArUco | `c` | ✅ Complete | Board detection + calibration |
+| BrightestPoint | OpenCV luminance | `b` | ✅ Complete | Simple blob tracker |
+| CompositeGPU | ONNX Runtime (CUDA) | — | ⬜ Planned | Multi-model GPU pipeline |
 
-Skellytracker is still under development, so version updates may make breaking changes to the API. Please report any issues and pull requests to the [skellytracker repo](https://github.com/freemocap/skellytracker).
+**Demo hotkeys:** `p` toggles Rust ↔ Python for the current tracker. `h` shows full controls.
 
-### Extending the API
-To extend the API, import the `BaseTracker` and `BaseRecorder` abstract base classes from skellytracker. Then create a new tracker and recorder inheriting from the base classes and implement all of the abstract methods.
+## Architecture
+
+See [rearchitecture-docs/skellytracker-architecture/](rearchitecture-docs/skellytracker-architecture/) for the full Rust re-architecture documentation, including:
+
+- [Tracker trait + PointCloud design](rearchitecture-docs/skellytracker-architecture/01-tracker-trait-architecture.md)
+- [PyO3 bridge pattern](rearchitecture-docs/skellytracker-architecture/03-pyo3-bridge-pattern.md)
+- [Hot-swappable backends](rearchitecture-docs/skellytracker-architecture/04-hot-swappable-backend.md)
+- [Lessons learned (21 rules)](rearchitecture-docs/skellytracker-architecture/05-lessons-learned.md)
+- Per-tracker translation docs (BrightestPoint, Charuco, RTMPose, MediaPipe)
+
+## GPU setup
+
+For help setting up your GPU for ONNX Runtime trackers, see the [GPU_SETUP_GUIDE](GPU_SETUP_GUIDE.md).
 
 ## Contributing
 
-We love your input! We want to make contributing to this project as easy and transparent as possible, whether it's:
+See [CLAUDE.md](CLAUDE.md) for development commands and architecture details.
 
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
-
-Pull requests are the best way to propose changes to the codebase (we
-use [Github Flow](https://docs.github.com/en/get-started/quickstart/github-flow)). We actively welcome your pull
-requests:
-
-1. Fork the repo and create your branch from `main`.
-2. Download the development dependencies with `pip install -e '.[dev]'`.
-2. If you've added code that should be tested (including any tracker), add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes by running `pytest skellytracker/tests`.
-5. Make sure your code lints.
-6. Make that pull request!
-
----
-
-# GPU setup 
-
-For help setting up your GPU for use in gpu-enabled trackers like RTMPose, see the [GPU_SETUP_GUIDE](GPU_SETUP_GUIDE.md)
+Pull requests welcome — fork the repo, branch from `main`, add tests, lint with `ruff`, and open a PR.

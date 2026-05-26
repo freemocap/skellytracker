@@ -120,3 +120,49 @@ pub fn rtmpose_letterbox_preprocess(
 
     Ok((float_img, center, corrected_scale))
 }
+
+// ---------------------------------------------------------------------------
+// RTMO one-stage body preprocessing
+// ---------------------------------------------------------------------------
+
+/// Port of Python's `rtmo_preprocess()` — letterbox + normalize for RTMO.
+///
+/// Returns (padded_float32_img, ratio) where padded_img is (th, tw) float32
+/// with gray=114 padding and optional BGR mean/std normalization.
+pub fn rtmo_preprocess(
+    img: &Mat,
+    model_input_size: (u32, u32),
+    mean: Option<&[f32; 3]>,
+    std: Option<&[f32; 3]>,
+) -> Result<(Mat, f64), opencv::Error> {
+    let (th, tw) = (model_input_size.0 as i32, model_input_size.1 as i32);
+    let img_h = img.rows();
+    let img_w = img.cols();
+
+    // Letterbox: compute ratio, resize, pad
+    let ratio = (th as f64 / img_h as f64).min(tw as f64 / img_w as f64);
+    let nw = (img_w as f64 * ratio) as i32;
+    let nh = (img_h as f64 * ratio) as i32;
+
+    let mut resized = Mat::default();
+    imgproc::resize(img, &mut resized, Size::new(nw, nh), 0.0, 0.0, imgproc::INTER_LINEAR)?;
+
+    // Create padded float32 image with gray=114 fill
+    let mut padded = Mat::new_rows_cols_with_default(th, tw, opencv::core::CV_32FC3, Scalar::all(114.0))?;
+
+    // Copy resized region into top-left of padded
+    let roi = opencv::core::Rect::new(0, 0, nw, nh);
+    let mut padded_roi = Mat::roi_mut(&mut padded, roi)?;
+    resized.convert_to(&mut padded_roi, opencv::core::CV_32F, 1.0, 0.0)?;
+
+    // Normalize with BGR mean/std
+    if let (Some(m), Some(s)) = (mean, std) {
+        let mean_scalar = Scalar::new(m[0] as f64, m[1] as f64, m[2] as f64, 0.0);
+        let inv_std = Scalar::new(1.0 / s[0] as f64, 1.0 / s[1] as f64, 1.0 / s[2] as f64, 0.0);
+        let mut temp = Mat::default();
+        opencv::core::subtract(&padded, &mean_scalar, &mut temp, &Mat::default(), -1)?;
+        opencv::core::multiply(&temp, &inv_std, &mut padded, 1.0, -1)?;
+    }
+
+    Ok((padded, ratio))
+}

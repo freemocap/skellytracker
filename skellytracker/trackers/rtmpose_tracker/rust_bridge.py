@@ -38,31 +38,8 @@ logger = logging.getLogger(__name__)
 # -- Backend selector ------------------------------------------------------------
 USE_RUST_BACKEND: bool = True
 
-# -- OpenCV DLL discovery (Windows) ---------------------------------------------
-
-_OPENCV_BIN_DIR = r"C:\tools\opencv\build\x64\vc16\bin"
-
-
-def _setup_opencv_dlls() -> None:
-    if platform.system() != "Windows":
-        return
-    if not os.path.isdir(_OPENCV_BIN_DIR):
-        logger.warning(
-            "OpenCV bin dir not found at %s -- Rust tracker import may fail",
-            _OPENCV_BIN_DIR,
-        )
-        return
-    try:
-        os.add_dll_directory(_OPENCV_BIN_DIR)
-    except OSError:
-        pass
-
-    current_path = os.environ.get("PATH", "")
-    if _OPENCV_BIN_DIR not in current_path:
-        os.environ["PATH"] = f"{_OPENCV_BIN_DIR};{current_path}"
-
-
-_setup_opencv_dlls()
+from skellytracker.trackers._opencv_setup import setup as _setup_opencv
+_setup_opencv()
 
 # -- NVIDIA DLL discovery (cuDNN, CUDA runtime) --------------------------------
 

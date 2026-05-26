@@ -8,6 +8,7 @@
 pub mod preprocessing;
 pub mod postprocessing;
 pub mod session_builder;
+pub mod model_registry;
 
 use std::io::Read;
 use std::path::PathBuf;
