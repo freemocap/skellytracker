@@ -7,6 +7,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **NEVER create a `.venv` inside any subdirectory** (e.g. `skellytracker-rust/.venv`). There must be exactly ONE `.venv` at the repo root. A nested `.venv` causes `poe rebuild` to install wheels into the wrong environment, producing stale `.pyd` files and DLL import failures that are extremely confusing to debug. If you see a nested `.venv`, delete it immediately.
 - **NEVER use `import *`** (wildcard import) anywhere, in any file, for any reason. Always use explicit named imports. Wildcard imports obscure what symbols are available, break static analysis, and make debugging import failures nearly impossible.
 - **Use `poe rebuild` for ALL builds.** No manual `pip install`, no `maturin build` by hand. The single supported build command is `uv run poe rebuild`.
+- **Use `logging` for all diagnostic output.** Never `print()` for debug/info messages. Use `logger.debug()` for low-level tracing, `logger.info()` for high-level progress, `logger.error()` for failures. The project already has `logging` set up everywhere — use it.
 
 ## Commands
 
@@ -27,7 +28,10 @@ pytest skellytracker/tests
 ruff check skellytracker/
 
 # Run the webcam demo (press h for controls, p toggles Rust/Python)
-python skellytracker-rust/webcam_demo.py
+python skellytracker/webcam_demo.py
+
+# Run the webcam demo with debug logging
+python -c "import logging; logging.basicConfig(level=logging.DEBUG); from skellytracker.webcam_demo import *"
 ```
 
 ## Architecture

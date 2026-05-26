@@ -370,6 +370,7 @@ class WebcamDemoViewer:
         return overlay
 
     def run(self):
+        logger.debug("Searching for camera...")
         port_number = 0
         frame_number = 0
         cap: cv2.VideoCapture | None = None
@@ -378,10 +379,15 @@ class WebcamDemoViewer:
             if cap.isOpened():
                 break
             port_number += 1
+        logger.debug("Camera found at port %d, isOpened=%s", port_number, cap.isOpened() if cap else False)
         if cap is None:
             raise RuntimeError("Error: Could not open camera.")
+        logger.debug("Setting resolution 1280x720...")
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        actual_w = cap.get(cv2.CAP_PROP_FRAME_WIDTH)
+        actual_h = cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        logger.debug("Actual resolution: %sx%s", actual_w, actual_h)
         if not cap.isOpened():
             logger.error("Error: Could not open camera.")
             return
@@ -391,20 +397,30 @@ class WebcamDemoViewer:
         exposure_container = [self.default_exposure]
         auto_exposure_container = [True]
 
+        logger.debug("Setting exposure (default=%d)...", self.default_exposure)
         self._set_exposure(cap, exposure_container[0])
         self._set_auto_exposure_mode(cap)
 
+        logger.debug("Building key handlers...")
         key_handlers = self._build_key_handlers(
             cap, exposure_container, auto_exposure_container
         )
+        logger.debug("Key handlers built: %d entries", len(key_handlers))
 
+        logger.debug("Creating window '%s'...", self.window_name)
         cv2.namedWindow(self.window_name)
         self._frame_durations = deque(maxlen=30)
         self._tracker_durations = deque(maxlen=30)
         self._annotation_durations = deque(maxlen=30)
+        logger.debug("Performing initial cap.read()...")
         tik = time.perf_counter()
         success, self._image = cap.read()
+        logger.debug("Initial read: success=%s, shape=%s, dtype=%s",
+                      success,
+                      self._image.shape if self._image is not None else None,
+                      self._image.dtype if self._image is not None else None)
 
+        logger.debug("ENTERING MAIN LOOP...")
         while True:
             if not self.paused:
                 success, self._image = cap.read()
@@ -456,5 +472,7 @@ class WebcamDemoViewer:
             if not self.paused and frame_number % 60 == 0:
                 gc.collect()
 
+        logger.debug("LOOP EXITED at frame_number=%d", frame_number)
         cap.release()
         cv2.destroyAllWindows()
+        logger.debug("Camera released, windows destroyed. Returning.")
