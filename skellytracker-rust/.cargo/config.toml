@@ -1,8 +1,0 @@
-# Auto-detected OpenCV (chocolatey, standard path).
-# `opencv` crate reads these for its "environment" probe.
-# Variable names MUST be OPENCV_LINK_PATHS / OPENCV_INCLUDE_PATHS (plural).
-[env]
-OPENCV_LINK_LIBS = "opencv_world4130"
-OPENCV_LINK_PATHS = "C:\\tools\\opencv\\build\\x64\\vc16\\lib"
-OPENCV_INCLUDE_PATHS = "C:\\tools\\opencv\\build\\include"
-OPENCV_DISABLE_PROBES = "cmake,pkg_config,vcpkg_cmake,vcpkg"

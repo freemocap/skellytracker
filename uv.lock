@@ -1857,7 +1857,6 @@ dependencies = [
     { name = "pydantic" },
     { name = "pyyaml" },
     { name = "requests" },
-    { name = "skellytracker-rust" },
     { name = "tqdm" },
 ]
 
@@ -1946,7 +1945,6 @@ requires-dist = [
     { name = "pydantic", specifier = "==2.*" },
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "requests", specifier = ">=2.32.3" },
-    { name = "skellytracker-rust", directory = "skellytracker-rust" },
     { name = "tensorrt", marker = "extra == 'recommended'" },
     { name = "tensorrt", marker = "extra == 'rtmpose-trt'" },
     { name = "tqdm", specifier = "==4.*" },
@@ -1964,11 +1962,6 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
-
-[[package]]
-name = "skellytracker-rust"
-version = "0.1.0"
-source = { directory = "skellytracker-rust" }
 
 [[package]]
 name = "sounddevice"

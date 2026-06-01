@@ -60,7 +60,6 @@ dependencies = [
     "requests>=2.32.3",
     "beartype>=0.19",
     "pyyaml>=6.0",
-    "skellytracker-rust",
 ]
 requires-python = ">=3.11,<3.13"
 
