@@ -54,6 +54,7 @@ from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ensure_cuda_dlls_loaded,
     probe_supports_batch,
     resolve_provider,
+    select_best_cuda_device_id,
     session_run_batched,
 )
 from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
@@ -83,6 +84,7 @@ class RTMPoseSessionConfig(BaseModel):
     engine_cache_dir: Path = Field(default_factory=_default_engine_cache_dir)
     max_batch_size: int = 4
     fp16: bool = True
+    device_id: int | None = None
     # Used only to size the warmup batch — actual inputs can be any shape.
     warmup_image_shape: tuple[int, int] = (720, 1280)
     # Behavior when the requested provider isn't available at runtime.
@@ -157,19 +159,38 @@ class RTMPoseSession:
             on_missing=config.on_provider_missing,
         )
 
+        # Resolve which physical GPU to use. Do this once here so every sub-session
+        # lands on the same device.
+        device_id = config.device_id
+        if device_id is None and active_provider in ("cuda", "trt"):
+            logger.info("RTMPoseSession: device_id not specified -- auto-selecting best CUDA device")
+            device_id = select_best_cuda_device_id()
+        device_id = device_id if device_id is not None else 0
+        selection_source = "user-specified" if config.device_id is not None else "auto-selected"
+        logger.info(
+            "\n"
+            "  ╔══════════════════════════════════════════════════════════════╗\n"
+            "  ║                  RTMPose SESSION STARTUP                     ║\n"
+            "  ╠══════════════════════════════════════════════════════════════╣\n"
+            "  ║  provider   : %-46s║\n"
+            "  ║  device_id  : %-46s║\n"
+            "  ║  mode       : %-46s║\n"
+            "  ║  max_batch  : %-46s║\n"
+            "  ║  fp16       : %-46s║\n"
+            "  ╚══════════════════════════════════════════════════════════════╝",
+            active_provider,
+            f"{device_id}  ({selection_source})",
+            config.mode,
+            config.max_batch_size,
+            config.fp16,
+        )
+
         config.engine_cache_dir.mkdir(parents=True, exist_ok=True)
 
-        # Resolve mode → model URLs + input sizes
+        # Resolve mode -> model URLs + input sizes
         det_key, det_input_size, pose_key, pose_input_size = WHOLEBODY_MODE_CONFIG[
             config.mode
         ]
-
-        logger.info(
-            f"Constructing RTMPoseSession (mode={config.mode!r}, "
-            f"requested_provider={config.execution_provider!r}, "
-            f"active_provider={active_provider!r}, "
-            f"max_batch_size={config.max_batch_size}, fp16={config.fp16})"
-        )
 
         # Download both ONNX models
         det_url = MODEL_URLS[det_key]
@@ -191,6 +212,7 @@ class RTMPoseSession:
             log_label="yolox",
             max_batch_size=config.max_batch_size,
             trt_set_batch_profile=True,
+            device_id=device_id,
         )
         pose_session = build_tuned_ort_session(
             onnx_path=pose_onnx_raw,
@@ -199,6 +221,7 @@ class RTMPoseSession:
             fp16=config.fp16,
             log_label="rtmpose",
             max_batch_size=config.max_batch_size,
+            device_id=device_id,
         )
 
         yolox_supports_batch = probe_supports_batch(det_session, label="yolox")
@@ -209,8 +232,8 @@ class RTMPoseSession:
         prenms_path = ensure_prenms_model(det_dynbatch_path)
         if prenms_path is not None:
             logger.info(
-                f"Building pre-NMS ORT session for batch>1 YOLOX inference "
-                f"({prenms_path.name})"
+                "Building pre-NMS ORT session for batch>1 YOLOX inference (%s) on device_id=%d",
+                prenms_path.name, device_id,
             )
             yolox_prenms_session = build_tuned_ort_session(
                 onnx_path=str(prenms_path),
@@ -220,6 +243,7 @@ class RTMPoseSession:
                 log_label="yolox_prenms",
                 trt_set_batch_profile=True,
                 max_batch_size=config.max_batch_size,
+                device_id=device_id,
             )
 
         session = cls(

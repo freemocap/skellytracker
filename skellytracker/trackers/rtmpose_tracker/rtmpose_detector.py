@@ -127,10 +127,11 @@ class RTMPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"
-    device: str ="cuda"# "trt"
-    # New, optional. When set, takes precedence over `device`. Drives the actual
-    # ORT provider selection in `RTMPoseSession`.
+    device: str = "cuda"
+    # When set, takes precedence over `device`. Drives the actual ORT provider selection.
     execution_provider: ExecutionProviderName | None = None
+    # Which GPU to use. None = auto-select the device with the most VRAM at session creation.
+    device_id: int | None = None
 
     def resolved_provider(self) -> ExecutionProviderName:
         if self.execution_provider is not None:
@@ -165,6 +166,7 @@ class RTMPoseDetector(BaseDetector):
             RTMPoseSessionConfig(
                 mode=config.mode if config.mode in ("performance", "lightweight", "balanced") else "balanced",
                 execution_provider=provider,
+                device_id=config.device_id,
             ),
         )
         return cls(config=config, session=session)

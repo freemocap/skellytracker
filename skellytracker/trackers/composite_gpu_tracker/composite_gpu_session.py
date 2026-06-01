@@ -48,6 +48,7 @@ from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ensure_cuda_dlls_loaded,
     probe_supports_batch,
     resolve_provider,
+    select_best_cuda_device_id,
     session_run_batched,
 )
 from skellytracker.trackers.composite_gpu_tracker.roi_crop_utils import (
@@ -83,6 +84,7 @@ class CompositeGPUSessionConfig(BaseModel):
     max_batch_size: int = 4
     fp16: bool = True
     on_provider_missing: str = "fallback"
+    device_id: int | None = None
 
     detect_hands: bool = True
     detect_face: bool = True
@@ -218,6 +220,8 @@ class CompositeGPUSession:
     config: CompositeGPUSessionConfig
     _active_provider: ExecutionProviderName
 
+    _device_id: int = 0
+
     _body_session: ort.InferenceSession | None = None
     _hand_session: ort.InferenceSession | None = None
     _face_session: ort.InferenceSession | None = None
@@ -274,9 +278,36 @@ class CompositeGPUSession:
             requested=config.execution_provider,
             on_missing=config.on_provider_missing,  # type: ignore[arg-type]
         )
+
+        # Resolve which physical GPU to use. Do this once so all sub-sessions (body,
+        # hand, face) land on the same device.
+        device_id = config.device_id
+        if device_id is None and active_provider in ("cuda", "trt"):
+            logger.info("CompositeGPUSession: device_id not specified -- auto-selecting best CUDA device")
+            device_id = select_best_cuda_device_id()
+        device_id = device_id if device_id is not None else 0
+        selection_source = "user-specified" if config.device_id is not None else "auto-selected"
+        logger.info(
+            "\n"
+            "  ╔══════════════════════════════════════════════════════════════╗\n"
+            "  ║               CompositeGPU SESSION STARTUP                   ║\n"
+            "  ╠══════════════════════════════════════════════════════════════╣\n"
+            "  ║  provider   : %-46s║\n"
+            "  ║  device_id  : %-46s║\n"
+            "  ║  max_batch  : %-46s║\n"
+            "  ║  fp16       : %-46s║\n"
+            "  ║  hands      : %-46s║\n"
+            "  ║  face       : %-46s║\n"
+            "  ╚══════════════════════════════════════════════════════════════╝",
+            active_provider,
+            f"{device_id}  ({selection_source})",
+            config.max_batch_size,
+            config.fp16,
+            config.detect_hands,
+            config.detect_face,
+        )
+
         config.engine_cache_dir.mkdir(parents=True, exist_ok=True)
-        logger.info(f"Constructing CompositeGPUSession (provider={active_provider!r}, "
-                    f"max_batch={config.max_batch_size}, hands={config.detect_hands}, face={config.detect_face})")
 
         # Pre-resolve all model paths in parallel (downloads happen concurrently).
         sources_to_resolve: list[tuple[str, ModelSource]] = [
@@ -296,11 +327,11 @@ class CompositeGPUSession:
             if i in resolved
         }
 
-        session = cls(config=config, _active_provider=active_provider)
+        session = cls(config=config, _active_provider=active_provider, _device_id=device_id)
         session._resolve_anatomical_indices()
-        session._build_body(active_provider, pre_resolved=resolved_by_label.get("body"))
-        session._build_hands(active_provider, pre_resolved=resolved_by_label.get("hand"))
-        session._build_face(active_provider, pre_resolved=resolved_by_label.get("face"))
+        session._build_body(active_provider, device_id=device_id, pre_resolved=resolved_by_label.get("body"))
+        session._build_hands(active_provider, device_id=device_id, pre_resolved=resolved_by_label.get("hand"))
+        session._build_face(active_provider, device_id=device_id, pre_resolved=resolved_by_label.get("face"))
 
         # Warn about non-batchable sub-models — critical for multi-camera pipelines.
         for label, supports_batch in [
@@ -347,44 +378,46 @@ class CompositeGPUSession:
         self._body_right_elbow = _idx(cfg.body_right_elbow_name)
         self._body_head_indices = tuple(_idx(n) for n in cfg.body_head_point_names)
 
-    def _build_body(self, provider: ExecutionProviderName, *, pre_resolved: Path | None = None) -> None:
+    def _build_body(self, provider: ExecutionProviderName, *, device_id: int = 0, pre_resolved: Path | None = None) -> None:
         spec = self.config.body_spec
         body_onnx = str(pre_resolved) if pre_resolved is not None else str(resolve_model_path(spec.source))
-        logger.info(f"RTMO body model: {body_onnx}")
+        logger.info("RTMO body model: %s  device_id=%d", body_onnx, device_id)
         self._body_session = build_tuned_ort_session(
             onnx_path=body_onnx, provider=provider, engine_cache_dir=self.config.engine_cache_dir,
             fp16=self.config.fp16, log_label="rtmo_body",
             max_batch_size=self.config.max_batch_size,
+            device_id=device_id,
         )
         self._body_supports_batch = probe_supports_batch(self._body_session, label="rtmo_body")
         self._body_input_name = self._body_session.get_inputs()[0].name
         self._body_output_names = [o.name for o in self._body_session.get_outputs()]
 
-    def _build_hands(self, provider: ExecutionProviderName, *, pre_resolved: Path | None = None) -> None:
+    def _build_hands(self, provider: ExecutionProviderName, *, device_id: int = 0, pre_resolved: Path | None = None) -> None:
         if not self.config.detect_hands:
             return
         spec = self.config.hand_spec
         hand_onnx = str(pre_resolved) if pre_resolved is not None else str(resolve_model_path(spec.source))
-        logger.info(f"Hand model: {hand_onnx}")
+        logger.info("Hand model: %s  device_id=%d", hand_onnx, device_id)
         self._hand_session = build_tuned_ort_session(
             onnx_path=hand_onnx, provider=provider,
             engine_cache_dir=self.config.engine_cache_dir,
             fp16=self.config.fp16, log_label="mediapipe_hand",
             max_batch_size=self.config.max_batch_size,
+            device_id=device_id,
         )
         self._hand_supports_batch = probe_supports_batch(self._hand_session, label="mediapipe_hand")
         self._hand_input_name = self._hand_session.get_inputs()[0].name
         self._hand_output_names = [o.name for o in self._hand_session.get_outputs()]
 
-    def _build_face(self, provider: ExecutionProviderName, *, pre_resolved: Path | None = None) -> None:
+    def _build_face(self, provider: ExecutionProviderName, *, device_id: int = 0, pre_resolved: Path | None = None) -> None:
         if not self.config.detect_face:
             return
         spec = self.config.face_spec
         try:
             face_onnx = str(pre_resolved) if pre_resolved is not None else str(resolve_model_path(spec.source))
-            logger.info(f"Face model: {face_onnx}")
+            logger.info("Face model: %s  device_id=%d", face_onnx, device_id)
         except Exception as e:
-            logger.warning(f"Face model download failed ({e!r}); face disabled.")
+            logger.warning("Face model download failed (%r); face disabled.", e)
             self.config.detect_face = False
             return
 
@@ -393,6 +426,7 @@ class CompositeGPUSession:
             engine_cache_dir=self.config.engine_cache_dir,
             fp16=self.config.fp16, log_label="rtmpose_face",
             max_batch_size=self.config.max_batch_size,
+            device_id=device_id,
         )
         self._face_supports_batch = probe_supports_batch(self._face_session, label="rtmpose_face")
         self._face_input_name = self._face_session.get_inputs()[0].name

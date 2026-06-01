@@ -8,6 +8,7 @@ TRT support is wired in but currently unused — the CUDA path is the focus
 for now. When TRT is needed, callers can enable it via provider="trt".
 """
 
+import ctypes
 import logging
 import os
 import sys
@@ -21,6 +22,172 @@ import onnxruntime as ort
 from numpy.typing import NDArray
 
 logger = logging.getLogger(__name__)
+
+
+def _load_cudart():
+    if sys.platform == "win32":
+        candidates = ["cudart64_12.dll", "cudart64_11.dll"]
+    elif sys.platform.startswith("linux"):
+        candidates = ["libcudart.so.12", "libcudart.so.11.0", "libcudart.so"]
+    else:
+        logger.debug("CUDA runtime: platform %r not supported -- skipping device query", sys.platform)
+        return None
+    for name in candidates:
+        try:
+            lib = ctypes.CDLL(name)
+            logger.debug("CUDA runtime loaded: %r", name)
+            return lib
+        except OSError:
+            continue
+    logger.debug("CUDA runtime not found (tried %s) -- device_id will default to 0", candidates)
+    return None
+
+
+def _get_device_name(cudart, device_idx: int) -> str:
+    """Query the GPU name via cudaGetDeviceProperties.
+
+    cudaDeviceProp has 'char name[256]' as its very first field, so we can
+    read the name by passing an oversized buffer — no need to define the full
+    struct (which is ~800 bytes and changes across CUDA versions).
+    """
+    buf = ctypes.create_string_buffer(8192)
+    rc = cudart.cudaGetDeviceProperties(buf, ctypes.c_int(device_idx))
+    if rc != 0:
+        logger.debug("  device %d: cudaGetDeviceProperties returned error %d", device_idx, rc)
+        return f"device {device_idx} (name unavailable)"
+    name = buf.raw[:256].rstrip(b"\x00").decode("utf-8", errors="replace").strip()
+    return name or f"device {device_idx}"
+
+
+def _print_device_survey(
+    rows: list[tuple[int, str, int, int]],  # (idx, name, total_mib, free_mib)
+    best_idx: int,
+    best_name: str,
+    best_mib: int,
+    reason: str,
+) -> None:
+    """Log a formatted device survey table."""
+    n = len(rows)
+
+    # Column widths — name column expands to fit the longest name
+    id_w     = 6
+    name_w   = max(28, max(len(r[1]) for r in rows) + 4)
+    total_w  = 15
+    free_w   = 15
+    status_w = 20
+
+    ws = [id_w, name_w, total_w, free_w, status_w]
+
+    def _rule(l, mi, r):
+        return "  " + l + mi.join("═" * w for w in ws) + r
+
+    top   = _rule("╔", "╦", "╗")
+    mid   = _rule("╠", "╬", "╣")
+    bot   = _rule("╚", "╩", "╝")
+
+    inner_w = sum(ws) + len(ws) - 1  # total inner width including separators
+    title   = f"  CUDA DEVICE SURVEY  —  {n} CUDA-capable device(s) found  "
+    title_line = f"  ║{title:<{inner_w}}║"
+
+    hdr = (
+        f"  ║{'  ID':<{id_w}}║"
+        f"{'  Device Name':<{name_w}}║"
+        f"{'  Total VRAM':>{total_w}}║"
+        f"{'  Free VRAM':>{free_w}}║"
+        f"{'  Status':<{status_w}}║"
+    )
+
+    lines = ["", top, title_line, mid, hdr, mid]
+
+    for idx, name, total_mib, free_mib in rows:
+        total_str  = f"  {total_mib:>8,} MiB  " if total_mib >= 0 else "    unavailable"
+        free_str   = f"  {free_mib:>8,} MiB  "  if free_mib  >= 0 else "    unavailable"
+        status_str = "  ✓  SELECTED" if idx == best_idx else ""
+        lines.append(
+            f"  ║  {idx:<{id_w - 2}}║"
+            f"  {name:<{name_w - 2}}║"
+            f"{total_str:>{total_w}}║"
+            f"{free_str:>{free_w}}║"
+            f"{status_str:<{status_w}}║"
+        )
+
+    lines += [
+        bot,
+        "",
+        f"  Selected : device_id={best_idx}",
+        f"  Name     : {best_name}",
+        f"  VRAM     : {best_mib:,} MiB total",
+        f"  Reason   : {reason}",
+        "",
+    ]
+    logger.info("\n".join(lines))
+
+
+def select_best_cuda_device_id() -> int:
+    """Pick the NVIDIA GPU with the most total VRAM using the CUDA Runtime C API.
+
+    Uses nvidia-cuda-runtime-cu12 (already a required dep for all GPU extras) via
+    ctypes — no subprocess, no nvidia-smi, no extra packages needed.
+
+    Returns 0 on any failure (safe default: same as not calling this at all).
+    """
+    cudart = _load_cudart()
+    if cudart is None:
+        return 0
+
+    count = ctypes.c_int(0)
+    rc = cudart.cudaGetDeviceCount(ctypes.byref(count))
+    if rc != 0:
+        logger.debug("cudaGetDeviceCount returned error %d -- using device_id=0", rc)
+        return 0
+
+    n = count.value
+    logger.debug("cudaGetDeviceCount: %d CUDA device(s) visible", n)
+
+    if n == 0:
+        logger.info("CUDA device selection: no CUDA-capable devices found -- using device_id=0")
+        return 0
+
+    # Query name + VRAM for every device
+    rows: list[tuple[int, str, int, int]] = []  # (idx, name, total_mib, free_mib)
+    best_idx, best_bytes = 0, -1
+
+    for i in range(n):
+        name = _get_device_name(cudart, i)
+
+        rc = cudart.cudaSetDevice(i)
+        if rc != 0:
+            logger.debug("  device %d (%s): cudaSetDevice error %d -- skipping", i, name, rc)
+            rows.append((i, name, -1, -1))
+            continue
+
+        free = ctypes.c_size_t(0)
+        total = ctypes.c_size_t(0)
+        rc = cudart.cudaMemGetInfo(ctypes.byref(free), ctypes.byref(total))
+        if rc != 0:
+            logger.debug("  device %d (%s): cudaMemGetInfo error %d -- skipping", i, name, rc)
+            rows.append((i, name, -1, -1))
+            continue
+
+        total_mib = total.value // (1024 * 1024)
+        free_mib  = free.value  // (1024 * 1024)
+        rows.append((i, name, total_mib, free_mib))
+        logger.debug("  device %d (%s): %d MiB total, %d MiB free", i, name, total_mib, free_mib)
+
+        if total.value > best_bytes:
+            best_bytes = total.value
+            best_idx   = i
+
+    best_name = next((r[1] for r in rows if r[0] == best_idx), f"device {best_idx}")
+    best_mib  = best_bytes // (1024 * 1024) if best_bytes >= 0 else 0
+
+    if n == 1:
+        reason = "only CUDA device available"
+    else:
+        reason = f"highest total VRAM of {n} CUDA device(s)"
+
+    _print_device_survey(rows, best_idx, best_name, best_mib, reason)
+    return best_idx
 
 ExecutionProviderName = Literal["trt", "cuda", "cpu"]
 
@@ -71,13 +238,15 @@ def resolve_provider(
 # =============================================================================
 
 
-def cuda_provider_options(*, gpu_mem_limit: int = 2 * 1024 * 1024 * 1024) -> dict:
+def cuda_provider_options(*, gpu_mem_limit: int = 2 * 1024 * 1024 * 1024, device_id: int = 0) -> dict:
     """CUDA EP options with exhaustive algorithm search and sensible defaults.
 
-    gpu_mem_limit defaults to 2 GiB — enough for multiple model sessions
+    gpu_mem_limit defaults to 2 GiB -- enough for multiple model sessions
     (body + hand + face) sharing a single GPU.
+    device_id selects which CUDA GPU to use (0 = first, 1 = second, ...).
     """
     return {
+        "device_id": device_id,
         "cudnn_conv_algo_search": "EXHAUSTIVE",
         "arena_extend_strategy": "kSameAsRequested",
         "do_copy_in_default_stream": True,
@@ -189,6 +358,7 @@ def build_tuned_ort_session(
     max_batch_size: int | None = None,
     trt_set_batch_profile: bool = False,
     gpu_mem_limit: int = 2 * 1024 * 1024 * 1024,
+    device_id: int = 0,
 ) -> ort.InferenceSession:
     """Construct an ORT session with explicit SessionOptions + provider options.
 
@@ -224,6 +394,7 @@ def build_tuned_ort_session(
     providers: list[tuple[str, dict] | str] = []
     if provider == "trt":
         trt_options: dict[str, Any] = {
+            "trt_device_id": device_id,
             "trt_fp16_enable": fp16,
             "trt_engine_cache_enable": True,
             "trt_engine_cache_path": str(engine_cache_dir),
@@ -239,23 +410,25 @@ def build_tuned_ort_session(
                 )
             )
         providers.append(("TensorrtExecutionProvider", trt_options))
-        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit)))
+        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id)))
         providers.append("CPUExecutionProvider")
     elif provider == "cuda":
-        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit)))
+        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id)))
         providers.append("CPUExecutionProvider")
     else:
         providers.append("CPUExecutionProvider")
 
     provider_names = [p if isinstance(p, str) else p[0] for p in providers]
-    logger.info(f"Building tuned ORT session for {log_label!r} with providers={provider_names}")
+    logger.info(
+        "Building ORT session: label=%r  provider=%r  device_id=%d  providers=%s",
+        log_label, provider, device_id, provider_names,
+    )
 
     if provider == "trt":
         logger.info(
-            f"  TRT: building {log_label!r} session "
-            f"(engine cache: {engine_cache_dir}) — "
-            f"first-run TRT compilation can take 1-5 minutes; "
-            f"subsequent runs load from cache instantly."
+            "  [%s] TRT session on device_id=%d (engine cache: %s) -- "
+            "first-run compilation can take 1-5 minutes; subsequent runs load from cache instantly.",
+            log_label, device_id, engine_cache_dir,
         )
 
     t0 = time.perf_counter()
@@ -267,11 +440,14 @@ def build_tuned_ort_session(
     elapsed_s = time.perf_counter() - t0
     actual = session.get_providers()
     actual_string = ", ".join(map(str, actual))
-    logger.info(f"  {log_label!r} session ready in {elapsed_s:.1f}s (active providers: {actual_string})")
+    logger.info(
+        "  [%s] session ready in %.1fs  device_id=%d  active providers: %s",
+        log_label, elapsed_s, device_id, actual_string,
+    )
     if provider == "trt" and elapsed_s > 30:
         logger.info(
-            f"  TRT engine for {log_label!r} compiled and cached to {engine_cache_dir} — "
-            f"next run will load in seconds."
+            "  [%s] TRT engine compiled and cached to %s -- next run will load in seconds.",
+            log_label, engine_cache_dir,
         )
     return session
 
