@@ -71,6 +71,11 @@ def _default_engine_cache_dir() -> Path:
     return Path.home() / ".cache" / "skellytracker" / "trt_engines"
 
 
+def _default_session_provider() -> ExecutionProviderName:
+    import sys
+    return "coreml" if sys.platform == "darwin" else "trt"
+
+
 class RTMPoseSessionConfig(BaseModel):
     """Configuration for a tuned RTMPose ONNX session.
 
@@ -80,7 +85,7 @@ class RTMPoseSessionConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     mode: Literal["performance", "lightweight", "balanced"] = "balanced"
-    execution_provider: ExecutionProviderName = "trt"
+    execution_provider: ExecutionProviderName = Field(default_factory=_default_session_provider)
     engine_cache_dir: Path = Field(default_factory=_default_engine_cache_dir)
     max_batch_size: int = 4
     fp16: bool = True
@@ -158,6 +163,16 @@ class RTMPoseSession:
             requested=config.execution_provider,
             on_missing=config.on_provider_missing,
         )
+
+        # CoreML does not support dynamic batch dims (crashes with SIGSEGV) or
+        # fp16 inputs. Override those settings when the resolved provider is CoreML.
+        if active_provider == "coreml":
+            if config.fp16:
+                logger.info("CoreML provider selected: disabling fp16 (not supported by CoreML EP)")
+                config = config.model_copy(update={"fp16": False})
+            if config.max_batch_size > 1:
+                logger.info("CoreML provider selected: forcing max_batch_size=1 (dynamic batch dims crash CoreML EP)")
+                config = config.model_copy(update={"max_batch_size": 1})
 
         # Resolve which physical GPU to use. Do this once here so every sub-session
         # lands on the same device.
