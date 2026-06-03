@@ -36,4 +36,4 @@ if __name__ == "__main__":
 
     ort.preload_dlls()
     print(f"ort.get_available_providers() -> {ort.get_available_providers()}")
-    RTMPoseTracker.create().demo()
+    RTMPoseTracker.create(RTMPoseTrackerConfig(detector_config=RTMPoseDetectorConfig(max_persons=1))).demo()

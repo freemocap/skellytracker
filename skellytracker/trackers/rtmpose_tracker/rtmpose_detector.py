@@ -139,6 +139,9 @@ class RTMPoseDetectorConfig(BaseDetectorConfig):
     execution_provider: ExecutionProviderName | None = None
     # Which GPU to use. None = auto-select the device with the most VRAM at session creation.
     device_id: int | None = None
+    # Keep only the N highest-confidence YOLOX detections. None = keep all.
+    # Set to 1 for single-person use to suppress false positives from background clutter.
+    max_persons: int | None = None
 
     def resolved_provider(self) -> ExecutionProviderName:
         if self.execution_provider is not None:
@@ -176,6 +179,7 @@ class RTMPoseDetector(BaseDetector):
                 mode=config.mode if config.mode in ("performance", "lightweight", "balanced") else "balanced",
                 execution_provider=provider,
                 device_id=config.device_id,
+                max_persons=config.max_persons,
             ),
         )
         return cls(config=config, session=session)
