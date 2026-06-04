@@ -12,9 +12,10 @@ Run:
 the pose estimation step actually runs. Any common image format works (JPEG, PNG, etc).
 
 What this measures:
-  - detection_step:  RT-DETR forward pass + box postprocessing (person filter).
-  - pose_step (N=k): VitPose forward pass + heatmap decode for k detected persons.
-  - full detect():   end-to-end RtPoseDetector.detect() including BGR→RGB + tensor ops.
+  - detection_step:  YOLO forward pass + box postprocessing (person filter).
+  - BGR→RGB:         CPU-only color conversion (~0.1ms, shown to confirm no full transfer).
+  - pose_step (N=k): CPU crop + small-batch GPU transfer + VitPose forward + heatmap decode.
+  - full detect():   end-to-end RtPoseDetector.detect().
   - (warmup frames are discarded; reported samples are stable repeated-inference cost)
 
 Interpreting results:
@@ -83,46 +84,45 @@ def run(
     print("Loading models...", flush=True)
     detector = RtPoseDetector.create(config)
     actual_device = detector._device
-    detection_device = detector._detection_device
-    if detection_device != actual_device:
-        print(f"Running on device: detection={detection_device!r}, pose={actual_device!r} (mixed)\n")
-    else:
-        print(f"Running on device: {actual_device!r}\n")
+    print(f"Running on device: {actual_device!r}\n")
 
     # Same frame repeated — identical input isolates model latency from
     # per-frame variability (person count, pose complexity).
     pool = [image] * (max(iterations, warmup) + 4)
 
-    def _to_detection_tensor(image: np.ndarray) -> torch.Tensor:
-        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return torch.from_numpy(rgb.astype(np.float32)).to(detection_device)
-
-    def _to_pose_tensor(image: np.ndarray) -> torch.Tensor:
-        rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        return torch.from_numpy(rgb.astype(np.float32)).to(actual_device)
+    def _to_rgb(image: np.ndarray) -> np.ndarray:
+        return cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
 
     # ── Warmup ────────────────────────────────────────────────────────────────
     if warmup > 0:
         print(f"Warming up ({warmup} frames)...", flush=True)
         for i in range(warmup):
-            dt = _to_detection_tensor(pool[i])
-            boxes = detector._run_detection(dt)
+            boxes = detector._run_detection(pool[i])
             if boxes.shape[0] > 0:
-                pt = _to_pose_tensor(pool[i])
-                detector._run_pose_estimation(pt, boxes.to(actual_device))
+                detector._run_pose_estimation(_to_rgb(pool[i]), boxes)
         print("Warmup done.\n")
 
     # ── Detection step ────────────────────────────────────────────────────────
     detection_ms: list[float] = []
     detected_boxes: list[torch.Tensor] = []
     for i in range(iterations):
-        dt = _to_detection_tensor(pool[i])
         t0 = time.perf_counter()
-        boxes = detector._run_detection(dt)
+        boxes = detector._run_detection(pool[i])
         detection_ms.append((time.perf_counter() - t0) * 1e3)
         detected_boxes.append(boxes)
 
-    print(_summary("detection_step (RT-DETR)", detection_ms))
+    print(_summary("detection_step (YOLO)", detection_ms))
+
+    # ── BGR→RGB conversion (CPU only, crops transferred inside pose step) ─────
+    # Full-image GPU transfer is eliminated: preprocess() now crops on CPU and
+    # sends only the small (N × 3 × 256 × 192) batch to device.
+    transfer_ms: list[float] = []
+    for i in range(iterations):
+        t0 = time.perf_counter()
+        _ = cv2.cvtColor(pool[i], cv2.COLOR_BGR2RGB)
+        transfer_ms.append((time.perf_counter() - t0) * 1e3)
+
+    print(_summary("BGR→RGB conversion (cpu, no full transfer)", transfer_ms))
 
     # ── Pose step (using boxes from detection) ────────────────────────────────
     pose_by_n: dict[int, list[float]] = {}
@@ -130,9 +130,9 @@ def run(
         n = int(boxes.shape[0])
         if n == 0:
             continue
-        pt = _to_pose_tensor(pool[i])
+        rgb = _to_rgb(pool[i])
         t0 = time.perf_counter()
-        detector._run_pose_estimation(pt, boxes.to(actual_device))
+        detector._run_pose_estimation(rgb, boxes)
         elapsed_ms = (time.perf_counter() - t0) * 1e3
         pose_by_n.setdefault(n, []).append(elapsed_ms)
 
@@ -154,17 +154,23 @@ def run(
 
     # ── Summary ───────────────────────────────────────────────────────────────
     det_mean = np.mean(detection_ms)
+    transfer_mean = np.mean(transfer_ms)
     pose_means = [np.mean(v) for v in pose_by_n.values()]
     pose_mean = np.mean(pose_means) if pose_means else float("nan")
+    accounted_mean = det_mean + transfer_mean + pose_mean
     total_mean = np.mean(full_ms)
+    unaccounted_mean = total_mean - accounted_mean
     fps_estimate = 1000.0 / total_mean if total_mean > 0 else float("nan")
 
     print(f"\n{'─'*80}")
-    print(f"  device:          {actual_device}")
-    print(f"  detection mean:  {det_mean:.1f}ms")
-    print(f"  pose mean:       {pose_mean:.1f}ms  (averaged across person counts)")
-    print(f"  full mean:       {total_mean:.1f}ms  → ~{fps_estimate:.1f} FPS theoretical max")
-    print("  real-time bar:   33ms (30 FPS) / 16ms (60 FPS)")
+    print(f"  device:              {actual_device}")
+    print(f"  detection mean:      {det_mean:.1f}ms")
+    print(f"  BGR→RGB mean:        {transfer_mean:.1f}ms  (cpu only, crops transferred inside pose)")
+    print(f"  pose mean:           {pose_mean:.1f}ms  (averaged across person counts)")
+    print(f"  accounted total:     {accounted_mean:.1f}ms")
+    print(f"  unaccounted:         {unaccounted_mean:.1f}ms  (sync, overhead, etc.)")
+    print(f"  full mean:           {total_mean:.1f}ms  → ~{fps_estimate:.1f} FPS theoretical max")
+    print("  real-time bar:       33ms (30 FPS) / 16ms (60 FPS)")
     print(f"{'─'*80}\n")
 
 

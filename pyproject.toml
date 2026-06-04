@@ -97,11 +97,12 @@ rtmpose-gpu = [
 # No CUDA toolkit needed. Just pip install and go.
 rtmpose-directml = ["onnxruntime-directml", "onnx"]
 
-# HuggingFace Transformers pose tracker (RT-DETR + ViTPose via transformers library)
+# HuggingFace Transformers pose tracker (YOLO detection + ViTPose via transformers)
 rt-pose = [
     "transformers[vision]>=4.48.0",
     "torch>=2.1.0",
     "torchvision",
+    "ultralytics~=8.0",
 ]
 
 # RTMPose — NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone)
