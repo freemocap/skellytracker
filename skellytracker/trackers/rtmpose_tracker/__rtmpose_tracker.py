@@ -1,13 +1,13 @@
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder
-from skellytracker.trackers.rtmpose_tracker.rtmpose_annotator import RTMPoseImageAnnotator, BaseImageAnnotatorConfig
+from skellytracker.trackers.rtmpose_tracker.rtmpose_annotator import RTMPoseImageAnnotator, BaseImageAnnotatorConfig, RTMPoseImageAnnotatorConfig
 from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetector, RTMPoseDetectorConfig
 
 
 class RTMPoseTrackerConfig(BaseTrackerConfig):
     detector_config: RTMPoseDetectorConfig = Field(default_factory=RTMPoseDetectorConfig)
-    annotator_config: BaseImageAnnotatorConfig | None = None
+    annotator_config: RTMPoseImageAnnotatorConfig | None = None
 
 class RTMPoseRecorder(BaseRecorder):
     pass
@@ -36,4 +36,9 @@ if __name__ == "__main__":
 
     ort.preload_dlls()
     print(f"ort.get_available_providers() -> {ort.get_available_providers()}")
-    RTMPoseTracker.create(RTMPoseTrackerConfig(detector_config=RTMPoseDetectorConfig(max_persons=1))).demo()
+    RTMPoseTracker.create(
+        RTMPoseTrackerConfig(
+            detector_config=RTMPoseDetectorConfig(mode="lightweight", max_persons=1),
+            annotator_config=RTMPoseImageAnnotatorConfig(confidence_threshold=0.5),
+        )
+    ).demo()
