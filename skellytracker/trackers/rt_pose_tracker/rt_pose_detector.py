@@ -38,6 +38,19 @@ def _resolve_dtype(dtype_str: str) -> torch.dtype:
     return dtype
 
 
+def _load_cached(cls: type, checkpoint: str, **kwargs) -> object:
+    """Load a HuggingFace model or processor from local cache if available.
+
+    Tries local_files_only first to skip the Hub freshness-check network
+    request. Falls back to a normal download on cache miss.
+    """
+    try:
+        return cls.from_pretrained(checkpoint, local_files_only=True, **kwargs)
+    except OSError:
+        logger.info(f"Cache miss for '{checkpoint}', downloading...")
+        return cls.from_pretrained(checkpoint, **kwargs)
+
+
 class RtPoseDetectorConfig(BaseDetectorConfig):
     tracker_type: Literal[TrackerType.RT_POSE] = TrackerType.RT_POSE
     yolo_model: str = "yolov8n.pt"
@@ -73,10 +86,10 @@ class RtPoseDetector(BaseDetector):
         detector = YOLO(config.yolo_model)
 
         logger.info(f"Loading VitPose estimator from '{config.pose_estimation_checkpoint}'...")
-        pose_estimator = VitPoseForPoseEstimation.from_pretrained(
-            config.pose_estimation_checkpoint, torch_dtype=dtype
+        pose_estimator = _load_cached(
+            VitPoseForPoseEstimation, config.pose_estimation_checkpoint, torch_dtype=dtype
         ).to(device)
-        pose_estimator_processor = AutoProcessor.from_pretrained(config.pose_estimation_checkpoint)
+        pose_estimator_processor = _load_cached(AutoProcessor, config.pose_estimation_checkpoint)
 
         if config.compile_models:
             logger.info("Applying torch.compile to VitPose...")
