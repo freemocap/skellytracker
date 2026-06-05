@@ -52,10 +52,12 @@ def run(
     image_path: str,
     device: str | None,
     dtype: str,
-    detection_checkpoint: str,
     pose_checkpoint: str,
     iterations: int,
     warmup: int,
+    yolo_imgsz: int,
+    yolo_half: bool,
+    max_people: int,
 ) -> None:
     import cv2
     import torch
@@ -68,16 +70,18 @@ def run(
     image_h, image_w = image.shape[:2]
 
     config = RtPoseDetectorConfig(
-        object_detection_checkpoint=detection_checkpoint,
         pose_estimation_checkpoint=pose_checkpoint,
         device=device,
         dtype=dtype,
         compile_models=False,
+        yolo_imgsz=yolo_imgsz,
+        yolo_half=yolo_half,
+        max_people=max_people,
     )
 
     print(f"\nRtPose bench — device={device or 'auto'!r}, dtype={dtype!r}, "
           f"image=({image_h}×{image_w}), warmup={warmup}, iters={iterations}")
-    print(f"  detection:  {detection_checkpoint}")
+    print(f"  detection:  yolov8n  imgsz={yolo_imgsz}  half={yolo_half}  max_people={max_people}")
     print(f"  pose:       {pose_checkpoint}")
     print(f"  image:      {image_path}\n")
 
@@ -122,7 +126,7 @@ def run(
         _ = cv2.cvtColor(pool[i], cv2.COLOR_BGR2RGB)
         transfer_ms.append((time.perf_counter() - t0) * 1e3)
 
-    print(_summary("BGR→RGB conversion (cpu, no full transfer)", transfer_ms))
+    print(_summary("BGR→RGB conversion (cpu)", transfer_ms))
 
     # ── Pose step (using boxes from detection) ────────────────────────────────
     pose_by_n: dict[int, list[float]] = {}
@@ -180,27 +184,27 @@ def main() -> None:
     parser.add_argument("--device", default=None, help="'cpu', 'cuda', 'mps', or omit for auto")
     parser.add_argument("--dtype", default="float32", choices=["float32", "bfloat16", "float16"])
     parser.add_argument(
-        "--detection-checkpoint",
-        default="PekingU/rtdetr_r50vd_coco_o365",
-        help="HuggingFace checkpoint for the person detector",
-    )
-    parser.add_argument(
         "--pose-checkpoint",
         default="usyd-community/vitpose-plus-small",
         help="HuggingFace checkpoint for the pose estimator",
     )
     parser.add_argument("--iterations", type=int, default=50)
     parser.add_argument("--warmup", type=int, default=3)
+    parser.add_argument("--yolo-imgsz", type=int, default=640, help="YOLO input resolution (e.g. 320, 416, 640)")
+    parser.add_argument("--yolo-half", action="store_true", help="Run YOLO in float16 (fp16) mode")
+    parser.add_argument("--max-people", type=int, default=1, help="Max persons to detect and run pose on")
     args = parser.parse_args()
 
     run(
         image_path=args.image_path,
         device=args.device,
         dtype=args.dtype,
-        detection_checkpoint=args.detection_checkpoint,
         pose_checkpoint=args.pose_checkpoint,
         iterations=args.iterations,
         warmup=args.warmup,
+        yolo_imgsz=args.yolo_imgsz,
+        yolo_half=args.yolo_half,
+        max_people=args.max_people,
     )
 
 

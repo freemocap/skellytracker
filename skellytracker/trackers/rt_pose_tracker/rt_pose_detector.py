@@ -44,8 +44,11 @@ class RtPoseDetectorConfig(BaseDetectorConfig):
     pose_estimation_checkpoint: str = "usyd-community/vitpose-plus-small"
     device: str | None = None
     dtype: str = "float32"
-    compile_models: bool = True
+    compile_models: bool = False
     detection_threshold: float = 0.3
+    yolo_imgsz: int = 640
+    yolo_half: bool = False
+    max_people: int = 1
 
 
 @dataclass
@@ -106,6 +109,9 @@ class RtPoseDetector(BaseDetector):
             classes=[0],  # person only
             conf=self.config.detection_threshold,
             device=self._device,
+            imgsz=self.config.yolo_imgsz,
+            half=self.config.yolo_half,
+            max_det=self.config.max_people,
             verbose=False,
         )
         boxes = results[0].boxes
