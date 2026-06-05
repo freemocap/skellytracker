@@ -58,6 +58,7 @@ def run(
     yolo_imgsz: int,
     yolo_half: bool,
     max_people: int,
+    upsample_heatmap: bool,
 ) -> None:
     import cv2
     import torch
@@ -77,12 +78,13 @@ def run(
         yolo_imgsz=yolo_imgsz,
         yolo_half=yolo_half,
         max_people=max_people,
+        upsample_heatmap=upsample_heatmap,
     )
 
     print(f"\nRtPose bench — device={device or 'auto'!r}, dtype={dtype!r}, "
           f"image=({image_h}×{image_w}), warmup={warmup}, iters={iterations}")
     print(f"  detection:  yolov8n  imgsz={yolo_imgsz}  half={yolo_half}  max_people={max_people}")
-    print(f"  pose:       {pose_checkpoint}")
+    print(f"  pose:       {pose_checkpoint}  upsample_heatmap={upsample_heatmap}")
     print(f"  image:      {image_path}\n")
 
     print("Loading models...", flush=True)
@@ -193,6 +195,8 @@ def main() -> None:
     parser.add_argument("--yolo-imgsz", type=int, default=640, help="YOLO input resolution (e.g. 320, 416, 640)")
     parser.add_argument("--yolo-half", action="store_true", help="Run YOLO in float16 (fp16) mode")
     parser.add_argument("--max-people", type=int, default=1, help="Max persons to detect and run pose on")
+    parser.add_argument("--no-upsample", action="store_true",
+                        help="Skip heatmap bilinear upsampling (faster, ~4px accuracy loss)")
     args = parser.parse_args()
 
     run(
@@ -205,6 +209,7 @@ def main() -> None:
         yolo_imgsz=args.yolo_imgsz,
         yolo_half=args.yolo_half,
         max_people=args.max_people,
+        upsample_heatmap=not args.no_upsample,
     )
 
 

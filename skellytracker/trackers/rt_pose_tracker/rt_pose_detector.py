@@ -62,6 +62,7 @@ class RtPoseDetectorConfig(BaseDetectorConfig):
     yolo_imgsz: int = 640
     yolo_half: bool = False
     max_people: int = 1
+    upsample_heatmap: bool = True
 
 
 @dataclass
@@ -169,5 +170,6 @@ class RtPoseDetector(BaseDetector):
             crop_height=crop_height,
             crop_width=crop_width,
             boxes_xyxy=preprocessed_boxes,
+            upsample_heatmap=self.config.upsample_heatmap,
         )
         return keypoints_xy, scores

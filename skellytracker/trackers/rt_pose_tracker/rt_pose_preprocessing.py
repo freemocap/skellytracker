@@ -124,6 +124,7 @@ def post_process_pose_estimation(
     crop_height: int,
     crop_width: int,
     boxes_xyxy: torch.Tensor,
+    upsample_heatmap: bool = True,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Convert VitPose heatmaps to keypoint coordinates and confidence scores.
@@ -133,29 +134,37 @@ def post_process_pose_estimation(
         crop_height: Height of the crop passed to the pose model.
         crop_width: Width of the crop passed to the pose model.
         boxes_xyxy: Crop bounding boxes in xyxy format.
+        upsample_heatmap: If True (default), bilinear-upsample heatmaps to
+            crop resolution before argmax for sub-pixel accuracy. If False,
+            take argmax on the raw heatmap and scale coordinates — faster but
+            quantised to the heatmap grid (~4px steps for a 256×192 crop).
 
     Returns:
         Tuple of (keypoints_xy, scores) where keypoints_xy is (N, K, 2) and
         scores is (N, K).
     """
-    batch_size, num_keypoints, _, _ = heatmaps.shape
+    batch_size, num_keypoints, heatmap_h, heatmap_w = heatmaps.shape
 
-    heatmaps = torch.nn.functional.interpolate(
-        heatmaps, size=(crop_height, crop_width), mode="bilinear", align_corners=True
-    )
+    if upsample_heatmap:
+        heatmaps = torch.nn.functional.interpolate(
+            heatmaps, size=(crop_height, crop_width), mode="bilinear", align_corners=True
+        )
+        grid_h, grid_w = crop_height, crop_width
+    else:
+        grid_h, grid_w = heatmap_h, heatmap_w
 
     flattened = heatmaps.reshape(batch_size, num_keypoints, -1)
     scores, indices = torch.max(flattened, dim=-1)
 
-    keypoints_x = indices % crop_width
-    keypoints_y = indices // crop_width
+    keypoints_x = indices % grid_w
+    keypoints_y = indices // grid_w
 
     box_x1, box_y1, box_x2, box_y2 = boxes_xyxy.split(1, dim=-1)
     box_width = box_x2 - box_x1
     box_height = box_y2 - box_y1
 
-    keypoints_x = keypoints_x.float() * box_width / crop_width + box_x1
-    keypoints_y = keypoints_y.float() * box_height / crop_height + box_y1
+    keypoints_x = keypoints_x.float() * box_width / grid_w + box_x1
+    keypoints_y = keypoints_y.float() * box_height / grid_h + box_y1
 
     keypoints_xy = torch.stack([keypoints_x, keypoints_y], dim=-1)
 
