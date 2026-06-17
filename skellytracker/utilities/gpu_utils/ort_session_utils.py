@@ -189,7 +189,9 @@ def select_best_cuda_device_id() -> int:
     _print_device_survey(rows, best_idx, best_name, best_mib, reason)
     return best_idx
 
-ExecutionProviderName = Literal["trt", "cuda", "coreml", "cpu"]
+# Re-exported from a backend-free module so consumers (configs, etc.) can import
+# the type without pulling onnxruntime into their import graph.
+from skellytracker.utilities.gpu_utils.execution_provider_name import ExecutionProviderName
 
 
 # =============================================================================
