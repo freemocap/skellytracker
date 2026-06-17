@@ -282,7 +282,7 @@ class RTMPoseSession:
             _pose_input_size=pose_input_size,
             _yolox_supports_batch=yolox_supports_batch,
             _yolox_prenms_session=yolox_prenms_session,
-            _per_crop_pose=active_provider == "coreml",
+            _per_crop_pose=active_provider == "coreml",  # CoreML JIT-compiles per batch shape — varying person counts cause multi-second  freezes
             _max_persons=config.max_persons,
         )
 
