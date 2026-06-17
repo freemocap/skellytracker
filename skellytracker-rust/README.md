@@ -111,12 +111,24 @@ These are the concrete Python→Rust translations for the tracker framework:
 
 The `.pyd` is installed directly into site-packages as `_skellytracker_rust.pyd` — no Python package wrapper, no `python/` source directory. On Windows, `os.add_dll_directory("C:/tools/opencv/build/x64/vc16/bin")` is called before import so the OS loader finds the OpenCV DLLs.
 
+## Prerequisites
+
+OpenCV with FFmpeg support, installed via vcpkg (static linking):
+
+```bash
+vcpkg install opencv4[ffmpeg]:x64-windows-static --recurse
+```
+
+This pulls in FFmpeg (avcodec, avformat, avutil, swscale) and builds OpenCV
+with `CAP_FFMPEG` enabled. The `x64-windows-static` triplet statically links
+everything — no DLL discovery needed at runtime.
+
+The `.cargo/config.toml` expects `VCPKG_ROOT=C:\tools\vcpkg`. Adjust if your
+vcpkg installation is elsewhere.
+
 ## Build & install
 
 ```bash
-# Prerequisites (Windows):
-#   choco install opencv llvm
-
 # Rebuild everything (Rust crate + Python package) — runs maturin with verbose cargo output:
 poe rebuild
 

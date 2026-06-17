@@ -119,7 +119,6 @@ pub struct FaceResult {
 
 pub struct CompositeGpuSession {
     config: CompositeGpuSessionConfig,
-    active_provider: Provider,
 
     // ORT sessions (None if disabled)
     body_session: Option<Session>,
@@ -187,7 +186,6 @@ impl CompositeGpuSession {
 
         Ok(Self {
             config,
-            active_provider: provider,
             body_session,
             hand_session,
             face_session,
@@ -216,9 +214,6 @@ impl CompositeGpuSession {
         &mut self,
         image: &opencv::core::Mat,
     ) -> (BodyResult, HandResult, FaceResult) {
-        let image_h = image.rows();
-        let image_w = image.cols();
-
         // 1. Body
         let body = self.run_body(image);
 
@@ -729,7 +724,7 @@ fn hand_key_for(spec: &ModelSpec) -> &str {
     }
 }
 
-fn face_key_for(spec: &ModelSpec) -> &str {
+fn face_key_for(_spec: &ModelSpec) -> &str {
     "rtmpose-face"
 }
 

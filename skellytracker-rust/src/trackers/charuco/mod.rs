@@ -132,6 +132,7 @@ impl CharucoTracker {
     /// (charuco_corners, charuco_ids, aruco_corners, aruco_ids) = detector.detectBoard(grey)
     /// ```
     pub fn detect(&self, frame_number: u64, image: &Mat) -> CharucoObservation {
+        let _t0 = std::time::Instant::now();
         let image_h = image.rows() as u32;
         let image_w = image.cols() as u32;
 
@@ -145,23 +146,14 @@ impl CharucoTracker {
             eprintln!("[skellytracker-rust] charuco cvt_color failed");
             return self.empty_obs(frame_number, image_h, image_w);
         }
+        let _t1 = std::time::Instant::now();
 
-        // ── Step 2: Detect the board — same as Python ────────────────────
-        // Precisely replicates:
-        //   (charuco_corners, charuco_ids, aruco_corners, aruco_ids)
-        //       = detector.detectBoard(grey_image)
-        //
-        // How detectBoard works internally:
-        //   1. It first finds aruco markers (detectMarkers)
-        //   2. Then interpolates charuco chessboard corner positions from
-        //      the marker positions and the known board geometry
-        //   3. Returns both sets of results
-        //
-        // We run detectMarkers first (to fill marker containers), then
-        // pass the populated marker containers into detect_board.
-        // This avoids the C++ assertion that fires on empty containers.
-        let (mut marker_corners, mut marker_ids_mat) = self.detect_aruco_markers_raw(&gray);
-
+        // ── Step 2: Detect markers + charuco corners in a single C++ call ──
+        // Matches Python's single `detector.detectBoard(grey)` call.
+        // detect_board runs internal marker detection + charuco interpolation
+        // in one pass — no double-detection, no per-frame ArucoDetector allocs.
+        let mut marker_corners: Vector<Vector<Point2f>> = Vector::new();
+        let mut marker_ids_mat = Mat::default();
         let mut charuco_corners: Vector<Point2f> = Vector::new();
         let mut charuco_ids: Vector<i32> = Vector::new();
 
@@ -175,6 +167,7 @@ impl CharucoTracker {
             eprintln!("[skellytracker-rust] charuco detect_board failed");
             return self.empty_obs(frame_number, image_h, image_w);
         }
+        let _t2 = std::time::Instant::now();
 
         // 3. Extract charuco corner positions and IDs from output vectors.
         let mut raw_corners: Vec<[f64; 2]> = Vec::with_capacity(charuco_corners.len());
@@ -237,8 +230,9 @@ impl CharucoTracker {
 
         // 7. Build PointCloud (full-array format)
         let points = self.build_point_cloud(&detected_ids, &detected_corners_img);
+        let _t3 = std::time::Instant::now();
 
-        CharucoObservation::new(
+        let obs = CharucoObservation::new(
             frame_number,
             points,
             (image_h, image_w),
@@ -252,7 +246,24 @@ impl CharucoTracker {
             detected_corners_obj,
             aruco_ids,
             aruco_corners,
-        )
+        );
+        let _t4 = std::time::Instant::now();
+
+        // ── TEMPORARY: timing breakdown ──────────────────────────────────
+        let gray_us    = (_t1 - _t0).as_micros();
+        let detect_us  = (_t2 - _t1).as_micros(); // detect_board: marker detection + charuco in one C++ call
+        let extract_us = (_t3 - _t2).as_micros(); // result extraction + aruco filtering
+        let build_us   = (_t4 - _t3).as_micros(); // CharucoObservation construction
+        let total_us   = (_t4 - _t0).as_micros();
+        eprintln!(
+            "[charuco-detect] frame={frame_number} total={total_us}us | \
+             gray={gray_us}us detect={detect_us}us \
+             extract={extract_us}us build={build_us}us | \
+             ids={n_ids} markers={n_markers}",
+            n_ids = obs.detected_charuco_corner_ids.len(),
+            n_markers = obs.detected_aruco_marker_ids.len(),
+        );
+        obs
     }
 
     fn empty_obs(&self, frame_number: u64, image_h: u32, image_w: u32) -> CharucoObservation {
@@ -275,37 +286,6 @@ impl CharucoTracker {
     }
 
     /// Run aruco marker detection on a grayscale image.
-    ///
-    /// This is the same `detectMarkers()` call that `detectBoard()` runs
-    /// internally before interpolating charuco corner positions.
-    /// Returns empty vectors on any failure — the caller already has
-    /// charuco corner data from `detect_board_def`.
-    fn detect_aruco_markers_raw(
-        &self,
-        gray: &Mat,
-    ) -> (Vector<Vector<Point2f>>, Mat) {
-        let Ok(dictionary) = objdetect::get_predefined_dictionary_i32(self.dictionary_enum) else {
-            return (Vector::new(), Mat::default());
-        };
-        let Ok(detector_params) = objdetect::DetectorParameters::default() else {
-            return (Vector::new(), Mat::default());
-        };
-        let Ok(refine_params) = objdetect::RefineParameters::new_def() else {
-            return (Vector::new(), Mat::default());
-        };
-        let Ok(aruco_det) = objdetect::ArucoDetector::new(
-            &dictionary, &detector_params, refine_params,
-        ) else {
-            return (Vector::new(), Mat::default());
-        };
-        let mut corners: Vector<Vector<Point2f>> = Vector::new();
-        let mut ids = Mat::default();
-        if aruco_det.detect_markers_def(gray, &mut corners, &mut ids).is_err() {
-            return (Vector::new(), Mat::default());
-        }
-        (corners, ids)
-    }
-
     fn build_point_cloud(&self, detected_ids: &[i32], image_coords: &[[f64; 2]]) -> PointCloud {
         let n_corners = self.corner_names.len();
         let mut xyz = ndarray::Array2::from_elem((n_corners, 3), f64::NAN);

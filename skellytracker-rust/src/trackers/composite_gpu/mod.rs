@@ -50,7 +50,6 @@ const BODY_COLOR: Scalar = Scalar::new(0.0, 255.0, 0.0, 0.0);       // green
 const RIGHT_HAND_COLOR: Scalar = Scalar::new(0.0, 0.0, 255.0, 0.0);  // red
 const LEFT_HAND_COLOR: Scalar = Scalar::new(255.0, 0.0, 0.0, 0.0);   // blue
 const FACE_COLOR: Scalar = Scalar::new(0.0, 255.0, 255.0, 0.0);      // yellow
-const ROI_COLOR: Scalar = Scalar::new(200.0, 200.0, 200.0, 0.0);     // light gray
 
 const KPT_THRESHOLD: f64 = 0.3;
 const KPT_RADIUS: i32 = 2;
