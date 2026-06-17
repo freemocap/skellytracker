@@ -113,6 +113,15 @@ def _verify_ort_install_sane() -> None:
         )
 
 
+# RTMPoseDetectorConfig and the device→provider map now live in a backend-free
+# module (rtmpose_detector_config) so they can be imported without loading
+# onnxruntime. Re-exported here for backwards compatibility with existing callers.
+from skellytracker.trackers.rtmpose_tracker.rtmpose_detector_config import (  # noqa: E402
+    RTMPoseDetectorConfig,
+    _DEVICE_TO_PROVIDER,
+)
+
+
 @dataclass
 class RTMPoseDetector(BaseDetector):
     """Single-image detector wrapper, kept API-compatible with prior versions.
