@@ -15,8 +15,15 @@ _DEVICE_TO_PROVIDER: dict[str, ExecutionProviderName] = {
     "cuda": "cuda",
     "trt": "trt",
     "tensorrt": "trt",
+    "mps": "coreml",
+    "coreml": "coreml",
     "cpu": "cpu",
 }
+
+
+def _default_execution_provider() -> ExecutionProviderName:
+    import sys
+    return "coreml" if sys.platform == "darwin" else "cuda"
 
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
@@ -24,13 +31,16 @@ class RTMPoseDetectorConfig(BaseDetectorConfig):
     confidence_threshold: float = 0.5
     mode: str = "performance"
     backend: str = "onnxruntime"
-    device: str = "cuda"
+    device: str = "auto"
     # When set, takes precedence over `device`. Drives the actual ORT provider selection.
     execution_provider: ExecutionProviderName | None = None
     # Which GPU to use. None = auto-select the device with the most VRAM at session creation.
     device_id: int | None = None
+    # Keep only the N highest-confidence YOLOX detections. None = keep all.
+    # Set to 1 for single-person use to suppress false positives from background clutter.
+    max_persons: int | None = None
 
     def resolved_provider(self) -> ExecutionProviderName:
         if self.execution_provider is not None:
             return self.execution_provider
-        return _DEVICE_TO_PROVIDER.get(self.device, "cuda")
+        return _default_execution_provider()

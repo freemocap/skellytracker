@@ -12,6 +12,7 @@ import onnxruntime
 from numpy.typing import NDArray
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig, TrackerType
+from skellytracker.trackers.rtmpose_tracker.rtmpose_detector_config import RTMPoseDetectorConfig
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
 from skellytracker.trackers.rtmpose_tracker.rtmpose_session import (
     ExecutionProviderName,
@@ -149,6 +150,7 @@ class RTMPoseDetector(BaseDetector):
                 mode=config.mode if config.mode in ("performance", "lightweight", "balanced") else "balanced",
                 execution_provider=provider,
                 device_id=config.device_id,
+                max_persons=config.max_persons,
             ),
         )
         return cls(config=config, session=session)

@@ -7,4 +7,4 @@ config/detector all import the alias from here.
 """
 from typing import Literal
 
-ExecutionProviderName = Literal["trt", "cuda", "cpu"]
+ExecutionProviderName = Literal["trt", "cuda", "coreml", "cpu"]

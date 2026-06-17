@@ -198,6 +198,13 @@ from skellytracker.utilities.gpu_utils.execution_provider_name import ExecutionP
 # Provider resolution
 # =============================================================================
 
+_PROVIDER_EP_NAME: dict[str, str] = {
+    "trt": "TensorrtExecutionProvider",
+    "cuda": "CUDAExecutionProvider",
+    "coreml": "CoreMLExecutionProvider",
+    "cpu": "CPUExecutionProvider",
+}
+
 
 def resolve_provider(
     *,
@@ -206,26 +213,27 @@ def resolve_provider(
 ) -> ExecutionProviderName:
     """Pick the actual EP to use given what's available.
 
-    Falls back trt -> cuda -> cpu unless on_missing="raise".
+    Falls back trt -> cuda -> coreml -> cpu unless on_missing="raise".
+    CoreML is only available on macOS; it is skipped on other platforms.
     """
+    import sys
     available = set(ort.get_available_providers())
-    needs = {
-        "trt": "TensorrtExecutionProvider",
-        "cuda": "CUDAExecutionProvider",
-        "cpu": "CPUExecutionProvider",
-    }
-    if needs[requested] in available:
-        return requested
+    if needs := _PROVIDER_EP_NAME.get(requested):
+        if needs in available:
+            return requested
     if on_missing == "raise":
         raise RuntimeError(
             f"Requested execution_provider={requested!r} but ONNX Runtime "
             f"only sees providers={sorted(available)}. Install onnxruntime-gpu "
             f"(and a TensorRT-enabled build for trt) to enable GPU execution."
         )
-    fallback_order: list[ExecutionProviderName] = ["trt", "cuda", "cpu"]
+    fallback_order: list[ExecutionProviderName] = ["trt", "cuda", "coreml", "cpu"]
     start = fallback_order.index(requested)
     for candidate in fallback_order[start:]:
-        if needs[candidate] in available:
+        ep = _PROVIDER_EP_NAME[candidate]
+        if candidate == "coreml" and sys.platform != "darwin":
+            continue
+        if ep in available:
             if candidate != requested:
                 logger.warning(
                     f"Requested execution_provider={requested!r} not available "
@@ -416,6 +424,12 @@ def build_tuned_ort_session(
         providers.append("CPUExecutionProvider")
     elif provider == "cuda":
         providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id)))
+        providers.append("CPUExecutionProvider")
+    elif provider == "coreml":
+        # CoreML EP uses Metal on Apple Silicon. Dynamic batch dims crash CoreML
+        # (SIGSEGV), so callers must use batch_size=1 (RTMPoseSession enforces
+        # this via supports_batching=False). fp16 is also unsupported by CoreML.
+        providers.append("CoreMLExecutionProvider")
         providers.append("CPUExecutionProvider")
     else:
         providers.append("CPUExecutionProvider")
