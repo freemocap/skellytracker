@@ -36,9 +36,4 @@ if __name__ == "__main__":
 
     ort.preload_dlls()
     print(f"ort.get_available_providers() -> {ort.get_available_providers()}")
-    RTMPoseTracker.create(
-        RTMPoseTrackerConfig(
-            detector_config=RTMPoseDetectorConfig(mode="lightweight", max_persons=1),
-            annotator_config=RTMPoseImageAnnotatorConfig(confidence_threshold=0.5),
-        )
-    ).demo()
+    RTMPoseTracker.create().demo()
