@@ -112,31 +112,13 @@ def _verify_ort_install_sane() -> None:
         )
 
 
-# Backwards-compatible alias maintained for existing callers / configs that
-# still pass `device="cuda"`. New code should use `execution_provider`.
-_DEVICE_TO_PROVIDER: dict[str, ExecutionProviderName] = {
-    "cuda": "cuda",
-    "trt": "trt",
-    "tensorrt": "trt",
-    "cpu": "cpu",
-}
-
-
-class RTMPoseDetectorConfig(BaseDetectorConfig):
-    tracker_type: Literal[TrackerType.RTMPOSE] = TrackerType.RTMPOSE
-    confidence_threshold: float = 0.5
-    mode: str = "performance"
-    backend: str = "onnxruntime"
-    device: str = "cuda"
-    # When set, takes precedence over `device`. Drives the actual ORT provider selection.
-    execution_provider: ExecutionProviderName | None = None
-    # Which GPU to use. None = auto-select the device with the most VRAM at session creation.
-    device_id: int | None = None
-
-    def resolved_provider(self) -> ExecutionProviderName:
-        if self.execution_provider is not None:
-            return self.execution_provider
-        return _DEVICE_TO_PROVIDER.get(self.device, "cuda")
+# RTMPoseDetectorConfig and the device→provider map now live in a backend-free
+# module (rtmpose_detector_config) so they can be imported without loading
+# onnxruntime. Re-exported here for backwards compatibility with existing callers.
+from skellytracker.trackers.rtmpose_tracker.rtmpose_detector_config import (  # noqa: E402
+    RTMPoseDetectorConfig,
+    _DEVICE_TO_PROVIDER,
+)
 
 
 @dataclass
