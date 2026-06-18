@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 from typing import Generator
 
-import pandas as pd
+import polars as pl
 
 from skellytracker.trackers.v1.mediapipe_blendshape_tracker.mediapipe_blendshape_tracker import (
     MediapipeBlendshapeTracker,
@@ -39,17 +39,16 @@ def blendshapes_to_csv(
         output_array.shape[0], -1
     )  # ensure output array is 2D
 
-    df = pd.DataFrame(
+    df = pl.DataFrame(
         output_array,
-        columns=tracker.model_info.landmark_names,
-    ).drop(columns=["_neutral"])
+        schema=tracker.model_info.landmark_names,
+    ).drop("_neutral")
 
     timestamp_generator = create_timestamp_generator()
-    df.insert(0, "Timestamp", [next(timestamp_generator) for _ in range(len(df))])
+    df = df.insert_column(0, pl.Series("Timestamp", [next(timestamp_generator) for _ in range(df.height)]))
+    df = df.insert_column(1, pl.Series("BlendShapeCount", [tracker.model_info.num_tracked_points] * df.height))
 
-    df.insert(1, "BlendShapeCount", tracker.model_info.num_tracked_points)
-
-    df.to_csv(Path(output_csv_filepath), index=False)
+    df.write_csv(Path(output_csv_filepath))
 
 
 def main():
