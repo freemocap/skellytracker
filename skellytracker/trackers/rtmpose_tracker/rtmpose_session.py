@@ -71,6 +71,11 @@ def _default_engine_cache_dir() -> Path:
     return Path.home() / ".cache" / "skellytracker" / "trt_engines"
 
 
+def _default_session_provider() -> ExecutionProviderName:
+    import sys
+    return "coreml" if sys.platform == "darwin" else "trt"
+
+
 class RTMPoseSessionConfig(BaseModel):
     """Configuration for a tuned RTMPose ONNX session.
 
@@ -80,7 +85,7 @@ class RTMPoseSessionConfig(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     mode: Literal["performance", "lightweight", "balanced"] = "balanced"
-    execution_provider: ExecutionProviderName = "trt"
+    execution_provider: ExecutionProviderName = Field(default_factory=_default_session_provider)
     engine_cache_dir: Path = Field(default_factory=_default_engine_cache_dir)
     max_batch_size: int = 4
     fp16: bool = True
@@ -90,6 +95,10 @@ class RTMPoseSessionConfig(BaseModel):
     # Behavior when the requested provider isn't available at runtime.
     # "fallback": warn and drop down (trt -> cuda -> cpu). "raise": hard error.
     on_provider_missing: Literal["fallback", "raise"] = "fallback"
+    # Keep only the N highest-confidence person detections from YOLOX.
+    # None = keep all detections. Set to 1 for single-person use to prevent
+    # background clutter from being tracked as additional skeletons.
+    max_persons: int | None = None
 
 
 # Mapping from RTMPoseSessionConfig.mode → (det_url_key, det_input_size,
@@ -146,6 +155,14 @@ class RTMPoseSession:
     # pre-NMS outputs from the main session. Instead, this session is physically
     # stripped of those nodes and used for batch>1 YOLOX inference.
     _yolox_prenms_session: ort.InferenceSession | None = None
+    # When True, the pose session always receives single-crop (batch=1) inputs,
+    # even when multiple people are detected. Set for CoreML because it
+    # JIT-compiles a new kernel on the first call with each new batch shape,
+    # causing a multi-second freeze whenever the detected-person count changes.
+    _per_crop_pose: bool = False
+    # Cap on how many YOLOX detections are forwarded to RTMPose.
+    # None = no cap. Mirrors RTMPoseSessionConfig.max_persons.
+    _max_persons: int | None = None
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -158,6 +175,16 @@ class RTMPoseSession:
             requested=config.execution_provider,
             on_missing=config.on_provider_missing,
         )
+
+        # CoreML does not support dynamic batch dims (crashes with SIGSEGV) or
+        # fp16 inputs. Override those settings when the resolved provider is CoreML.
+        if active_provider == "coreml":
+            if config.fp16:
+                logger.info("CoreML provider selected: disabling fp16 (not supported by CoreML EP)")
+                config = config.model_copy(update={"fp16": False})
+            if config.max_batch_size > 1:
+                logger.info("CoreML provider selected: forcing max_batch_size=1 (dynamic batch dims crash CoreML EP)")
+                config = config.model_copy(update={"max_batch_size": 1})
 
         # Resolve which physical GPU to use. Do this once here so every sub-session
         # lands on the same device.
@@ -255,6 +282,8 @@ class RTMPoseSession:
             _pose_input_size=pose_input_size,
             _yolox_supports_batch=yolox_supports_batch,
             _yolox_prenms_session=yolox_prenms_session,
+            _per_crop_pose=active_provider == "coreml",  # CoreML JIT-compiles per batch shape — varying person counts cause multi-second  freezes
+            _max_persons=config.max_persons,
         )
 
         # Step 3: warmup. With TRT this is what triggers engine compilation; can
@@ -317,6 +346,12 @@ class RTMPoseSession:
 
         # ---- Stage 1: YOLOX person detection (batched) ----
         bboxes_per_image = self._detect_persons_batched(images)
+
+        # ---- Cap detections if max_persons is set ----
+        # YOLOX returns boxes sorted by descending confidence, so [:N] keeps the
+        # N most confident detections and discards lower-confidence false positives.
+        if self._max_persons is not None:
+            bboxes_per_image = [b[: self._max_persons] for b in bboxes_per_image]
 
         # ---- Stage 2: RTMPose keypoint estimation (batched over all crops) ----
         return self._estimate_pose_batched(images, bboxes_per_image)
@@ -422,6 +457,22 @@ class RTMPoseSession:
     ) -> list[tuple[NDArray, NDArray]]:
         """Run RTMPose over the union of all (image, bbox) crops. Returns one
         (keypoints, scores) tuple per input image."""
+
+        # CoreML JIT-compiles a new kernel the first time it sees each batch
+        # shape. If the number of detected people changes frame-to-frame, CoreML
+        # would freeze for several seconds on each new shape. Force batch=1 by
+        # processing each crop individually.
+        if self._per_crop_pose:
+            return [
+                _single_image_rtmpose(
+                    images[i], bboxes=list(bboxes_per_image[i]),
+                    session=self._pose_session, pose_input_size=self._pose_input_size,
+                    pose_mean=self._pose_mean, pose_std=self._pose_std,
+                    to_openpose=self._pose_to_openpose,
+                )
+                if len(bboxes_per_image[i]) > 0 else _empty_pose_result()
+                for i in range(len(images))
+            ]
 
         # Per-image crops + a flat list of all crops with provenance.
         crops: list[_PoseCrop] = []

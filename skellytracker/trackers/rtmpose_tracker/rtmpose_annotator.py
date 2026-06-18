@@ -6,16 +6,23 @@ from skellytracker.trackers.rtmpose_tracker._skeleton_viz import draw_skeleton
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig
+
+
+@dataclass
+class RTMPoseImageAnnotatorConfig(BaseImageAnnotatorConfig):
+    confidence_threshold: float = 2.0
+
 
 @dataclass
 class RTMPoseImageAnnotator(BaseImageAnnotator):
-    config: BaseImageAnnotatorConfig
+    config: RTMPoseImageAnnotatorConfig
     observations: list[RTMPoseObservation]
 
     @classmethod
-    def create(cls, config: BaseImageAnnotatorConfig | None = None) -> "RTMPoseImageAnnotator":
+    def create(cls, config: RTMPoseImageAnnotatorConfig | None = None) -> "RTMPoseImageAnnotator":
         if config is None:
-            config = BaseImageAnnotatorConfig()
+            config = RTMPoseImageAnnotatorConfig()
         return cls(config=config, observations=[])
 
     def annotate_image(
@@ -31,7 +38,7 @@ class RTMPoseImageAnnotator(BaseImageAnnotator):
             # RTMPose confidence scores are in arbitrary units based on heatmap
             # peak height. A threshold of 2.0 filters out weak detections better
             # than the default 0.5.
-            kpt_thr=2.0,
+            kpt_thr=self.config.confidence_threshold,
             scores=observation.scores,
         )
         return annotated_image

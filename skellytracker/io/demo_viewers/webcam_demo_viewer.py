@@ -1,10 +1,12 @@
 import logging
+import threading
 import time
 from collections import deque
 from enum import Enum
 from typing import Optional, TYPE_CHECKING
 
 import cv2
+import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
 
@@ -31,6 +33,39 @@ KEY_QUIT_ESC = 27
 class ExposureModes(float, Enum):
     AUTO = 0.75  # Default value to activate auto exposure mode
     MANUAL = 0.25  # Default value to activate manual exposure mode
+
+
+class _CaptureThread:
+    """Continuously reads frames from a VideoCapture in a background thread.
+
+    The inference loop calls ``read()`` to get the most recent frame without
+    blocking on camera I/O.  Capture and inference therefore overlap in time.
+    """
+
+    def __init__(self, cap: cv2.VideoCapture) -> None:
+        self._cap = cap
+        self._lock = threading.Lock()
+        self._frame: np.ndarray | None = None
+        self._running = True
+        self._thread = threading.Thread(target=self._loop, daemon=True)
+        self._thread.start()
+
+    def _loop(self) -> None:
+        while self._running:
+            ok, frame = self._cap.read()
+            if ok:
+                with self._lock:
+                    self._frame = frame
+
+    def read(self) -> tuple[bool, np.ndarray | None]:
+        with self._lock:
+            if self._frame is None:
+                return False, None
+            return True, self._frame.copy()
+
+    def stop(self) -> None:
+        self._running = False
+        self._thread.join(timeout=1.0)
 
 
 class WebcamDemoViewer:
@@ -134,11 +169,19 @@ class WebcamDemoViewer:
 
         tracker_durations = deque(maxlen=30)
         annotation_durations = deque(maxlen=30)
+
+        capture_thread = _CaptureThread(cap)
+        # Wait for the first frame before entering the loop
+        while True:
+            success, image = capture_thread.read()
+            if success:
+                break
+            time.sleep(0.01)
+
         tik = time.perf_counter()
-        success, image = cap.read()
         while True:
             if not paused:
-                success, image = cap.read()
+                success, image = capture_thread.read()
                 # image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
                 tok = time.perf_counter()
                 frame_durations.append(tok - tik)
@@ -253,5 +296,6 @@ class WebcamDemoViewer:
             )
             cv2.imshow(self.window_title, annotated_image)
 
+        capture_thread.stop()
         cap.release()
         cv2.destroyAllWindows()

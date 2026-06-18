@@ -74,7 +74,7 @@ mediapipe = ["mediapipe==0.10.33"]
 yolo = ["ultralytics~=8.0.202"]
 #
 ## RTMPose — CPU only
-#rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
+rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime", "onnx"]
 
 # RTMPose — NVIDIA GPU via CUDA 12
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
@@ -86,42 +86,42 @@ yolo = ["ultralytics~=8.0.202"]
 # Code must call `onnxruntime.preload_dlls(directory="")` before creating a session
 # so ORT finds these pip-installed DLLs — skellytracker already does this.
 rtmpose-gpu = [
-    "onnxruntime-gpu",
+    "onnxruntime-gpu; sys_platform != 'darwin'",
     "onnx",
-    "nvidia-cuda-runtime-cu12",
-    "nvidia-cublas-cu12",
-    "nvidia-cufft-cu12",
-    "nvidia-cudnn-cu12",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
 ]
 
 # RTMPose — any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm)
 # No CUDA toolkit needed. Just pip install and go.
-rtmpose-directml = ["onnxruntime-directml", "onnx"]
+rtmpose-directml = ["onnxruntime-directml; sys_platform == 'win32'", "onnx"]
 
 # RTMPose — NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone)
 # Requires an NVIDIA GPU. First run triggers engine compilation (1-5 min); cached thereafter.
 # Install with: uv pip install -e ".[rtmpose-trt]"
 rtmpose-trt = [
-    "onnxruntime-gpu",
+    "onnxruntime-gpu; sys_platform != 'darwin'",
     "onnx",
-    "nvidia-cuda-runtime-cu12",
-    "nvidia-cublas-cu12",
-    "nvidia-cufft-cu12",
-    "nvidia-cudnn-cu12",
-    "tensorrt",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
+    "tensorrt; sys_platform != 'darwin'",
 ]
 
 # RECOMMENDED - mediapipe + RTMPose with TensorRT (2-5x faster than CUDA EP alone).
 # Requires an NVIDIA GPU. First run compiles TRT engines (1-5 min); cached thereafter.
 recommended = [
     "mediapipe==0.10.33",
-    "onnxruntime-gpu",
+    "onnxruntime-gpu; sys_platform != 'darwin'",
     "onnx",
-    "nvidia-cuda-runtime-cu12",
-    "nvidia-cublas-cu12",
-    "nvidia-cudnn-cu12",
-    "nvidia-cufft-cu12",
-    "tensorrt",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "tensorrt; sys_platform != 'darwin'",
 ]
 
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
@@ -137,11 +137,36 @@ dev = [
 ]
 
 [tool.uv]
+package = true
 default-groups = ["dev"]
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
+
+# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. We want the
+# GPU build (`onnxruntime-gpu`) or the DirectML build (`onnxruntime-directml`)
+# instead, pulled in via the relevant extra. All three packages provide the
+# same top-level `onnxruntime` Python import, but they cannot coexist on disk:
+# they share the same namespace directory and their DLLs / .pyd files clobber
+# each other, producing a broken install that fails at import with things like
+# `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
+#
+# `exclude-dependencies` drops the CPU `onnxruntime` package from the resolution
+# graph entirely, even when rtmlib requests it transitively. rtmlib still works
+# at runtime because whichever accelerated build is installed provides the
+# `onnxruntime` import.
+#
+# Caveat: this setting only takes effect when uv resolves this workspace. A
+# downstream `pip install skellytracker[recommended]` will NOT honor it and
+# will reintroduce the conflict. The upstream fix is for rtmlib to stop pinning
+# `onnxruntime` as a hard dependency.
+#exclude-dependencies = ["onnxruntime"]
 
 conflicts = [
     [
-        #        { extra = "rtmpose-cpu" },
+        { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
         { extra = "rtmpose-trt" },
         { extra = "rtmpose-directml" },
@@ -180,6 +205,10 @@ skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
 
 [tool.uv.sources]
 skellytracker-rust = { path = "skellytracker-rust" }
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
 
 # =============================================================================
 # Task runner (poethepoet)
