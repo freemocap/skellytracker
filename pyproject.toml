@@ -79,14 +79,18 @@ rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime", "onnx"]
 # RTMPose — NVIDIA GPU via CUDA 12
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
 # don't need to install the CUDA Toolkit or cuDNN manually.
-# We pin to CUDA 12 libs because onnxruntime-gpu on PyPI is built against CUDA 12.
-# NVIDIA drivers are backward compatible, so users with newer drivers (e.g. CUDA 13)
-# can still use these CUDA 12 libs without issue — the driver just needs to support
-# CUDA >= 12 (check via `nvidia-smi`).
+# We pin onnxruntime-gpu<1.27 together with the CUDA 12 libs: ORT <1.27 on PyPI is
+# built against CUDA 12, but ORT 1.27+ switched its PyPI build to CUDA 13 (it links
+# cublasLt64_13.dll / cudart64_13.dll etc., needs a newer driver floor, and drops
+# Maxwell/Pascal/Volta GPUs). Without the cap, a fresh resolve grabs 1.27, which then
+# fails to load its CUDA EP against these cu12 DLLs and silently falls back to CPU.
+# Capping below 1.27 keeps ORT on the CUDA 12 build that matches these libs — the
+# widest GPU/driver compatibility. NVIDIA drivers are backward compatible, so users
+# with newer drivers (e.g. CUDA 13 capable) still work fine on these cu12 libs.
 # Code must call `onnxruntime.preload_dlls(directory="")` before creating a session
 # so ORT finds these pip-installed DLLs — skellytracker already does this.
 rtmpose-gpu = [
-    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "onnx",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
@@ -102,7 +106,7 @@ rtmpose-directml = ["onnxruntime-directml; sys_platform == 'win32'", "onnx"]
 # Requires an NVIDIA GPU. First run triggers engine compilation (1-5 min); cached thereafter.
 # Install with: uv pip install -e ".[rtmpose-trt]"
 rtmpose-trt = [
-    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "onnx",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
@@ -115,7 +119,7 @@ rtmpose-trt = [
 # Requires an NVIDIA GPU. First run compiles TRT engines (1-5 min); cached thereafter.
 recommended = [
     "mediapipe==0.10.33",
-    "onnxruntime-gpu; sys_platform != 'darwin'",
+    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "onnx",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
