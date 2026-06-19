@@ -51,10 +51,12 @@ from skellytracker.utilities.gpu_utils.rtm_preprocessing import (
 from skellytracker.utilities.gpu_utils.ort_session_utils import (
     ExecutionProviderName,
     build_tuned_ort_session,
+    cuda_device_free_bytes,
+    cuda_device_total_bytes,
     ensure_cuda_dlls_loaded,
     probe_supports_batch,
     resolve_provider,
-    select_best_cuda_device_id,
+    select_best_cuda_device,
     session_run_batched,
 )
 from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
@@ -99,7 +101,19 @@ class RTMPoseSessionConfig(BaseModel):
     # None = keep all detections. Set to 1 for single-person use to prevent
     # background clutter from being tracked as additional skeletons.
     max_persons: int | None = None
+    # Ceiling (bytes) on the CUDA arena for each ORT sub-session. None = size it
+    # automatically from the chosen device's free VRAM (see ARENA_VRAM_FRACTION)
+    # so a full batch fits instead of being throttled to the legacy 2 GiB cap.
+    gpu_mem_limit: int | None = None
 
+
+# Fraction of the selected device's free VRAM to use as the per-session CUDA
+# arena ceiling when gpu_mem_limit is auto-sized. < 1.0 leaves headroom for the
+# driver, the other sub-sessions, and transient spikes. The three sub-sessions
+# (yolox, rtmpose, yolox_prenms) share one device, but gpu_mem_limit is a ceiling
+# rather than a reservation — only the heavy rtmpose session approaches it — so a
+# generous per-session cap is safe as long as actual usage stays under free VRAM.
+ARENA_VRAM_FRACTION = 0.85
 
 # Mapping from RTMPoseSessionConfig.mode → (det_url_key, det_input_size,
 # pose_url_key, pose_input_size).  Mirrors rtmlib's Wholebody.MODE.
@@ -189,11 +203,47 @@ class RTMPoseSession:
         # Resolve which physical GPU to use. Do this once here so every sub-session
         # lands on the same device.
         device_id = config.device_id
+        selected_free_bytes: int | None = None
+        selected_total_bytes: int | None = None
         if device_id is None and active_provider in ("cuda", "trt"):
             logger.info("RTMPoseSession: device_id not specified -- auto-selecting best CUDA device")
-            device_id = select_best_cuda_device_id()
+            device_id, selected_free_bytes, selected_total_bytes = select_best_cuda_device()
         device_id = device_id if device_id is not None else 0
         selection_source = "user-specified" if config.device_id is not None else "auto-selected"
+
+        # Size the CUDA arena ceiling from the card's TOTAL VRAM — a stable hardware
+        # constant. Free VRAM is a volatile snapshot; baking it into the session cap
+        # would risk setting the ceiling too low when measured during transient GPU
+        # activity (Chrome, Electron, another model, etc.). Total VRAM never changes.
+        #
+        # The cap is a CEILING, not a reservation — ORT only allocates what inference
+        # actually needs, growing toward the cap. So "too high" costs nothing.
+        gpu_mem_limit = config.gpu_mem_limit
+        if gpu_mem_limit is None and active_provider in ("cuda", "trt"):
+            if selected_total_bytes is None or selected_total_bytes <= 0:
+                selected_total_bytes = cuda_device_total_bytes(device_id)
+            if selected_total_bytes and selected_total_bytes > 0:
+                gpu_mem_limit = int(selected_total_bytes * ARENA_VRAM_FRACTION)
+                logger.info(
+                    "RTMPose: sizing CUDA arena ceiling to %.2f GiB "
+                    "(%.0f%% of %.2f GiB total on device %d)",
+                    gpu_mem_limit / 1024 ** 3, ARENA_VRAM_FRACTION * 100,
+                    selected_total_bytes / 1024 ** 3, device_id,
+                )
+                # Warn if another process is using significant GPU memory right now.
+                if selected_free_bytes is None or selected_free_bytes <= 0:
+                    selected_free_bytes = cuda_device_free_bytes(device_id)
+                if selected_free_bytes and selected_free_bytes > 0:
+                    in_use_mib = (selected_total_bytes - selected_free_bytes) // (1024 * 1024)
+                    if in_use_mib > 512:
+                        logger.warning(
+                            "RTMPose: ~%d MiB of GPU memory is in use by other processes. "
+                            "Close GPU-heavy apps (browser, game, etc.) for best performance.",
+                            in_use_mib,
+                        )
+        if gpu_mem_limit is None:
+            # CPU/CoreML path, or VRAM query failed -- fall back to the legacy default.
+            gpu_mem_limit = 2 * 1024 * 1024 * 1024
         logger.info(
             "\n"
             "  ╔══════════════════════════════════════════════════════════════╗\n"
@@ -204,12 +254,14 @@ class RTMPoseSession:
             "  ║  mode       : %-46s║\n"
             "  ║  max_batch  : %-46s║\n"
             "  ║  fp16       : %-46s║\n"
+            "  ║  arena_cap  : %-46s║\n"
             "  ╚══════════════════════════════════════════════════════════════╝",
             active_provider,
             f"{device_id}  ({selection_source})",
             config.mode,
             config.max_batch_size,
             config.fp16,
+            f"{gpu_mem_limit / 1024 ** 3:.2f} GiB",
         )
 
         config.engine_cache_dir.mkdir(parents=True, exist_ok=True)
@@ -240,6 +292,7 @@ class RTMPoseSession:
             max_batch_size=config.max_batch_size,
             trt_set_batch_profile=True,
             device_id=device_id,
+            gpu_mem_limit=gpu_mem_limit,
         )
         pose_session = build_tuned_ort_session(
             onnx_path=pose_onnx_raw,
@@ -249,6 +302,7 @@ class RTMPoseSession:
             log_label="rtmpose",
             max_batch_size=config.max_batch_size,
             device_id=device_id,
+            gpu_mem_limit=gpu_mem_limit,
         )
 
         yolox_supports_batch = probe_supports_batch(det_session, label="yolox")
@@ -271,6 +325,7 @@ class RTMPoseSession:
                 trt_set_batch_profile=True,
                 max_batch_size=config.max_batch_size,
                 device_id=device_id,
+                gpu_mem_limit=gpu_mem_limit,
             )
 
         session = cls(
@@ -282,7 +337,8 @@ class RTMPoseSession:
             _pose_input_size=pose_input_size,
             _yolox_supports_batch=yolox_supports_batch,
             _yolox_prenms_session=yolox_prenms_session,
-            _per_crop_pose=active_provider == "coreml",  # CoreML JIT-compiles per batch shape — varying person counts cause multi-second  freezes
+            _per_crop_pose=active_provider == "coreml",
+            # CoreML JIT-compiles per batch shape — varying person counts cause multi-second  freezes
             _max_persons=config.max_persons,
         )
 
@@ -741,11 +797,11 @@ def _yolox_postprocess_one(
 
 
 def _single_image_yolox(
-    image: NDArray[np.uint8],
-    session: ort.InferenceSession | None,
-    input_size: tuple[int, int],
-    nms_thr: float,
-    score_thr: float,
+        image: NDArray[np.uint8],
+        session: ort.InferenceSession | None,
+        input_size: tuple[int, int],
+        nms_thr: float,
+        score_thr: float,
 ) -> NDArray:
     """Per-image YOLOX: preprocess → session.run → postprocess.
 
@@ -767,13 +823,13 @@ def _single_image_yolox(
 
 
 def _single_image_rtmpose(
-    image: NDArray[np.uint8],
-    bboxes: list[NDArray],
-    session: ort.InferenceSession | None,
-    pose_input_size: tuple[int, int],
-    pose_mean: tuple[float, float, float],
-    pose_std: tuple[float, float, float],
-    to_openpose: bool = False,
+        image: NDArray[np.uint8],
+        bboxes: list[NDArray],
+        session: ort.InferenceSession | None,
+        pose_input_size: tuple[int, int],
+        pose_mean: tuple[float, float, float],
+        pose_std: tuple[float, float, float],
+        to_openpose: bool = False,
 ) -> tuple[NDArray, NDArray]:
     """Per-image RTMPose: preprocess each bbox → session.run → postprocess.
 

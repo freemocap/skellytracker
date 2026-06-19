@@ -138,7 +138,7 @@ class WebcamDemoViewer:
         Run the camera viewer.
         """
 
-        port_number = 1
+        port_number = 0
         frame_number = 0
         cap: cv2.VideoCapture | None = None
         while port_number < 10:
