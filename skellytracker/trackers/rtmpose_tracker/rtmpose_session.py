@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import cv2
 import numpy as np
 import onnxruntime as ort
 from numpy.typing import NDArray
@@ -64,6 +65,13 @@ from skellytracker.trackers.rtmpose_tracker._yolox_dynamic_batch import (
     PRENMS_CONF_OUTPUT,
     ensure_dynamic_batch,
     ensure_prenms_model,
+)
+from skellytracker.trackers.rtmpose_tracker.rtmpose_tracking_state import (
+    PersonTrackingState,
+    predict_bbox_from_tracking,
+    should_run_detector,
+    update_tracking_state,
+    _TRACKING_EXPANSION_PER_SKIP,
 )
 
 logger = logging.getLogger(__name__)
@@ -105,6 +113,32 @@ class RTMPoseSessionConfig(BaseModel):
     # automatically from the chosen device's free VRAM (see ARENA_VRAM_FRACTION)
     # so a full batch fits instead of being throttled to the legacy 2 GiB cap.
     gpu_mem_limit: int | None = None
+    # Downscale factor for YOLOX input images (0 < scale ≤ 1.0). When < 1.0,
+    # images are resized before the YOLOX person-detection pass, but the original
+    # full-resolution images are still used for cropping in the RTMPose pass.
+    # 0.5 = half resolution (good starting point). 1.0 = no downscaling (legacy).
+    yolox_image_scale: float = 1.0
+
+    # ---- Tracking-based YOLOX skip ----
+    # When True, use a velocity-based motion model to predict person bounding
+    # boxes between YOLOX detections. On frames where tracking confidence is
+    # high and YOLOX has run recently, YOLOX is skipped entirely and RTMPose
+    # runs directly on the predicted bbox. Mirrors MediaPipe's
+    # tracking-confidence pattern, adapted for wall-clock time.
+    enable_tracking_skip: bool = True
+    # Mean keypoint confidence below which we force a full YOLOX re-detection.
+    # RTMPose SIMCC scores are per-keypoint in [0, 1]; a mean below this
+    # threshold indicates the pose estimate is degrading.
+    min_tracking_confidence: float = 0.3
+    # Minimum wall-clock seconds between full YOLOX re-detections. While
+    # tracking confidence stays above threshold, YOLOX runs at most this
+    # often — e.g. 1.0 = once per second regardless of frame rate.
+    min_detection_interval_seconds: float = 1.0
+    # EMA smoothing factor for velocity. 0 = raw frame-to-frame displacement;
+    # 1 = frozen. 0.7 gives heavy damping against camera shake.
+    tracking_velocity_alpha: float = 0.7
+    # Expansion ratio for predicted bbox. 0.1 = 10% on all sides.
+    tracking_bbox_expansion: float = 0.1
 
 
 # Fraction of the selected device's free VRAM to use as the per-session CUDA
@@ -177,6 +211,19 @@ class RTMPoseSession:
     # Cap on how many YOLOX detections are forwarded to RTMPose.
     # None = no cap. Mirrors RTMPoseSessionConfig.max_persons.
     _max_persons: int | None = None
+    # Scale factor for YOLOX input images. When < 1.0, images are downscaled
+    # before the YOLOX person-detection pass, but the original full-resolution
+    # images are still used for cropping person regions in the RTMPose pass.
+    # This gives most of the speed benefit of lower resolution without losing
+    # pose estimation accuracy (since crops are always resized to a fixed input
+    # size regardless of source resolution).
+    _yolox_image_scale: float = 1.0
+    # Tracking-based YOLOX skip (see rtmpose_tracking_state.py).
+    _tracking_enabled: bool = True
+    _tracking_min_confidence: float = 0.3
+    _tracking_min_detection_interval: float = 1.0
+    _tracking_velocity_alpha: float = 0.7
+    _tracking_bbox_expansion: float = 0.1
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -340,6 +387,12 @@ class RTMPoseSession:
             _per_crop_pose=active_provider == "coreml",
             # CoreML JIT-compiles per batch shape — varying person counts cause multi-second  freezes
             _max_persons=config.max_persons,
+            _yolox_image_scale=config.yolox_image_scale,
+            _tracking_enabled=config.enable_tracking_skip,
+            _tracking_min_confidence=config.min_tracking_confidence,
+            _tracking_min_detection_interval=config.min_detection_interval_seconds,
+            _tracking_velocity_alpha=config.tracking_velocity_alpha,
+            _tracking_bbox_expansion=config.tracking_bbox_expansion,
         )
 
         # Step 3: warmup. With TRT this is what triggers engine compilation; can
@@ -380,6 +433,123 @@ class RTMPoseSession:
             return []
         return self._estimate_pose_batched(images, bboxes_per_image)
 
+    def predict_batch_with_tracking(
+        self,
+        images: list[NDArray[np.uint8]],
+        tracking_states: list[PersonTrackingState],
+    ) -> tuple[list[tuple[NDArray, NDArray]], list[PersonTrackingState]]:
+        """Batched inference with tracking-based YOLOX skip.
+
+        For each camera, decides whether to run full YOLOX+RTMPose or skip
+        YOLOX and use a tracking-predicted bbox. Batches YOLOX runs together
+        and RTMPose runs together for efficiency — cameras that need YOLOX
+        share one ONNX call, and all cameras share one RTMPose call.
+
+        Args:
+            images: One image per camera.
+            tracking_states: Per-camera tracking state, same length as images.
+
+        Returns:
+            ``(results, updated_states)`` where *results* is a list of
+            ``(keypoints, scores)`` tuples (one per input image), and
+            *updated_states* are the new tracking states.
+        """
+        if not images:
+            return [], []
+
+        n = len(images)
+        if len(tracking_states) != n:
+            raise ValueError(
+                f"images ({n}) and tracking_states ({len(tracking_states)}) "
+                f"must have the same length"
+            )
+
+        # ---- Step 1: Decide per-camera strategy ----
+        # Three groups:
+        #   A: run full YOLOX + RTMPose (cold start, lost track, periodic refresh)
+        #   B: skip YOLOX, use tracking-predicted bbox (good track)
+        #   C: skip entirely (no detection last frame AND predicted bbox is None)
+
+        needs_detector: list[bool] = []
+        tracking_bboxes: list[NDArray | None] = []
+        use_tracking: list[bool] = []
+
+        for i, state in enumerate(tracking_states):
+            h, w = images[i].shape[:2]
+
+            pred_bbox = predict_bbox_from_tracking(
+                state,
+                velocity_alpha=self._tracking_velocity_alpha,
+                expansion_ratio=self._tracking_bbox_expansion,
+                expansion_per_skip=_TRACKING_EXPANSION_PER_SKIP,
+                image_width=w,
+                image_height=h,
+            )
+
+            run_detector = should_run_detector(
+                state,
+                min_tracking_confidence=self._tracking_min_confidence,
+                min_detection_interval=self._tracking_min_detection_interval,
+                predicted_bbox=pred_bbox,
+            )
+
+            needs_detector.append(run_detector)
+            tracking_bboxes.append(pred_bbox)
+            use_tracking.append(not run_detector and pred_bbox is not None)
+
+        # ---- Step 2: Run YOLOX only on cameras that need it ----
+        yolo_indices = [i for i, nd in enumerate(needs_detector) if nd]
+        yolo_images = [images[i] for i in yolo_indices]
+
+        yolo_bboxes_map: dict[int, NDArray] = {}
+        if yolo_images:
+            yolo_results = self._detect_persons_batched(yolo_images)
+            if self._max_persons is not None:
+                yolo_results = [b[: self._max_persons] for b in yolo_results]
+            for idx, bboxes in zip(yolo_indices, yolo_results):
+                yolo_bboxes_map[idx] = bboxes
+
+        # ---- Step 3: Assemble combined bboxes for RTMPose ----
+        combined_bboxes: list[NDArray] = []
+        for i in range(n):
+            if i in yolo_bboxes_map:
+                combined_bboxes.append(yolo_bboxes_map[i])
+            elif use_tracking[i] and tracking_bboxes[i] is not None:
+                # Wrap single bbox as (1, 4) for _estimate_pose_batched.
+                combined_bboxes.append(
+                    np.asarray(tracking_bboxes[i], dtype=np.float64).reshape(1, 4)
+                )
+            else:
+                combined_bboxes.append(np.empty((0, 4), dtype=np.float64))
+
+        # ---- Step 4: Run RTMPose on all crops (batched) ----
+        pose_results = self._estimate_pose_batched(images, combined_bboxes)
+
+        # ---- Step 5: Update tracking states ----
+        updated_states: list[PersonTrackingState] = []
+        for i, (state, (keypoints, scores)) in enumerate(
+            zip(tracking_states, pose_results)
+        ):
+            bbox_for_update = combined_bboxes[i]
+            if len(bbox_for_update) == 0:
+                # No detection this frame — reset to cold start.
+                updated_states.append(PersonTrackingState())
+            else:
+                bbox_from_detector = i in yolo_bboxes_map
+                new_state = update_tracking_state(
+                    state,
+                    bbox=bbox_for_update,
+                    scores=scores,
+                    velocity_alpha=self._tracking_velocity_alpha,
+                    from_detector=bbox_from_detector,
+                )
+                # If we skipped YOLOX for this camera, bump the skip counter.
+                if use_tracking[i]:
+                    new_state.consecutive_skips = state.consecutive_skips + 1
+                updated_states.append(new_state)
+
+        return pose_results, updated_states
+
     def predict_batch(
             self,
             images: list[NDArray[np.uint8]],
@@ -389,11 +559,13 @@ class RTMPoseSession:
         as zero-length arrays.
 
         Implementation:
-          1. YOLOX preprocess each image (per-image ratio + letterbox).
-          2. Stack into (N, 3, H, W); one session.run for person detection.
-          3. RTMPose preprocess each (image, bbox) crop across all images.
-          4. Stack into (M, 3, H_pose, W_pose); one session.run for pose.
-          5. Distribute pose outputs back per-input-image and postprocess.
+          1. (Optional) Downscale images for YOLOX person detection.
+          2. YOLOX preprocess each image (per-image ratio + letterbox).
+          3. Stack into (N, 3, H, W); one session.run for person detection.
+          4. Scale bboxes back to original-image coordinates if downscaled.
+          5. RTMPose preprocess each (image, bbox) crop — using ORIGINAL images.
+          6. Stack into (M, 3, H_pose, W_pose); one session.run for pose.
+          7. Distribute pose outputs back per-input-image and postprocess.
 
         Falls back to per-image session.run (still single CUDA context) for
         either stage if the ONNX model rejects the batched input."""
@@ -401,7 +573,26 @@ class RTMPoseSession:
             return []
 
         # ---- Stage 1: YOLOX person detection (batched) ----
-        bboxes_per_image = self._detect_persons_batched(images)
+        scale = self._yolox_image_scale
+        if scale < 1.0:
+            yolo_images = [
+                cv2.resize(
+                    img,
+                    (int(img.shape[1] * scale), int(img.shape[0] * scale)),
+                    interpolation=cv2.INTER_LINEAR,
+                )
+                for img in images
+            ]
+            bboxes_per_image = self._detect_persons_batched(yolo_images)
+            # Scale bboxes from downscaled-image coords back to original-image
+            # coords so the RTMPose crop (which uses the full-res originals) works.
+            inv_scale = 1.0 / scale
+            bboxes_per_image = [
+                b * inv_scale if len(b) > 0 else b
+                for b in bboxes_per_image
+            ]
+        else:
+            bboxes_per_image = self._detect_persons_batched(images)
 
         # ---- Cap detections if max_persons is set ----
         # YOLOX returns boxes sorted by descending confidence, so [:N] keeps the
@@ -410,6 +601,10 @@ class RTMPoseSession:
             bboxes_per_image = [b[: self._max_persons] for b in bboxes_per_image]
 
         # ---- Stage 2: RTMPose keypoint estimation (batched over all crops) ----
+        # Always uses the ORIGINAL full-resolution images for cropping — never
+        # the downscaled YOLOX images. This is the key insight: YOLOX only needs
+        # enough resolution to find person blobs, but the pose model benefits
+        # from every pixel of detail in the crop region.
         return self._estimate_pose_batched(images, bboxes_per_image)
 
     # ------------------------------------------------------------------ stage 1
