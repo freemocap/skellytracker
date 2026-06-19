@@ -100,7 +100,7 @@ class RTMPoseSessionConfig(BaseModel):
     # Keep only the N highest-confidence person detections from YOLOX.
     # None = keep all detections. Set to 1 for single-person use to prevent
     # background clutter from being tracked as additional skeletons.
-    max_persons: int | None = None
+    max_persons: int | None = 1
     # Ceiling (bytes) on the CUDA arena for each ORT sub-session. None = size it
     # automatically from the chosen device's free VRAM (see ARENA_VRAM_FRACTION)
     # so a full batch fits instead of being throttled to the legacy 2 GiB cap.
