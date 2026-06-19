@@ -46,17 +46,17 @@ class PersonTrackingState:
 
     # Current bounding box in xyxy format (image pixel coords).
     # None means no detection yet (cold start or lost track).
-    bbox: NDArray[np.float64] | None = None
+    bbox: NDArray | None = None
 
     # Bounding box center (cx, cy) in image pixel coords.
-    center: NDArray[np.float64] | None = None
+    center: NDArray | None = None
 
     # Bounding box size (width, height) in image pixel coords.
-    size: NDArray[np.float64] | None = None
+    size: NDArray | None = None
 
     # Smoothed velocity (dx, dy) in pixels per frame. EMA-updated from
     # frame-to-frame center displacement.
-    velocity: NDArray[np.float64] = field(
+    velocity: NDArray = field(
         default_factory=lambda: np.zeros(2, dtype=np.float64)
     )
 
@@ -91,7 +91,7 @@ def predict_bbox_from_tracking(
     expansion_per_skip: float = _TRACKING_EXPANSION_PER_SKIP,
     image_width: int,
     image_height: int,
-) -> NDArray[np.float64] | None:
+) -> NDArray | None:
     """Predict the person bounding box for the next frame.
 
     Uses a constant-velocity model: predicted center = previous center +
@@ -142,8 +142,8 @@ def predict_bbox_from_tracking(
 
 def update_tracking_state(
     state: PersonTrackingState,
-    bbox: NDArray[np.float64] | None,
-    scores: NDArray[np.float32] | None,
+    bbox: NDArray | None,
+    scores: NDArray | None,
     *,
     velocity_alpha: float = 0.7,
     from_detector: bool = False,
@@ -233,7 +233,7 @@ def should_run_detector(
     *,
     min_tracking_confidence: float = 0.3,
     min_detection_interval: float = 1.0,
-    predicted_bbox: NDArray[np.float64] | None,
+    predicted_bbox: NDArray | None,
 ) -> bool:
     """Decide whether to run full YOLOX detection for this camera.
 
