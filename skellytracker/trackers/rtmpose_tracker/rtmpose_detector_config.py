@@ -38,7 +38,7 @@ class RTMPoseDetectorConfig(BaseDetectorConfig):
     device_id: int | None = None
     # Keep only the N highest-confidence YOLOX detections. None = keep all.
     # Set to 1 for single-person use to suppress false positives from background clutter.
-    max_persons: int | None = None
+    max_persons: int | None = 1
 
     def resolved_provider(self) -> ExecutionProviderName:
         if self.execution_provider is not None:
