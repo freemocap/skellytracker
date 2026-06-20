@@ -508,11 +508,7 @@ class RTMPoseSession:
                 yolo_results = [b[: self._max_persons] for b in yolo_results]
             for idx, bboxes in zip(yolo_indices, yolo_results):
                 yolo_bboxes_map[idx] = bboxes
-            logger.debug(
-                f"predict_batch_with_tracking: YOLOX on {len(yolo_images)}/"
-                f"{n} cams (indices={yolo_indices}), "
-                f"tracking on {sum(use_tracking)}/{n} cams"
-            )
+
 
         # ---- Step 3: Assemble combined bboxes for RTMPose ----
         combined_bboxes: list[NDArray] = []
