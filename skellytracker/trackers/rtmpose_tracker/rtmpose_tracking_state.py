@@ -1,19 +1,15 @@
 """
 Per-camera person tracking state for YOLOX-skip logic.
 
-When ``enable_tracking_skip`` is True, the centralized skeleton inference node
-maintains one ``PersonTrackingState`` per camera. On frames where the tracking
-lock is strong (high pose confidence, YOLOX re-run recently), YOLOX person
-detection is skipped and the bounding box is predicted from a constant-velocity
-motion model. The RTMPose pose estimator runs directly on the predicted crop.
+On frames where tracking is active, YOLOX is skipped and the bounding box
+is predicted by expanding the previous frame's keypoint-derived bbox by a
+configurable margin. The RTMPose pose estimator runs directly on this
+expanded crop. YOLOX re-runs periodically (~once per second) and whenever
+pose confidence drops.
 
-This mirrors MediaPipe's tracking-confidence pattern, adapted for wall-clock
-time: YOLOX is re-run at most once per second (configurable), plus immediately
-whenever pose confidence drops below threshold or the person leaves the frame.
-
-All functions in this module are stateless free functions that operate on the
-``PersonTrackingState`` dataclass. The caller owns the states and threads them
-through calls.
+This is simpler and more robust than a velocity-based motion model: the
+bbox follows the person naturally because it's recomputed from the actual
+keypoint positions each frame.
 """
 
 import time
@@ -22,113 +18,63 @@ from dataclasses import dataclass, field
 import numpy as np
 from numpy.typing import NDArray
 
-# ---------------------------------------------------------------------------
-# Per-skip expansion increment (pixels). Not user-facing — if you set this
-# to zero, the predicted bbox never grows and tracking can drift out of the
-# crop permanently without ever triggering a confidence drop.
-# ---------------------------------------------------------------------------
-_TRACKING_EXPANSION_PER_SKIP: float = 2.0
-
-
-# ---------------------------------------------------------------------------
-# Tracking state
-# ---------------------------------------------------------------------------
-
 
 @dataclass
 class PersonTrackingState:
-    """Per-camera tracking state for YOLOX-skip logic.
-
-    Maintained externally to ``RTMPoseSession`` so the session stays
-    stateless between calls. The caller passes these in and receives
-    updated copies back.
-    """
+    """Per-camera tracking state for YOLOX-skip logic."""
 
     # Current bounding box in xyxy format (image pixel coords).
-    # None means no detection yet (cold start or lost track).
+    # None = cold start or lost track.
     bbox: NDArray | None = None
 
-    # Bounding box center (cx, cy) in image pixel coords.
-    center: NDArray | None = None
-
-    # Bounding box size (width, height) in image pixel coords.
-    size: NDArray | None = None
-
-    # Smoothed velocity (dx, dy) in pixels per frame. EMA-updated from
-    # frame-to-frame center displacement.
-    velocity: NDArray = field(
-        default_factory=lambda: np.zeros(2, dtype=np.float64)
-    )
-
     # Average keypoint confidence from the most recent RTMPose result.
-    # Used as the quality signal for the tracking-vs-redetect decision.
     pose_confidence: float = 0.0
 
-    # Number of consecutive frames where we skipped YOLOX (tracking only).
+    # Consecutive frames since last YOLOX re-detection.
     consecutive_skips: int = 0
 
     # ``time.perf_counter()`` of the last full YOLOX detection.
-    # 0.0 = never (cold start). Updated by ``update_tracking_state`` when
-    # ``from_detector=True``.
+    # 0.0 = never (cold start).
     last_detection_time: float = 0.0
 
     @property
     def is_valid(self) -> bool:
-        """True if we have a tracking lock (at least one successful detection)."""
-        return self.bbox is not None and self.center is not None
+        return self.bbox is not None
 
 
 # ---------------------------------------------------------------------------
-# Motion model: predict where the person will be next frame
+# Predict bbox for next frame: expand the current bbox by a margin
 # ---------------------------------------------------------------------------
 
 
 def predict_bbox_from_tracking(
     state: PersonTrackingState,
     *,
-    velocity_alpha: float = 0.7,
-    expansion_ratio: float = 0.1,
-    expansion_per_skip: float = _TRACKING_EXPANSION_PER_SKIP,
+    expansion_ratio: float = 0.05,
     image_width: int,
     image_height: int,
 ) -> NDArray | None:
-    """Predict the person bounding box for the next frame.
+    """Expand the current bbox by ``expansion_ratio`` on all sides.
 
-    Uses a constant-velocity model: predicted center = previous center +
-    smoothed velocity. The bbox is expanded on all sides to account for
-    prediction uncertainty, with the expansion growing linearly with
-    ``consecutive_skips`` to prevent drift escape.
-
-    Returns None if the state is not valid or the predicted bbox collapses
-    to zero area (person walked out of frame).
+    Returns None if the state is invalid or the expanded bbox collapses.
     """
     if not state.is_valid:
         return None
 
-    # Predict center using constant-velocity model.
-    predicted_center = state.center + state.velocity
+    x1, y1, x2, y2 = state.bbox
+    w = x2 - x1
+    h = y2 - y1
+    if w <= 0 or h <= 0:
+        return None
 
-    # Expand bbox to account for prediction uncertainty.
-    # Progressive expansion with skip count catches slow drift.
-    expansion = (
-        expansion_ratio * max(state.size[0], state.size[1])
-        + expansion_per_skip * state.consecutive_skips
-    )
-    predicted_half_w = state.size[0] / 2.0 + expansion
-    predicted_half_h = state.size[1] / 2.0 + expansion
+    expand_w = w * expansion_ratio
+    expand_h = h * expansion_ratio
 
-    x1 = predicted_center[0] - predicted_half_w
-    y1 = predicted_center[1] - predicted_half_h
-    x2 = predicted_center[0] + predicted_half_w
-    y2 = predicted_center[1] + predicted_half_h
+    x1 = max(0.0, float(x1 - expand_w))
+    y1 = max(0.0, float(y1 - expand_h))
+    x2 = min(float(image_width), float(x2 + expand_w))
+    y2 = min(float(image_height), float(y2 + expand_h))
 
-    # Clamp to image bounds.
-    x1 = max(0.0, float(x1))
-    y1 = max(0.0, float(y1))
-    x2 = min(float(image_width), float(x2))
-    y2 = min(float(image_height), float(y2))
-
-    # If the predicted bbox collapsed to nothing, return None (forces re-detect).
     if x2 <= x1 or y2 <= y1:
         return None
 
@@ -136,87 +82,104 @@ def predict_bbox_from_tracking(
 
 
 # ---------------------------------------------------------------------------
-# State update: consume new detection results
+# Update state from RTMPose results: compute tight keypoint bbox, expand
 # ---------------------------------------------------------------------------
+
+
+def _keypoints_to_bbox(
+    keypoints: NDArray,
+    scores: NDArray,
+    conf_threshold: float = 0.3,
+) -> NDArray | None:
+    """Compute a tight xyxy bbox around visible keypoints.
+
+    Args:
+        keypoints: (K, 2) or (N, K, 2).
+        scores: (K,) or (N, K).
+    Returns (4,) xyxy or None if no visible keypoints.
+    """
+    if keypoints.ndim == 2:
+        keypoints = keypoints[None, ...]
+        scores = scores[None, ...]
+
+    all_pts = []
+    for inst in range(keypoints.shape[0]):
+        kp = keypoints[inst]
+        sc = scores[inst]
+        for i in range(len(sc)):
+            if sc[i] >= conf_threshold:
+                x, y = kp[i]
+                if np.isfinite(x) and np.isfinite(y):
+                    all_pts.append((x, y))
+
+    if not all_pts:
+        return None
+
+    pts = np.array(all_pts, dtype=np.float64)
+    x1, y1 = pts.min(axis=0)
+    x2, y2 = pts.max(axis=0)
+
+    if x2 <= x1 or y2 <= y1:
+        return None
+
+    return np.array([x1, y1, x2, y2], dtype=np.float64)
 
 
 def update_tracking_state(
     state: PersonTrackingState,
-    bbox: NDArray | None,
+    keypoints: NDArray | None,
     scores: NDArray | None,
     *,
-    velocity_alpha: float = 0.7,
+    expansion_ratio: float = 0.05,
     from_detector: bool = False,
+    image_width: int = 99999,
+    image_height: int = 99999,
+    kpt_conf_threshold: float = 0.3,
 ) -> PersonTrackingState:
-    """Update tracking state from a new detection (YOLOX or tracking-based).
+    """Update tracking state from a new RTMPose result.
+
+    Computes a tight bbox around visible keypoints, expands it by
+    ``expansion_ratio``, and stores it as the prediction for the next frame.
 
     Args:
-        state: Previous tracking state.
-        bbox: The new bbox in xyxy format. For multi-person results the
-              first row is used. None or empty = detection lost this frame.
-        scores: RTMPose keypoint scores ``(K,)`` or ``(N, K)``. Used to
-                compute the mean pose confidence. None = no scores available.
-        velocity_alpha: EMA smoothing factor for velocity update.
-        from_detector: True when the bbox came from a full YOLOX run
-                       (updates ``last_detection_time``). False when the
-                       bbox was tracking-predicted.
-
-    Returns:
-        A new ``PersonTrackingState`` reflecting the latest detection.
-        Returns a fresh cold-start state when detection is lost.
+        state: Previous state.
+        keypoints: RTMPose keypoints (K, 2) or (N, K, 2). None = no detection.
+        scores: RTMPose scores (K,) or (N, K). None = no detection.
+        expansion_ratio: How much to expand the tight keypoint bbox.
+        from_detector: True if YOLOX ran (updates last_detection_time).
+        image_width, image_height: Image dimensions for clamping.
+        kpt_conf_threshold: Min score to consider a keypoint visible.
     """
-    if bbox is None or len(bbox) == 0:
-        # Detection lost this frame. Return fresh cold-start state so the
-        # next frame forces a full YOLOX re-detection.
+    if keypoints is None or scores is None or len(keypoints) == 0 or len(scores) == 0:
         return PersonTrackingState()
 
-    # Take first person bbox (multi-person identity tracking is out of scope).
-    bbox_arr = np.asarray(
-        bbox[0] if bbox.ndim == 2 else bbox,
-        dtype=np.float64,
-    )
+    kp_bbox = _keypoints_to_bbox(keypoints, scores, kpt_conf_threshold)
+    if kp_bbox is None:
+        return PersonTrackingState()
 
-    new_center = np.array(
-        [
-            (bbox_arr[0] + bbox_arr[2]) / 2.0,
-            (bbox_arr[1] + bbox_arr[3]) / 2.0,
-        ],
-        dtype=np.float64,
-    )
-    new_size = np.array(
-        [
-            bbox_arr[2] - bbox_arr[0],
-            bbox_arr[3] - bbox_arr[1],
-        ],
-        dtype=np.float64,
-    )
+    # Expand and clamp.
+    x1, y1, x2, y2 = kp_bbox
+    w = x2 - x1
+    h = y2 - y1
+    expand_w = w * expansion_ratio
+    expand_h = h * expansion_ratio
 
-    # Compute new velocity from displacement (EMA-smoothed).
-    if state.is_valid:
-        raw_velocity = new_center - state.center
-        new_velocity = (
-            velocity_alpha * state.velocity
-            + (1.0 - velocity_alpha) * raw_velocity
-        )
-    else:
-        new_velocity = state.velocity.copy()  # keep zeros on cold start
+    x1 = max(0.0, float(x1 - expand_w))
+    y1 = max(0.0, float(y1 - expand_h))
+    x2 = min(float(image_width), float(x2 + expand_w))
+    y2 = min(float(image_height), float(y2 + expand_h))
+    expanded_bbox = np.array([x1, y1, x2, y2], dtype=np.float64)
 
-    # Compute average keypoint confidence.
-    if scores is not None and len(scores) > 0:
-        scores_arr = np.asarray(scores, dtype=np.float32)
-        if scores_arr.ndim == 2:
-            scores_arr = scores_arr[0]  # first person
-        pose_conf = float(np.mean(scores_arr))
-    else:
-        pose_conf = 0.0
+    # Confidence.
+    scores_arr = np.asarray(scores, dtype=np.float32)
+    if scores_arr.ndim == 2:
+        scores_arr = scores_arr[0]
+    pose_conf = float(np.mean(scores_arr)) if len(scores_arr) > 0 else 0.0
 
     return PersonTrackingState(
-        bbox=bbox_arr,
-        center=new_center,
-        size=new_size,
-        velocity=new_velocity,
+        bbox=expanded_bbox,
         pose_confidence=pose_conf,
-        consecutive_skips=0,  # reset on every successful result
+        consecutive_skips=0,
         last_detection_time=(
             time.perf_counter() if from_detector else state.last_detection_time
         ),
@@ -235,38 +198,22 @@ def should_run_detector(
     min_detection_interval: float = 1.0,
     predicted_bbox: NDArray | None,
 ) -> bool:
-    """Decide whether to run full YOLOX detection for this camera.
-
-    Returns True if YOLOX should run (tracking is stale / lost / unconfident).
-    Returns False if the tracking-predicted bbox is good enough.
-
-    The decision is a logical OR of several safety conditions — any single
-    one can force a re-detection.
-    """
-    # Cold start (last_detection_time == 0.0 means never detected): always run.
+    """Decide whether to run full YOLOX detection for this camera."""
     if not state.is_valid or state.last_detection_time == 0.0:
         return True
-
-    # Tracking confidence too low: re-detect.
     if state.pose_confidence < min_tracking_confidence:
         return True
-
-    # Haven't run YOLOX in the last ``min_detection_interval`` seconds:
-    # time for a periodic refresh.
     if time.perf_counter() - state.last_detection_time >= min_detection_interval:
         return True
-
-    # Predicted bbox is None (drifted out of frame): re-detect.
     if predicted_bbox is None:
         return True
-
-    # Predicted bbox collapsed to <25% of expected area: re-detect.
     pred_w = predicted_bbox[2] - predicted_bbox[0]
     pred_h = predicted_bbox[3] - predicted_bbox[1]
-    if state.size is not None:
-        expected_area = float(state.size[0] * state.size[1])
+    if state.bbox is not None:
+        expected_w = state.bbox[2] - state.bbox[0]
+        expected_h = state.bbox[3] - state.bbox[1]
+        expected_area = float(expected_w * expected_h)
         pred_area = float(pred_w * pred_h)
         if expected_area > 0 and pred_area < 0.25 * expected_area:
             return True
-
     return False

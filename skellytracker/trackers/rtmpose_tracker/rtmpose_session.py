@@ -71,7 +71,6 @@ from skellytracker.trackers.rtmpose_tracker.rtmpose_tracking_state import (
     predict_bbox_from_tracking,
     should_run_detector,
     update_tracking_state,
-    _TRACKING_EXPANSION_PER_SKIP,
 )
 
 logger = logging.getLogger(__name__)
@@ -132,13 +131,12 @@ class RTMPoseSessionConfig(BaseModel):
     min_tracking_confidence: float = 0.3
     # Minimum wall-clock seconds between full YOLOX re-detections. While
     # tracking confidence stays above threshold, YOLOX runs at most this
-    # often — e.g. 1.0 = once per second regardless of frame rate.
-    min_detection_interval_seconds: float = 1.0
-    # EMA smoothing factor for velocity. 0 = raw frame-to-frame displacement;
-    # 1 = frozen. 0.7 gives heavy damping against camera shake.
-    tracking_velocity_alpha: float = 0.7
-    # Expansion ratio for predicted bbox. 0.1 = 10% on all sides.
-    tracking_bbox_expansion: float = 0.1
+    # often. Set well above frame interval so tracking gets a chance.
+    min_detection_interval_seconds: float = 5.0
+    # How much to expand the keypoint-derived bbox for the next frame's crop.
+    # Keep this small (5%) to prevent ratcheting — the crop just needs to
+    # cover the person's movement between frames, not every possible pose.
+    tracking_expansion_ratio: float = 0.05
 
 
 # Fraction of the selected device's free VRAM to use as the per-session CUDA
@@ -221,9 +219,14 @@ class RTMPoseSession:
     # Tracking-based YOLOX skip (see rtmpose_tracking_state.py).
     _tracking_enabled: bool = True
     _tracking_min_confidence: float = 0.3
-    _tracking_min_detection_interval: float = 1.0
-    _tracking_velocity_alpha: float = 0.7
-    _tracking_bbox_expansion: float = 0.1
+    _tracking_min_detection_interval: float = 5.0
+    _tracking_expansion_ratio: float = 0.05
+    # Debug: stores the per-camera bboxes from the most recent predict call.
+    # list[NDArray | None], one entry per input image. Populated by
+    # predict_batch and predict_batch_with_tracking. Read by annotators.
+    last_bboxes: list[NDArray] | None = None
+    # Debug: for each entry in last_bboxes, True = from YOLOX, False = tracking.
+    last_bboxes_from_detector: list[bool] | None = None
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -391,8 +394,7 @@ class RTMPoseSession:
             _tracking_enabled=config.enable_tracking_skip,
             _tracking_min_confidence=config.min_tracking_confidence,
             _tracking_min_detection_interval=config.min_detection_interval_seconds,
-            _tracking_velocity_alpha=config.tracking_velocity_alpha,
-            _tracking_bbox_expansion=config.tracking_bbox_expansion,
+            _tracking_expansion_ratio=config.tracking_expansion_ratio,
         )
 
         # Step 3: warmup. With TRT this is what triggers engine compilation; can
@@ -479,9 +481,7 @@ class RTMPoseSession:
 
             pred_bbox = predict_bbox_from_tracking(
                 state,
-                velocity_alpha=self._tracking_velocity_alpha,
-                expansion_ratio=self._tracking_bbox_expansion,
-                expansion_per_skip=_TRACKING_EXPANSION_PER_SKIP,
+                expansion_ratio=self._tracking_expansion_ratio,
                 image_width=w,
                 image_height=h,
             )
@@ -508,6 +508,11 @@ class RTMPoseSession:
                 yolo_results = [b[: self._max_persons] for b in yolo_results]
             for idx, bboxes in zip(yolo_indices, yolo_results):
                 yolo_bboxes_map[idx] = bboxes
+            logger.debug(
+                f"predict_batch_with_tracking: YOLOX on {len(yolo_images)}/"
+                f"{n} cams (indices={yolo_indices}), "
+                f"tracking on {sum(use_tracking)}/{n} cams"
+            )
 
         # ---- Step 3: Assemble combined bboxes for RTMPose ----
         combined_bboxes: list[NDArray] = []
@@ -515,7 +520,6 @@ class RTMPoseSession:
             if i in yolo_bboxes_map:
                 combined_bboxes.append(yolo_bboxes_map[i])
             elif use_tracking[i] and tracking_bboxes[i] is not None:
-                # Wrap single bbox as (1, 4) for _estimate_pose_batched.
                 combined_bboxes.append(
                     np.asarray(tracking_bboxes[i], dtype=np.float64).reshape(1, 4)
                 )
@@ -525,28 +529,38 @@ class RTMPoseSession:
         # ---- Step 4: Run RTMPose on all crops (batched) ----
         pose_results = self._estimate_pose_batched(images, combined_bboxes)
 
-        # ---- Step 5: Update tracking states ----
+        # ---- Step 5: Update tracking states from keypoints ----
         updated_states: list[PersonTrackingState] = []
         for i, (state, (keypoints, scores)) in enumerate(
             zip(tracking_states, pose_results)
         ):
-            bbox_for_update = combined_bboxes[i]
-            if len(bbox_for_update) == 0:
-                # No detection this frame — reset to cold start.
+            h, w = images[i].shape[:2]
+            bbox_from_detector = i in yolo_bboxes_map
+
+            if len(keypoints) == 0 or len(scores) == 0:
                 updated_states.append(PersonTrackingState())
             else:
-                bbox_from_detector = i in yolo_bboxes_map
                 new_state = update_tracking_state(
                     state,
-                    bbox=bbox_for_update,
+                    keypoints=keypoints,
                     scores=scores,
-                    velocity_alpha=self._tracking_velocity_alpha,
+                    expansion_ratio=self._tracking_expansion_ratio,
                     from_detector=bbox_from_detector,
+                    image_width=w,
+                    image_height=h,
                 )
-                # If we skipped YOLOX for this camera, bump the skip counter.
                 if use_tracking[i]:
                     new_state.consecutive_skips = state.consecutive_skips + 1
                 updated_states.append(new_state)
+
+        # Store bboxes for debug annotation.
+        combined_bboxes_for_annot: list[NDArray | None] = [
+            c if len(c) > 0 else None for c in combined_bboxes
+        ]
+        self.last_bboxes = combined_bboxes_for_annot
+        self.last_bboxes_from_detector = [
+            (i in yolo_bboxes_map) for i in range(n)
+        ]
 
         return pose_results, updated_states
 
@@ -605,7 +619,15 @@ class RTMPoseSession:
         # the downscaled YOLOX images. This is the key insight: YOLOX only needs
         # enough resolution to find person blobs, but the pose model benefits
         # from every pixel of detail in the crop region.
-        return self._estimate_pose_batched(images, bboxes_per_image)
+        pose_results = self._estimate_pose_batched(images, bboxes_per_image)
+
+        # Debug: store bboxes for annotation.
+        self.last_bboxes = [
+            b if len(b) > 0 else None for b in bboxes_per_image
+        ]
+        self.last_bboxes_from_detector = [True] * len(images)
+
+        return pose_results
 
     # ------------------------------------------------------------------ stage 1
 

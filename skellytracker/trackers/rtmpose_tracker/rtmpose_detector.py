@@ -19,6 +19,9 @@ from skellytracker.trackers.rtmpose_tracker.rtmpose_session import (
     RTMPoseSession,
     RTMPoseSessionConfig,
 )
+from skellytracker.trackers.rtmpose_tracker.rtmpose_tracking_state import (
+    PersonTrackingState,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -133,6 +136,8 @@ class RTMPoseDetector(BaseDetector):
     """
     config: RTMPoseDetectorConfig
     session: RTMPoseSession
+    # Per-detector tracking state for YOLOX-skip. One camera → one state.
+    _tracking_state: PersonTrackingState | None = None
 
     @classmethod
     def create(cls, config: RTMPoseDetectorConfig | None = None) -> "RTMPoseDetector":
@@ -153,11 +158,21 @@ class RTMPoseDetector(BaseDetector):
                 max_persons=config.max_persons,
             ),
         )
-        return cls(config=config, session=session)
+        return cls(
+            config=config,
+            session=session,
+            _tracking_state=PersonTrackingState() if session._tracking_enabled else None,
+        )
 
     def detect(self, frame_number: int, image: NDArray[np.uint8]) -> RTMPoseObservation:
-        # rtmlib's type stubs are incorrect — keypoints is float64 at runtime, scores is float32.
-        keypoints, scores = self.session.predict_single(image)
+        if self._tracking_state is not None:
+            results, updated = self.session.predict_batch_with_tracking(
+                [image], [self._tracking_state],
+            )
+            self._tracking_state = updated[0]
+            keypoints, scores = results[0]
+        else:
+            keypoints, scores = self.session.predict_single(image)
         return RTMPoseObservation.from_detection_results(
             frame_number=frame_number,
             keypoints=keypoints,
