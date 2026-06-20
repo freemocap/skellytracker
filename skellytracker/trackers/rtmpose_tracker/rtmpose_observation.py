@@ -42,7 +42,7 @@ class RTMPoseObservation(BaseObservation):
 
     # Bbox that produced this observation (xyxy, image pixel coords).
     # None when not available. True → from YOLOX detector, False → tracking.
-    bbox: NDArray[np.float64] | None = None
+    bbox: NDArray | None = None
     bbox_from_detector: bool = True
 
     @classmethod
@@ -52,7 +52,7 @@ class RTMPoseObservation(BaseObservation):
             keypoints: NDArray[np.float64],
             scores: NDArray[np.float32],
             image_size: tuple[int, int],
-            bbox: NDArray[np.float64] | None = None,
+            bbox: NDArray | None = None,
             bbox_from_detector: bool = True,
     ) -> "RTMPoseObservation":
         # Take the first detected person
