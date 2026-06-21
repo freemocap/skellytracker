@@ -28,8 +28,12 @@ def _default_execution_provider() -> ExecutionProviderName:
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     tracker_type: Literal[TrackerType.RTMPOSE] = TrackerType.RTMPOSE
-    confidence_threshold: float = 0.005
-    mode: str = "lightweight"
+    # Minimum SIMCC softmax peak to consider a keypoint "visible" for NaN-gating
+    # and output filtering.  MUST match the tracking system's visibility threshold
+    # (``rtmpose_tracking_state._DEFAULT_KPT_VISIBILITY_THRESHOLD``).
+    # 0.004 = top ~50% of keypoints on a typical frame.
+    confidence_threshold: float = 0.004
+    mode: str = "performance"
     backend: str = "onnxruntime"
     device: str = "auto"
     # When set, takes precedence over `device`. Drives the actual ORT provider selection.

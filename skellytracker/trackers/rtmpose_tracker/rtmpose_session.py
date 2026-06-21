@@ -108,6 +108,7 @@ class RTMPoseSessionConfig(BaseModel):
     # None = keep all detections. Set to 1 for single-person use to prevent
     # background clutter from being tracked as additional skeletons.
     max_persons: int | None = 1
+
     # Ceiling (bytes) on the CUDA arena for each ORT sub-session. None = size it
     # automatically from the chosen device's free VRAM (see ARENA_VRAM_FRACTION)
     # so a full batch fits instead of being throttled to the legacy 2 GiB cap.
@@ -119,24 +120,33 @@ class RTMPoseSessionConfig(BaseModel):
     yolox_image_scale: float = 1.0
 
     # ---- Tracking-based YOLOX skip ----
-    # When True, use a velocity-based motion model to predict person bounding
-    # boxes between YOLOX detections. On frames where tracking confidence is
-    # high and YOLOX has run recently, YOLOX is skipped entirely and RTMPose
-    # runs directly on the predicted bbox. Mirrors MediaPipe's
-    # tracking-confidence pattern, adapted for wall-clock time.
+    # When True, skip YOLOX on frames where the previous pose is still good,
+    # using the previous frame's keypoint-derived bbox (expanded by a margin)
+    # as the crop region for the current frame.  YOLOX re-runs periodically
+    # and whenever pose confidence drops.
     enable_tracking_skip: bool = True
-    # Mean keypoint confidence below which we force a full YOLOX re-detection.
-    # RTMPose SIMCC scores are per-keypoint in [0, 1]; a mean below this
-    # threshold indicates the pose estimate is degrading.
-    min_tracking_confidence: float = 0.3
-    # Minimum wall-clock seconds between full YOLOX re-detections. While
+    # Fraction of keypoints that must be visible to keep tracking.
+    # For RTMPose SIMCC this is the fraction of 133 keypoints whose softmax
+    # peak exceeds ``kpt_visibility_threshold``.  0.1 = 10% of the skeleton
+    # (~13 keypoints) must be visible.  Drop below this and YOLOX re-runs.
+    min_tracking_confidence: float = 0.1
+    # Minimum wall-clock seconds between full YOLOX re-detections.  While
     # tracking confidence stays above threshold, YOLOX runs at most this
-    # often. Set well above frame interval so tracking gets a chance.
+    # often.  Set well above frame interval so tracking gets a chance.
     min_detection_interval_seconds: float = 5.0
     # How much to expand the keypoint-derived bbox for the next frame's crop.
     # Keep this small (5%) to prevent ratcheting — the crop just needs to
     # cover the person's movement between frames, not every possible pose.
     tracking_expansion_ratio: float = 0.05
+    # ---- Per-keypoint thresholds (SIMCC-specific) ----
+    # Minimum SIMCC softmax peak to include a keypoint in the tight-person-bbox
+    # computation.  Set just above the uniform baseline (~0.01 for 100 bins).
+    # You should not normally need to change this.
+    kpt_bbox_threshold: float = 0.003
+    # Minimum SIMCC softmax peak to count a keypoint as "visible" for the
+    # pose-confidence fraction.  0.004 = top ~50% of keypoints on a typical
+    # frame; drops when the person is occluded.
+    kpt_visibility_threshold: float = 0.004
 
 
 # Fraction of the selected device's free VRAM to use as the per-session CUDA
@@ -218,15 +228,21 @@ class RTMPoseSession:
     _yolox_image_scale: float = 1.0
     # Tracking-based YOLOX skip (see rtmpose_tracking_state.py).
     _tracking_enabled: bool = True
-    _tracking_min_confidence: float = 0.3
+    _tracking_min_confidence: float = 0.1
     _tracking_min_detection_interval: float = 5.0
     _tracking_expansion_ratio: float = 0.05
+    _tracking_kpt_bbox_threshold: float = 0.003
+    _tracking_kpt_visibility_threshold: float = 0.004
     # Debug: stores the per-camera bboxes from the most recent predict call.
     # list[NDArray | None], one entry per input image. Populated by
     # predict_batch and predict_batch_with_tracking. Read by annotators.
     last_bboxes: list[NDArray] | None = None
     # Debug: for each entry in last_bboxes, True = from YOLOX, False = tracking.
     last_bboxes_from_detector: list[bool] | None = None
+    # Debug: per-camera tracking stats, same length as last_bboxes.
+    # Populated by predict_batch_with_tracking; None when tracking is disabled.
+    last_bboxes_confidence: list[float] | None = None
+    last_bboxes_consecutive_skips: list[int] | None = None
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -395,6 +411,8 @@ class RTMPoseSession:
             _tracking_min_confidence=config.min_tracking_confidence,
             _tracking_min_detection_interval=config.min_detection_interval_seconds,
             _tracking_expansion_ratio=config.tracking_expansion_ratio,
+            _tracking_kpt_bbox_threshold=config.kpt_bbox_threshold,
+            _tracking_kpt_visibility_threshold=config.kpt_visibility_threshold,
         )
 
         # Step 3: warmup. With TRT this is what triggers engine compilation; can
@@ -544,6 +562,8 @@ class RTMPoseSession:
                     from_detector=bbox_from_detector,
                     image_width=w,
                     image_height=h,
+                    kpt_bbox_threshold=self._tracking_kpt_bbox_threshold,
+                    kpt_visibility_threshold=self._tracking_kpt_visibility_threshold,
                 )
                 if use_tracking[i]:
                     new_state.consecutive_skips = state.consecutive_skips + 1
@@ -556,6 +576,12 @@ class RTMPoseSession:
         self.last_bboxes = combined_bboxes_for_annot
         self.last_bboxes_from_detector = [
             (i in yolo_bboxes_map) for i in range(n)
+        ]
+        self.last_bboxes_confidence = [
+            s.pose_confidence for s in updated_states
+        ]
+        self.last_bboxes_consecutive_skips = [
+            s.consecutive_skips for s in updated_states
         ]
 
         return pose_results, updated_states
@@ -622,6 +648,8 @@ class RTMPoseSession:
             b if len(b) > 0 else None for b in bboxes_per_image
         ]
         self.last_bboxes_from_detector = [True] * len(images)
+        self.last_bboxes_confidence = None
+        self.last_bboxes_consecutive_skips = None
 
         return pose_results
 

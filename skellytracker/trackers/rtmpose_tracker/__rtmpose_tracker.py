@@ -50,13 +50,17 @@ class RTMPoseTracker(BaseTracker):
         if annot_cfg is not None and annot_cfg.draw_debug_bbox:
             bboxes = self.detector.session.last_bboxes
             from_detector_list = self.detector.session.last_bboxes_from_detector
+            conf_list = self.detector.session.last_bboxes_confidence
+            skip_list = self.detector.session.last_bboxes_consecutive_skips
             if bboxes and from_detector_list:
-                for bbox, from_det in zip(bboxes, from_detector_list):
+                for i, (bbox, from_det) in enumerate(zip(bboxes, from_detector_list)):
                     if bbox is not None:
                         RTMPoseImageAnnotator.draw_bbox_on_image(
                             image, bbox,
                             from_detector=from_det,
                             label="YOLOX" if from_det else "track",
+                            confidence=conf_list[i] if conf_list else None,
+                            consecutive_skips=skip_list[i] if skip_list else None,
                         )
 
         return obs
