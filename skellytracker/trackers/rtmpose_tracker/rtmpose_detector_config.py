@@ -28,8 +28,8 @@ def _default_execution_provider() -> ExecutionProviderName:
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     tracker_type: Literal[TrackerType.RTMPOSE] = TrackerType.RTMPOSE
-    confidence_threshold: float = 0.5
-    mode: str = "performance"
+    confidence_threshold: float = 0.003
+    mode: str = "lightweight"
     backend: str = "onnxruntime"
     device: str = "auto"
     # When set, takes precedence over `device`. Drives the actual ORT provider selection.

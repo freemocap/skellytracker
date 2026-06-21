@@ -143,8 +143,12 @@ class BaseObservation(ABC):
 
 class BaseDetectorConfig(BaseModel, ABC):
     confidence_threshold: float = Field(
-        default=0.5,
-        description="Default confidence threshold for filtering tracked points (0.0-1.0)",
+        default=0.003,
+        description="Normalized peak confidence threshold for filtering tracked points. "
+                    "0 = uniform/random distribution, 1 = perfect delta peak. "
+                    "Start very low (~0.003) — just above uniform noise — because "
+                    "softmax over hundreds of bins produces naturally low peak "
+                    "probabilities even for good detections.",
     )
 
 

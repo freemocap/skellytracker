@@ -19,7 +19,7 @@ TRACKING_BBOX_COLOR = (0, 165, 255)  # orange = tracking-predicted
 
 @dataclass
 class RTMPoseImageAnnotatorConfig(BaseImageAnnotatorConfig):
-    confidence_threshold: float = 2.0
+    confidence_threshold: float = 0.003
     # When True, draws the person bounding box on annotated images.
     # Green = from YOLOX detector, orange = from tracking prediction.
     draw_debug_bbox: bool = False
