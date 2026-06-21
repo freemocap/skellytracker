@@ -28,7 +28,7 @@ def _default_execution_provider() -> ExecutionProviderName:
 
 class RTMPoseDetectorConfig(BaseDetectorConfig):
     tracker_type: Literal[TrackerType.RTMPOSE] = TrackerType.RTMPOSE
-    confidence_threshold: float = 0.003
+    confidence_threshold: float = 0.005
     mode: str = "lightweight"
     backend: str = "onnxruntime"
     device: str = "auto"
