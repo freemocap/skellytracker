@@ -67,11 +67,6 @@ def _debug_log_score_distribution(
     n_bbox = int(np.sum(arr >= bbox_threshold))
     n_vis = int(np.sum(arr >= visibility_threshold))
     parts = "  ".join(f"p{p}={vals[i]:.4f}" for i, p in enumerate(pct))
-    # Use print() not logger so it always shows regardless of log config.
-    print(
-        f"[SIMCC scores] frame={_debug_score_frame_counter} n={len(arr)} | {parts} | "
-        f">=bbox({bbox_threshold:.3f})={n_bbox}/{len(arr)} >=vis({visibility_threshold:.3f})={n_vis}/{len(arr)}"
-    )
 
 # ---------------------------------------------------------------------------
 # Default thresholds — tuned for RTMPose SIMCC softmax-peak scores.
