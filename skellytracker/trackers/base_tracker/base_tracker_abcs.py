@@ -29,6 +29,7 @@ class TrackerType(str, Enum):
     LEGACY_MEDIAPIPE = "legacy_mediapipe"
     RTMPOSE = "rtmpose"
     VITPOSE = "vitpose"
+    RT_POSE = "rt_pose"
     BRIGHTEST_POINT = "brightest_point"
 
 # Shape-annotated aliases kept for documentation; numpy.typing.NDArray is used

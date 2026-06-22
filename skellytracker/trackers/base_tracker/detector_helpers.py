@@ -24,6 +24,7 @@ LEGACY_MEDIAPIPE_AVAILABLE = False
 MEDIAPIPE_AVAILABLE = False
 RTMPOSE_AVAILABLE = False
 VITPOSE_AVAILABLE = False
+RT_POSE_AVAILABLE = False
 BRIGHTEST_POINT_AVAILABLE = False
 
 try:
@@ -53,6 +54,12 @@ except ModuleNotFoundError:
 try:
     from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetectorConfig
     VITPOSE_AVAILABLE = True
+except ModuleNotFoundError:
+    pass
+
+try:
+    from skellytracker.trackers.rt_pose_tracker.rt_pose_detector import RtPoseDetectorConfig
+    RT_POSE_AVAILABLE = True
 except ModuleNotFoundError:
     pass
 
@@ -91,6 +98,10 @@ def create_detector_from_config(detector_config: BaseDetectorConfig) -> BaseDete
         from skellytracker.trackers.vitpose_tracker.vitpose_detector import VITPoseDetector
         return VITPoseDetector.create(config=detector_config)
 
+    if RT_POSE_AVAILABLE and isinstance(detector_config, RtPoseDetectorConfig):
+        from skellytracker.trackers.rt_pose_tracker.rt_pose_detector import RtPoseDetector
+        return RtPoseDetector.create(config=detector_config)
+
     if BRIGHTEST_POINT_AVAILABLE and isinstance(detector_config, BrightestPointDetectorConfig):
         from skellytracker.trackers.brightest_point_tracker.brightest_point_detector import BrightestPointDetector
         return BrightestPointDetector.create(config=detector_config)
@@ -99,7 +110,7 @@ def create_detector_from_config(detector_config: BaseDetectorConfig) -> BaseDete
         f"No detector available for config type: {type(detector_config).__name__}. "
         f"Available trackers — charuco: {CHARUCO_AVAILABLE}, mediapipe: {MEDIAPIPE_AVAILABLE}, "
         f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}, "
-        f"vitpose: {VITPOSE_AVAILABLE}, brightest_point: {BRIGHTEST_POINT_AVAILABLE}"
+        f"vitpose: {VITPOSE_AVAILABLE}, rt_pose: {RT_POSE_AVAILABLE}, brightest_point: {BRIGHTEST_POINT_AVAILABLE}"
     )
 
 
@@ -129,6 +140,10 @@ def create_annotator_from_config(config: BaseDetectorConfig) -> BaseImageAnnotat
         from skellytracker.trackers.vitpose_tracker.vitpose_annotator import VITPoseAnnotator
         return VITPoseAnnotator.create()
 
+    if RT_POSE_AVAILABLE and isinstance(config, RtPoseDetectorConfig):
+        from skellytracker.trackers.rt_pose_tracker.rt_pose_annotator import RtPoseAnnotator
+        return RtPoseAnnotator.create()
+
     if BRIGHTEST_POINT_AVAILABLE and isinstance(config, BrightestPointDetectorConfig):
         from skellytracker.trackers.brightest_point_tracker.brightest_point_annotator import BrightestPointImageAnnotator, BrightestPointAnnotatorConfig
         return BrightestPointImageAnnotator.create(config=BrightestPointAnnotatorConfig())
@@ -137,7 +152,7 @@ def create_annotator_from_config(config: BaseDetectorConfig) -> BaseImageAnnotat
         f"No annotator available for config type: {type(config).__name__}. "
         f"Available trackers — charuco: {CHARUCO_AVAILABLE}, mediapipe: {MEDIAPIPE_AVAILABLE}, "
         f"legacy_mediapipe: {LEGACY_MEDIAPIPE_AVAILABLE}, rtmpose: {RTMPOSE_AVAILABLE}, "
-        f"vitpose: {VITPOSE_AVAILABLE}, brightest_point: {BRIGHTEST_POINT_AVAILABLE}"
+        f"vitpose: {VITPOSE_AVAILABLE}, rt_pose: {RT_POSE_AVAILABLE}, brightest_point: {BRIGHTEST_POINT_AVAILABLE}"
     )
 
 
@@ -164,6 +179,8 @@ if RTMPOSE_AVAILABLE:
     _SKELETON_CONFIGS.append(RTMPoseDetectorConfig)
 if VITPOSE_AVAILABLE:
     _SKELETON_CONFIGS.append(VITPoseDetectorConfig)
+if RT_POSE_AVAILABLE:
+    _SKELETON_CONFIGS.append(RtPoseDetectorConfig)
 
 _BOARD_CONFIGS: list[type[BaseDetectorConfig]] = []
 if CHARUCO_AVAILABLE:
