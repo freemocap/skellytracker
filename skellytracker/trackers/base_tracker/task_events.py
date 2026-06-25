@@ -13,6 +13,8 @@ from typing import Protocol, runtime_checkable
 NODE_KIND_SKELETON_INFERENCE = "skeleton_inference"
 
 # RTMPose predict_batch stage names (match FreeMoCap PipelineStageTimer keys).
+STAGE_HUMAN_DETECTION_LETTERBOX = "human_detection_letterbox"
+STAGE_HUMAN_DETECTION_BATCH_PACK = "human_detection_batch_pack"
 STAGE_HUMAN_DETECTION_PREPROCESS = "human_detection_preprocess"
 STAGE_HUMAN_DETECTION = "human_detection"
 STAGE_HUMAN_DETECTION_POSTPROCESS = "human_detection_postprocess"
@@ -21,6 +23,8 @@ STAGE_POSE_ESTIMATION = "pose_estimation"
 STAGE_POSE_ESTIMATION_POSTPROCESS = "pose_estimation_postprocess"
 
 RTMPOSE_BATCH_STAGES: tuple[str, ...] = (
+    STAGE_HUMAN_DETECTION_LETTERBOX,
+    STAGE_HUMAN_DETECTION_BATCH_PACK,
     STAGE_HUMAN_DETECTION_PREPROCESS,
     STAGE_HUMAN_DETECTION,
     STAGE_HUMAN_DETECTION_POSTPROCESS,
@@ -139,9 +143,16 @@ class TrackerTaskEventContext:
         camera_id: str | None = None,
         batch_index: int | None = None,
         batch_size: int | None = None,
+        parent_task_ids: tuple[str, ...] | None = None,
     ) -> None:
         if self.event_collector is None:
             return
+
+        resolved_parent_task_ids = (
+            parent_task_ids
+            if parent_task_ids is not None
+            else self.parent_task_ids
+        )
 
         if camera_id is not None:
             task_id = make_camera_task_id(
@@ -161,7 +172,7 @@ class TrackerTaskEventContext:
         self.event_collector.append(
             TrackerTaskEvent(
                 task_id=task_id,
-                parent_task_ids=self.parent_task_ids,
+                parent_task_ids=resolved_parent_task_ids,
                 stage=stage,
                 node_kind=self.node_kind,
                 camera_id=camera_id,

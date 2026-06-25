@@ -73,7 +73,10 @@ from skellytracker.trackers.rtmpose_tracker.rtmpose_tracking_state import (
     update_tracking_state,
 )
 from skellytracker.trackers.base_tracker.task_events import (
+    RTMPOSE_BATCH_STAGES,
     STAGE_HUMAN_DETECTION,
+    STAGE_HUMAN_DETECTION_BATCH_PACK,
+    STAGE_HUMAN_DETECTION_LETTERBOX,
     STAGE_HUMAN_DETECTION_POSTPROCESS,
     STAGE_HUMAN_DETECTION_PREPROCESS,
     STAGE_POSE_ESTIMATION,
@@ -82,6 +85,7 @@ from skellytracker.trackers.base_tracker.task_events import (
     TrackerTaskEventCollector,
     TrackerTaskEventContext,
     TrackerTaskEventSink,
+    make_batch_task_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -256,6 +260,8 @@ class RTMPoseSession:
     last_bboxes_consecutive_skips: list[int] | None = None
 
     # Populated at end of each predict_batch (generic pipeline stage timings).
+    last_human_detection_letterbox_ms: float = 0.0
+    last_human_detection_batch_pack_ms: float = 0.0
     last_human_detection_preprocess_ms: float = 0.0
     last_human_detection_ms: float = 0.0
     last_human_detection_postprocess_ms: float = 0.0
@@ -263,6 +269,8 @@ class RTMPoseSession:
     last_pose_estimation_ms: float = 0.0
     last_pose_estimation_postprocess_ms: float = 0.0
 
+    _acc_human_detection_letterbox_ms: float = field(default=0.0, repr=False, init=False)
+    _acc_human_detection_batch_pack_ms: float = field(default=0.0, repr=False, init=False)
     _acc_human_detection_preprocess_ms: float = field(default=0.0, repr=False, init=False)
     _acc_human_detection_ms: float = field(default=0.0, repr=False, init=False)
     _acc_human_detection_postprocess_ms: float = field(default=0.0, repr=False, init=False)
@@ -270,8 +278,16 @@ class RTMPoseSession:
     _acc_pose_estimation_ms: float = field(default=0.0, repr=False, init=False)
     _acc_pose_estimation_postprocess_ms: float = field(default=0.0, repr=False, init=False)
     _timing_context: TrackerTaskEventContext | None = field(default=None, repr=False, init=False)
+    _preprocess_task_id: str | None = field(default=None, repr=False, init=False)
+    _preprocess_span_start_ns: int | None = field(default=None, repr=False, init=False)
+    _preprocess_span_end_ns: int | None = field(default=None, repr=False, init=False)
 
     def _reset_batch_timing(self) -> None:
+        self._preprocess_task_id = None
+        self._preprocess_span_start_ns = None
+        self._preprocess_span_end_ns = None
+        self._acc_human_detection_letterbox_ms = 0.0
+        self._acc_human_detection_batch_pack_ms = 0.0
         self._acc_human_detection_preprocess_ms = 0.0
         self._acc_human_detection_ms = 0.0
         self._acc_human_detection_postprocess_ms = 0.0
@@ -280,6 +296,8 @@ class RTMPoseSession:
         self._acc_pose_estimation_postprocess_ms = 0.0
 
     def _publish_batch_timing(self) -> None:
+        self.last_human_detection_letterbox_ms = self._acc_human_detection_letterbox_ms
+        self.last_human_detection_batch_pack_ms = self._acc_human_detection_batch_pack_ms
         self.last_human_detection_preprocess_ms = self._acc_human_detection_preprocess_ms
         self.last_human_detection_ms = self._acc_human_detection_ms
         self.last_human_detection_postprocess_ms = self._acc_human_detection_postprocess_ms
@@ -302,6 +320,21 @@ class RTMPoseSession:
             return None
         return source_indices[index]
 
+    def _preprocess_child_parent_task_ids(self) -> tuple[str, ...]:
+        if self._preprocess_task_id is not None:
+            return (self._preprocess_task_id,)
+        if self._timing_context is not None:
+            return self._timing_context.parent_task_ids
+        return ()
+
+    def _extend_preprocess_span(self, start_ns: int, end_ns: int) -> None:
+        duration_ms = (end_ns - start_ns) / 1e6
+        self._acc_human_detection_preprocess_ms += duration_ms
+        if self._preprocess_span_start_ns is None or start_ns < self._preprocess_span_start_ns:
+            self._preprocess_span_start_ns = start_ns
+        if self._preprocess_span_end_ns is None or end_ns > self._preprocess_span_end_ns:
+            self._preprocess_span_end_ns = end_ns
+
     def _accumulate_stage(
         self,
         stage: str,
@@ -310,6 +343,7 @@ class RTMPoseSession:
         end_ns: int,
         *,
         camera_id: str | None = None,
+        parent_task_ids: tuple[str, ...] | None = None,
     ) -> None:
         duration_ms = (end_ns - start_ns) / 1e6
         current = getattr(self, acc_attr)
@@ -320,7 +354,39 @@ class RTMPoseSession:
                 start_ns,
                 end_ns,
                 camera_id=camera_id,
+                parent_task_ids=parent_task_ids,
             )
+
+    def _accumulate_human_detection_letterbox(
+        self,
+        start_ns: int,
+        end_ns: int,
+        *,
+        camera_id: str | None = None,
+    ) -> None:
+        self._extend_preprocess_span(start_ns, end_ns)
+        self._accumulate_stage(
+            STAGE_HUMAN_DETECTION_LETTERBOX,
+            "_acc_human_detection_letterbox_ms",
+            start_ns,
+            end_ns,
+            camera_id=camera_id,
+            parent_task_ids=self._preprocess_child_parent_task_ids(),
+        )
+
+    def _accumulate_human_detection_batch_pack(
+        self,
+        start_ns: int,
+        end_ns: int,
+    ) -> None:
+        self._extend_preprocess_span(start_ns, end_ns)
+        self._accumulate_stage(
+            STAGE_HUMAN_DETECTION_BATCH_PACK,
+            "_acc_human_detection_batch_pack_ms",
+            start_ns,
+            end_ns,
+            parent_task_ids=self._preprocess_child_parent_task_ids(),
+        )
 
     def _begin_batch_timing(
         self,
@@ -344,8 +410,41 @@ class RTMPoseSession:
             parent_task_ids=parent_task_ids,
             event_collector=event_collector,
         )
+        if self._timing_context is not None:
+            self._preprocess_task_id = make_batch_task_id(
+                frame_number=frame_number,
+                node_kind=self._timing_context.node_kind,
+                stage=STAGE_HUMAN_DETECTION_PREPROCESS,
+            )
+
+    def _finalize_batch_timing_events(self) -> None:
+        ctx = self._timing_context
+        if ctx is None or ctx.event_collector is None:
+            return
+        if (
+            self._preprocess_span_start_ns is not None
+            and self._preprocess_span_end_ns is not None
+        ):
+            ctx.record_stage(
+                STAGE_HUMAN_DETECTION_PREPROCESS,
+                self._preprocess_span_start_ns,
+                self._preprocess_span_end_ns,
+            )
+        collector = ctx.event_collector
+        if isinstance(collector, TrackerTaskEventCollector):
+            stage_rank = {
+                stage: index for index, stage in enumerate(RTMPOSE_BATCH_STAGES)
+            }
+            collector.events.sort(
+                key=lambda event: (
+                    stage_rank.get(event.stage, len(RTMPOSE_BATCH_STAGES)),
+                    event.start_time_ns,
+                    event.task_id,
+                ),
+            )
 
     def _end_batch_timing(self) -> None:
+        self._finalize_batch_timing_events()
         self._publish_batch_timing()
         self._timing_context = None
 
@@ -836,22 +935,29 @@ class RTMPoseSession:
                 for i, img in enumerate(images)
             ]
 
-        t_preprocess0 = time.perf_counter_ns()
-        preprocessed = [yolox_letterbox_preprocess(img, self._det_input_size)
-                        for img in images]
+        preprocessed: list[tuple[NDArray, float]] = []
+        for i, img in enumerate(images):
+            t_letterbox0 = time.perf_counter_ns()
+            letterboxed = yolox_letterbox_preprocess(img, self._det_input_size)
+            t_letterbox1 = time.perf_counter_ns()
+            preprocessed.append(letterboxed)
+            self._accumulate_human_detection_letterbox(
+                t_letterbox0,
+                t_letterbox1,
+                camera_id=self._camera_id_for_index(
+                    i,
+                    self._source_index(i, source_indices),
+                ),
+            )
         # Stack to (N, 3, H, W). All padded images share the same shape because
         # YOLOX letterboxes to a fixed model_input_size.
+        t_pack0 = time.perf_counter_ns()
         batch = np.stack(
             [p.transpose(2, 0, 1) for p, _ in preprocessed], axis=0,
         ).astype(np.float32, copy=False)
         batch = np.ascontiguousarray(batch)
-        t_preprocess1 = time.perf_counter_ns()
-        self._accumulate_stage(
-            STAGE_HUMAN_DETECTION_PREPROCESS,
-            "_acc_human_detection_preprocess_ms",
-            t_preprocess0,
-            t_preprocess1,
-        )
+        t_pack1 = time.perf_counter_ns()
+        self._accumulate_human_detection_batch_pack(t_pack0, t_pack1)
 
         # Preferred batched path: prenms session (backbone+decode, no Squeeze/NMS).
         # Required when the YOLOX ONNX has baked-in NMS whose Squeeze(axis=0)
@@ -1306,22 +1412,19 @@ def _single_image_yolox(
     padded, ratio = yolox_letterbox_preprocess(image, input_size)
     t1 = time.perf_counter_ns()
     if timing is not None:
-        timing._accumulate_stage(
-            STAGE_HUMAN_DETECTION_PREPROCESS,
-            "_acc_human_detection_preprocess_ms",
-            t0,
-            t1,
-            camera_id=camera_id,
-        )
+        timing._accumulate_human_detection_letterbox(t0, t1, camera_id=camera_id)
     t2 = time.perf_counter_ns()
     inp = np.ascontiguousarray(padded.transpose(2, 0, 1)[None].astype(np.float32))
+    t_pack1 = time.perf_counter_ns()
+    if timing is not None:
+        timing._accumulate_human_detection_batch_pack(t2, t_pack1)
     outputs = session.run(None, {session.get_inputs()[0].name: inp})
     t3 = time.perf_counter_ns()
     if timing is not None:
         timing._accumulate_stage(
             STAGE_HUMAN_DETECTION,
             "_acc_human_detection_ms",
-            t2,
+            t_pack1,
             t3,
             camera_id=camera_id,
         )

@@ -69,6 +69,8 @@ def test_tracker_task_event_context_records_ordered_events() -> None:
 
 def test_rtmpose_batch_stage_names_match_freemocap() -> None:
     assert RTMPOSE_BATCH_STAGES == (
+        "human_detection_letterbox",
+        "human_detection_batch_pack",
         "human_detection_preprocess",
         "human_detection",
         "human_detection_postprocess",
