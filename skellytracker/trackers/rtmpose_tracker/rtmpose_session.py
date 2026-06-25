@@ -24,7 +24,7 @@ What "tuned" means here:
 import logging
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -243,6 +243,37 @@ class RTMPoseSession:
     # Populated by predict_batch_with_tracking; None when tracking is disabled.
     last_bboxes_confidence: list[float] | None = None
     last_bboxes_consecutive_skips: list[int] | None = None
+
+    # Populated at end of each predict_batch (generic pipeline stage timings).
+    last_human_detection_preprocess_ms: float = 0.0
+    last_human_detection_ms: float = 0.0
+    last_human_detection_postprocess_ms: float = 0.0
+    last_pose_estimation_preprocess_ms: float = 0.0
+    last_pose_estimation_ms: float = 0.0
+    last_pose_estimation_postprocess_ms: float = 0.0
+
+    _acc_human_detection_preprocess_ms: float = field(default=0.0, repr=False, init=False)
+    _acc_human_detection_ms: float = field(default=0.0, repr=False, init=False)
+    _acc_human_detection_postprocess_ms: float = field(default=0.0, repr=False, init=False)
+    _acc_pose_estimation_preprocess_ms: float = field(default=0.0, repr=False, init=False)
+    _acc_pose_estimation_ms: float = field(default=0.0, repr=False, init=False)
+    _acc_pose_estimation_postprocess_ms: float = field(default=0.0, repr=False, init=False)
+
+    def _reset_batch_timing(self) -> None:
+        self._acc_human_detection_preprocess_ms = 0.0
+        self._acc_human_detection_ms = 0.0
+        self._acc_human_detection_postprocess_ms = 0.0
+        self._acc_pose_estimation_preprocess_ms = 0.0
+        self._acc_pose_estimation_ms = 0.0
+        self._acc_pose_estimation_postprocess_ms = 0.0
+
+    def _publish_batch_timing(self) -> None:
+        self.last_human_detection_preprocess_ms = self._acc_human_detection_preprocess_ms
+        self.last_human_detection_ms = self._acc_human_detection_ms
+        self.last_human_detection_postprocess_ms = self._acc_human_detection_postprocess_ms
+        self.last_pose_estimation_preprocess_ms = self._acc_pose_estimation_preprocess_ms
+        self.last_pose_estimation_ms = self._acc_pose_estimation_ms
+        self.last_pose_estimation_postprocess_ms = self._acc_pose_estimation_postprocess_ms
 
     @classmethod
     def create(cls, config: RTMPoseSessionConfig | None = None) -> "RTMPoseSession":
@@ -605,7 +636,9 @@ class RTMPoseSession:
 
         Falls back to per-image session.run (still single CUDA context) for
         either stage if the ONNX model rejects the batched input."""
+        self._reset_batch_timing()
         if not images:
+            self._publish_batch_timing()
             return []
 
         # ---- Stage 1: YOLOX person detection (batched) ----
@@ -651,6 +684,7 @@ class RTMPoseSession:
         self.last_bboxes_confidence = None
         self.last_bboxes_consecutive_skips = None
 
+         self._publish_batch_timing()
         return pose_results
 
     # ------------------------------------------------------------------ stage 1
@@ -675,17 +709,19 @@ class RTMPoseSession:
             return [_single_image_yolox(
                 img, self._det_session, self._det_input_size,
                 self._det_nms_thr, self._det_score_thr,
+                timing=self,
             ) for img in images]
 
+        t_preprocess0 = time.perf_counter()
         preprocessed = [yolox_letterbox_preprocess(img, self._det_input_size)
                         for img in images]
-
         # Stack to (N, 3, H, W). All padded images share the same shape because
         # YOLOX letterboxes to a fixed model_input_size.
         batch = np.stack(
             [p.transpose(2, 0, 1) for p, _ in preprocessed], axis=0,
         ).astype(np.float32, copy=False)
         batch = np.ascontiguousarray(batch)
+        self._acc_human_detection_preprocess_ms += (time.perf_counter() - t_preprocess0) * 1e3
 
         # Preferred batched path: prenms session (backbone+decode, no Squeeze/NMS).
         # Required when the YOLOX ONNX has baked-in NMS whose Squeeze(axis=0)
@@ -693,10 +729,13 @@ class RTMPoseSession:
         if self._yolox_prenms_session is not None:
             input_name = self._yolox_prenms_session.get_inputs()[0].name
             try:
+                t_run0 = time.perf_counter()
                 bboxes_batch, conf_batch = self._yolox_prenms_session.run(
                     [PRENMS_BBOX_OUTPUT, PRENMS_CONF_OUTPUT], {input_name: batch},
                 )
-                return [
+                self._acc_human_detection_ms += (time.perf_counter() - t_run0) * 1e3
+                t_post0 = time.perf_counter()
+                result = [
                     _yolox_postprocess_prenms(
                         bboxes_one=bboxes_batch[i],
                         conf_one=conf_batch[i],
@@ -706,6 +745,8 @@ class RTMPoseSession:
                     )
                     for i in range(len(images))
                 ]
+                self._acc_human_detection_postprocess_ms += (time.perf_counter() - t_post0) * 1e3
+                return result
             except Exception as e:
                 logger.warning(
                     f"YOLOX pre-NMS batched run failed ({e!r}); "
@@ -714,11 +755,14 @@ class RTMPoseSession:
                 return [_single_image_yolox(
                     img, self._det_session, self._det_input_size,
                     self._det_nms_thr, self._det_score_thr,
+                    timing=self,
                 ) for img in images]
 
         # Fallback batched path: YOLOX session without baked-in NMS (uncommon).
         try:
+            t_run0 = time.perf_counter()
             outputs = session_run_batched(self._det_session, batch)
+            self._acc_human_detection_ms += (time.perf_counter() - t_run0) * 1e3
         except Exception as e:
             logger.warning(
                 f"YOLOX batched session.run failed ({e!r}); "
@@ -727,10 +771,12 @@ class RTMPoseSession:
             return [_single_image_yolox(
                 img, self._det_session, self._det_input_size,
                 self._det_nms_thr, self._det_score_thr,
+                timing=self,
             ) for img in images]
 
         det_output = outputs[0]  # (N, num_anchors, C)
 
+        t_post0 = time.perf_counter()
         bboxes_per_image: list[NDArray] = []
         for i, (_, ratio) in enumerate(preprocessed):
             per_image_output = det_output[i:i + 1]  # keep leading 1-batch dim
@@ -743,6 +789,7 @@ class RTMPoseSession:
                     score_thr=self._det_score_thr,
                 )
             )
+        self._acc_human_detection_postprocess_ms += (time.perf_counter() - t_post0) * 1e3
         return bboxes_per_image
 
     # ------------------------------------------------------------------ stage 2
@@ -774,6 +821,7 @@ class RTMPoseSession:
         # Per-image crops + a flat list of all crops with provenance.
         crops: list[_PoseCrop] = []
         crop_ranges: list[tuple[int, int]] = []  # (start, end) into crops, per image
+        t_pose_preprocess0 = time.perf_counter()
         for image, bboxes in zip(images, bboxes_per_image):
             start = len(crops)
             if len(bboxes) == 0:
@@ -790,6 +838,7 @@ class RTMPoseSession:
                     scale=np.asarray(scale, dtype=np.float64),
                 ))
             crop_ranges.append((start, len(crops)))
+        self._acc_pose_estimation_preprocess_ms += (time.perf_counter() - t_pose_preprocess0) * 1e3
 
         if not crops:
             return [_empty_pose_result() for _ in images]
@@ -801,7 +850,9 @@ class RTMPoseSession:
         batch = np.ascontiguousarray(batch)
 
         try:
+            t_pose_run0 = time.perf_counter()
             outputs = session_run_batched(self._pose_session, batch)
+            self._acc_pose_estimation_ms += (time.perf_counter() - t_pose_run0) * 1e3
         except Exception as e:
             e_str = str(e)
             if "BFCArena" in e_str or "Available memory" in e_str:
@@ -818,6 +869,7 @@ class RTMPoseSession:
                     session=self._pose_session, pose_input_size=self._pose_input_size,
                     pose_mean=self._pose_mean, pose_std=self._pose_std,
                     to_openpose=self._pose_to_openpose,
+                    timing=self,
                 )
                 if len(bboxes_per_image[i]) > 0 else _empty_pose_result()
                 for i in range(len(images))
@@ -826,6 +878,7 @@ class RTMPoseSession:
         # outputs from RTMPose are typically [simcc_x, simcc_y] each of shape (M, K, ...)
         simcc_x, simcc_y = outputs[0], outputs[1]
 
+        t_pose_post0 = time.perf_counter()
         results: list[tuple[NDArray, NDArray]] = []
         for i, (start, end) in enumerate(crop_ranges):
             if end == start:
@@ -851,6 +904,7 @@ class RTMPoseSession:
             if self._pose_to_openpose:
                 keypoints, scores = convert_coco_to_openpose(keypoints, scores)
             results.append((keypoints, scores))
+        self._acc_pose_estimation_postprocess_ms += (time.perf_counter() - t_pose_post0) * 1e3
         return results
 
     # ------------------------------------------------------------------ warmup
@@ -1038,11 +1092,12 @@ def _yolox_postprocess_one(
 
 
 def _single_image_yolox(
-        image: NDArray[np.uint8],
-        session: ort.InferenceSession | None,
-        input_size: tuple[int, int],
-        nms_thr: float,
-        score_thr: float,
+    image: NDArray[np.uint8],
+    session: ort.InferenceSession | None,
+    input_size: tuple[int, int],
+    nms_thr: float,
+    score_thr: float,
+    timing: RTMPoseSession | None = None,
 ) -> NDArray:
     """Per-image YOLOX: preprocess → session.run → postprocess.
 
@@ -1051,26 +1106,37 @@ def _single_image_yolox(
     if session is None:
         return np.empty((0, 4), dtype=np.float64)
 
+    t0 = time.perf_counter()
     padded, ratio = yolox_letterbox_preprocess(image, input_size)
+    if timing is not None:
+        timing._acc_human_detection_preprocess_ms += (time.perf_counter() - t0) * 1e3
+    t1 = time.perf_counter()
     inp = np.ascontiguousarray(padded.transpose(2, 0, 1)[None].astype(np.float32))
     outputs = session.run(None, {session.get_inputs()[0].name: inp})
-    return _yolox_postprocess_one(
+    if timing is not None:
+        timing._acc_human_detection_ms += (time.perf_counter() - t1) * 1e3
+    t2 = time.perf_counter()
+    result = _yolox_postprocess_one(
         outputs_one=outputs[0],
         ratio=ratio,
         model_input_size=input_size,
         nms_thr=nms_thr,
         score_thr=score_thr,
     )
+    if timing is not None:
+        timing._acc_human_detection_postprocess_ms += (time.perf_counter() - t2) * 1e3
+    return result
 
 
 def _single_image_rtmpose(
-        image: NDArray[np.uint8],
-        bboxes: list[NDArray],
-        session: ort.InferenceSession | None,
-        pose_input_size: tuple[int, int],
-        pose_mean: tuple[float, float, float],
-        pose_std: tuple[float, float, float],
-        to_openpose: bool = False,
+    image: NDArray[np.uint8],
+    bboxes: list[NDArray],
+    session: ort.InferenceSession | None,
+    pose_input_size: tuple[int, int],
+    pose_mean: tuple[float, float, float],
+    pose_std: tuple[float, float, float],
+    to_openpose: bool = False,
+    timing: RTMPoseSession | None = None,
 ) -> tuple[NDArray, NDArray]:
     """Per-image RTMPose: preprocess each bbox → session.run → postprocess.
 
@@ -1087,12 +1153,19 @@ def _single_image_rtmpose(
     kpts_list: list[NDArray] = []
     scores_list: list[NDArray] = []
     for bbox in bbox_list:
+        t0 = time.perf_counter()
         resized, center, scale = rtmpose_letterbox_preprocess(
             image, bbox=np.asarray(bbox, dtype=np.float64), model_input_size=pose_input_size,
             mean=pose_mean, std=pose_std,
         )
+        if timing is not None:
+            timing._acc_pose_estimation_preprocess_ms += (time.perf_counter() - t0) * 1e3
+        t1 = time.perf_counter()
         inp = np.ascontiguousarray(resized.transpose(2, 0, 1)[None].astype(np.float32))
         outputs = session.run(None, {session.get_inputs()[0].name: inp})
+        if timing is not None:
+            timing._acc_pose_estimation_ms += (time.perf_counter() - t1) * 1e3
+        t2 = time.perf_counter()
         sx, sy = outputs[0], outputs[1]
         kpts, scr = rtmpose_letterbox_postprocess(
             simcc_x=sx, simcc_y=sy,
@@ -1100,6 +1173,8 @@ def _single_image_rtmpose(
             model_input_size=pose_input_size,
             simcc_split_ratio=2.0,
         )
+        if timing is not None:
+            timing._acc_pose_estimation_postprocess_ms += (time.perf_counter() - t2) * 1e3
         kpts_list.append(kpts)
         scores_list.append(scr)
 
