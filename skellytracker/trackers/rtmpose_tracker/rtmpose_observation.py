@@ -40,6 +40,11 @@ class RTMPoseObservation(BaseObservation):
     keypoints: NDArray[np.float64] = field(default_factory=lambda: np.empty((0, 0, 0), dtype=np.float64))
     scores: NDArray[np.float32] = field(default_factory=lambda: np.empty((0, 0), dtype=np.float32))
 
+    # Bbox that produced this observation (xyxy, image pixel coords).
+    # None when not available. True → from YOLOX detector, False → tracking.
+    bbox: NDArray | None = None
+    bbox_from_detector: bool = True
+
     @classmethod
     def from_detection_results(
             cls,
@@ -47,6 +52,8 @@ class RTMPoseObservation(BaseObservation):
             keypoints: NDArray[np.float64],
             scores: NDArray[np.float32],
             image_size: tuple[int, int],
+            bbox: NDArray | None = None,
+            bbox_from_detector: bool = True,
     ) -> "RTMPoseObservation":
         # Take the first detected person
         if keypoints.shape[0] > 0:
@@ -72,4 +79,6 @@ class RTMPoseObservation(BaseObservation):
             points=cloud,
             keypoints=keypoints,
             scores=scores,
+            bbox=bbox.astype(np.float64) if bbox is not None else None,
+            bbox_from_detector=bbox_from_detector,
         )

@@ -45,7 +45,7 @@ except ModuleNotFoundError:
     pass
 
 try:
-    from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import RTMPoseDetectorConfig
+    from skellytracker.trackers.rtmpose_tracker.rtmpose_detector_config import RTMPoseDetectorConfig
     RTMPOSE_AVAILABLE = True
 except ModuleNotFoundError:
     pass

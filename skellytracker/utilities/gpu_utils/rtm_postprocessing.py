@@ -9,33 +9,61 @@ import numpy as np
 from numpy.typing import NDArray
 
 
+def _stable_softmax(x: NDArray) -> NDArray:
+    """Softmax with log-sum-exp trick for numerical stability.
+
+    Parameters
+    ----------
+    x : np.ndarray  shape (..., D)
+
+    Returns
+    -------
+    np.ndarray  same shape, softmax along last axis.
+    """
+    x_max = np.max(x, axis=-1, keepdims=True)
+    e_x = np.exp(x - x_max)
+    return e_x / np.sum(e_x, axis=-1, keepdims=True)
+
+
 def get_simcc_maximum(
     simcc_x: NDArray,
     simcc_y: NDArray,
 ) -> tuple[NDArray, NDArray]:
     """Decode SIMCC heatmaps to (x, y) coordinates with confidence scores.
 
+    Applies softmax to raw logits, then returns the peak probability as
+    confidence.  Value is in [0, 1]: higher = more mass concentrated in
+    the winning bin.  A uniform distribution over N bins gives ~1/N.
+
     Parameters
     ----------
-    simcc_x : np.ndarray  shape (N, K, Wx)
-    simcc_y : np.ndarray  shape (N, K, Wy)
+    simcc_x : np.ndarray  shape (N, K, Wx) — raw SIMCC logits for x-axis.
+    simcc_y : np.ndarray  shape (N, K, Wy) — raw SIMCC logits for y-axis.
 
     Returns
     -------
     locs : np.ndarray  shape (N, K, 2)  x/y keypoint coordinates.
-    vals : np.ndarray  shape (N, K)     confidence scores.
+    vals : np.ndarray  shape (N, K)     confidence = average peak softmax
+                                        probability across x and y axes.
     """
     N, K, Wx = simcc_x.shape
+    Wy = simcc_y.shape[-1]
     simcc_x = simcc_x.reshape(N * K, -1)
     simcc_y = simcc_y.reshape(N * K, -1)
 
-    x_locs = np.argmax(simcc_x, axis=1)
-    y_locs = np.argmax(simcc_y, axis=1)
-    locs = np.stack((x_locs, y_locs), axis=-1).astype(np.float32)
-    max_val_x = np.amax(simcc_x, axis=1)
-    max_val_y = np.amax(simcc_y, axis=1)
+    # Convert raw logits → probability distributions.
+    px = _stable_softmax(simcc_x)
+    py = _stable_softmax(simcc_y)
 
-    vals = 0.5 * (max_val_x + max_val_y)
+    # Argmax is invariant under softmax (monotonic).
+    x_locs = np.argmax(px, axis=1)
+    y_locs = np.argmax(py, axis=1)
+    locs = np.stack((x_locs, y_locs), axis=-1).astype(np.float32)
+
+    max_px = np.amax(px, axis=1)
+    max_py = np.amax(py, axis=1)
+
+    vals = 0.5 * (max_px + max_py)
     locs[vals <= 0.0] = -1
 
     locs = locs.reshape(N, K, 2)

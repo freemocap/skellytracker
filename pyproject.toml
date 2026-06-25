@@ -60,6 +60,7 @@ dependencies = [
     "requests>=2.32.3",
     "beartype>=0.19",
     "pyyaml>=6.0",
+    "polars",
 ]
 requires-python = ">=3.11,<3.13"
 
@@ -73,54 +74,58 @@ mediapipe = ["mediapipe==0.10.33"]
 yolo = ["ultralytics~=8.0.202"]
 #
 ## RTMPose — CPU only
-#rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime"]
+rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime", "onnx"]
 
 # RTMPose — NVIDIA GPU via CUDA 12
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
 # don't need to install the CUDA Toolkit or cuDNN manually.
-# We pin to CUDA 12 libs because onnxruntime-gpu on PyPI is built against CUDA 12.
-# NVIDIA drivers are backward compatible, so users with newer drivers (e.g. CUDA 13)
-# can still use these CUDA 12 libs without issue — the driver just needs to support
-# CUDA >= 12 (check via `nvidia-smi`).
+# We pin onnxruntime-gpu<1.27 together with the CUDA 12 libs: ORT <1.27 on PyPI is
+# built against CUDA 12, but ORT 1.27+ switched its PyPI build to CUDA 13 (it links
+# cublasLt64_13.dll / cudart64_13.dll etc., needs a newer driver floor, and drops
+# Maxwell/Pascal/Volta GPUs). Without the cap, a fresh resolve grabs 1.27, which then
+# fails to load its CUDA EP against these cu12 DLLs and silently falls back to CPU.
+# Capping below 1.27 keeps ORT on the CUDA 12 build that matches these libs — the
+# widest GPU/driver compatibility. NVIDIA drivers are backward compatible, so users
+# with newer drivers (e.g. CUDA 13 capable) still work fine on these cu12 libs.
 # Code must call `onnxruntime.preload_dlls(directory="")` before creating a session
 # so ORT finds these pip-installed DLLs — skellytracker already does this.
 rtmpose-gpu = [
-    "onnxruntime-gpu",
+    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "onnx",
-    "nvidia-cuda-runtime-cu12",
-    "nvidia-cublas-cu12",
-    "nvidia-cufft-cu12",
-    "nvidia-cudnn-cu12",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
 ]
 
 # RTMPose — any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm)
 # No CUDA toolkit needed. Just pip install and go.
-rtmpose-directml = ["onnxruntime-directml", "onnx"]
+rtmpose-directml = ["onnxruntime-directml; sys_platform == 'win32'", "onnx"]
 
 # RTMPose — NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone)
 # Requires an NVIDIA GPU. First run triggers engine compilation (1-5 min); cached thereafter.
 # Install with: uv pip install -e ".[rtmpose-trt]"
 rtmpose-trt = [
-    "onnxruntime-gpu",
+    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "onnx",
-    "nvidia-cuda-runtime-cu12",
-    "nvidia-cublas-cu12",
-    "nvidia-cufft-cu12",
-    "nvidia-cudnn-cu12",
-    "tensorrt",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
+    "tensorrt; sys_platform != 'darwin'",
 ]
 
 # RECOMMENDED - mediapipe + RTMPose with TensorRT (2-5x faster than CUDA EP alone).
 # Requires an NVIDIA GPU. First run compiles TRT engines (1-5 min); cached thereafter.
 recommended = [
     "mediapipe==0.10.33",
-    "onnxruntime-gpu",
+    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "onnx",
-    "nvidia-cuda-runtime-cu12",
-    "nvidia-cublas-cu12",
-    "nvidia-cudnn-cu12",
-    "nvidia-cufft-cu12",
-    "tensorrt",
+    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
+    "nvidia-cublas-cu12; sys_platform != 'darwin'",
+    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
+    "nvidia-cufft-cu12; sys_platform != 'darwin'",
+    "tensorrt; sys_platform != 'darwin'",
 ]
 
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
@@ -136,11 +141,36 @@ dev = [
 ]
 
 [tool.uv]
+package = true
 default-groups = ["dev"]
+environments = [
+    "sys_platform == 'darwin'",
+    "sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "sys_platform == 'win32' and platform_machine == 'AMD64'",
+]
+
+# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. We want the
+# GPU build (`onnxruntime-gpu`) or the DirectML build (`onnxruntime-directml`)
+# instead, pulled in via the relevant extra. All three packages provide the
+# same top-level `onnxruntime` Python import, but they cannot coexist on disk:
+# they share the same namespace directory and their DLLs / .pyd files clobber
+# each other, producing a broken install that fails at import with things like
+# `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
+#
+# `exclude-dependencies` drops the CPU `onnxruntime` package from the resolution
+# graph entirely, even when rtmlib requests it transitively. rtmlib still works
+# at runtime because whichever accelerated build is installed provides the
+# `onnxruntime` import.
+#
+# Caveat: this setting only takes effect when uv resolves this workspace. A
+# downstream `pip install skellytracker[recommended]` will NOT honor it and
+# will reintroduce the conflict. The upstream fix is for rtmlib to stop pinning
+# `onnxruntime` as a hard dependency.
+#exclude-dependencies = ["onnxruntime"]
 
 conflicts = [
     [
-        #        { extra = "rtmpose-cpu" },
+        { extra = "rtmpose-cpu" },
         { extra = "rtmpose-gpu" },
         { extra = "rtmpose-trt" },
         { extra = "rtmpose-directml" },
@@ -179,6 +209,10 @@ skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
 
 [tool.uv.sources]
 skellytracker-rust = { path = "skellytracker-rust" }
+
+[[tool.uv.index]]
+name = "nvidia"
+url = "https://pypi.nvidia.com"
 
 # =============================================================================
 # Task runner (poethepoet)

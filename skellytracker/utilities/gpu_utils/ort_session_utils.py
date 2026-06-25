@@ -123,34 +123,51 @@ def _print_device_survey(
     logger.info("\n".join(lines))
 
 
-def select_best_cuda_device_id() -> int:
-    """Pick the NVIDIA GPU with the most total VRAM using the CUDA Runtime C API.
+def select_best_cuda_device() -> tuple[int, int, int]:
+    """Pick the NVIDIA GPU with the most *free* VRAM right now.
+
+    Ranking: free VRAM (primary) → total VRAM (tiebreak) → lowest index. We rank
+    by free rather than total so that, when several cards are installed (or a
+    session is being rebuilt after an OOM), we land on the device with the most
+    room available *now* instead of always the biggest card. Identical, equally
+    loaded cards fall through to the lowest index — matching prior behavior.
+
+    Provider priority is handled separately by `resolve_provider` (trt→cuda→cpu);
+    this function only chooses *among CUDA devices*. We deliberately do not compare
+    across vendors (e.g. CUDA vs CoreML) — there is no unified cross-provider
+    VRAM/compute API, and on the CUDA path the only non-NVIDIA fallback is CPU,
+    which is always weaker. So "prefer NVIDIA, but pick the one with the most room"
+    is the whole policy here.
 
     Uses nvidia-cuda-runtime-cu12 (already a required dep for all GPU extras) via
     ctypes — no subprocess, no nvidia-smi, no extra packages needed.
 
-    Returns 0 on any failure (safe default: same as not calling this at all).
+    Returns (device_id, free_bytes, total_bytes) of the selected device.
+    Free bytes are the *transient* snapshot at call time (good for device
+    selection); total bytes are the hardware constant (good for arena cap
+    sizing). Returns (0, 0, 0) on any failure.
     """
     cudart = _load_cudart()
     if cudart is None:
-        return 0
+        return 0, 0, 0
 
     count = ctypes.c_int(0)
     rc = cudart.cudaGetDeviceCount(ctypes.byref(count))
     if rc != 0:
         logger.debug("cudaGetDeviceCount returned error %d -- using device_id=0", rc)
-        return 0
+        return 0, 0, 0
 
     n = count.value
     logger.debug("cudaGetDeviceCount: %d CUDA device(s) visible", n)
 
     if n == 0:
         logger.info("CUDA device selection: no CUDA-capable devices found -- using device_id=0")
-        return 0
+        return 0, 0, 0
 
     # Query name + VRAM for every device
     rows: list[tuple[int, str, int, int]] = []  # (idx, name, total_mib, free_mib)
-    best_idx, best_bytes = 0, -1
+    best_idx = 0
+    best_free_bytes, best_total_bytes = -1, -1
 
     for i in range(n):
         name = _get_device_name(cudart, i)
@@ -174,27 +191,85 @@ def select_best_cuda_device_id() -> int:
         rows.append((i, name, total_mib, free_mib))
         logger.debug("  device %d (%s): %d MiB total, %d MiB free", i, name, total_mib, free_mib)
 
-        if total.value > best_bytes:
-            best_bytes = total.value
-            best_idx   = i
+        # Rank by free VRAM, ties broken by total VRAM. The loop visits indices
+        # ascending and we use strict `>`, so equal cards keep the lowest index.
+        if (free.value > best_free_bytes
+                or (free.value == best_free_bytes and total.value > best_total_bytes)):
+            best_free_bytes  = free.value
+            best_total_bytes = total.value
+            best_idx         = i
 
-    best_name = next((r[1] for r in rows if r[0] == best_idx), f"device {best_idx}")
-    best_mib  = best_bytes // (1024 * 1024) if best_bytes >= 0 else 0
+    best_name      = next((r[1] for r in rows if r[0] == best_idx), f"device {best_idx}")
+    best_total_mib = best_total_bytes // (1024 * 1024) if best_total_bytes >= 0 else 0
+    best_free_mib  = best_free_bytes  // (1024 * 1024) if best_free_bytes  >= 0 else 0
 
     if n == 1:
         reason = "only CUDA device available"
     else:
-        reason = f"highest total VRAM of {n} CUDA device(s)"
+        reason = f"most free VRAM ({best_free_mib:,} MiB free) of {n} CUDA device(s)"
 
-    _print_device_survey(rows, best_idx, best_name, best_mib, reason)
-    return best_idx
+    _print_device_survey(rows, best_idx, best_name, best_total_mib, reason)
+    return best_idx, max(0, best_free_bytes), best_total_bytes
 
-ExecutionProviderName = Literal["trt", "cuda", "cpu"]
+
+def select_best_cuda_device_id() -> int:
+    """Pick the best CUDA device id (most free VRAM). Thin wrapper around
+    `select_best_cuda_device` for callers that only need the id."""
+    return select_best_cuda_device()[0]
+
+
+def cuda_device_free_bytes(device_id: int) -> int | None:
+    """Return free VRAM in bytes for a specific CUDA device, or None on failure.
+
+    Mirrors the per-device query in `select_best_cuda_device`, for the case where
+    the caller already chose a device (e.g. an explicit device_id) and just needs
+    its current free VRAM to size an arena.
+    """
+    cudart = _load_cudart()
+    if cudart is None:
+        return None
+    if cudart.cudaSetDevice(int(device_id)) != 0:
+        return None
+    free = ctypes.c_size_t(0)
+    total = ctypes.c_size_t(0)
+    if cudart.cudaMemGetInfo(ctypes.byref(free), ctypes.byref(total)) != 0:
+        return None
+    return int(free.value)
+
+
+def cuda_device_total_bytes(device_id: int) -> int | None:
+    """Return total (physical) VRAM in bytes for a CUDA device, or None on failure.
+
+    Total VRAM is a stable hardware constant -- prefer this over free VRAM when
+    sizing a persistent arena *ceiling*, so a transient free-VRAM reading isn't
+    baked in for the life of the session.
+    """
+    cudart = _load_cudart()
+    if cudart is None:
+        return None
+    if cudart.cudaSetDevice(int(device_id)) != 0:
+        return None
+    free = ctypes.c_size_t(0)
+    total = ctypes.c_size_t(0)
+    if cudart.cudaMemGetInfo(ctypes.byref(free), ctypes.byref(total)) != 0:
+        return None
+    return int(total.value)
+
+# Re-exported from a backend-free module so consumers (configs, etc.) can import
+# the type without pulling onnxruntime into their import graph.
+from skellytracker.utilities.gpu_utils.execution_provider_name import ExecutionProviderName
 
 
 # =============================================================================
 # Provider resolution
 # =============================================================================
+
+_PROVIDER_EP_NAME: dict[str, str] = {
+    "trt": "TensorrtExecutionProvider",
+    "cuda": "CUDAExecutionProvider",
+    "coreml": "CoreMLExecutionProvider",
+    "cpu": "CPUExecutionProvider",
+}
 
 
 def resolve_provider(
@@ -204,26 +279,27 @@ def resolve_provider(
 ) -> ExecutionProviderName:
     """Pick the actual EP to use given what's available.
 
-    Falls back trt -> cuda -> cpu unless on_missing="raise".
+    Falls back trt -> cuda -> coreml -> cpu unless on_missing="raise".
+    CoreML is only available on macOS; it is skipped on other platforms.
     """
+    import sys
     available = set(ort.get_available_providers())
-    needs = {
-        "trt": "TensorrtExecutionProvider",
-        "cuda": "CUDAExecutionProvider",
-        "cpu": "CPUExecutionProvider",
-    }
-    if needs[requested] in available:
-        return requested
+    if needs := _PROVIDER_EP_NAME.get(requested):
+        if needs in available:
+            return requested
     if on_missing == "raise":
         raise RuntimeError(
             f"Requested execution_provider={requested!r} but ONNX Runtime "
             f"only sees providers={sorted(available)}. Install onnxruntime-gpu "
             f"(and a TensorRT-enabled build for trt) to enable GPU execution."
         )
-    fallback_order: list[ExecutionProviderName] = ["trt", "cuda", "cpu"]
+    fallback_order: list[ExecutionProviderName] = ["trt", "cuda", "coreml", "cpu"]
     start = fallback_order.index(requested)
     for candidate in fallback_order[start:]:
-        if needs[candidate] in available:
+        ep = _PROVIDER_EP_NAME[candidate]
+        if candidate == "coreml" and sys.platform != "darwin":
+            continue
+        if ep in available:
             if candidate != requested:
                 logger.warning(
                     f"Requested execution_provider={requested!r} not available "
@@ -241,8 +317,11 @@ def resolve_provider(
 def cuda_provider_options(*, gpu_mem_limit: int = 2 * 1024 * 1024 * 1024, device_id: int = 0) -> dict:
     """CUDA EP options with exhaustive algorithm search and sensible defaults.
 
-    gpu_mem_limit defaults to 2 GiB -- enough for multiple model sessions
-    (body + hand + face) sharing a single GPU.
+    gpu_mem_limit is a *ceiling* on the CUDA arena (ORT only allocates what an
+    inference needs, growing toward this cap). The 2 GiB default here is a
+    conservative fallback inherited from the old composite tracker (body + hand +
+    face sharing one GPU); modern single-model callers (e.g. RTMPoseSession)
+    should pass a value sized to the device's free VRAM so a full batch fits.
     device_id selects which CUDA GPU to use (0 = first, 1 = second, ...).
     """
     return {
@@ -414,6 +493,12 @@ def build_tuned_ort_session(
         providers.append("CPUExecutionProvider")
     elif provider == "cuda":
         providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id)))
+        providers.append("CPUExecutionProvider")
+    elif provider == "coreml":
+        # CoreML EP uses Metal on Apple Silicon. Dynamic batch dims crash CoreML
+        # (SIGSEGV), so callers must use batch_size=1 (RTMPoseSession enforces
+        # this via supports_batching=False). fp16 is also unsupported by CoreML.
+        providers.append("CoreMLExecutionProvider")
         providers.append("CPUExecutionProvider")
     else:
         providers.append("CPUExecutionProvider")
