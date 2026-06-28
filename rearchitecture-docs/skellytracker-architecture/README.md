@@ -6,6 +6,7 @@ This folder documents the redesigned skellytracker architecture. The core shift 
 
 | Component | Role | Doc |
 |-----------|------|-----|
+| **Keypoints / BoundingBox** | Low-level data primitives | [00-data-primitives.md](./00-data-primitives.md) |
 | **Tracker** | Pipeline orchestrator; owns stages and state | [01-tracker.md](./01-tracker.md) |
 | **ObjectDetector / KeypointDetector** | Primitive detection units | [02-detectors.md](./02-detectors.md) |
 | **DetectionStage** | Composes detectors; supports hierarchical nesting | [03-detection-stage.md](./03-detection-stage.md) |

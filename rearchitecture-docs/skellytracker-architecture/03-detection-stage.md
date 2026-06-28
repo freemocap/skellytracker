@@ -37,7 +37,7 @@ DetectionStage("body")
       KeypointDetector: HandKeypointDetector (×2, right + left)
 ```
 
-The parent stage's keypoints are available to child stages when computing their crops. This is how the existing "crop hands/face from body pose" logic is represented structurally rather than as ad-hoc code inside a detector.
+The parent stage's bounding boxes and keypoints are available to child stages when computing their crops. This is how the existing "crop hands/face from body pose" logic is represented structurally rather than as ad-hoc code inside a detector.
 
 ## Multiple Top-Level Stages
 
@@ -47,4 +47,4 @@ A `Tracker` can have multiple top-level stages, each running independently on th
 
 Each stage produces a `StageObservation` identified by its `name`. The `Tracker` collects all stage observations (including nested children) and merges them into a single `Observation`. The stage name is the key that downstream consumers use to pull out specific keypoints or bounding boxes.
 
-Point names within a stage follow the YAML `TrackedObjectDefinition` pattern: each `KeypointDetector` has an associated definition, and the stage may apply a name prefix (e.g., `"face."`) to avoid collisions when merging into the top-level `Observation`.
+Point names within a stage come from the YAML-defined schema for each `KeypointDetector`. The stage may apply a name prefix (e.g., `"face."`) to avoid collisions when merging into the top-level `Observation`.

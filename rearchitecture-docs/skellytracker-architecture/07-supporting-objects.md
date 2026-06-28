@@ -6,13 +6,13 @@ These three objects sit outside the core detection pipeline and handle the surro
 
 ## Annotator
 
-The `Annotator` takes an image and an `Observation` and returns the image with bounding boxes, keypoints, and skeleton connections drawn on it. It is mostly detector-agnostic: it reads point names and skeleton connections from YAML `TrackedObjectDefinition` schemas, so it can annotate any `Observation` without knowing which specific detectors produced it.
+The `Annotator` takes an image and an `Observation` and returns the image with bounding boxes, keypoints, and skeleton connections drawn on it. It is mostly detector-agnostic: it reads point names and skeleton connections from YAML-defined schemas, so it can annotate any `Observation` without knowing which specific detectors produced it.
 
 ```python
 @dataclass
 class Annotator:
     config: AnnotatorConfig
-    stage_definitions: dict[str, TrackedObjectDefinition]  # keyed by stage name
+    stage_schemas: dict[str, SkeletonSchema]  # YAML-defined schemas keyed by stage name
 
     def annotate(
         self,
@@ -28,7 +28,7 @@ class Annotator:
 
 The `AnnotatorConfig` controls visual style: keypoint radius, line thickness, color scheme per stage (e.g., body=green, hands=red/blue, face=yellow), whether to draw bounding boxes, and confidence threshold below which points are not drawn.
 
-Annotation is done per stage: for each `StageObservation`, the annotator looks up the `TrackedObjectDefinition` for that stage, resolves connection indices, and draws skeleton edges and keypoints. Bounding boxes from `ObjectDetector`s are drawn separately.
+Annotation is done per stage: for each `StageObservation`, the annotator looks up the YAML-defined schema for that stage, resolves connection indices from the point names, and draws skeleton edges and keypoints. Bounding boxes from `ObjectDetector`s are drawn separately.
 
 ---
 
@@ -44,7 +44,7 @@ class DataStore:
     def add(self, observation: Observation) -> None:
         self.observations.append(observation)
 
-    def to_point_cloud_array(self) -> NDArray[np.float64]:
+    def to_array(self) -> NDArray[np.float64]:
         # shape: (num_frames, num_points, 3)
         ...
 

@@ -18,21 +18,21 @@ class Observation:
 class StageObservation:
     name: str
     bounding_boxes: list[BoundingBox]   # from ObjectDetector (may be empty)
-    keypoints: PointCloud               # merged from all KeypointDetectors in the stage
+    keypoints: Keypoints               # merged from all KeypointDetectors in the stage
     children: dict[str, StageObservation]
 ```
 
-The `PointCloud` is the existing canonical data primitive (named points + xyz coordinates + visibility scores). Point names within a `StageObservation` follow the YAML `TrackedObjectDefinition` for that stage's `KeypointDetector`s, with prefixes applied to avoid collisions.
+`Keypoints` is the low-level primitive for named point arrays (see [data primitives](./00-data-primitives.md)). Point names within a `StageObservation` come from the YAML-defined schemas for that stage's `KeypointDetector`s, with prefixes applied to avoid collisions.
 
 ## Canonical Access
 
-Downstream code that wants all keypoints as a flat array calls `observation.to_point_cloud()`, which concatenates all stage `PointCloud`s (in a stable, config-determined order) into a single named `PointCloud`. This is the form passed to freemocap for triangulation.
+Downstream code that wants all keypoints as a flat array calls `observation.to_keypoints()`, which concatenates all stage `Keypoints`s (in a stable, config-determined order) into a single named `Keypoints`. This is the form passed to freemocap for triangulation.
 
 ```python
-cloud: PointCloud = observation.to_point_cloud()
-# cloud.names: ("body.nose", "body.left_shoulder", ..., "face.left_eye", ...)
-# cloud.xyz: (N, 3) array
-# cloud.visibility: (N,) array
+keypoints: Keypoints = observation.to_keypoints()
+# keypoints.names: ("body.nose", "body.left_shoulder", ..., "face.left_eye", ...)
+# keypoints.xyz: (N, 3) array
+# keypoints.visibility: (N,) array
 ```
 
 ## What Observations Carry
@@ -44,8 +44,8 @@ cloud: PointCloud = observation.to_point_cloud()
 
 ## Absence of Detection
 
-If no object was detected in a stage, the stage's `bounding_boxes` list is empty and the `keypoints` `PointCloud` has `nan` for all coordinates and `0.0` for all visibility scores. Downstream code checks `PointCloud.visibility` (or `filtered_by_confidence()`) rather than checking for `None`.
+If no object was detected in a stage, the stage's `bounding_boxes` list is empty and the `keypoints` `Keypoints` has `nan` for all coordinates and `0.0` for all visibility scores. Downstream code checks `Keypoints.visibility` (or `filtered_by_confidence()`) rather than checking for `None`.
 
 ## Naming Convention
 
-Point names in the merged `PointCloud` follow dot-notation: `<stage_name>.<point_name>`. This matches the existing YAML-driven `TrackedObjectDefinition` composition pattern (where composite definitions prefix sub-definitions). Stage names are set in the `TrackerConfig` and must be unique within a tracker.
+Point names in the merged `Keypoints` follow dot-notation: `<stage_name>.<point_name>`. Stage names are set in the `TrackerConfig` and must be unique within a tracker.

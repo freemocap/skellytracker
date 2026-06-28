@@ -24,7 +24,7 @@ class ObjectDetector(ABC):
         ...
 ```
 
-`BoundingBox` carries the pixel coordinates of the detected region plus a confidence score. When no `ObjectDetector` is present in a stage, the full image is treated as a single implicit bounding box.
+`BoundingBox` carries the pixel coordinates of the detected region plus a confidence score (see [data primitives](./00-data-primitives.md)). When no `ObjectDetector` is present in a stage, the full image is treated as a single implicit bounding box.
 
 **Example implementations:** YOLO-based person detector, face detector, hardcoded full-frame crop, bounding box derived from a parent stage's keypoints (e.g., compute a tight crop around detected wrist keypoints to pass to a hand detector).
 
@@ -36,7 +36,7 @@ Runs on a cropped image (or full image if no crop was applied) and returns a set
 @dataclass
 class KeypointDetector(ABC):
     config: KeypointDetectorConfig
-    tracked_object: TrackedObjectDefinition  # from YAML
+    schema: SkeletonSchema  # loaded from YAML (names + connections)
     session: Session
 
     @abstractmethod
@@ -52,7 +52,7 @@ class KeypointDetector(ABC):
         ...
 ```
 
-`Keypoints` wraps a `PointCloud` (the existing canonical data primitive: ordered named points with xyz coordinates and visibility scores). Point names and ordering are defined by the YAML `TrackedObjectDefinition` associated with the detector.
+`Keypoints` is the low-level data primitive for named points: an ordered array of xyz coordinates and visibility scores coupled to a names tuple (see [data primitives](./00-data-primitives.md)). Point names and ordering are defined by the YAML-defined schema associated with the detector.
 
 **Example implementations:** RTMPose whole-body, MediaPipe body/hand/face, VitPose, brightest-point.
 

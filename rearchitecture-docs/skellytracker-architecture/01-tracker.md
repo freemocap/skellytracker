@@ -4,7 +4,7 @@ The `Tracker` is the top-level pipeline object. It is the only public entry poin
 
 A `Tracker` owns a list of `DetectionStage`s. Stages are ordered; each runs in sequence on the input image (or a crop derived from a parent stage). Stages can be nested, so the full pipeline is a tree rather than a flat list.
 
-The `Tracker` does not own mutable state itself. It reads `TrackerState` on each call and returns an updated copy. This makes the tracker safe to serialize, restart, or swap out mid-session without losing smoothing history.
+The `Tracker` does not own mutable state itself. It reads `TrackerState` on each call and returns an updated copy.
 
 ## Interface
 
@@ -43,8 +43,10 @@ config = TrackerConfig(
                 DetectionStageConfig(
                     object_detector=FaceDetectorConfig(...),
                     keypoint_detectors=[FaceKeypointDetectorConfig(...)],
+                    additional_config=...
                 ),
             ],
+            additional_config=...
         ),
     ]
 )
