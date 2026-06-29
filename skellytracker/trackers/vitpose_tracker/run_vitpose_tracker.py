@@ -253,12 +253,14 @@ def vitpose_process_synced_folder_mp(
 
 if __name__ == "__main__":
 
-    recording_root = Path(r"D:\2026-01-30-JTM")
+    # recording_root = Path(r"D:\2026-01-30-JTM")
 
-    recordings_list = [recording_root/"2026-01-30_10-40-03_GMT-5_JTM_nih_1",
-                       recording_root/"2026-01-30_10-57-13_GMT-5_JTM_nih_2",
-                       recording_root/"2026-01-30_11-21-06_GMT-5_JTM_treadmill_1",
-                       recording_root/"2026-01-30_11-32-56_GMT-5_JTM_treadmill_2"]
+    # recordings_list = [recording_root/"2026-01-30_10-40-03_GMT-5_JTM_nih_1",
+    #                    recording_root/"2026-01-30_10-57-13_GMT-5_JTM_nih_2",
+    #                    recording_root/"2026-01-30_11-21-06_GMT-5_JTM_treadmill_1",
+    #                    recording_root/"2026-01-30_11-32-56_GMT-5_JTM_treadmill_2"]
+
+    recordings_list = [Path(r"D:\dw_recording_2026\2026-06-26_18-23-57_GMT-7")] 
 
     for recording in recordings_list:
 
