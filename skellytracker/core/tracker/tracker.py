@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from numpy.typing import NDArray
 import numpy as np
 
+from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.tracker.detection_stage import DetectionStage
 from skellytracker.core.observation import Observation
 from skellytracker.core.session import Session
@@ -61,3 +62,9 @@ class Tracker:
         """Release all session resources."""
         for session in self.sessions.values():
             session.close()
+
+    @classmethod
+    def create(cls, config: TrackerConfig, sessions: dict[str, Session]) -> Tracker:
+        """Build a Tracker from config and pre-created sessions."""
+        stages = [DetectionStage.create(stage_cfg, sessions) for stage_cfg in config.stages]
+        return cls(stages=stages, sessions=sessions)

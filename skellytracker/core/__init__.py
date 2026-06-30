@@ -1,32 +1,55 @@
 from skellytracker.core.annotator import Annotator
+from skellytracker.core.config import (
+    DetectionStageConfig,
+    KeypointDetectorConfig,
+    ObjectDetectorConfig,
+    SessionConfig,
+    TrackerConfig,
+)
 from skellytracker.core.data_primitives import BoundingBox, Keypoints
 from skellytracker.core.data_store import DataStore
-from skellytracker.core.tracker.detection_stage import DetectionStage
-from skellytracker.core.detectors.detector_base_classes import KeypointDetector, ObjectDetector
+from skellytracker.core.detectors import (
+    KEYPOINT_DETECTOR_REGISTRY,
+    OBJECT_DETECTOR_REGISTRY,
+    KeypointDetector,
+    ObjectDetector,
+    build_keypoint_detector,
+    build_object_detector,
+)
 from skellytracker.core.observation import Observation, StageObservation
 from skellytracker.core.session import Session
-from skellytracker.core.tracker.tracker import Tracker
-from skellytracker.core.tracker.tracker_state import (
+from skellytracker.core.tracker import (
     BBoxSmoothingState,
+    DetectionStage,
     KeypointSmoothingState,
     StageState,
+    Tracker,
     TrackerState,
 )
 
 __all__ = [
     "Annotator",
-    "BoundingBox",
     "BBoxSmoothingState",
+    "BoundingBox",
+    "build_keypoint_detector",
+    "build_object_detector",
     "DataStore",
     "DetectionStage",
+    "DetectionStageConfig",
+    "KEYPOINT_DETECTOR_REGISTRY",
     "KeypointDetector",
+    "KeypointDetectorConfig",
     "KeypointSmoothingState",
     "Keypoints",
+    "OBJECT_DETECTOR_REGISTRY",
     "ObjectDetector",
+    "ObjectDetectorConfig",
     "Observation",
     "Session",
+    "SessionConfig",
     "StageObservation",
     "StageState",
     "Tracker",
+    "TrackerConfig",
     "TrackerState",
 ]

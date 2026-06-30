@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
+from skellytracker.core.config.session_config import SessionConfig
+
 
 @dataclass
 class Session(ABC):
@@ -14,7 +16,7 @@ class Session(ABC):
 
     @classmethod
     @abstractmethod
-    def create(cls, config: object) -> Session:
+    def create(cls, config: SessionConfig) -> Session:
         """Allocate resources: load models, select device, run warmup."""
         ...
 

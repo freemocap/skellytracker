@@ -5,9 +5,16 @@ from dataclasses import dataclass, field
 from numpy.typing import NDArray
 import numpy as np
 
+from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.data_primitives import BoundingBox, Keypoints
-from skellytracker.core.detectors.detector_base_classes import KeypointDetector, ObjectDetector
+from skellytracker.core.detectors.detector_base_classes import (
+    KeypointDetector,
+    ObjectDetector,
+    build_keypoint_detector,
+    build_object_detector,
+)
 from skellytracker.core.observation import StageObservation
+from skellytracker.core.session import Session
 from skellytracker.core.tracker.tracker_state import StageState
 
 
@@ -55,7 +62,7 @@ class DetectionStage:
         # 2. Keypoint detection — merge multiple detectors into one Keypoints
         all_keypoints: list[Keypoints] = []
         updated_kp_states: list = []
-        for detector, kp_state in zip(self.keypoint_detectors, state.keypoint_states):
+        for detector, kp_state in zip(self.keypoint_detectors, state.keypoint_states, strict=False):
             crop = bbox.to_crop(image) if bbox is not None else image
             kpts = detector.detect(crop, bbox)
             all_keypoints.append(kpts)
@@ -85,3 +92,30 @@ class DetectionStage:
             child_states=updated_child_states,
         )
         return obs, updated_state
+
+    @classmethod
+    def create(
+        cls,
+        config: DetectionStageConfig,
+        sessions: dict[str, Session],
+    ) -> DetectionStage:
+        """Build a DetectionStage and its full subtree from config."""
+        object_detector = (
+            build_object_detector(config.object_detector, sessions)
+            if config.object_detector is not None
+            else None
+        )
+        keypoint_detectors = [
+            build_keypoint_detector(kp_cfg, sessions)
+            for kp_cfg in config.keypoint_detectors
+        ]
+        children = [
+            DetectionStage.create(child_cfg, sessions)
+            for child_cfg in config.children
+        ]
+        return cls(
+            name=config.name,
+            object_detector=object_detector,
+            keypoint_detectors=keypoint_detectors,
+            children=children,
+        )
