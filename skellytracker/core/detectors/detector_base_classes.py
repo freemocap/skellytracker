@@ -1,0 +1,57 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+
+from numpy.typing import NDArray
+import numpy as np
+
+from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.session import Session
+
+
+@dataclass
+class ObjectDetector(ABC):
+    """Detects objects in an image and returns bounding boxes.
+
+    Stateless between calls — all temporal state lives in TrackerState.
+    Does not own GPU resources; receives a Session at construction time.
+    """
+
+    session: Session
+
+    @abstractmethod
+    def detect(self, image: NDArray[np.uint8]) -> list[BoundingBox]:
+        """Run detection on an image and return zero or more bounding boxes."""
+        ...
+
+    @classmethod
+    @abstractmethod
+    def create(cls, config: object, session: Session) -> ObjectDetector:
+        ...
+
+
+@dataclass
+class KeypointDetector(ABC):
+    """Estimates keypoints on a (cropped) image.
+
+    Stateless between calls — all temporal state lives in TrackerState.
+    Does not own GPU resources; receives a Session at construction time.
+    Point names and ordering are defined by a YAML-defined schema.
+    """
+
+    session: Session
+
+    @abstractmethod
+    def detect(
+        self,
+        image: NDArray[np.uint8],
+        bbox: BoundingBox | None = None,
+    ) -> Keypoints:
+        """Run keypoint estimation and return named points with visibility scores."""
+        ...
+
+    @classmethod
+    @abstractmethod
+    def create(cls, config: object, session: Session) -> KeypointDetector:
+        ...
