@@ -7,8 +7,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from skellytracker.core.annotation.annotator import Annotator
+from skellytracker.core.data_primitives import BoundingBox, Keypoints
 from skellytracker.core.observation import Observation, StageObservation
-from skellytracker.core.data_primitives import Keypoints
 
 
 @dataclass
@@ -19,6 +19,9 @@ class StageAnnotationSchema:
     connection_color: tuple[int, int, int] = (0, 200, 0)
     keypoint_radius: int = 4
     connection_thickness: int = 2
+    draw_boxes: bool = False
+    box_color: tuple[int, int, int] = (0, 200, 255)
+    box_thickness: int = 2
 
 
 @dataclass
@@ -57,8 +60,10 @@ class KeypointAnnotator(Annotator):
         stages: dict[str, StageObservation],
     ) -> None:
         for stage_obs in stages.values():
+            schema = self.config.stage_schemas.get(stage_obs.name)
+            if schema is not None and schema.draw_boxes and stage_obs.bounding_boxes:
+                self._draw_boxes(image, stage_obs.bounding_boxes, schema)
             if stage_obs.keypoints is not None:
-                schema = self.config.stage_schemas.get(stage_obs.name)
                 self._draw_stage(image, stage_obs.keypoints, schema)
             if stage_obs.children:
                 self._annotate_stages(image, stage_obs.children)
@@ -112,6 +117,21 @@ class KeypointAnnotator(Annotator):
             if np.isnan(pt).any():
                 continue
             cv2.circle(image, (int(pt[0]), int(pt[1])), radius, kp_color, -1)
+
+    def _draw_boxes(
+        self,
+        image: NDArray[np.uint8],
+        boxes: list[BoundingBox],
+        schema: StageAnnotationSchema,
+    ) -> None:
+        for box in boxes:
+            x1, y1 = int(box.x1), int(box.y1)
+            x2, y2 = int(box.x2), int(box.y2)
+            cv2.rectangle(image, (x1, y1), (x2, y2), schema.box_color, schema.box_thickness)
+            label = f"{box.confidence:.2f}"
+            (tw, th), _ = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+            cv2.rectangle(image, (x1, y1 - th - 6), (x1 + tw + 4, y1), schema.box_color, -1)
+            cv2.putText(image, label, (x1 + 2, y1 - 4), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 1)
 
     @classmethod
     def create(cls, config: object) -> KeypointAnnotator:

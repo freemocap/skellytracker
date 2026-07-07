@@ -10,13 +10,11 @@ for now. When TRT is needed, callers can enable it via provider="trt".
 
 import ctypes
 import logging
-import os
 import sys
 import time
 from pathlib import Path
 from typing import Any, Literal
 
-import numpy as np
 import onnx
 import onnxruntime as ort
 from numpy.typing import NDArray
@@ -78,8 +76,8 @@ def _print_device_survey(
 
     ws = [id_w, name_w, total_w, free_w, status_w]
 
-    def _rule(l, mi, r):
-        return "  " + l + mi.join("═" * w for w in ws) + r
+    def _rule(left, mi, r):
+        return "  " + left + mi.join("═" * w for w in ws) + r
 
     top   = _rule("╔", "╦", "╗")
     mid   = _rule("╠", "╬", "╣")
@@ -257,7 +255,7 @@ def cuda_device_total_bytes(device_id: int) -> int | None:
 
 # Re-exported from a backend-free module so consumers (configs, etc.) can import
 # the type without pulling onnxruntime into their import graph.
-from skellytracker.trackers.old.utilities.gpu_utils.execution_provider_name import ExecutionProviderName
+from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName  # noqa: E402
 
 
 # =============================================================================
@@ -438,6 +436,7 @@ def build_tuned_ort_session(
     trt_set_batch_profile: bool = False,
     gpu_mem_limit: int = 2 * 1024 * 1024 * 1024,
     device_id: int = 0,
+    coreml_options: dict | None = None,
 ) -> ort.InferenceSession:
     """Construct an ORT session with explicit SessionOptions + provider options.
 
@@ -498,7 +497,10 @@ def build_tuned_ort_session(
         # CoreML EP uses Metal on Apple Silicon. Dynamic batch dims crash CoreML
         # (SIGSEGV), so callers must use batch_size=1 (RTMPoseSession enforces
         # this via supports_batching=False). fp16 is also unsupported by CoreML.
-        providers.append("CoreMLExecutionProvider")
+        if coreml_options:
+            providers.append(("CoreMLExecutionProvider", coreml_options))
+        else:
+            providers.append("CoreMLExecutionProvider")
         providers.append("CPUExecutionProvider")
     else:
         providers.append("CPUExecutionProvider")

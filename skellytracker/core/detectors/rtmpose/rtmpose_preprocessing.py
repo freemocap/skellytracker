@@ -1,112 +1,70 @@
-"""Vendored preprocessing functions originally from rtmlib.
+"""RTMPose-specific preprocessing and postprocessing.
 
-Extracted from ``rtmlib/tools/pose_estimation/rtmo.py`` and
-``rtmlib/tools/pose_estimation/rtmpose.py`` (plus the affine helpers in
-``rtmlib/tools/pose_estimation/pre_processings.py``).
-
-All functions are free functions — no rtmlib class dependencies.
+Vendored from rtmlib (``tools/pose_estimation/rtmpose.py`` and
+``tools/pose_estimation/pre_processings.py``).  All functions are free
+functions — no rtmlib class dependencies.
 """
 
 from __future__ import annotations
-
-from typing import Tuple
 
 import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from skellytracker.trackers.old.utilities.gpu_utils.rtm_postprocessing import (
-    get_simcc_maximum,
-    multiclass_nms,
-)
 
 # ==========================================================================
-# RTMO (one-stage body) preprocessing / postprocessing
+# SIMCC decoding
 # ==========================================================================
 
 
-def rtmo_preprocess(
-    img: NDArray[np.uint8],
-    model_input_size: tuple[int, int],
-    mean: tuple[float, float, float] | None = None,
-    std: tuple[float, float, float] | None = None,
-) -> tuple[NDArray, float]:
-    """Letterbox + normalise for RTMO one-stage body model.
-
-    Parameters
-    ----------
-    img : np.ndarray  H×W×3 BGR uint8
-    model_input_size : (H, W)  e.g. (640, 640)
-    mean : optional BGR mean for normalisation.
-    std : optional BGR std for normalisation.
-
-    Returns
-    -------
-    padded_img : np.ndarray  (H, W, 3) float32
-    ratio : float  scale factor (original → model input space).
-    """
-    th, tw = model_input_size
-    padded_img = np.full((th, tw, 3), 114, dtype=np.float32)
-
-    ratio = min(th / img.shape[0], tw / img.shape[1])
-    nw, nh = int(img.shape[1] * ratio), int(img.shape[0] * ratio)
-    resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR).astype(np.float32)
-    padded_img[:nh, :nw] = resized
-
-    if mean is not None and std is not None:
-        padded_img = (padded_img - np.array(mean, dtype=np.float32)) / np.array(
-            std, dtype=np.float32
-        )
-
-    return padded_img, ratio
+def _stable_softmax(x: NDArray) -> NDArray:
+    x_max = np.max(x, axis=-1, keepdims=True)
+    e_x = np.exp(x - x_max)
+    return e_x / np.sum(e_x, axis=-1, keepdims=True)
 
 
-def rtmo_postprocess(
-    outputs: list[NDArray],
-    ratio: float = 1.0,
-    nms_thr: float = 0.45,
-    score_thr: float = 0.7,
+def get_simcc_maximum(
+    simcc_x: NDArray,
+    simcc_y: NDArray,
 ) -> tuple[NDArray, NDArray]:
-    """Decode RTMO model outputs → keypoints + scores.
+    """Decode SIMCC heatmaps to (x, y) coordinates with confidence scores.
+
+    Applies softmax to raw logits, then returns the peak probability as
+    confidence.  Value is in [0, 1]: higher = more mass concentrated in
+    the winning bin.  A uniform distribution over N bins gives ~1/N.
 
     Parameters
     ----------
-    outputs : [det_outputs, pose_outputs] from ONNX session.run()
-        det_outputs  — (1, N_det, 5)  [x1, y1, x2, y2, score]
-        pose_outputs — (1, N_det, K, 3)  [x, y, score]
-    ratio : letterbox scale factor.
-    nms_thr : NMS IoU threshold.
-    score_thr : NMS score threshold.
+    simcc_x : np.ndarray  shape (N, K, Wx) — raw SIMCC logits for x-axis.
+    simcc_y : np.ndarray  shape (N, K, Wy) — raw SIMCC logits for y-axis.
 
     Returns
     -------
-    keypoints : np.ndarray  (M, 17, 2)
-    scores : np.ndarray     (M, 17)
+    locs : np.ndarray  shape (N, K, 2)  x/y keypoint coordinates.
+    vals : np.ndarray  shape (N, K)     confidence = average peak softmax
+                                        probability across x and y axes.
     """
-    det_outputs, pose_outputs = outputs
+    N, K, Wx = simcc_x.shape
+    simcc_x = simcc_x.reshape(N * K, -1)
+    simcc_y = simcc_y.reshape(N * K, -1)
 
-    final_boxes = det_outputs[0, :, :4]
-    final_scores = det_outputs[0, :, 4]
-    final_boxes = final_boxes / ratio
+    px = _stable_softmax(simcc_x)
+    py = _stable_softmax(simcc_y)
 
-    keypoints = pose_outputs[0, :, :, :2]
-    scores = pose_outputs[0, :, :, 2]
-    keypoints = keypoints / ratio
+    x_locs = np.argmax(px, axis=1)
+    y_locs = np.argmax(py, axis=1)
+    locs = np.stack((x_locs, y_locs), axis=-1).astype(np.float32)
 
-    dets, keep = multiclass_nms(
-        final_boxes,
-        final_scores[:, np.newaxis],
-        nms_thr=nms_thr,
-        score_thr=score_thr,
-    )
-    if keep is not None:
-        keypoints = keypoints[keep]
-        scores = scores[keep]
-    else:
-        keypoints = np.expand_dims(np.zeros_like(keypoints[0]), axis=0)
-        scores = np.expand_dims(np.zeros_like(scores[0]), axis=0)
+    max_px = np.amax(px, axis=1)
+    max_py = np.amax(py, axis=1)
 
-    return keypoints, scores
+    vals = 0.5 * (max_px + max_py)
+    locs[vals <= 0.0] = -1
+
+    locs = locs.reshape(N, K, 2)
+    vals = vals.reshape(N, K)
+
+    return locs, vals
 
 
 # ==========================================================================
@@ -203,31 +161,6 @@ def top_down_affine(
     img_out = cv2.warpAffine(img, warp_mat, warp_size, flags=cv2.INTER_LINEAR)
 
     return img_out, bbox_scale
-
-
-# ==========================================================================
-# YOLOX detection preprocessing
-# ==========================================================================
-
-
-def yolox_letterbox_preprocess(
-    img: NDArray[np.uint8],
-    model_input_size: tuple[int, int],
-) -> tuple[NDArray, float]:
-    """YOLOX letterbox — resize to fit, pad with gray, no normalisation.
-
-    Returns ``(padded_img, ratio)`` where *padded_img* is uint8 (not float32
-    — the YOLOX ONNX graph handles input normalisation internally).
-    """
-    th, tw = model_input_size
-    padded_img = np.full((th, tw, 3), 114, dtype=np.uint8)
-
-    ratio = min(th / img.shape[0], tw / img.shape[1])
-    nw, nh = int(img.shape[1] * ratio), int(img.shape[0] * ratio)
-    resized = cv2.resize(img, (nw, nh), interpolation=cv2.INTER_LINEAR).astype(np.uint8)
-    padded_img[:nh, :nw] = resized
-
-    return padded_img, ratio
 
 
 # ==========================================================================
