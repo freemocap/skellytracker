@@ -1,4 +1,4 @@
-from skellytracker.core.annotator import Annotator
+from skellytracker.core.annotation.annotator import Annotator
 from skellytracker.core.config import (
     DetectionStageConfig,
     KeypointDetectorConfig,
@@ -17,7 +17,7 @@ from skellytracker.core.detectors import (
     build_object_detector,
 )
 from skellytracker.core.observation import Observation, StageObservation
-from skellytracker.core.session import Session
+from skellytracker.core.sessions.session import Session
 from skellytracker.core.tracker import (
     BBoxSmoothingState,
     DetectionStage,

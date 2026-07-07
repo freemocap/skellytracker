@@ -7,6 +7,7 @@ import numpy as np
 
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KeypointDetector,
     ObjectDetector,
@@ -14,8 +15,8 @@ from skellytracker.core.detectors.detector_base_classes import (
     build_object_detector,
 )
 from skellytracker.core.observation import StageObservation
-from skellytracker.core.session import Session
-from skellytracker.core.tracker.tracker_state import StageState
+from skellytracker.core.sessions.session import Session
+from skellytracker.core.tracker.tracker_state import KeypointSmoothingState, StageState
 
 
 @dataclass
@@ -38,6 +39,7 @@ class DetectionStage:
         image: NDArray[np.uint8],
         state: StageState,
         parent_keypoints: Keypoints | None = None,
+        context: DetectionContext | None = None,
     ) -> tuple[StageObservation, StageState]:
         """Run this stage and all child stages.
 
@@ -52,7 +54,7 @@ class DetectionStage:
         """
         # 1. Object detection
         if self.object_detector is not None:
-            bboxes = self.object_detector.detect(image)
+            bboxes = self.object_detector.detect(image, context)
         else:
             h, w = image.shape[:2]
             bboxes = [BoundingBox.full_image(h, w)]
@@ -62,9 +64,14 @@ class DetectionStage:
         # 2. Keypoint detection — merge multiple detectors into one Keypoints
         all_keypoints: list[Keypoints] = []
         updated_kp_states: list = []
-        for detector, kp_state in zip(self.keypoint_detectors, state.keypoint_states, strict=False):
+        for i, detector in enumerate(self.keypoint_detectors):
+            kp_state = (
+                state.keypoint_states[i]
+                if i < len(state.keypoint_states)
+                else KeypointSmoothingState()
+            )
             crop = bbox.to_crop(image) if bbox is not None else image
-            kpts = detector.detect(crop, bbox)
+            kpts = detector.detect(crop, bbox, context)
             all_keypoints.append(kpts)
             updated_kp_states.append(kp_state)
 
@@ -76,7 +83,7 @@ class DetectionStage:
         for child in self.children:
             child_state = state.child_states.get(child.name, StageState())
             crop = bbox.to_crop(image) if bbox is not None else image
-            child_obs, child_state = child.run(crop, child_state, parent_keypoints=merged)
+            child_obs, child_state = child.run(crop, child_state, parent_keypoints=merged, context=context)
             child_observations[child.name] = child_obs
             updated_child_states[child.name] = child_state
 
@@ -92,6 +99,15 @@ class DetectionStage:
             child_states=updated_child_states,
         )
         return obs, updated_state
+
+    def close(self) -> None:
+        """Release resources owned by all detectors in this stage and its children."""
+        if self.object_detector is not None:
+            self.object_detector.close()
+        for detector in self.keypoint_detectors:
+            detector.close()
+        for child in self.children:
+            child.close()
 
     @classmethod
     def create(

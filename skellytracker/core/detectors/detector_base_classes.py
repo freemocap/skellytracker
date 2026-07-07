@@ -11,7 +11,8 @@ from skellytracker.core.config.detector_configs import (
     ObjectDetectorConfig,
 )
 from skellytracker.core.data_primitives import BoundingBox, Keypoints
-from skellytracker.core.session import Session
+from skellytracker.core.detectors.detection_context import DetectionContext
+from skellytracker.core.sessions.session import Session
 
 
 @dataclass
@@ -19,14 +20,18 @@ class ObjectDetector(ABC):
     """Detects objects in an image and returns bounding boxes.
 
     Stateless between calls — all temporal state lives in TrackerState.
-    Does not own GPU resources; receives a Session at construction time.
+    Receives a Session at construction time for shared device context.
     """
 
     config: ObjectDetectorConfig
     session: Session
 
     @abstractmethod
-    def detect(self, image: NDArray[np.uint8]) -> list[BoundingBox]:
+    def detect(
+        self,
+        image: NDArray[np.uint8],
+        context: DetectionContext | None = None,
+    ) -> list[BoundingBox]:
         """Run detection on an image and return zero or more bounding boxes."""
         ...
 
@@ -35,13 +40,21 @@ class ObjectDetector(ABC):
     def create(cls, config: ObjectDetectorConfig, session: Session) -> ObjectDetector:
         ...
 
+    def close(self) -> None:
+        """Release any resources owned by this detector. Override if needed."""
+
+    @classmethod
+    def connections(cls) -> tuple[tuple[str, str], ...]:
+        """Return skeleton connection pairs as (name_a, name_b) tuples for annotation."""
+        return ()
+
 
 @dataclass
 class KeypointDetector(ABC):
     """Estimates keypoints on a (cropped) image.
 
     Stateless between calls — all temporal state lives in TrackerState.
-    Does not own GPU resources; receives a Session at construction time.
+    Receives a Session at construction time for shared device context.
     Point names and ordering are defined by a YAML-defined schema.
     """
 
@@ -53,6 +66,7 @@ class KeypointDetector(ABC):
         self,
         image: NDArray[np.uint8],
         bbox: BoundingBox | None = None,
+        context: DetectionContext | None = None,
     ) -> Keypoints:
         """Run keypoint estimation and return named points with visibility scores."""
         ...
@@ -61,6 +75,14 @@ class KeypointDetector(ABC):
     @abstractmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> KeypointDetector:
         ...
+
+    def close(self) -> None:
+        """Release any resources owned by this detector. Override if needed."""
+
+    @classmethod
+    def connections(cls) -> tuple[tuple[str, str], ...]:
+        """Return skeleton connection pairs as (name_a, name_b) tuples for annotation."""
+        return ()
 
 
 OBJECT_DETECTOR_REGISTRY: dict[str, type[ObjectDetector]] = {}
