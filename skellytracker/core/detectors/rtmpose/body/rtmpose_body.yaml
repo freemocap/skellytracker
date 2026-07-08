@@ -1,9 +1,9 @@
 ---
-# RTMPose COCO133 body tracked points and skeleton connections.
-# 23 landmarks (COCO17 + 6 foot keypoints).
+# RTMPose body tracked points and skeleton connections.
+# 17 landmarks (COCO17). Models: rtmpose-s/m_simcc-body7.
 name: rtmpose_body
 tracker_type: rtmpose
-landmark_schema: COCO_WholeBody
+landmark_schema: COCO17
 
 tracked_points:
   - nose
@@ -23,12 +23,6 @@ tracked_points:
   - right_knee
   - left_ankle
   - right_ankle
-  - left_big_toe
-  - left_small_toe
-  - left_heel
-  - right_big_toe
-  - right_small_toe
-  - right_heel
 
 connections:
   # face
@@ -36,7 +30,6 @@ connections:
   - [nose, right_eye]
   - [left_eye, left_ear]
   - [right_eye, right_ear]
-  - [left_ear, right_ear]
   # shoulder girdle
   - [left_shoulder, right_shoulder]
   # left arm
@@ -55,13 +48,3 @@ connections:
   # right leg
   - [right_hip, right_knee]
   - [right_knee, right_ankle]
-  # left foot
-  - [left_ankle, left_heel]
-  - [left_heel, left_big_toe]
-  - [left_ankle, left_big_toe]
-  - [left_ankle, left_small_toe]
-  # right foot
-  - [right_ankle, right_heel]
-  - [right_heel, right_big_toe]
-  - [right_ankle, right_big_toe]
-  - [right_ankle, right_small_toe]
