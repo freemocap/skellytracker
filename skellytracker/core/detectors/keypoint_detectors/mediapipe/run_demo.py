@@ -1,9 +1,9 @@
 """Run a live mediapipe pose/hand/face demo from a webcam.
 
 Usage:
-    uv run python -m skellytracker.core.detectors.mediapipe.run_demo
-    uv run python -m skellytracker.core.detectors.mediapipe.run_demo --camera 1
-    uv run python -m skellytracker.core.detectors.mediapipe.run_demo --no-hands --no-face
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.mediapipe.run_demo
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.mediapipe.run_demo --camera 1
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.mediapipe.run_demo --no-hands --no-face
 """
 from __future__ import annotations
 
@@ -18,10 +18,10 @@ from skellytracker.core.annotation.keypoint_annotator import (
     StageAnnotationSchema,
 )
 from skellytracker.core.tracker.tracker import Tracker
-from skellytracker.core.detectors.mediapipe.face.mediapipe_face_detector import MediapipeFaceDetectorConfig, MediapipeFaceKeypointDetector
-from skellytracker.core.detectors.mediapipe.hands.mediapipe_hand_detector import MediapipeHandDetectorConfig, MediapipeHandKeypointDetector
-from skellytracker.core.detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
-from skellytracker.core.detectors.mediapipe.body.mediapipe_pose_detector import MediapipePoseDetectorConfig, MediapipePoseKeypointDetector
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.face.mediapipe_face_detector import MediapipeFaceDetectorConfig, MediapipeFaceKeypointDetector
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import MediapipeHandDetectorConfig, MediapipeHandKeypointDetector
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.body.mediapipe_pose_detector import MediapipePoseDetectorConfig, MediapipePoseKeypointDetector
 from skellytracker.core.sessions.mediapipe_session import (
     MediaPipeSession,
     MediaPipeSessionConfig,

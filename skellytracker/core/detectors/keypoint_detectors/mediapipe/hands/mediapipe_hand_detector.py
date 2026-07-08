@@ -17,8 +17,8 @@ from skellytracker.core.detectors.detector_base_classes import (
     KeypointDetector,
 )
 from skellytracker.core.sessions.session import Session
-from skellytracker.core.detectors.mediapipe._schema_loader import load_point_names
-from skellytracker.core.detectors.mediapipe.mediapipe_model_manager import get_hand_model_path
+from skellytracker.core.detectors.keypoint_detectors.mediapipe._schema_loader import load_point_names
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import get_hand_model_path
 from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
 
 _HAND_POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_hand.yaml")
@@ -109,7 +109,7 @@ class MediapipeHandKeypointDetector(KeypointDetector):
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
-        from skellytracker.core.detectors.mediapipe._schema_loader import load_connections
+        from skellytracker.core.detectors.keypoint_detectors.mediapipe._schema_loader import load_connections
         raw = load_connections(Path(__file__).parent / "mediapipe_hand.yaml")
         right = tuple((f"right_hand_{a}", f"right_hand_{b}") for a, b in raw)
         left = tuple((f"left_hand_{a}", f"left_hand_{b}") for a, b in raw)

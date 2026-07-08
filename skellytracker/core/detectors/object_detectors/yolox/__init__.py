@@ -1,4 +1,4 @@
-from skellytracker.core.detectors.yolox.yolox_person_detector import (
+from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
     YOLOX_MODEL_SPECS,

@@ -9,11 +9,11 @@ from skellytracker.core.detectors.detector_base_classes import (
 
 # Register concrete detector implementations here:
 #
-#   from skellytracker.core.detectors.yolo_detector import YOLODetector
-#   OBJECT_DETECTOR_REGISTRY["yolo"] = YOLODetector
+#   from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetector
+#   OBJECT_DETECTOR_REGISTRY["yolox_person"] = YoloxPersonDetector
 #
-#   from skellytracker.core.detectors.rtmpose_detector import RTMPoseDetector
-#   KEYPOINT_DETECTOR_REGISTRY["rtmpose"] = RTMPoseDetector
+#   from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseKeypointDetector
+#   KEYPOINT_DETECTOR_REGISTRY["rtmpose"] = RTMPoseKeypointDetector
 
 __all__ = [
     "build_keypoint_detector",

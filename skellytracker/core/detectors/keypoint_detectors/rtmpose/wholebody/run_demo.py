@@ -2,17 +2,17 @@
 
 Usage::
 
-    uv run python -m skellytracker.core.detectors.rtmpose.wholebody.run_demo
-    uv run python -m skellytracker.core.detectors.rtmpose.wholebody.run_demo --camera 1
-    uv run python -m skellytracker.core.detectors.rtmpose.wholebody.run_demo --model rtmw-x-l_384x288
-    uv run python -m skellytracker.core.detectors.rtmpose.wholebody.run_demo --provider cpu
-    uv run python -m skellytracker.core.detectors.rtmpose.wholebody.run_demo --no-detector
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.run_demo
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.run_demo --camera 1
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.run_demo --model rtmw-x-l_384x288
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.run_demo --provider cpu
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.run_demo --no-detector
 """
 from __future__ import annotations
 
 import argparse
 
-from skellytracker.core.detectors.rtmpose.run_demo import build_rtmpose_demo
+from skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo import build_rtmpose_demo
 
 
 def main() -> None:

@@ -17,8 +17,8 @@ from skellytracker.core.detectors.detector_base_classes import (
     KeypointDetector,
 )
 from skellytracker.core.sessions.session import Session
-from skellytracker.core.detectors.mediapipe._schema_loader import load_point_names
-from skellytracker.core.detectors.mediapipe.mediapipe_model_manager import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe._schema_loader import load_point_names
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
     MediapipePoseModelComplexity,
     get_pose_model_path,
 )
@@ -93,7 +93,7 @@ class MediapipePoseKeypointDetector(KeypointDetector):
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
-        from skellytracker.core.detectors.mediapipe._schema_loader import load_connections
+        from skellytracker.core.detectors.keypoint_detectors.mediapipe._schema_loader import load_connections
         return load_connections(Path(__file__).parent / "mediapipe_body.yaml")
 
     @classmethod

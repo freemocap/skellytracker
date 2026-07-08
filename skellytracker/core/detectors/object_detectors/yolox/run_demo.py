@@ -5,11 +5,11 @@ Models are downloaded automatically on first run (~200 MB).
 
 Usage::
 
-    uv run python -m skellytracker.core.detectors.yolox.run_demo
-    uv run python -m skellytracker.core.detectors.yolox.run_demo --camera 1
-    uv run python -m skellytracker.core.detectors.yolox.run_demo --model yolox-tiny
-    uv run python -m skellytracker.core.detectors.yolox.run_demo --provider cpu
-    uv run python -m skellytracker.core.detectors.yolox.run_demo --max-detections 5
+    uv run python -m skellytracker.core.detectors.object_detectors.yolox.run_demo
+    uv run python -m skellytracker.core.detectors.object_detectors.yolox.run_demo --camera 1
+    uv run python -m skellytracker.core.detectors.object_detectors.yolox.run_demo --model yolox-tiny
+    uv run python -m skellytracker.core.detectors.object_detectors.yolox.run_demo --provider cpu
+    uv run python -m skellytracker.core.detectors.object_detectors.yolox.run_demo --max-detections 5
 """
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from skellytracker.core.annotation.keypoint_annotator import (
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.demo_manager import DemoManager
-from skellytracker.core.detectors.yolox.yolox_person_detector import (
+from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )

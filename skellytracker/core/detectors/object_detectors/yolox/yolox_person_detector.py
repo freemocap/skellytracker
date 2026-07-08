@@ -29,8 +29,8 @@ from skellytracker.core.detectors.detector_base_classes import (
     OBJECT_DETECTOR_REGISTRY,
     ObjectDetector,
 )
-from skellytracker.core.detectors.yolox._yolox_dynamic_batch import ensure_dynamic_batch, ensure_prenms_for_coreml
-from skellytracker.core.detectors.yolox.yolox_preprocessing import multiclass_nms, yolox_letterbox_preprocess
+from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import ensure_dynamic_batch, ensure_prenms_for_coreml
+from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import multiclass_nms, yolox_letterbox_preprocess
 from skellytracker.core.sessions.model_registry import ModelSource
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
 from skellytracker.core.sessions.session import Session

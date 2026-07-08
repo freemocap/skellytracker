@@ -4,7 +4,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-import skellytracker.core.detectors.mediapipe  # noqa: F401 — triggers registry side-effects
+import skellytracker.core.detectors.keypoint_detectors.mediapipe  # noqa: F401 — triggers registry side-effects
 from skellytracker.core import (
     KEYPOINT_DETECTOR_REGISTRY,
     DetectionStageConfig,
@@ -12,7 +12,7 @@ from skellytracker.core import (
     TrackerConfig,
     TrackerState,
 )
-from skellytracker.core.detectors.mediapipe import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe import (
     MediapipeFaceDetectorConfig,
     MediapipeFaceKeypointDetector,
     MediapipeHandDetectorConfig,

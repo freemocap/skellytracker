@@ -1,18 +1,18 @@
-from skellytracker.core.detectors.mediapipe.face import mediapipe_face_detector
-from skellytracker.core.detectors.mediapipe.hands import mediapipe_hand_detector
-from skellytracker.core.detectors.mediapipe.body import mediapipe_pose_detector
-from skellytracker.core.detectors.mediapipe.face.mediapipe_face_detector import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.face import mediapipe_face_detector
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands import mediapipe_hand_detector
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.body import mediapipe_pose_detector
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.face.mediapipe_face_detector import (
     MediapipeFaceDetectorConfig,
     MediapipeFaceKeypointDetector,
 )
-from skellytracker.core.detectors.mediapipe.hands.mediapipe_hand_detector import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import (
     MediapipeHandDetectorConfig,
     MediapipeHandKeypointDetector,
 )
-from skellytracker.core.detectors.mediapipe.mediapipe_model_manager import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
     MediapipePoseModelComplexity,
 )
-from skellytracker.core.detectors.mediapipe.body.mediapipe_pose_detector import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.body.mediapipe_pose_detector import (
     MediapipePoseDetectorConfig,
     MediapipePoseKeypointDetector,
 )

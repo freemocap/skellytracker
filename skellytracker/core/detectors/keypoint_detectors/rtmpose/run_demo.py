@@ -5,11 +5,11 @@ Models are downloaded automatically on first run (~100–200 MB).
 
 Usage::
 
-    uv run python -m skellytracker.core.detectors.rtmpose.run_demo
-    uv run python -m skellytracker.core.detectors.rtmpose.run_demo --camera 1
-    uv run python -m skellytracker.core.detectors.rtmpose.run_demo --model rtmw-x-l_384x288
-    uv run python -m skellytracker.core.detectors.rtmpose.run_demo --provider cpu
-    uv run python -m skellytracker.core.detectors.rtmpose.run_demo --no-detector
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --camera 1
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --model rtmw-x-l_384x288
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --provider cpu
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --no-detector
 """
 from __future__ import annotations
 
@@ -23,11 +23,11 @@ from skellytracker.core.annotation.keypoint_annotator import (
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.demo_manager import DemoManager
-from skellytracker.core.detectors.rtmpose.rtmpose_keypoint_detector import (
+from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_keypoint_detector import (
     RTMPoseDetectorConfig,
     RTMPoseKeypointDetector,
 )
-from skellytracker.core.detectors.yolox.yolox_person_detector import (
+from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )

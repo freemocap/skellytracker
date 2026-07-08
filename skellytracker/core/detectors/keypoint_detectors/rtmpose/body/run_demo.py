@@ -2,11 +2,11 @@
 
 Usage::
 
-    uv run python -m skellytracker.core.detectors.rtmpose.body.run_demo
-    uv run python -m skellytracker.core.detectors.rtmpose.body.run_demo --camera 1
-    uv run python -m skellytracker.core.detectors.rtmpose.body.run_demo --model rtmpose-s_256x192
-    uv run python -m skellytracker.core.detectors.rtmpose.body.run_demo --provider cpu
-    uv run python -m skellytracker.core.detectors.rtmpose.body.run_demo --no-detector
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.body.run_demo
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.body.run_demo --camera 1
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.body.run_demo --model rtmpose-s_256x192
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.body.run_demo --provider cpu
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.body.run_demo --no-detector
 """
 from __future__ import annotations
 
@@ -20,11 +20,11 @@ from skellytracker.core.annotation.keypoint_annotator import (
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.demo_manager import DemoManager
-from skellytracker.core.detectors.rtmpose.body.rtmpose_body_detector import (
+from skellytracker.core.detectors.keypoint_detectors.rtmpose.body.rtmpose_body_detector import (
     RTMPoseBodyDetector,
     RTMPoseBodyDetectorConfig,
 )
-from skellytracker.core.detectors.yolox.yolox_person_detector import (
+from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )

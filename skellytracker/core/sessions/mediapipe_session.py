@@ -7,7 +7,7 @@ from typing import Any, Literal
 
 from skellytracker.core.config.session_config import SessionConfig
 from skellytracker.core.sessions.session import Session
-from skellytracker.core.detectors.mediapipe.mediapipe_model_manager import (
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
     MediapipePoseModelComplexity,
     get_pose_model_path,
 )

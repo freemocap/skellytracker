@@ -10,8 +10,8 @@ import pytest
 
 ort = pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
 
-import skellytracker.core.detectors.yolox  # noqa: F401, E402
-import skellytracker.core.detectors.rtmpose  # noqa: F401, E402
+import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401, E402
+import skellytracker.core.detectors.keypoint_detectors.rtmpose  # noqa: F401, E402
 
 from skellytracker.core import (  # noqa: E402
     KEYPOINT_DETECTOR_REGISTRY,
@@ -21,11 +21,11 @@ from skellytracker.core import (  # noqa: E402
     TrackerConfig,
     TrackerState,
 )
-from skellytracker.core.detectors.yolox import (  # noqa: E402
+from skellytracker.core.detectors.object_detectors.yolox import (  # noqa: E402
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )
-from skellytracker.core.detectors.rtmpose import (  # noqa: E402
+from skellytracker.core.detectors.keypoint_detectors.rtmpose import (  # noqa: E402
     RTMPoseDetectorConfig,
     RTMPoseKeypointDetector,
 )
