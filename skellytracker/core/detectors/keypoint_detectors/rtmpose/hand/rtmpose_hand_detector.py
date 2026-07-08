@@ -23,7 +23,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
     KeypointDetector,
 )
-from skellytracker.core.detectors.keypoint_detectors.rtmpose._schema_loader import load_connections, load_point_names
+from skellytracker.core.detectors.keypoint_detectors._schema_loader import load_connections, load_point_names
 from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_preprocessing import (
     rtmpose_letterbox_postprocess,
     rtmpose_letterbox_preprocess,
