@@ -12,9 +12,18 @@ from skellytracker.core.observation import Observation, StageObservation
 
 
 @dataclass
+class ConnectionGroupSchema:
+    """A named subset of connections drawn in a single color."""
+    connections: tuple[tuple[str, str], ...]
+    connection_color: tuple[int, int, int]
+    connection_thickness: int = 2
+    keypoint_color: tuple[int, int, int] | None = None  # None = fall back to stage default
+
+
+@dataclass
 class StageAnnotationSchema:
     """Visual schema for one stage: connections between named points and color."""
-    connections: tuple[tuple[str, str], ...]  # name pairs from YAML
+    connections: tuple[tuple[str, str], ...] = ()  # name pairs from YAML
     keypoint_color: tuple[int, int, int] = (0, 255, 0)
     connection_color: tuple[int, int, int] = (0, 200, 0)
     keypoint_radius: int = 4
@@ -22,6 +31,7 @@ class StageAnnotationSchema:
     draw_boxes: bool = False
     box_color: tuple[int, int, int] = (0, 200, 255)
     box_thickness: int = 2
+    connection_groups: tuple[ConnectionGroupSchema, ...] = ()
 
 
 @dataclass
@@ -89,34 +99,57 @@ class KeypointAnnotator(Annotator):
             thickness = self.config.connection_thickness
             connections = ()
 
-        # Draw connections first so keypoints render on top
-        for name_a, name_b in connections:
-            if not (keypoints.has_name(name_a) and keypoints.has_name(name_b)):
-                continue
-            if keypoints.visibility[keypoints.index_of(name_a)] < threshold:
-                continue
-            if keypoints.visibility[keypoints.index_of(name_b)] < threshold:
-                continue
-            pt_a = keypoints.xy_by_name(name_a)
-            pt_b = keypoints.xy_by_name(name_b)
-            if np.isnan(pt_a).any() or np.isnan(pt_b).any():
-                continue
-            cv2.line(
-                image,
-                (int(pt_a[0]), int(pt_a[1])),
-                (int(pt_b[0]), int(pt_b[1])),
-                conn_color,
-                thickness,
-            )
+        # Build per-keypoint color map from groups (only when groups define keypoint_color).
+        kp_color_map: dict[str, tuple[int, int, int]] = {}
+        if schema is not None and schema.connection_groups:
+            for group in schema.connection_groups:
+                if group.keypoint_color is not None:
+                    for name_a, name_b in group.connections:
+                        kp_color_map.setdefault(name_a, group.keypoint_color)
+                        kp_color_map.setdefault(name_b, group.keypoint_color)
+
+        # Draw connections first so keypoints render on top.
+        # When connection_groups are defined, use per-group colors; otherwise fall back to the
+        # flat connections list with a single connection_color.
+        if schema is not None and schema.connection_groups:
+            for group in schema.connection_groups:
+                for name_a, name_b in group.connections:
+                    self._draw_connection(image, keypoints, name_a, name_b, group.connection_color, group.connection_thickness, threshold)
+        else:
+            for name_a, name_b in connections:
+                self._draw_connection(image, keypoints, name_a, name_b, conn_color, thickness, threshold)
 
         # Draw keypoints
-        for i, _name in enumerate(keypoints.names):
+        for i, name in enumerate(keypoints.names):
             if keypoints.visibility[i] < threshold:
                 continue
             pt = keypoints.xyz[i, :2]
             if np.isnan(pt).any():
                 continue
-            cv2.circle(image, (int(pt[0]), int(pt[1])), radius, kp_color, -1)
+            color = kp_color_map.get(name, kp_color)
+            cv2.circle(image, (int(pt[0]), int(pt[1])), radius, color, -1)
+
+    def _draw_connection(
+        self,
+        image: NDArray[np.uint8],
+        keypoints: Keypoints,
+        name_a: str,
+        name_b: str,
+        color: tuple[int, int, int],
+        thickness: int,
+        threshold: float,
+    ) -> None:
+        if not (keypoints.has_name(name_a) and keypoints.has_name(name_b)):
+            return
+        if keypoints.visibility[keypoints.index_of(name_a)] < threshold:
+            return
+        if keypoints.visibility[keypoints.index_of(name_b)] < threshold:
+            return
+        pt_a = keypoints.xy_by_name(name_a)
+        pt_b = keypoints.xy_by_name(name_b)
+        if np.isnan(pt_a).any() or np.isnan(pt_b).any():
+            return
+        cv2.line(image, (int(pt_a[0]), int(pt_a[1])), (int(pt_b[0]), int(pt_b[1])), color, thickness)
 
     def _draw_boxes(
         self,

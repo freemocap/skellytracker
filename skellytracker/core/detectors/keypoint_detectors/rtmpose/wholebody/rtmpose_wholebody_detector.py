@@ -132,6 +132,23 @@ class RTMPoseKeypointDetector(KeypointDetector):
         return load_connections(_YAML)
 
     @classmethod
+    def connection_groups(cls) -> dict[str, tuple[tuple[str, str], ...]]:
+        """Partition wholebody connections by region (body / right_hand / left_hand / face)."""
+        groups: dict[str, list[tuple[str, str]]] = {
+            "body": [], "right_hand": [], "left_hand": [], "face": [],
+        }
+        for a, b in load_connections(_YAML):
+            if a.startswith("right_hand_") or b.startswith("right_hand_"):
+                groups["right_hand"].append((a, b))
+            elif a.startswith("left_hand_") or b.startswith("left_hand_"):
+                groups["left_hand"].append((a, b))
+            elif a.startswith("face_") or b.startswith("face_"):
+                groups["face"].append((a, b))
+            else:
+                groups["body"].append((a, b))
+        return {k: tuple(v) for k, v in groups.items()}
+
+    @classmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> RTMPoseKeypointDetector:
         if not isinstance(session, OnnxSession):
             raise TypeError(f"Expected OnnxSession, got {type(session).__name__}")

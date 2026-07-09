@@ -59,7 +59,7 @@ class DetectionStage:
             h, w = image.shape[:2]
             bboxes = [BoundingBox.full_image(h, w)]
 
-        bbox = bboxes[0] if bboxes else None
+        bbox = bboxes[0] if bboxes else None  # Change this to support multiple people/objects
 
         # 2. Keypoint detection — merge multiple detectors into one Keypoints
         all_keypoints: list[Keypoints] = []

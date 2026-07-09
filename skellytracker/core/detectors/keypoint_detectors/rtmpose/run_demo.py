@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 
 from skellytracker.core.annotation.keypoint_annotator import (
+    ConnectionGroupSchema,
     KeypointAnnotator,
     KeypointAnnotatorConfig,
     StageAnnotationSchema,
@@ -82,14 +83,18 @@ def build_rtmpose_demo(
         sessions={"onnx": session},
     )
 
+    groups = RTMPoseKeypointDetector.connection_groups()
     annotator = KeypointAnnotator.create(
         KeypointAnnotatorConfig(stage_schemas={
             "wholebody": StageAnnotationSchema(
-                connections=RTMPoseKeypointDetector.connections(),
                 keypoint_color=(0, 255, 128),
-                connection_color=(0, 200, 100),
                 keypoint_radius=3,
-                connection_thickness=1,
+                connection_groups=(
+                    ConnectionGroupSchema(connections=groups["body"],       connection_color=(0, 200, 100), connection_thickness=1),
+                    ConnectionGroupSchema(connections=groups["right_hand"], connection_color=(0, 100, 255), connection_thickness=1),
+                    ConnectionGroupSchema(connections=groups["left_hand"],  connection_color=(255, 100, 0), connection_thickness=1),
+                    ConnectionGroupSchema(connections=groups["face"],       connection_color=(200, 0, 200), connection_thickness=1),
+                ),
             ),
         })
     )

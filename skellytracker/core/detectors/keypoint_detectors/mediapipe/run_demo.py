@@ -13,6 +13,7 @@ from skellytracker.core.config.detection_stage_config import DetectionStageConfi
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.demo_manager import DemoManager
 from skellytracker.core.annotation.keypoint_annotator import (
+    ConnectionGroupSchema,
     KeypointAnnotator,
     KeypointAnnotatorConfig,
     StageAnnotationSchema,
@@ -37,46 +38,42 @@ def build_mediapipe_demo(
     session = MediaPipeSession.create(MediaPipeSessionConfig())
     sessions = {"mediapipe": session}
 
-    stages: list[DetectionStageConfig] = []
-    stage_schemas: dict[str, StageAnnotationSchema] = {}
+    keypoint_detectors: list = []
+    connection_groups: list[ConnectionGroupSchema] = []
 
     if detect_pose:
-        stages.append(DetectionStageConfig(
-            name="body",
-            keypoint_detectors=[MediapipePoseDetectorConfig(model_complexity=pose_complexity)],
-        ))
-        stage_schemas["body"] = StageAnnotationSchema(
+        keypoint_detectors.append(MediapipePoseDetectorConfig(model_complexity=pose_complexity))
+        connection_groups.append(ConnectionGroupSchema(
             connections=MediapipePoseKeypointDetector.connections(),
-            keypoint_color=(0, 255, 0),
             connection_color=(0, 180, 0),
-        )
+        ))
     if detect_hands:
-        stages.append(DetectionStageConfig(
-            name="hands",
-            keypoint_detectors=[MediapipeHandDetectorConfig()],
-        ))
-        stage_schemas["hands"] = StageAnnotationSchema(
+        keypoint_detectors.append(MediapipeHandDetectorConfig())
+        connection_groups.append(ConnectionGroupSchema(
             connections=MediapipeHandKeypointDetector.connections(),
-            keypoint_color=(255, 100, 0),
             connection_color=(200, 80, 0),
-        )
-    if detect_face:
-        stages.append(DetectionStageConfig(
-            name="face",
-            keypoint_detectors=[MediapipeFaceDetectorConfig()],
+            keypoint_color=(200, 80, 0),
         ))
-        stage_schemas["face"] = StageAnnotationSchema(
+    if detect_face:
+        keypoint_detectors.append(MediapipeFaceDetectorConfig())
+        connection_groups.append(ConnectionGroupSchema(
             connections=MediapipeFaceKeypointDetector.connections(),
-            keypoint_color=(0, 200, 255),
             connection_color=(0, 160, 200),
-            keypoint_radius=2,
             connection_thickness=1,
-        )
+            keypoint_color=(0, 160, 200),
+        ))
 
-    tracker = Tracker.create(TrackerConfig(stages=stages), sessions)
+    stage = DetectionStageConfig(name="composite", keypoint_detectors=keypoint_detectors)
+    tracker = Tracker.create(TrackerConfig(stages=[stage]), sessions)
 
     annotator = KeypointAnnotator.create(
-        KeypointAnnotatorConfig(stage_schemas=stage_schemas)
+        KeypointAnnotatorConfig(stage_schemas={
+            "composite": StageAnnotationSchema(
+                keypoint_color=(0, 255, 0),
+                keypoint_radius=3,
+                connection_groups=tuple(connection_groups),
+            ),
+        })
     )
 
     return DemoManager(tracker=tracker, annotator=annotator, window_title="MediaPipe Demo")
