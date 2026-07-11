@@ -6,6 +6,10 @@ from skellytracker.core.detectors.detector_base_classes import (
     build_keypoint_detector,
     build_object_detector,
 )
+from skellytracker.core.detectors.object_detectors.precomputed import (
+    PrecomputedObjectDetector,
+    PrecomputedObjectDetectorConfig,
+)
 
 # Register concrete detector implementations here:
 #
@@ -22,4 +26,6 @@ __all__ = [
     "KEYPOINT_DETECTOR_REGISTRY",
     "ObjectDetector",
     "OBJECT_DETECTOR_REGISTRY",
+    "PrecomputedObjectDetector",
+    "PrecomputedObjectDetectorConfig",
 ]

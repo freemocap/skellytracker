@@ -13,6 +13,8 @@ from skellytracker.core.detectors import (
     OBJECT_DETECTOR_REGISTRY,
     KeypointDetector,
     ObjectDetector,
+    PrecomputedObjectDetector,
+    PrecomputedObjectDetectorConfig,
     build_keypoint_detector,
     build_object_detector,
 )
@@ -44,6 +46,8 @@ __all__ = [
     "OBJECT_DETECTOR_REGISTRY",
     "ObjectDetector",
     "ObjectDetectorConfig",
+    "PrecomputedObjectDetector",
+    "PrecomputedObjectDetectorConfig",
     "Observation",
     "Session",
     "SessionConfig",
