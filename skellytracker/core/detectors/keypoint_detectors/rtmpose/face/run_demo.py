@@ -37,6 +37,7 @@ def build_face_demo(
     camera_index: int = 0,
 ) -> DemoManager:
     session = OnnxSession.create(OnnxSessionConfig(
+        batch_size=1,
         models=[RTMPoseFaceDetector.model_spec("rtmpose-m_256x256")],
         execution_provider=provider,
     ))

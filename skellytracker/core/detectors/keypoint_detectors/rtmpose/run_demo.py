@@ -66,6 +66,7 @@ def build_rtmpose_demo(
         models.insert(0, YoloxPersonDetector.model_spec("yolox-m"))
 
     session_config = OnnxSessionConfig(
+        batch_size=1,
         models=models,
         execution_provider=provider,
     )

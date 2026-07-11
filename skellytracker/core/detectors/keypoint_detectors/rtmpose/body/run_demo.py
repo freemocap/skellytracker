@@ -43,7 +43,7 @@ def build_body_demo(
     if use_person_detector:
         models.insert(0, YoloxPersonDetector.model_spec("yolox-m"))
 
-    session = OnnxSession.create(OnnxSessionConfig(models=models, execution_provider=provider))
+    session = OnnxSession.create(OnnxSessionConfig(batch_size=1, models=models, execution_provider=provider))
 
     stage = DetectionStageConfig(
         name="body",

@@ -97,7 +97,7 @@ class RTMPoseKeypointDetector(KeypointDetector):
 
         ort_session = self.session.get_session(self.config.model_name)
         input_name = ort_session.get_inputs()[0].name
-        simcc_x, simcc_y = ort_session.run(None, {input_name: inp})
+        simcc_x, simcc_y = self.session.run(self.config.model_name, {input_name: inp})
 
         keypoints_xy, scores = rtmpose_letterbox_postprocess(
             simcc_x=simcc_x,

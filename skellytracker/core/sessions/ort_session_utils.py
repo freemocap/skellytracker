@@ -270,17 +270,64 @@ _PROVIDER_EP_NAME: dict[str, str] = {
 }
 
 
+def auto_detect_provider() -> ExecutionProviderName:
+    """Probe available ONNX Runtime providers and return the best one.
+
+    Called when the caller did not specify an execution provider. Probes in
+    preference order: trt → cuda → coreml (macOS only) → cpu. Never raises —
+    cpu is always available.
+    """
+    available = set(ort.get_available_providers())
+    probe_order: list[ExecutionProviderName] = ["trt", "cuda", "coreml", "cpu"]
+    for candidate in probe_order:
+        ep = _PROVIDER_EP_NAME[candidate]
+        if candidate == "coreml" and sys.platform != "darwin":
+            continue
+        if ep in available:
+            logger.info("auto_detect_provider: selected %r (available: %s)", candidate, sorted(available))
+            return candidate
+    return "cpu"
+
+
+def require_provider(requested: ExecutionProviderName) -> None:
+    """Verify that *requested* is available in the current ONNX Runtime install.
+
+    Called when the caller explicitly specified an execution provider. Raises
+    ``SessionCreationError`` if the provider is not registered — there is no
+    fallback. This ensures users know immediately when the EP they asked for
+    isn't working, rather than silently running on CPU.
+
+    Raises
+    ------
+    SessionCreationError
+        If the requested provider is not in ``ort.get_available_providers()``.
+    """
+    from skellytracker.core.sessions.session_errors import SessionCreationError
+
+    available = set(ort.get_available_providers())
+    ep_name = _PROVIDER_EP_NAME.get(requested)
+    if ep_name and ep_name in available:
+        return
+    raise SessionCreationError(
+        f"Requested execution_provider={requested!r} is not available in this "
+        f"ONNX Runtime install (available: {sorted(available)}). "
+        f"Install the matching onnxruntime build (e.g. onnxruntime-gpu for cuda/trt) "
+        f"or choose a different provider. No fallback will be used."
+    )
+
+
 def resolve_provider(
     *,
     requested: ExecutionProviderName,
     on_missing: Literal["fallback", "raise"] = "fallback",
 ) -> ExecutionProviderName:
-    """Pick the actual EP to use given what's available.
-
-    Falls back trt -> cuda -> coreml -> cpu unless on_missing="raise".
-    CoreML is only available on macOS; it is skipped on other platforms.
-    """
-    import sys
+    """Deprecated shim — use ``auto_detect_provider`` or ``require_provider`` instead."""
+    import warnings
+    warnings.warn(
+        "resolve_provider() is deprecated; use auto_detect_provider() or require_provider().",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     available = set(ort.get_available_providers())
     if needs := _PROVIDER_EP_NAME.get(requested):
         if needs in available:

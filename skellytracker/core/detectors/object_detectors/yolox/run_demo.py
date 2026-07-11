@@ -53,6 +53,7 @@ def build_yolox_demo(
         Maximum number of boxes to show per frame. ``None`` = show all.
     """
     session_config = OnnxSessionConfig(
+        batch_size=1,
         models=[YoloxPersonDetector.model_spec(model_name)],
         execution_provider=provider,
     )

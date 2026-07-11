@@ -7,6 +7,7 @@ by name; detectors look up their model via ``get_session(model_name)``.
 Usage::
 
     session_config = OnnxSessionConfig(
+        batch_size=1,
         models=[
             OnnxModelSpec(name="yolox_m", source=ModelSource(url=MODEL_URLS["yolox-m"]),
                           input_size=(640, 640), prepare=ensure_dynamic_batch),
@@ -30,26 +31,24 @@ from typing import Callable, Literal
 
 import numpy as np
 import onnxruntime as ort
-from pydantic import ConfigDict
+from pydantic import ConfigDict, field_validator
 
 from skellytracker.core.config.session_config import SessionConfig
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 from skellytracker.core.sessions.model_registry import ModelSource, resolve_model_path
+from skellytracker.core.sessions.session_errors import SessionCreationError
 from skellytracker.core.sessions.ort_session_utils import (
+    auto_detect_provider,
     build_tuned_ort_session,
     cuda_device_total_bytes,
-    resolve_provider,
+    require_provider,
     select_best_cuda_device,
 )
 
 logger = logging.getLogger(__name__)
 
 _ARENA_VRAM_FRACTION = 0.85
-
-
-def _default_provider() -> ExecutionProviderName:
-    return "coreml" if sys.platform == "darwin" else "cuda"
 
 
 @dataclass
@@ -94,18 +93,21 @@ class OnnxSessionConfig(SessionConfig):
 
     Parameters
     ----------
+    batch_size:
+        Number of frames to process per inference call. **Required** — the
+        session fails to construct if omitted. Single-camera setups use 1;
+        multi-camera setups pass the camera count.
     models:
         List of models to load. Detectors reference them by name.
     execution_provider:
         Which ONNX Runtime execution provider to use. ``None`` = auto-select
-        (CoreML on macOS, CUDA elsewhere).
+        (best available: trt → cuda → coreml on macOS → cpu). When explicitly
+        set, ``OnnxSession.create()`` raises ``SessionCreationError`` immediately
+        if that provider is unavailable — there is no silent fallback.
     device_id:
         Which GPU to use. ``None`` = auto-select the device with the most free VRAM.
     fp16:
         Enable FP16 mode for TRT EP.
-    on_provider_missing:
-        ``"fallback"`` to silently downgrade when the requested EP is unavailable;
-        ``"raise"`` to hard-error instead.
     gpu_mem_limit:
         CUDA arena ceiling in bytes. ``None`` = auto-size from the selected
         device's total VRAM.
@@ -114,12 +116,19 @@ class OnnxSessionConfig(SessionConfig):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     backend: Literal["onnx"] = "onnx"
+    batch_size: int
     models: list[OnnxModelSpec] = []
     execution_provider: ExecutionProviderName | None = None
     device_id: int | None = None
     fp16: bool = True
-    on_provider_missing: Literal["fallback", "raise"] = "fallback"
     gpu_mem_limit: int | None = None
+
+    @field_validator("batch_size")
+    @classmethod
+    def _batch_size_positive(cls, v: int) -> int:
+        if v < 1:
+            raise ValueError(f"batch_size must be >= 1, got {v}")
+        return v
 
 
 @dataclass
@@ -136,23 +145,19 @@ class OnnxSession(Session):
     device_id: int = 0
 
     @classmethod
-    def create(cls, config: OnnxSessionConfig | None = None) -> OnnxSession:  # type: ignore[override]
-        if config is None:
-            config = OnnxSessionConfig()
-
+    def create(cls, config: OnnxSessionConfig) -> OnnxSession:  # type: ignore[override]
         _verify_ort_install()
 
-        requested = config.execution_provider or _default_provider()
+        if config.execution_provider is None:
+            active_provider = auto_detect_provider()
+        else:
+            require_provider(config.execution_provider)  # raises SessionCreationError if unavailable
+            active_provider = config.execution_provider
 
-        if requested in ("cuda", "trt") and sys.platform == "win32":
+        if active_provider in ("cuda", "trt") and sys.platform == "win32":
             _load_nvidia_dlls_on_windows()
-        if requested in ("cuda", "trt"):
+        if active_provider in ("cuda", "trt"):
             ort.preload_dlls()
-
-        active_provider = resolve_provider(
-            requested=requested,
-            on_missing=config.on_provider_missing,
-        )
 
         # CoreML does not support fp16 inputs.
         fp16 = config.fp16 and active_provider != "coreml"
@@ -188,25 +193,15 @@ class OnnxSession(Session):
                     provider=active_provider,
                     fp16=fp16,
                     log_label=spec.name,
+                    max_batch_size=config.batch_size,
                     gpu_mem_limit=gpu_mem_limit,
                     device_id=device_id,
                     coreml_options=spec.coreml_options,
                 )
             except Exception as exc:
-                if active_provider != "coreml":
-                    raise
-                logger.warning(
-                    "CoreML failed to load model %r (%s); falling back to CPU.",
-                    spec.name, exc,
-                )
-                ort_session = build_tuned_ort_session(
-                    onnx_path=str(model_path),
-                    provider="cpu",
-                    fp16=False,
-                    log_label=spec.name,
-                    gpu_mem_limit=gpu_mem_limit,
-                    device_id=device_id,
-                )
+                raise SessionCreationError(
+                    f"Failed to load model {spec.name!r} with provider={active_provider!r}: {exc}"
+                ) from exc
             sessions[spec.name] = ort_session
             logger.info("OnnxSession: loaded model %r (provider=%r, device=%d)", spec.name, active_provider, device_id)
 
@@ -215,7 +210,7 @@ class OnnxSession(Session):
             execution_provider=active_provider,
             device_id=device_id,
         )
-        _warmup(onnx_session, config.models, active_provider)
+        _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size)
         return onnx_session
 
     def get_session(self, model_name: str) -> ort.InferenceSession:
@@ -237,11 +232,54 @@ class OnnxSession(Session):
                 f"Add an OnnxModelSpec with name={model_name!r} to OnnxSessionConfig.models."
             ) from exc
 
+    def run(
+        self,
+        model_name: str,
+        inputs: dict,
+        output_names: list[str] | None = None,
+    ) -> list:
+        """Run inference for *model_name* and return outputs.
+
+        Wraps ``ort.InferenceSession.run()`` with structured error handling so
+        callers never need to import ORT exception types directly.
+
+        Raises
+        ------
+        VRAMExhaustionError
+            If the inference call fails due to GPU out-of-memory.
+        InferencePipelineError
+            If the ONNX Runtime raises any other error during ``session.run()``.
+        """
+        from skellytracker.core.sessions.session_errors import (
+            InferencePipelineError,
+            VRAMExhaustionError,
+        )
+
+        ort_session = self.get_session(model_name)
+        try:
+            return ort_session.run(output_names, inputs)
+        except MemoryError as exc:
+            raise VRAMExhaustionError(
+                f"Out of GPU memory running model {model_name!r} "
+                f"(provider={self.execution_provider!r}, device={self.device_id})"
+            ) from exc
+        except Exception as exc:
+            msg = str(exc).lower()
+            if any(tok in msg for tok in ("out of memory", "cudamalloc", "alloc failed", " oom")):
+                raise VRAMExhaustionError(
+                    f"Out of GPU memory running model {model_name!r} "
+                    f"(provider={self.execution_provider!r}, device={self.device_id}): {exc}"
+                ) from exc
+            raise InferencePipelineError(
+                f"ONNX Runtime error running model {model_name!r} "
+                f"(provider={self.execution_provider!r}): {exc}"
+            ) from exc
+
     def close(self) -> None:
         self._sessions.clear()
 
 
-def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str) -> None:
+def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, batch_size: int = 1) -> None:
     """Run a dummy inference through each model to trigger JIT compilation.
 
     CoreML (macOS) and TRT compile kernels lazily on the first session.run()
@@ -258,7 +296,7 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str) -> 
     for spec in specs:
         ort_session = session.get_session(spec.name)
         input_h, input_w = spec.input_size  # spec.input_size is always (H, W)
-        dummy = np.zeros((1, 3, input_h, input_w), dtype=np.float32)
+        dummy = np.zeros((batch_size, 3, input_h, input_w), dtype=np.float32)
         input_name = ort_session.get_inputs()[0].name
         t0 = time.perf_counter()
         try:

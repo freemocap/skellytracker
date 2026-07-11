@@ -37,6 +37,7 @@ def build_hand_demo(
     camera_index: int = 0,
 ) -> DemoManager:
     session = OnnxSession.create(OnnxSessionConfig(
+        batch_size=1,
         models=[RTMPoseHandDetector.model_spec("rtmpose-m_256x256")],
         execution_provider=provider,
     ))

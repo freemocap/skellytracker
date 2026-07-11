@@ -19,7 +19,6 @@ from dataclasses import dataclass
 from typing import Literal
 
 import numpy as np
-import onnxruntime as ort
 from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import ObjectDetectorConfig
@@ -100,10 +99,10 @@ class YoloxPersonDetector(ObjectDetector):
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
     ) -> list[BoundingBox]:
-        ort_session = self.session.get_session(self.config.model_name)
         boxes, scores = _detect_yolox(
             image=image,
-            ort_session=ort_session,
+            session=self.session,
+            model_name=self.config.model_name,
             input_size=self.config.input_size,
             score_threshold=self.config.score_threshold,
             nms_threshold=self.config.nms_threshold,
@@ -168,7 +167,8 @@ YOLOX_MODEL_SPECS: dict[str, OnnxModelSpec] = {
 
 def _detect_yolox(
     image: NDArray[np.uint8],
-    ort_session: ort.InferenceSession,
+    session: OnnxSession,
+    model_name: str,
     input_size: tuple[int, int],
     score_threshold: float,
     nms_threshold: float,
@@ -184,8 +184,8 @@ def _detect_yolox(
     inp = np.ascontiguousarray(
         padded.transpose(2, 0, 1)[np.newaxis].astype(np.float32)
     )
-    input_name = ort_session.get_inputs()[0].name
-    outputs = ort_session.run(None, {input_name: inp})
+    input_name = session.get_session(model_name).get_inputs()[0].name
+    outputs = session.run(model_name, {input_name: inp})
 
     if len(outputs) == 2:
         # Pre-NMS model (CoreML path): outputs are already-decoded xyxy boxes

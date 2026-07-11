@@ -20,6 +20,13 @@ from skellytracker.core.detectors import (
 )
 from skellytracker.core.observation import Observation, StageObservation
 from skellytracker.core.sessions.session import Session
+from skellytracker.core.sessions.session_errors import (
+    InferenceError,
+    InferencePipelineError,
+    SessionCreationError,
+    SkellytrackerSessionError,
+    VRAMExhaustionError,
+)
 from skellytracker.core.tracker import (
     BBoxSmoothingState,
     DetectionStage,
@@ -49,8 +56,13 @@ __all__ = [
     "PrecomputedObjectDetector",
     "PrecomputedObjectDetectorConfig",
     "Observation",
+    "InferenceError",
+    "InferencePipelineError",
     "Session",
     "SessionConfig",
+    "SessionCreationError",
+    "SkellytrackerSessionError",
+    "VRAMExhaustionError",
     "StageObservation",
     "StageState",
     "Tracker",

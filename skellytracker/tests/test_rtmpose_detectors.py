@@ -35,6 +35,7 @@ from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionCon
 @pytest.fixture(scope="module")
 def onnx_session() -> OnnxSession:
     config = OnnxSessionConfig(
+        batch_size=1,
         models=[
             YoloxPersonDetector.model_spec("yolox-m"),
             RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192"),
