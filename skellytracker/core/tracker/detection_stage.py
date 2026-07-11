@@ -16,6 +16,13 @@ from skellytracker.core.detectors.detector_base_classes import (
 )
 from skellytracker.core.observation import StageObservation
 from skellytracker.core.sessions.session import Session
+from skellytracker.core.temporal_processing.bbox_policy import BBoxPolicy
+from skellytracker.core.temporal_processing.bbox_smoothing import apply_bbox_ema
+from skellytracker.core.temporal_processing.keypoint_filtering import (
+    KalmanFilter,
+    OneEuroFilter,
+    make_keypoint_filter,
+)
 from skellytracker.core.tracker.tracker_state import KeypointSmoothingState, StageState
 
 
@@ -27,12 +34,18 @@ class DetectionStage:
     Child stages receive the parent's crop and keypoints as context and run
     their own detection subtree, enabling hierarchical top-down pipelines
     (e.g., body stage → face child stage).
+
+    Temporal processing (bbox reuse policy, EMA smoothing, one-euro keypoint
+    filtering) is configured per stage and applied inside run() using StageState.
     """
 
     name: str
     keypoint_detectors: list[KeypointDetector]
     object_detector: ObjectDetector | None = None
     children: list[DetectionStage] = field(default_factory=list)
+    bbox_policy: BBoxPolicy = field(default_factory=BBoxPolicy)
+    bbox_smoothing_alpha: float | None = None
+    keypoint_filter: OneEuroFilter | KalmanFilter | None = None
 
     def run(
         self,
@@ -52,19 +65,41 @@ class DetectionStage:
         Returns:
             (StageObservation, updated StageState)
         """
-        # 1. Object detection
+        frame_number = context.frame_number if context is not None else 0
+        dt = _dt_from_context(context)
+
+        # 1. Object detection with bbox reuse policy
+        bbox_state = state.bbox_state
         if self.object_detector is not None:
-            bboxes = self.object_detector.detect(image, context)
+            if self.bbox_policy.should_redetect(frame_number, state):
+                bboxes = self.object_detector.detect(image, context)
+                bbox_state = type(bbox_state)(
+                    smooth_bbox=bbox_state.smooth_bbox,
+                    last_detection_frame=frame_number,
+                )
+            else:
+                predicted = self.bbox_policy.predict_bbox(state)
+                bboxes = [predicted] if predicted is not None else []
         else:
             h, w = image.shape[:2]
             bboxes = [BoundingBox.full_image(h, w)]
 
-        bbox = bboxes[0] if bboxes else None  # Change this to support multiple people/objects
+        raw_bbox = bboxes[0] if bboxes else None
 
-        # 2. Keypoint detection — crop, detect, translate back to full-frame coords
-        crop = bbox.to_crop(image) if bbox is not None else image
+        # 2. BBox smoothing (EMA)
+        if raw_bbox is not None and self.bbox_smoothing_alpha is not None:
+            smoothed_bbox, bbox_state = apply_bbox_ema(raw_bbox, bbox_state, self.bbox_smoothing_alpha)
+        else:
+            smoothed_bbox = raw_bbox
+            if raw_bbox is not None:
+                from dataclasses import replace
+                bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
+
+        # 3. Keypoint detection — crop, detect, translate back to full-frame coords
+        crop = smoothed_bbox.to_crop(image) if smoothed_bbox is not None else image
         all_keypoints: list[Keypoints] = []
-        updated_kp_states: list = []
+        updated_kp_states: list[KeypointSmoothingState] = []
+
         for i, detector in enumerate(self.keypoint_detectors):
             kp_state = (
                 state.keypoint_states[i]
@@ -72,14 +107,19 @@ class DetectionStage:
                 else KeypointSmoothingState()
             )
             kpts = detector.detect(crop, context)
-            if bbox is not None:
-                kpts = kpts.translated(bbox.x1, bbox.y1)
+            if smoothed_bbox is not None:
+                kpts = kpts.translated(smoothed_bbox.x1, smoothed_bbox.y1)
+
+            # 4. Keypoint smoothing (one-euro filter)
+            if self.keypoint_filter is not None:
+                kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
+
             all_keypoints.append(kpts)
             updated_kp_states.append(kp_state)
 
         merged = Keypoints.concatenate(all_keypoints) if all_keypoints else None
 
-        # 3. Child stages receive the crop; children translate their own coords
+        # 5. Child stages receive the crop; children translate their own coords
         child_observations: dict[str, StageObservation] = {}
         updated_child_states: dict[str, StageState] = {}
         for child in self.children:
@@ -95,9 +135,10 @@ class DetectionStage:
             children=child_observations,
         )
         updated_state = StageState(
-            bbox_state=state.bbox_state,
+            bbox_state=bbox_state,
             keypoint_states=updated_kp_states,
             child_states=updated_child_states,
+            last_keypoints=merged,
         )
         return obs, updated_state
 
@@ -135,4 +176,22 @@ class DetectionStage:
             object_detector=object_detector,
             keypoint_detectors=keypoint_detectors,
             children=children,
+            bbox_policy=BBoxPolicy.from_config(config.bbox_policy),
+            bbox_smoothing_alpha=config.bbox_smoothing.alpha if config.bbox_smoothing is not None else None,
+            keypoint_filter=(
+                make_keypoint_filter(config.keypoint_smoothing)
+                if config.keypoint_smoothing is not None
+                else None
+            ),
         )
+
+
+def _dt_from_context(context: DetectionContext | None) -> float:
+    """Return a time-delta to use for the one-euro filter.
+
+    Always returns 1.0 (one frame unit) for now. min_cutoff and beta are
+    therefore in frames⁻¹ rather than Hz. Proper per-frame dt computation
+    requires storing the previous timestamp in StageState, which is a future
+    improvement.
+    """
+    return 1.0

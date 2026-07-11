@@ -34,7 +34,7 @@ class StageState:
 
 ## BBoxSmoothingState
 
-Tracks the smoothed bounding box across frames. Typically an exponential moving average (EMA) on the center coordinates and diagonal size, preventing jitter from single-frame detection noise.
+Tracks the smoothed bounding box across frames. Typically an exponential moving average (EMA) on the center coordinates and diagonal size, preventing jitter from single-frame detection noise. Also records when the object detector last ran so that `BBoxPolicy` can decide whether to redetect on the current frame (see `09-temporal-processing.md`).
 
 ```python
 @dataclass
@@ -42,6 +42,7 @@ class BBoxSmoothingState:
     smooth_center: tuple[float, float] | None
     smooth_size: float | None
     alpha: float  # EMA decay factor
+    last_detection_frame: int | None  # frame number of most recent ObjectDetector run
 ```
 
 ## KeypointSmoothingState

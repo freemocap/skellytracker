@@ -17,10 +17,12 @@ class DetectionStage:
 
 When a `DetectionStage` runs:
 
-1. **Object detection** (optional): the `ObjectDetector` runs on the incoming image and returns bounding boxes. If no detector is present, the full image is used as a single bounding box.
-2. **Keypoint detection**: each `KeypointDetector` runs on the image cropped to the bounding box.
+1. **Object detection** (optional): `BBoxPolicy` decides whether to re-run the `ObjectDetector` or reuse the smoothed bbox from the previous frame. The resulting bbox is smoothed via EMA before use. If no detector is present, the full image is used as a single bounding box.
+2. **Keypoint detection**: each `KeypointDetector` runs on the image cropped to the smoothed bounding box. Keypoints are translated back to full-frame coordinates, then passed through the keypoint filter (one-euro or none).
 3. **Child stages**: each child `DetectionStage` receives the cropped image (and the parent's keypoints as context, e.g., to derive its own crop region) and runs its own detection subtree.
 4. **Output**: the stage returns a `StageObservation` containing its bounding boxes, keypoints, and the observations from all child stages.
+
+The pre- and post-detection manipulation steps are described in full in `09-temporal-processing.md`.
 
 ## Hierarchical Example: Body → Face
 

@@ -6,6 +6,12 @@ from skellytracker.core.config.detector_configs import (
     KeypointDetectorConfig,
     ObjectDetectorConfig,
 )
+from skellytracker.core.temporal_processing.temporal_processing_config import (
+    BBoxPolicyConfig,
+    BBoxSmoothingConfig,
+    KalmanKeypointSmoothingConfig,
+    KeypointSmoothingConfig,
+)
 
 
 class DetectionStageConfig(BaseModel):
@@ -15,6 +21,9 @@ class DetectionStageConfig(BaseModel):
     object_detector: ObjectDetectorConfig | None = None
     keypoint_detectors: list[KeypointDetectorConfig] = []
     children: list[DetectionStageConfig] = []
+    bbox_policy: BBoxPolicyConfig = BBoxPolicyConfig()
+    bbox_smoothing: BBoxSmoothingConfig | None = None
+    keypoint_smoothing: KeypointSmoothingConfig | KalmanKeypointSmoothingConfig | None = None
 
 
 DetectionStageConfig.model_rebuild()
