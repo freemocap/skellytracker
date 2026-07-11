@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 
 from skellytracker.core.annotation.keypoint_annotator import KeypointAnnotator, KeypointAnnotatorConfig, StageAnnotationSchema
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
-from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.data_primitives import Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
@@ -58,12 +58,8 @@ class MediapipeFaceKeypointDetector(KeypointDetector):
     def detect(
         self,
         image: NDArray[np.uint8],
-        bbox: BoundingBox | None = None,
         context: DetectionContext | None = None,
     ) -> Keypoints:
-        if bbox is not None:
-            image = bbox.to_crop(image)
-
         h, w = image.shape[:2]
         rgb = _to_rgb(image)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)

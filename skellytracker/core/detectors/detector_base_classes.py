@@ -10,7 +10,7 @@ from skellytracker.core.config.detector_configs import (
     KeypointDetectorConfig,
     ObjectDetectorConfig,
 )
-from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.data_primitives import Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.sessions.session import Session
 
@@ -65,10 +65,14 @@ class KeypointDetector(ABC):
     def detect(
         self,
         image: NDArray[np.uint8],
-        bbox: BoundingBox | None = None,
         context: DetectionContext | None = None,
     ) -> Keypoints:
-        """Run keypoint estimation and return named points with visibility scores."""
+        """Run keypoint estimation on image and return named points with visibility scores.
+
+        image must already be cropped to the region of interest. Coordinates are
+        returned in image-local space; the caller is responsible for translating
+        them back to full-frame space.
+        """
         ...
 
     @classmethod

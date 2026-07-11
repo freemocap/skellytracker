@@ -17,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
-from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.data_primitives import Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
@@ -77,7 +77,6 @@ class RTMPoseHandDetector(KeypointDetector):
     def detect(
         self,
         image: NDArray[np.uint8],
-        bbox: BoundingBox | None = None,
         context: DetectionContext | None = None,
     ) -> Keypoints:
         img_h, img_w = image.shape[:2]
@@ -103,10 +102,6 @@ class RTMPoseHandDetector(KeypointDetector):
         )
         kpts_2d = keypoints_xy[0].copy()
         kpt_scores = scores[0]
-
-        if bbox is not None:
-            kpts_2d[:, 0] += bbox.x1
-            kpts_2d[:, 1] += bbox.y1
 
         xyz = np.zeros((_NUM_KEYPOINTS, 3), dtype=np.float64)
         xyz[:, 0] = kpts_2d[:, 0]

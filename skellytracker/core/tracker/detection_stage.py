@@ -61,7 +61,8 @@ class DetectionStage:
 
         bbox = bboxes[0] if bboxes else None  # Change this to support multiple people/objects
 
-        # 2. Keypoint detection — merge multiple detectors into one Keypoints
+        # 2. Keypoint detection — crop, detect, translate back to full-frame coords
+        crop = bbox.to_crop(image) if bbox is not None else image
         all_keypoints: list[Keypoints] = []
         updated_kp_states: list = []
         for i, detector in enumerate(self.keypoint_detectors):
@@ -70,19 +71,19 @@ class DetectionStage:
                 if i < len(state.keypoint_states)
                 else KeypointSmoothingState()
             )
-            crop = bbox.to_crop(image) if bbox is not None else image
-            kpts = detector.detect(crop, bbox, context)
+            kpts = detector.detect(crop, context)
+            if bbox is not None:
+                kpts = kpts.translated(bbox.x1, bbox.y1)
             all_keypoints.append(kpts)
             updated_kp_states.append(kp_state)
 
         merged = Keypoints.concatenate(all_keypoints) if all_keypoints else None
 
-        # 3. Child stages
+        # 3. Child stages receive the crop; children translate their own coords
         child_observations: dict[str, StageObservation] = {}
         updated_child_states: dict[str, StageState] = {}
         for child in self.children:
             child_state = state.child_states.get(child.name, StageState())
-            crop = bbox.to_crop(image) if bbox is not None else image
             child_obs, child_state = child.run(crop, child_state, parent_keypoints=merged, context=context)
             child_observations[child.name] = child_obs
             updated_child_states[child.name] = child_state

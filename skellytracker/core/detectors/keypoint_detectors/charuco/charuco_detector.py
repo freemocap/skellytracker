@@ -8,7 +8,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.data_primitives import Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
@@ -49,12 +49,8 @@ class CharucoDetector(KeypointDetector):
     def detect(
         self,
         image: NDArray[np.uint8],
-        bbox: BoundingBox | None = None,
         context: DetectionContext | None = None,
     ) -> Keypoints:
-        if bbox is not None:
-            image = bbox.to_crop(image)
-
         grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
 
         (

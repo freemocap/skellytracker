@@ -144,6 +144,16 @@ class Keypoints:
             visibility=self.visibility[indices].copy(),
         )
 
+    def translated(self, dx: float, dy: float) -> Keypoints:
+        """Return a new Keypoints with (dx, dy) added to all x, y coordinates.
+
+        NaN coordinates remain NaN (nan + offset = nan).
+        """
+        xyz = self.xyz.copy()
+        xyz[:, 0] += dx
+        xyz[:, 1] += dy
+        return Keypoints(names=self.names, xyz=xyz, visibility=self.visibility.copy())
+
     # ------------------------------------------------------------------
     # Conversion
     # ------------------------------------------------------------------
