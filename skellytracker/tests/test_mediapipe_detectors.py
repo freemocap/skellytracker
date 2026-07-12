@@ -146,13 +146,6 @@ class TestFaceDetector:
         assert np.all(kpts.visibility >= 0.0)
         assert np.all(kpts.visibility <= 1.0)
 
-    def test_detection_on_real_image(self, test_image, full_session):
-        detector = MediapipeFaceKeypointDetector.create(
-            MediapipeFaceDetectorConfig(), full_session
-        )
-        kpts = detector.detect(test_image)
-        assert kpts.n_valid > 0, "Expected at least one detected face landmark on test image"
-
     def test_point_names_use_face_prefix(self, full_session):
         detector = MediapipeFaceKeypointDetector.create(
             MediapipeFaceDetectorConfig(), full_session

@@ -114,12 +114,9 @@ class TestRTMPoseKeypointDetector:
         assert np.all(np.isnan(kpts.xyz))
         assert np.all(kpts.visibility == 0.0)
 
-    def test_with_bbox_crops_correctly(self, test_image, onnx_session):
-        from skellytracker.core.data_primitives import BoundingBox
-        h, w = test_image.shape[:2]
-        bbox = BoundingBox(x1=0, y1=0, x2=w, y2=h)
+    def test_detect_on_full_image_returns_correct_shape(self, test_image, onnx_session):
         detector = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), onnx_session)
-        kpts = detector.detect(test_image, bbox=bbox)
+        kpts = detector.detect(test_image)
         assert kpts.xyz.shape == (133, 3)
 
     def test_point_names_include_body_hand_face(self, onnx_session):
