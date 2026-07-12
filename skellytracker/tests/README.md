@@ -29,6 +29,9 @@ uv run pytest skellytracker/tests --fail-on-skip
 | `test_data_store.py` | ✓ | |
 | `test_mediapipe_video.py` | ✓ | |
 | `test_rtmpose_video.py` | ✓ | ✓ |
+| `test_charuco_video.py` | ✓ | |
+| `test_aruco_video.py` | ✓ | |
+| `test_yolox_video.py` | ✓ | ✓ |
 
 ## Skips
 

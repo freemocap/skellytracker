@@ -27,7 +27,9 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Literal
+from typing import Literal
+
+from beartype.typing import Callable
 
 import numpy as np
 import onnxruntime as ort
