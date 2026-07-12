@@ -1,49 +1,156 @@
 # skellytracker
 
-The tracking backend for freemocap. Collects different pose estimation tools and aggregates them using a consistent API. Can run pose estimation on images, webcams, and videos.
+The tracking backend for freemocap. Collects different pose estimation tools behind a consistent API built around a **Tracker → Session → Detector** pipeline. Supports inference on images, webcams, and videos.
 
-## Run skelly_tracker
+## Installation
 
-Installation: `pip install skellytracker`
-Then it can be run with `skellytracker`.
+The base package includes OpenCV-based trackers (Aruco, Charuco) with no extras needed:
 
-Running the basic `skellytracker` will open the first webcam port on your computer and run pose estimaiton in realtime with mediapipe holistic as a tracker. You can specify the tracker with `skellytracker TRACKER_NAME`, where `TRACKER_NAME` is the name of an available tracker. To view the names of all available trackers, see `RUN_ME.py`.
+```bash
+pip install skellytracker
+```
 
-It will take some time to initialize the tracker the first time you run it, as it will likely need to download the model.
+Add extras to enable additional tracker backends. Pick the bundle that matches your hardware:
 
-## Using skellytracker in your project
+| Extra | Hardware | What's included |
+|---|---|---|
+| `recommended-cpu` | Any platform (CPU / Apple Silicon) | MediaPipe + RTMPose + YOLOX on CPU; enables CoreML EP on macOS |
+| `recommended-cuda` | NVIDIA GPU (Linux / Windows) | MediaPipe + RTMPose + YOLOX with TensorRT (best performance) |
+| `all-cpu` | Same as `recommended-cpu` | — |
+| `all-cuda` | NVIDIA GPU, CUDA 12 only | MediaPipe + RTMPose + YOLOX via CUDA EP (no TensorRT) |
+| `all-trt` | NVIDIA GPU, CUDA 12 + TensorRT | Same as `recommended-cuda` |
+| `all-directml` | Any GPU on Windows | MediaPipe + RTMPose + YOLOX via DirectML |
 
-To use skellytracker in your project, import a tracker like `from skellytracker import YOLOPoseTracker`, then instantiate it with your desired parameters like `tracker = YOLOPoseTracker(model_size="medium")`, and then use `tracker.process_image(frame)` or `tracker.process_video(video_filepath)`. Processing image by image will let you access each individual annotated frame with `tracker.annotated_image`, and you can optionally record the data with `tracker.recorder.record()`. Access recorded data with `tracker.recorder.process_tracked_objects()`. The running, recording, and processing are done separately to give control over the amount of processing done at each step in the pipeline. Processing an entire video allows you to save the annotated frames as a video, and optionally saves and returns the data as a numpy array. Each tracker has an associated `ModelInfo` class to access model attributes.
+```bash
+# CPU / Mac
+pip install "skellytracker[recommended-cpu]"
 
-Skellytracker is still under development, so version updates may make breaking changes to the API. Please report any issues and pull requests to the [skellytracker repo](https://github.com/freemocap/skellytracker).
+# NVIDIA GPU
+pip install "skellytracker[recommended-cuda]"
 
-### Extending the API
-To extend the API, import the `BaseTracker` and `BaseRecorder` abstract base classes from skellytracker. Then create a new tracker and recorder inheriting from the base classes and implement all of the abstract methods.
+# Windows with non-NVIDIA GPU
+pip install "skellytracker[all-directml]"
+```
+
+You can also mix extras for more granular control:
+
+```bash
+# RTMPose + YOLOX only (no MediaPipe), CUDA backend
+pip install "skellytracker[rtmlib,onnx-cuda]"
+
+# MediaPipe only
+pip install "skellytracker[mediapipe]"
+```
+
+Available granular extras: `mediapipe`, `rtmlib`, `onnx-cpu`, `onnx-cuda`, `onnx-trt`, `onnx-directml`.
+
+> **Note:** `onnx-*` backend extras are mutually exclusive — install exactly one.
+
+## Quick start
+
+### MediaPipe (pose, hands, face)
+
+```python
+import cv2
+from skellytracker.core import Tracker, TrackerConfig, DetectionStageConfig, TrackerState
+from skellytracker.core.detectors.keypoint_detectors.mediapipe import (
+    MediaPipeSession, MediaPipeSessionConfig,
+    MediapipePoseDetectorConfig,
+    MediapipeHandDetectorConfig,
+    MediapipeFaceDetectorConfig,
+)
+
+session = MediaPipeSession.create(MediaPipeSessionConfig())
+config = TrackerConfig(stages=[
+    DetectionStageConfig(name="body",  keypoint_detectors=[MediapipePoseDetectorConfig()]),
+    DetectionStageConfig(name="hands", keypoint_detectors=[MediapipeHandDetectorConfig()]),
+    DetectionStageConfig(name="face",  keypoint_detectors=[MediapipeFaceDetectorConfig()]),
+])
+tracker = Tracker.create(config, sessions={"mediapipe": session})
+state = TrackerState()
+
+image = cv2.imread("image.jpg")
+observation, state = tracker.process_image(image, frame_number=0, state=state)
+
+body_keypoints = observation.stages["body"].keypoints   # Keypoints with .xyz (N,3), .names, .visibility
+tracker.close()
+```
+
+### RTMPose + YOLOX (ONNX-based)
+
+```python
+import cv2
+from skellytracker.core import Tracker, TrackerConfig, DetectionStageConfig, TrackerState
+from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetectorConfig
+from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseDetectorConfig
+from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetector
+from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseKeypointDetector
+
+session = OnnxSession.create(OnnxSessionConfig(
+    batch_size=1,
+    models=[
+        YoloxPersonDetector.model_spec("yolox-m"),
+        RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192"),
+    ],
+))
+config = TrackerConfig(stages=[
+    DetectionStageConfig(
+        name="body",
+        object_detector=YoloxPersonDetectorConfig(),
+        keypoint_detectors=[RTMPoseDetectorConfig()],
+    )
+])
+tracker = Tracker.create(config, sessions={"onnx": session})
+state = TrackerState()
+
+image = cv2.imread("image.jpg")
+observation, state = tracker.process_image(image, frame_number=0, state=state)
+
+keypoints = observation.stages["body"].keypoints  # 133 whole-body keypoints
+tracker.close()
+```
+
+### Webcam demo
+
+```bash
+python -m skellytracker
+```
+
+## API overview
+
+- **`Tracker`** — top-level orchestrator. Built from a `TrackerConfig` and a `sessions` dict via `Tracker.create()`. Call `process_image(image, frame_number, state)` per frame; it returns `(Observation, TrackerState)`. Call `close()` when done.
+- **`Session`** — manages computational resources (model weights, device context) shared across detectors. One session per backend (e.g. one `MediaPipeSession`, one `OnnxSession`).
+- **`DetectionStage`** — one stage in the pipeline, configured via `DetectionStageConfig`. Each stage has an optional object detector (to crop person bounding boxes) and one or more keypoint detectors.
+- **`Observation`** — per-frame result. `observation.stages["name"].keypoints` returns a `Keypoints` object with `.xyz` `(N, 3)`, `.names`, and `.visibility` arrays.
+- **`TrackerState`** — temporal state (bounding box history, smoothing buffers) passed into and returned from each `process_image` call.
+
+## Extending the API
+
+Implement a new keypoint detector by subclassing `KeypointDetector` and registering it:
+
+```python
+from skellytracker.core.detectors import KeypointDetector, KEYPOINT_DETECTOR_REGISTRY
+
+class MyDetector(KeypointDetector):
+    ...
+
+KEYPOINT_DETECTOR_REGISTRY["my_detector"] = MyDetector
+```
 
 ## Contributing
 
-We love your input! We want to make contributing to this project as easy and transparent as possible, whether it's:
-
-- Reporting a bug
-- Discussing the current state of the code
-- Submitting a fix
-- Proposing new features
-- Becoming a maintainer
-
-Pull requests are the best way to propose changes to the codebase (we
-use [Github Flow](https://docs.github.com/en/get-started/quickstart/github-flow)). We actively welcome your pull
-requests:
+Pull requests are welcome! We use [Github Flow](https://docs.github.com/en/get-started/quickstart/github-flow).
 
 1. Fork the repo and create your branch from `main`.
-2. Download the development dependencies with `pip install -e '.[dev]'`.
-2. If you've added code that should be tested (including any tracker), add tests.
-3. If you've changed APIs, update the documentation.
-4. Ensure the test suite passes by running `pytest skellytracker/tests`.
-5. Make sure your code lints.
-6. Make that pull request!
+2. Install with dev dependencies: `uv sync --extra recommended-cpu`
+3. If you've added a tracker, add tests under `skellytracker/tests/`.
+4. Ensure the test suite passes: `pytest skellytracker/tests/` (or `pytest -m 'not video'` to skip slow video tests).
+5. Lint: `ruff check skellytracker/`
+6. Open a pull request.
 
 ---
 
-# GPU setup 
+# GPU setup
 
-For help setting up your GPU for use in gpu-enabled trackers like RTMPose, see the [GPU_SETUP_GUIDE](GPU_SETUP_GUIDE.md)
+For help configuring your GPU for ONNX-based trackers (RTMPose, YOLOX), see the [GPU_SETUP_GUIDE](GPU_SETUP_GUIDE.md).
