@@ -4,13 +4,21 @@
 
 ```bash
 # All tests
-uv run pytest skellytracker/tests
+uv run pytest
+# or: uv run poe test
+
+# Exclude slow video tests (faster feedback for small changes)
+uv run pytest -m "not video"
+# or: uv run poe test-fast
+
+# Only video tests
+uv run pytest -m video
 
 # Single file
 uv run pytest skellytracker/tests/test_keypoints.py
 
 # Fail on skips (confirm environment is fully set up)
-uv run pytest skellytracker/tests --fail-on-skip
+uv run pytest --fail-on-skip
 ```
 
 ## Test files
@@ -58,7 +66,7 @@ class TestMyDetector:
 
 If the detector requires `onnxruntime`, add `pytest.importorskip("onnxruntime", ...)` at the top of the file (before any onnxruntime imports) — this skips the entire file cleanly when onnxruntime is absent. See `test_rtmpose_detectors.py` for the pattern.
 
-### Video tests (`test_<name>_video.py`)
+### Video tests (`test_<name>_video.py`, marked `video`)
 
 Run the detector frame-by-frame over the test recording to catch issues that only appear across real sequential images.
 
@@ -69,9 +77,13 @@ Run the detector frame-by-frame over the test recording to catch issues that onl
 
 For detectors **without** temporal state (charuco, aruco, yolox), call `detector.detect(frame)` directly in the fixture loop. For detectors **with** temporal state (mediapipe, rtmpose), use `Tracker.process_image(frame, frame_number=i, state=state)` and thread the returned state through each call.
 
+All video test files must set `pytestmark = pytest.mark.video` at module level (after the imports) so they are excluded by `pytest -m "not video"`.
+
 Minimal video test template:
 
 ```python
+pytestmark = pytest.mark.video
+
 class TestMyDetectorVideo:
     @pytest.fixture(scope="class")
     @classmethod

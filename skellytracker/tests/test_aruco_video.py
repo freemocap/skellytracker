@@ -23,6 +23,8 @@ from skellytracker.core.detectors.keypoint_detectors.charuco import (
 )
 from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
 
+pytestmark = pytest.mark.video
+
 _N_FRAMES = 30
 
 

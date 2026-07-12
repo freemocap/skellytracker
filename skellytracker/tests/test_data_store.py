@@ -29,6 +29,8 @@ from skellytracker.core.detectors.keypoint_detectors.mediapipe import (
     MediaPipeSessionConfig,
 )
 
+pytestmark = pytest.mark.video
+
 _N_FRAMES = 10
 
 

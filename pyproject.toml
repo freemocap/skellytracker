@@ -226,8 +226,15 @@ url = "https://pypi.nvidia.com"
 #
 # =============================================================================
 
+[tool.pytest.ini_options]
+testpaths = ["skellytracker/tests"]
+markers = [
+    "video: tests that run inference over real video frames (slow, requires test recording)",
+]
+
 [tool.poe.tasks]
-rebuild  = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker", help = "Rebuild Rust engine with full cargo output" }
-lint     = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules" }
-lint-fix = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
-test     = { cmd = "pytest", help = "Run test suite" }
+rebuild   = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker", help = "Rebuild Rust engine with full cargo output" }
+lint      = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules" }
+lint-fix  = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
+test      = { cmd = "pytest", help = "Run full test suite" }
+test-fast = { cmd = "pytest -m 'not video'", help = "Run tests excluding slow video tests" }

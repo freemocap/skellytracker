@@ -35,6 +35,8 @@ from skellytracker.core.detectors.object_detectors.yolox import (  # noqa: E402
 )
 from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig  # noqa: E402
 
+pytestmark = pytest.mark.video
+
 _N_FRAMES = 15
 
 
