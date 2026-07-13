@@ -1,4 +1,6 @@
 from skellytracker.core.annotation.annotator import Annotator
+from skellytracker.core.process_video import process_folder, process_video
+from skellytracker.core.processing_timer import ProcessingTimer
 from skellytracker.core.config import (
     DetectionStageConfig,
     KeypointDetectorConfig,
@@ -38,6 +40,9 @@ from skellytracker.core.tracker import (
 
 __all__ = [
     "Annotator",
+    "process_folder",
+    "process_video",
+    "ProcessingTimer",
     "BBoxSmoothingState",
     "BoundingBox",
     "build_keypoint_detector",

@@ -16,6 +16,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
     KeypointDetector,
 )
+from skellytracker.core.detectors.metadata import EmptyMetadata
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.detectors.keypoint_detectors._schema_loader import load_point_names
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
@@ -50,6 +51,47 @@ class MediapipePoseKeypointDetector(KeypointDetector):
     session: MediaPipeSession
     landmarker: Any = field(repr=False)
     _point_names: tuple[str, ...] = field(default_factory=lambda: _POINT_NAMES, init=False, repr=False)
+
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.uint8], EmptyMetadata]:
+        """Convert BGR image to RGB for MediaPipe.
+
+        The batch path does not use this for actual batching (MediaPipe has no
+        batch API), but the contract must be satisfied. The thread-pool path in
+        DetectionStage.run_batch calls detect() directly instead.
+        """
+        rgb = _to_rgb(image)
+        return rgb, EmptyMetadata()
+
+    def postprocess(self, raw: Any, metadata: EmptyMetadata) -> Keypoints:
+        """Extract landmarks from a MediaPipe PoseLandmarkerResult.
+
+        raw is the result object returned by landmarker.detect() or
+        detect_for_video(). image dimensions are encoded in EmptyMetadata —
+        this method re-runs detection so it has access to h/w from the result.
+        Note: this method is only called directly from the batch path which
+        uses detect() internally via thread pool, so this is a stub for
+        protocol compliance.
+        """
+        # raw is a (result, h, w) tuple when called from postprocess path
+        if isinstance(raw, tuple):
+            result, h, w = raw
+        else:
+            # Fallback — cannot extract pixel coords without image dims
+            return Keypoints.empty(self._point_names)
+
+        if not result.pose_landmarks:
+            return Keypoints.empty(self._point_names)
+
+        landmarks = result.pose_landmarks[0]
+        xyz = np.array(
+            [(lm.x * w, lm.y * h, lm.z * w) for lm in landmarks],
+            dtype=np.float64,
+        )
+        visibility = np.array(
+            [lm.visibility if lm.visibility is not None else 0.0 for lm in landmarks],
+            dtype=np.float64,
+        )
+        return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
 
     def detect(
         self,
@@ -86,6 +128,10 @@ class MediapipePoseKeypointDetector(KeypointDetector):
 
     def close(self) -> None:
         self.landmarker.close()
+
+    def reset_temporal_state(self) -> None:
+        self.landmarker.close()
+        self.landmarker = type(self).create(self.config, self.session).landmarker
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:

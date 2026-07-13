@@ -32,6 +32,7 @@ from typing import Literal
 from beartype.typing import Callable
 
 import numpy as np
+from numpy.typing import NDArray
 import onnxruntime as ort
 from pydantic import ConfigDict, field_validator
 
@@ -98,7 +99,9 @@ class OnnxSessionConfig(SessionConfig):
     batch_size:
         Number of frames to process per inference call. **Required** — the
         session fails to construct if omitted. Single-camera setups use 1;
-        multi-camera setups pass the camera count.
+        multi-camera setups pass the camera count. Should equal the number of
+        cameras passed to ``Tracker.process_batch()`` / ``DetectionStage.run_batch()``;
+        a mismatch triggers a runtime warning from ``run_batched``.
     models:
         List of models to load. Detectors reference them by name.
     execution_provider:
@@ -145,6 +148,7 @@ class OnnxSession(Session):
     _sessions: dict[str, ort.InferenceSession] = field(default_factory=dict)
     execution_provider: ExecutionProviderName = "cpu"
     device_id: int = 0
+    batch_size: int = 1
 
     @classmethod
     def create(cls, config: OnnxSessionConfig) -> OnnxSession:  # type: ignore[override]
@@ -211,6 +215,7 @@ class OnnxSession(Session):
             _sessions=sessions,
             execution_provider=active_provider,
             device_id=device_id,
+            batch_size=config.batch_size,
         )
         _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size)
         return onnx_session
@@ -276,6 +281,44 @@ class OnnxSession(Session):
                 f"ONNX Runtime error running model {model_name!r} "
                 f"(provider={self.execution_provider!r}): {exc}"
             ) from exc
+
+
+    def run_batched(
+        self,
+        model_name: str,
+        tensors: dict[str, NDArray[np.float32]],
+    ) -> dict[str, list]:
+        """Run batched inference across N cameras.
+
+        Each value in ``tensors`` is a single-image tensor of shape (3, H, W).
+        All images are stacked into a single (N, 3, H, W) batch, fed through
+        the model in one ORT call, and the outputs are split back by camera key.
+
+        Parameters
+        ----------
+        model_name:
+            Name of the model to run (must be loaded in this session).
+        tensors:
+            Mapping from camera ID to per-image float32 tensor (3, H, W).
+            Order is preserved via ``list(tensors.keys())``.
+
+        Returns
+        -------
+        dict mapping each camera ID to a list of per-image raw output arrays —
+        the same format as a single ``session.run()`` call for that image.
+        """
+        if len(tensors) != self.batch_size:
+            logger.warning(
+                "run_batched called with %d cameras but OnnxSessionConfig.batch_size=%d; "
+                "consider recreating the session with batch_size=%d for optimal performance",
+                len(tensors), self.batch_size, len(tensors),
+            )
+        ordered_keys = list(tensors.keys())
+        stacked = np.stack([tensors[k] for k in ordered_keys])  # (N, 3, H, W)
+        input_name = self.get_session(model_name).get_inputs()[0].name
+        raw_outputs = self.run(model_name, {input_name: stacked})
+        # raw_outputs is a list of arrays, each (N, ...) — split per camera.
+        return {k: [out[i:i+1] for out in raw_outputs] for i, k in enumerate(ordered_keys)}
 
     def close(self) -> None:
         self._sessions.clear()

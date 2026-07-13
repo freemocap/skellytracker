@@ -82,3 +82,41 @@ class DemoManager:
 The `DemoManager` owns the frame loop and the OpenCV window. It maintains the `TrackerState` across frames, calls `tracker.process_image()`, calls `annotator.annotate()`, and optionally calls `data_store.add()`. On `q` or window close, it calls `session.close()` and exits cleanly.
 
 The `DemoManager` is intentionally thin — it wires together existing objects rather than containing logic of its own.
+
+---
+
+## process_video / process_folder
+
+For batch postprocessing (running a tracker over recorded video files and saving keypoint data), two module-level functions are provided in `core/process_video.py`:
+
+```python
+def process_video(
+    tracker: Tracker,
+    annotator: Annotator | None,
+    input_path: Path,
+    output_dir: Path,
+    annotated_video_path: Path | None = None,
+    fmt: Literal["npy", "json"] = "npy",
+    show_progress: bool = True,
+) -> DataStore:
+    """Process a single video file frame-by-frame. Saves a (frames, points, 3)
+    array to output_dir/<stem>.npy. Optionally writes an annotated video."""
+    ...
+
+def process_folder(
+    tracker: Tracker,
+    annotator: Annotator | None,
+    video_dir: Path,
+    output_dir: Path,
+    annotated_video_dir: Path | None = None,
+    fmt: Literal["npy", "json"] = "npy",
+    show_progress: bool = True,
+) -> dict[str, DataStore]:
+    """Process all video files in video_dir. Saves one array per camera.
+    Returns a mapping of video stem → DataStore."""
+    ...
+```
+
+`process_folder` is the primary freemocap integration point: given a `synchronized_videos/` directory with one `.mp4` per camera, it produces one `.npy` per camera ready for triangulation.
+
+`process_folder` opens all N video files simultaneously, reads one frame per camera per step, and calls `Tracker.process_batch()` — giving true batched GPU inference across all cameras for the full recording. For ONNX-backed detectors, set `OnnxSessionConfig.batch_size` equal to the number of cameras for optimal GPU utilisation. See [10-multi-camera-batching.md](./10-multi-camera-batching.md).

@@ -17,6 +17,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
     KeypointDetector,
 )
+from skellytracker.core.detectors.metadata import EmptyMetadata
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.detectors.keypoint_detectors._schema_loader import load_point_names
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import get_face_model_path
@@ -54,6 +55,48 @@ class MediapipeFaceKeypointDetector(KeypointDetector):
     session: MediaPipeSession
     landmarker: Any = field(repr=False)
     _point_names: tuple[str, ...] = field(default_factory=lambda: _POINT_NAMES, init=False, repr=False)
+
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.uint8], EmptyMetadata]:
+        """Convert BGR image to RGB for MediaPipe.
+
+        The batch path uses detect() via thread pool rather than preprocess/postprocess
+        directly, but the contract must be satisfied.
+        """
+        rgb = _to_rgb(image)
+        return rgb, EmptyMetadata()
+
+    def postprocess(self, raw: Any, metadata: EmptyMetadata) -> Keypoints:
+        """Extract face contour landmarks from a MediaPipe FaceLandmarkerResult.
+
+        raw should be a (result, h, w) tuple when called from the split-path.
+        """
+        if isinstance(raw, tuple):
+            result, h, w = raw
+        else:
+            return Keypoints.empty(self._point_names)
+
+        if not result.face_landmarks:
+            return Keypoints.empty(self._point_names)
+
+        landmarks = result.face_landmarks[0]
+        n_full = len(landmarks)
+
+        full_xyz = np.array(
+            [(lm.x * w, lm.y * h, lm.z * w) for lm in landmarks],
+            dtype=np.float64,
+        )
+        full_vis = np.array(
+            [lm.presence if lm.presence is not None else 1.0 for lm in landmarks],
+            dtype=np.float64,
+        )
+
+        valid_mask = _CONTOUR_INDICES < n_full
+        xyz = np.full((len(self._point_names), 3), np.nan, dtype=np.float64)
+        vis = np.zeros(len(self._point_names), dtype=np.float64)
+        xyz[valid_mask] = full_xyz[_CONTOUR_INDICES[valid_mask]]
+        vis[valid_mask] = full_vis[_CONTOUR_INDICES[valid_mask]]
+
+        return Keypoints(names=self._point_names, xyz=xyz, visibility=vis)
 
     def detect(
         self,
@@ -100,6 +143,10 @@ class MediapipeFaceKeypointDetector(KeypointDetector):
 
     def close(self) -> None:
         self.landmarker.close()
+
+    def reset_temporal_state(self) -> None:
+        self.landmarker.close()
+        self.landmarker = type(self).create(self.config, self.session).landmarker
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:

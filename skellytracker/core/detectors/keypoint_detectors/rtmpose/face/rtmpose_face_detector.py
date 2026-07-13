@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -26,6 +26,7 @@ from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_preprocessi
     rtmpose_letterbox_postprocess,
     rtmpose_letterbox_preprocess,
 )
+from skellytracker.core.detectors.metadata import RTMPoseMetadata
 from skellytracker.core.sessions.model_registry import ModelSource
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
 from skellytracker.core.sessions.session import Session
@@ -71,6 +72,53 @@ class RTMPoseFaceDetector(KeypointDetector):
     config: RTMPoseFaceDetectorConfig
     session: OnnxSession
     _point_names: tuple[str, ...] = field(default_factory=lambda: _POINT_NAMES, init=False, repr=False)
+
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], RTMPoseMetadata]:
+        """Letterbox-resize and normalise image for RTMPose inference.
+
+        Returns (tensor, metadata) where tensor has shape (3, H, W) and dtype
+        float32. metadata carries center/scale needed by postprocess to unproject
+        SIMCC outputs back to image space.
+        """
+        h, w = image.shape[:2]
+        crop_bbox = np.array([0.0, 0.0, float(w), float(h)], dtype=np.float64)
+        input_h, input_w = self.config.input_size
+        resized, center, scale = rtmpose_letterbox_preprocess(
+            image, crop_bbox, (input_w, input_h), mean=_RTMPOSE_MEAN, std=_RTMPOSE_STD,
+        )
+        tensor = np.ascontiguousarray(resized.transpose(2, 0, 1).astype(np.float32))  # (3, H, W)
+        return tensor, RTMPoseMetadata(center=center, scale=scale)
+
+    def postprocess(self, raw: Any, metadata: RTMPoseMetadata) -> Keypoints:
+        """Decode SIMCC outputs back to image-space keypoints.
+
+        raw is [simcc_x, simcc_y] where each array has shape (1, N, bins)
+        (already split from a batch — single-image slice along axis 0).
+        """
+        simcc_x, simcc_y = raw
+        input_h, input_w = self.config.input_size
+        keypoints_xy, scores = rtmpose_letterbox_postprocess(
+            simcc_x=simcc_x,
+            simcc_y=simcc_y,
+            center=metadata.center,
+            scale=metadata.scale,
+            model_input_size=(input_w, input_h),
+            simcc_split_ratio=_SIMCC_SPLIT_RATIO,
+        )
+        kpts_2d = keypoints_xy[0].copy()
+        kpt_scores = scores[0]
+
+        xyz = np.zeros((_NUM_KEYPOINTS, 3), dtype=np.float64)
+        xyz[:, 0] = kpts_2d[:, 0]
+        xyz[:, 1] = kpts_2d[:, 1]
+
+        below_threshold = kpt_scores < self.config.confidence_threshold
+        xyz[below_threshold] = np.nan
+
+        visibility = kpt_scores.astype(np.float64)
+        visibility[below_threshold] = 0.0
+
+        return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
 
     def detect(
         self,

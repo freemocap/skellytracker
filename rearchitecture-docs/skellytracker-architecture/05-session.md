@@ -25,6 +25,22 @@ class Session(ABC):
 
 A `Tracker` owns one `Session` per backend it uses. Each detector receives the appropriate session type at construction time via `Tracker.create()`.
 
+## Session as Batch Coordinator
+
+For multi-camera setups, the `OnnxSession` is also the point where batching happens. `DetectionStage.run_batch()` collects preprocessed tensors from all N cameras and hands them to the session as a single stacked array. The session fires one GPU call and returns N results:
+
+```python
+# In DetectionStage.run_batch():
+tensors = {cam_id: detector.preprocess(images[cam_id]) for cam_id in images}
+stacked = np.stack([tensors[k].tensor for k in ordered_keys])   # (N, 3, H, W)
+raw_outputs = session.run_batched(model_name, stacked)           # one GPU call
+per_camera = {k: raw_outputs[i] for i, k in enumerate(ordered_keys)}
+```
+
+The session itself remains agnostic to pipeline structure — it only stacks inputs and splits outputs. All orchestration (which models to call, in what order, how to route results) lives in `DetectionStage`.
+
+This is why the session is the right place for batching: it already owns the GPU context and the loaded model weights. Batching is purely an inference-layer concern — it changes nothing about preprocessing, temporal processing, or output structure.
+
 ## Concrete Session Types
 
 ### ONNXSession
@@ -42,9 +58,17 @@ class ONNXSession(Session):
         # resolves execution provider, selects device,
         # downloads/loads all model files, warms up
         ...
+
+    def run(self, model_name: str, inputs: dict) -> list:
+        """Single-image inference. inputs contains a (1, 3, H, W) tensor."""
+        ...
+
+    def run_batched(self, model_name: str, tensor: NDArray) -> NDArray:
+        """Multi-camera inference. tensor is (N, 3, H, W); returns (N, ...) raw output."""
+        ...
 ```
 
-`ONNXSessionConfig` lists all the models the session should load (`list[ModelSpec]`) along with the execution provider and device ID. Detectors reference their model by name when they need to run inference.
+`ONNXSessionConfig` lists all the models the session should load (`list[ModelSpec]`) along with the execution provider, device ID, and `batch_size`. Models are loaded with dynamic batch dimensions (via ONNX surgery for providers that support it) so that any `N ≤ batch_size` can be passed at runtime. See [08-onnx-batching-and-coreml.md](./08-onnx-batching-and-coreml.md).
 
 **Execution providers:**
 

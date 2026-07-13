@@ -15,7 +15,7 @@ class DetectionStage:
 
 ## Execution
 
-When a `DetectionStage` runs:
+### Single-camera: `run(image, state, context)`
 
 1. **Object detection** (optional): `BBoxPolicy` decides whether to re-run the `ObjectDetector` or reuse the smoothed bbox from the previous frame. The resulting bbox is smoothed via EMA before use. If no detector is present, the full image is used as a single bounding box.
 2. **Keypoint detection**: each `KeypointDetector` runs on the image cropped to the smoothed bounding box. Keypoints are translated back to full-frame coordinates, then passed through the keypoint filter (one-euro or none).
@@ -23,6 +23,30 @@ When a `DetectionStage` runs:
 4. **Output**: the stage returns a `StageObservation` containing its bounding boxes, keypoints, and the observations from all child stages.
 
 The pre- and post-detection manipulation steps are described in full in `09-temporal-processing.md`.
+
+### Multi-camera: `run_batch(images, states, context)`
+
+`run_batch` is the batched equivalent that processes N cameras in two GPU calls instead of N. It is the orchestrator for multi-camera inference — the `Session` provides the batch infrastructure, but `DetectionStage` decides what gets batched and when.
+
+```
+images: dict[cam_id, NDArray]
+states: dict[cam_id, StageState]
+```
+
+Execution order within `run_batch`:
+
+1. **Preprocess all cameras** — call `object_detector.preprocess(image)` for each camera. If cameras share a resolution, these can be vectorized across the batch dimension. Returns per-camera `(tensor, metadata)` pairs.
+2. **Batch object detection** — stack all N preprocessed tensors into `(N, 3, H, W)`, call `session.run_batched(model_name, stacked)` once, split results back by camera key.
+3. **Postprocess + bbox smoothing per camera** — call `object_detector.postprocess(raw, meta)` and apply bbox EMA for each camera independently using its own `StageState`.
+4. **Compute crops per camera** — each camera's smoothed bbox determines its own crop region.
+5. **Preprocess all crops** — call `keypoint_detector.preprocess(crop)` for each camera.
+6. **Batch keypoint detection** — stack all N crop tensors, call `session.run_batched()` once, split results.
+7. **Postprocess + keypoint filtering per camera** — decode keypoints, apply one-euro filter using per-camera `StageState`.
+8. **Child stages** — children run per-camera (their inputs differ across cameras), calling `run_batch` recursively on their own sub-images.
+
+Top-down pipelines (object detect → crop → keypoint detect) therefore use exactly **two batched GPU calls** per stage, regardless of camera count. Stages with no `ObjectDetector` use one call.
+
+See [10-multi-camera-batching.md](./10-multi-camera-batching.md) for the full design, including parallelism strategies for pre/postprocessing and the MediaPipe fallback path.
 
 ## Hierarchical Example: Body → Face
 

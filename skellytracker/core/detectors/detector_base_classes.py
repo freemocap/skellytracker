@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import Any
 
 from numpy.typing import NDArray
 import numpy as np
@@ -35,6 +36,26 @@ class ObjectDetector(ABC):
         """Run detection on an image and return zero or more bounding boxes."""
         ...
 
+    @abstractmethod
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], Any]:
+        """Prepare image for inference. Returns (tensor, metadata).
+
+        The tensor has shape (3, H, W) and dtype float32. Metadata carries any
+        information needed by postprocess to decode raw model outputs back to
+        image-space coordinates (e.g. letterbox ratio, original size).
+        """
+        ...
+
+    @abstractmethod
+    def postprocess(self, raw: Any, metadata: Any) -> list[BoundingBox]:
+        """Decode raw inference output back to image-space bounding boxes.
+
+        raw is the per-image split output from session.run or run_batched —
+        a list of arrays where each array corresponds to one ORT output.
+        metadata is whatever preprocess returned as its second element.
+        """
+        ...
+
     @classmethod
     @abstractmethod
     def create(cls, config: ObjectDetectorConfig, session: Session) -> ObjectDetector:
@@ -42,6 +63,13 @@ class ObjectDetector(ABC):
 
     def close(self) -> None:
         """Release any resources owned by this detector. Override if needed."""
+
+    def reset_temporal_state(self) -> None:
+        """Reset any internal temporal state (e.g. tracking history).
+
+        Called by process_folder between videos so each video is processed
+        from a clean state. Default is a no-op; override for stateful backends.
+        """
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
@@ -75,6 +103,29 @@ class KeypointDetector(ABC):
         """
         ...
 
+    @abstractmethod
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], Any]:
+        """Prepare image for inference. Returns (tensor, metadata).
+
+        The tensor has shape (3, H, W) and dtype float32. Metadata carries any
+        information needed by postprocess to reconstruct image-space coordinates
+        (e.g. center/scale for RTMPose).
+
+        For non-ONNX detectors the tensor may carry a different dtype (e.g.
+        uint8 for MediaPipe), but the second element is always the metadata
+        object needed by postprocess.
+        """
+        ...
+
+    @abstractmethod
+    def postprocess(self, raw: Any, metadata: Any) -> Keypoints:
+        """Decode raw inference output back to image-space keypoints.
+
+        raw is the per-image split output from session.run or run_batched.
+        metadata is whatever preprocess returned as its second element.
+        """
+        ...
+
     @classmethod
     @abstractmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> KeypointDetector:
@@ -82,6 +133,13 @@ class KeypointDetector(ABC):
 
     def close(self) -> None:
         """Release any resources owned by this detector. Override if needed."""
+
+    def reset_temporal_state(self) -> None:
+        """Reset any internal temporal state (e.g. tracking history).
+
+        Called by process_folder between videos so each video is processed
+        from a clean state. Default is a no-op; override for stateful backends.
+        """
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:

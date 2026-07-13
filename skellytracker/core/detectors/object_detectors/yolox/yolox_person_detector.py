@@ -16,7 +16,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -28,6 +28,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     OBJECT_DETECTOR_REGISTRY,
     ObjectDetector,
 )
+from skellytracker.core.detectors.metadata import YoloxMetadata
 from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import ensure_dynamic_batch, ensure_prenms_for_coreml
 from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import multiclass_nms, yolox_letterbox_preprocess
 from skellytracker.core.sessions.model_registry import ModelSource
@@ -93,6 +94,56 @@ class YoloxPersonDetector(ObjectDetector):
 
     config: YoloxPersonDetectorConfig
     session: OnnxSession
+
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], YoloxMetadata]:
+        """Letterbox-pad and transpose image for YOLOX inference.
+
+        Returns (tensor, metadata) where tensor has shape (3, H, W) and dtype
+        float32 — ready to stack into a batch. metadata.ratio is needed by
+        postprocess to scale detections back to original image space.
+        """
+        padded, ratio = yolox_letterbox_preprocess(image, self.config.input_size)
+        tensor = np.ascontiguousarray(padded.transpose(2, 0, 1).astype(np.float32))  # (3, H, W)
+        return tensor, YoloxMetadata(ratio=ratio, original_size=image.shape[:2])
+
+    def postprocess(self, raw: Any, metadata: YoloxMetadata) -> list[BoundingBox]:
+        """Decode per-image raw ORT outputs into BoundingBox list.
+
+        raw is a list of arrays as returned by session.run for a single image
+        (already split from a batch along axis 0). The number of outputs
+        determines whether the model used pre-NMS or standard outputs.
+        """
+        if len(raw) == 2:
+            # Pre-NMS model (CoreML path)
+            boxes_arr, scores_arr = raw
+            boxes_nd, scores_nd = _postprocess_prenms(
+                boxes=boxes_arr,
+                scores=scores_arr,
+                ratio=metadata.ratio,
+                score_thr=self.config.score_threshold,
+                nms_thr=self.config.nms_threshold,
+            )
+        else:
+            boxes_nd, scores_nd = _postprocess_yolox(
+                outputs_one=raw[0],
+                ratio=metadata.ratio,
+                model_input_size=self.config.input_size,
+                score_thr=self.config.score_threshold,
+                nms_thr=self.config.nms_threshold,
+            )
+
+        if len(boxes_nd) == 0:
+            return []
+
+        result = [
+            BoundingBox(x1=float(b[0]), y1=float(b[1]), x2=float(b[2]), y2=float(b[3]),
+                        confidence=float(s))
+            for b, s in zip(boxes_nd, scores_nd, strict=False)
+        ]
+        result.sort(key=lambda bb: bb.confidence, reverse=True)
+        if self.config.max_detections is not None:
+            result = result[:self.config.max_detections]
+        return result
 
     def detect(
         self,

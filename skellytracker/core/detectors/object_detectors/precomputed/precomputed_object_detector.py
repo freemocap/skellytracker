@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
@@ -10,6 +10,7 @@ from skellytracker.core.config.detector_configs import ObjectDetectorConfig
 from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import ObjectDetector
+from skellytracker.core.detectors.metadata import EmptyMetadata
 from skellytracker.core.sessions.cpu_session import CpuSession
 from skellytracker.core.sessions.session import Session
 
@@ -36,6 +37,14 @@ class PrecomputedObjectDetector(ObjectDetector):
     )
     session: Session = field(default_factory=CpuSession)
     bboxes_by_frame: dict[int, list[BoundingBox]] = field(default_factory=dict)
+
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.uint8], EmptyMetadata]:
+        """Identity preprocess — returns image unchanged with empty metadata."""
+        return image, EmptyMetadata()
+
+    def postprocess(self, raw: Any, metadata: EmptyMetadata) -> list[BoundingBox]:
+        """Identity postprocess — raw is already list[BoundingBox]."""
+        return raw
 
     def detect(
         self,

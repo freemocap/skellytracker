@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import concurrent.futures
+import time
 from dataclasses import dataclass, field
 
 from numpy.typing import NDArray
@@ -46,6 +48,15 @@ class DetectionStage:
     bbox_policy: BBoxPolicy = field(default_factory=BBoxPolicy)
     bbox_smoothing_alpha: float | None = None
     keypoint_filter: OneEuroFilter | KalmanFilter | None = None
+    # Per-camera detector instances for non-ONNX (stateful) keypoint detectors.
+    # Index matches keypoint_detectors; inner dict maps cam_id → detector instance.
+    # Populated lazily in run_batch so each camera stream gets its own state.
+    _cam_kp_detectors: list[dict[str, KeypointDetector]] = field(
+        default_factory=list, init=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        self._cam_kp_detectors = [{} for _ in self.keypoint_detectors]
 
     def run(
         self,
@@ -142,14 +153,281 @@ class DetectionStage:
         )
         return obs, updated_state
 
+    def run_batch(
+        self,
+        images: dict[str, NDArray[np.uint8]],
+        states: dict[str, StageState],
+        context: DetectionContext | None = None,
+    ) -> tuple[dict[str, StageObservation], dict[str, StageState]]:
+        """Run this stage on N cameras simultaneously.
+
+        For ONNX-backed detectors, all cameras are processed in a single batched
+        ORT call. For non-ONNX detectors (MediaPipe, Charuco, ArUco), each camera
+        is processed in a thread pool to exploit parallelism without holding the GIL.
+
+        States for cameras not present in ``states`` default to empty StageState.
+
+        Parameters
+        ----------
+        images:
+            Mapping from camera ID to BGR image array (H, W, 3).
+        states:
+            Mapping from camera ID to current StageState. Keys may be a subset
+            of images.keys() — missing cameras get a fresh StageState.
+        context:
+            Shared detection context (frame number, timestamp).
+
+        Returns
+        -------
+        (per-camera StageObservation dict, per-camera updated StageState dict)
+        """
+        # Lazy import to avoid requiring onnxruntime in non-GPU environments
+        try:
+            from skellytracker.core.sessions.onnx_session import OnnxSession as _OnnxSession
+        except ImportError:
+            _OnnxSession = None  # type: ignore[assignment,misc]
+
+        frame_number = context.frame_number if context is not None else 0
+        dt = _dt_from_context(context)
+        cam_ids = list(images.keys())
+
+        # ── 1. Object detection ───────────────────────────────────────────────
+        bboxes_per_cam: dict[str, list[BoundingBox]] = {}
+        bbox_states_per_cam: dict[str, object] = {}  # BBoxSmoothingState per cam
+
+        # For ONNX-batched detectors, synchronize redetection: if any camera
+        # needs a fresh detection, redetect all cameras together.  This keeps
+        # the batch size at exactly 0 or N (never a partial subset), which
+        # avoids repeated JIT recompilation on CoreML and TRT.
+        onnx_object_detector = (
+            self.object_detector
+            if self.object_detector is not None
+            and _OnnxSession is not None
+            and isinstance(self.object_detector.session, _OnnxSession)
+            else None
+        )
+        any_needs_redetect = onnx_object_detector is not None and any(
+            self.bbox_policy.should_redetect(frame_number, states.get(c, StageState()))
+            for c in cam_ids
+        )
+
+        for cam_id in cam_ids:
+            state = states.get(cam_id, StageState())
+            bbox_state = state.bbox_state
+
+            if self.object_detector is not None:
+                if onnx_object_detector is not None:
+                    # Batched ONNX path: redetect decision is synchronized above.
+                    if any_needs_redetect:
+                        bboxes_per_cam[cam_id] = None  # type: ignore[assignment]
+                        bbox_states_per_cam[cam_id] = type(bbox_state)(
+                            smooth_bbox=bbox_state.smooth_bbox,
+                            last_detection_frame=frame_number,
+                        )
+                    else:
+                        predicted = self.bbox_policy.predict_bbox(state)
+                        bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
+                        bbox_states_per_cam[cam_id] = bbox_state
+                elif self.bbox_policy.should_redetect(frame_number, state):
+                    bboxes_per_cam[cam_id] = self.object_detector.detect(images[cam_id], context)
+                    bbox_states_per_cam[cam_id] = type(bbox_state)(
+                        smooth_bbox=bbox_state.smooth_bbox,
+                        last_detection_frame=frame_number,
+                    )
+                else:
+                    predicted = self.bbox_policy.predict_bbox(state)
+                    bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
+                    bbox_states_per_cam[cam_id] = bbox_state
+            else:
+                h, w = images[cam_id].shape[:2]
+                bboxes_per_cam[cam_id] = [BoundingBox.full_image(h, w)]
+                bbox_states_per_cam[cam_id] = bbox_state
+
+        # Batched ONNX object detection for cameras needing redetect
+        if onnx_object_detector is not None:
+            cams_needing_detect = [c for c in cam_ids if bboxes_per_cam[c] is None]
+            if cams_needing_detect:
+                tensors = {}
+                metas = {}
+                _t = time.perf_counter()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=len(cams_needing_detect)) as pool:
+                    fut_map = {cam_id: pool.submit(self.object_detector.preprocess, images[cam_id]) for cam_id in cams_needing_detect}
+                for cam_id, fut in fut_map.items():
+                    tensors[cam_id], metas[cam_id] = fut.result()
+                if context is not None and context.timings is not None:
+                    context.timings.stop(f"{self.name}.obj_preprocess", _t)
+                model_name = self.object_detector.config.model_name
+                _t = time.perf_counter()
+                raw_batch = self.object_detector.session.run_batched(model_name, tensors)
+                if context is not None and context.timings is not None:
+                    context.timings.stop(f"{self.name}.obj_infer", _t)
+                for cam_id in cams_needing_detect:
+                    bboxes_per_cam[cam_id] = self.object_detector.postprocess(raw_batch[cam_id], metas[cam_id])
+
+        # ── 2. BBox smoothing (EMA) per camera ───────────────────────────────
+        smoothed_bboxes: dict[str, BoundingBox | None] = {}
+        for cam_id in cam_ids:
+            raw_bbox = bboxes_per_cam[cam_id][0] if bboxes_per_cam[cam_id] else None
+            bbox_state = bbox_states_per_cam[cam_id]
+            if raw_bbox is not None and self.bbox_smoothing_alpha is not None:
+                smoothed, bbox_state = apply_bbox_ema(raw_bbox, bbox_state, self.bbox_smoothing_alpha)
+                smoothed_bboxes[cam_id] = smoothed
+            else:
+                smoothed_bboxes[cam_id] = raw_bbox
+                if raw_bbox is not None:
+                    from dataclasses import replace
+                    bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
+            bbox_states_per_cam[cam_id] = bbox_state
+
+        # ── 3. Compute crops per camera ───────────────────────────────────────
+        crops: dict[str, NDArray[np.uint8]] = {}
+        for cam_id in cam_ids:
+            sb = smoothed_bboxes[cam_id]
+            crops[cam_id] = sb.to_crop(images[cam_id]) if sb is not None else images[cam_id]
+
+        # ── 4. Keypoint detection ─────────────────────────────────────────────
+        # Collect per-detector results: list indexed by detector index, each a
+        # dict from cam_id → (Keypoints, KeypointSmoothingState)
+        all_detector_results: list[dict[str, tuple[Keypoints, KeypointSmoothingState]]] = []
+
+        for i, detector in enumerate(self.keypoint_detectors):
+            detector_results: dict[str, tuple[Keypoints, KeypointSmoothingState]] = {}
+
+            if _OnnxSession is not None and isinstance(detector.session, _OnnxSession):
+                # Batched ONNX path — preprocess all cameras in parallel (cv2/numpy release the GIL)
+                tensors = {}
+                metas = {}
+                _t = time.perf_counter()
+                with concurrent.futures.ThreadPoolExecutor(max_workers=len(cam_ids)) as pool:
+                    fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in cam_ids}
+                for cam_id, fut in fut_map.items():
+                    tensors[cam_id], metas[cam_id] = fut.result()
+                if context is not None and context.timings is not None:
+                    context.timings.stop(f"{self.name}.kp_preprocess", _t)
+                model_name = detector.config.model_name
+                _t = time.perf_counter()
+                raw_batch = detector.session.run_batched(model_name, tensors)
+                if context is not None and context.timings is not None:
+                    context.timings.stop(f"{self.name}.kp_infer", _t)
+                for cam_id in cam_ids:
+                    kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
+                    sb = smoothed_bboxes[cam_id]
+                    if sb is not None:
+                        kpts = kpts.translated(sb.x1, sb.y1)
+                    state = states.get(cam_id, StageState())
+                    kp_state = (
+                        state.keypoint_states[i]
+                        if i < len(state.keypoint_states)
+                        else KeypointSmoothingState()
+                    )
+                    if self.keypoint_filter is not None:
+                        kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
+                    detector_results[cam_id] = (kpts, kp_state)
+            else:
+                # Non-ONNX path — per-camera detector instances + thread pool.
+                # Each camera needs its own detector so stateful backends (e.g.
+                # MediaPipe VIDEO mode) can maintain independent timestamp streams.
+                def _detect_one(cam_id: str, detector: KeypointDetector = detector, i: int = i) -> tuple[str, Keypoints, KeypointSmoothingState]:
+                    cam_detectors = self._cam_kp_detectors[i]
+                    if cam_id not in cam_detectors:
+                        cam_detectors[cam_id] = type(detector).create(detector.config, detector.session)
+                    kpts = cam_detectors[cam_id].detect(crops[cam_id], context)
+                    sb = smoothed_bboxes[cam_id]
+                    if sb is not None:
+                        kpts = kpts.translated(sb.x1, sb.y1)
+                    state = states.get(cam_id, StageState())
+                    kp_state = (
+                        state.keypoint_states[i]
+                        if i < len(state.keypoint_states)
+                        else KeypointSmoothingState()
+                    )
+                    if self.keypoint_filter is not None:
+                        kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
+                    return cam_id, kpts, kp_state
+
+                with concurrent.futures.ThreadPoolExecutor() as executor:
+                    futures = [executor.submit(_detect_one, cam_id) for cam_id in cam_ids]
+                    for fut in concurrent.futures.as_completed(futures):
+                        cam_id, kpts, kp_state = fut.result()
+                        detector_results[cam_id] = (kpts, kp_state)
+
+            all_detector_results.append(detector_results)
+
+        # ── 5. Assemble merged keypoints + kp_states per camera ──────────────
+        merged_per_cam: dict[str, Keypoints | None] = {}
+        kp_states_per_cam: dict[str, list[KeypointSmoothingState]] = {}
+
+        for cam_id in cam_ids:
+            all_kpts = []
+            kp_states = []
+            for det_results in all_detector_results:
+                kpts, kp_state = det_results[cam_id]
+                all_kpts.append(kpts)
+                kp_states.append(kp_state)
+            merged_per_cam[cam_id] = Keypoints.concatenate(all_kpts) if all_kpts else None
+            kp_states_per_cam[cam_id] = kp_states
+
+        # ── 6. Child stages ───────────────────────────────────────────────────
+        child_obs_per_cam: dict[str, dict[str, StageObservation]] = {c: {} for c in cam_ids}
+        child_states_per_cam: dict[str, dict[str, StageState]] = {c: {} for c in cam_ids}
+
+        for child in self.children:
+            child_stage_states = {
+                cam_id: states.get(cam_id, StageState()).child_states.get(child.name, StageState())
+                for cam_id in cam_ids
+            }
+            child_obs_batch, child_states_batch = child.run_batch(crops, child_stage_states, context)
+            for cam_id in cam_ids:
+                child_obs_per_cam[cam_id][child.name] = child_obs_batch[cam_id]
+                child_states_per_cam[cam_id][child.name] = child_states_batch[cam_id]
+
+        # ── 7. Build output dicts ─────────────────────────────────────────────
+        obs_out: dict[str, StageObservation] = {}
+        states_out: dict[str, StageState] = {}
+
+        for cam_id in cam_ids:
+            obs_out[cam_id] = StageObservation(
+                name=self.name,
+                bounding_boxes=bboxes_per_cam[cam_id],
+                keypoints=merged_per_cam[cam_id],
+                children=child_obs_per_cam[cam_id],
+            )
+            states_out[cam_id] = StageState(
+                bbox_state=bbox_states_per_cam[cam_id],
+                keypoint_states=kp_states_per_cam[cam_id],
+                child_states=child_states_per_cam[cam_id],
+                last_keypoints=merged_per_cam[cam_id],
+            )
+
+        return obs_out, states_out
+
     def close(self) -> None:
         """Release resources owned by all detectors in this stage and its children."""
         if self.object_detector is not None:
             self.object_detector.close()
         for detector in self.keypoint_detectors:
             detector.close()
+        for cam_detectors in self._cam_kp_detectors:
+            for cam_detector in cam_detectors.values():
+                cam_detector.close()
         for child in self.children:
             child.close()
+
+    def reset_temporal_state(self) -> None:
+        """Reset internal temporal state on all detectors in this stage and its children."""
+        if self.object_detector is not None:
+            self.object_detector.reset_temporal_state()
+        for detector in self.keypoint_detectors:
+            detector.reset_temporal_state()
+        # Close and clear per-camera instances so they're recreated fresh on the next
+        # run_batch call (necessary for VIDEO-mode backends whose timestamp state
+        # must restart from scratch between independent recordings).
+        for cam_detectors in self._cam_kp_detectors:
+            for cam_detector in cam_detectors.values():
+                cam_detector.close()
+            cam_detectors.clear()
+        for child in self.children:
+            child.reset_temporal_state()
 
     @classmethod
     def create(

@@ -160,15 +160,13 @@ environments = [
 # other, causing import errors like
 # `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
 #
-# `exclude-dependencies` drops the CPU `onnxruntime` from the resolution graph
-# entirely, even when rtmlib requests it transitively. rtmlib still works at
-# runtime because whichever accelerated build is installed provides the import.
-#
-# This setting only takes effect when uv resolves this workspace, so it does NOT
-# help users doing a plain `pip install skellytracker[rtmlib,onnx-cuda]`. For the
-# PyInstaller/Electron distribution path this is fine: uv handles the build
-# environment and end users never run pip against skellytracker directly.
-exclude-dependencies = ["onnxruntime", "opencv-python"]
+# Fix: override rtmlib's metadata to strip its onnxruntime dep from the resolution
+# graph entirely (see [[tool.uv.dependency-metadata]] below). rtmlib still works at
+# runtime because the chosen onnx-* extra always supplies an onnxruntime build that
+# satisfies the import. opencv-python is excluded because this project uses
+# opencv-contrib-python, which provides a superset of opencv-python; having both
+# installed causes a file-collision error.
+exclude-dependencies = ["opencv-python"]
 
 conflicts = [
     [
@@ -178,6 +176,16 @@ conflicts = [
         { extra = "onnx-directml" },
     ],
 ]
+
+# Strip onnxruntime from rtmlib's transitive deps so that the onnx-cpu extra can
+# install the CPU build while the onnx-cuda/trt/directml extras install the GPU
+# build — without either conflicting with rtmlib's hard requirement.
+# [[tool.uv.dependency-metadata]] must come after all plain [tool.uv] keys
+# because TOML array tables absorb subsequent sibling keys into their scope.
+[[tool.uv.dependency-metadata]]
+name = "rtmlib"
+version = "0.0.14"
+requires-dist = ["numpy", "opencv-contrib-python", "opencv-python", "tqdm"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"

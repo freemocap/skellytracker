@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
+from typing import Any
 from beartype.typing import Sequence
 
 import cv2
@@ -20,6 +21,7 @@ from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_board_defin
 from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_detector_config import (
     CharucoDetectorConfig,
 )
+from skellytracker.core.detectors.metadata import EmptyMetadata
 from skellytracker.core.sessions.cpu_session import CpuSession
 from skellytracker.core.sessions.session import Session
 
@@ -45,6 +47,61 @@ class CharucoDetector(KeypointDetector):
     _aruco_ids: tuple[int, ...] = field(repr=False)
     _aruco_names: tuple[str, ...] = field(repr=False)
     _all_names: tuple[str, ...] = field(repr=False)
+
+    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.uint8], EmptyMetadata]:
+        """Convert image to greyscale for ArUco/Charuco detection."""
+        grey = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY) if len(image.shape) == 3 else image
+        return grey, EmptyMetadata()
+
+    def postprocess(self, raw: Any, metadata: EmptyMetadata) -> Keypoints:
+        """Build Keypoints from raw detectBoard output.
+
+        raw is a 4-tuple:
+          (detected_charuco_corners, detected_charuco_ids,
+           detected_aruco_corners, detected_aruco_ids)
+        as returned by cv2.aruco.CharucoDetector.detectBoard().
+        """
+        (
+            detected_charuco_corners,
+            detected_charuco_ids,
+            detected_aruco_corners,
+            detected_aruco_ids,
+        ) = raw
+
+        detected_charuco_ids, detected_charuco_corners = _squeeze_charuco(
+            detected_charuco_ids, detected_charuco_corners
+        )
+        detected_aruco_ids, detected_aruco_corners = _squeeze_aruco(
+            detected_aruco_ids, detected_aruco_corners, self._aruco_ids
+        )
+
+        n_charuco = len(self._charuco_names)
+        n_aruco_total = len(self._aruco_names)
+        total = n_charuco + n_aruco_total
+
+        xyz = np.full((total, 3), np.nan, dtype=np.float64)
+        visibility = np.zeros(total, dtype=np.float64)
+
+        if detected_charuco_ids is not None and detected_charuco_corners is not None:
+            for corner_idx, corner_id in enumerate(detected_charuco_ids):
+                xyz[corner_id, 0] = detected_charuco_corners[corner_idx, 0]
+                xyz[corner_id, 1] = detected_charuco_corners[corner_idx, 1]
+                xyz[corner_id, 2] = 0.0
+                visibility[corner_id] = 1.0
+
+        if detected_aruco_ids is not None and detected_aruco_corners is not None:
+            for marker_idx, marker_id in enumerate(detected_aruco_ids):
+                if marker_id not in self._aruco_ids:
+                    continue
+                board_marker_idx = self._aruco_ids.index(marker_id)
+                for j in range(4):
+                    flat_idx = n_charuco + board_marker_idx * 4 + j
+                    xyz[flat_idx, 0] = detected_aruco_corners[marker_idx, j, 0]
+                    xyz[flat_idx, 1] = detected_aruco_corners[marker_idx, j, 1]
+                    xyz[flat_idx, 2] = 0.0
+                    visibility[flat_idx] = 1.0
+
+        return Keypoints(names=self._all_names, xyz=xyz, visibility=visibility)
 
     def detect(
         self,

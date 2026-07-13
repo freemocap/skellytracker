@@ -11,11 +11,16 @@ This folder documents the redesigned skellytracker architecture. The core shift 
 | **ObjectDetector / KeypointDetector** | Primitive detection units | [02-detectors.md](./02-detectors.md) |
 | **DetectionStage** | Composes detectors; supports hierarchical nesting | [03-detection-stage.md](./03-detection-stage.md) |
 | **Observation** | Per-frame structured output | [04-observation.md](./04-observation.md) |
-| **Session** | GPU/CPU resource manager | [05-session.md](./05-session.md) |
+| **Session** | GPU/CPU resource manager and batch coordinator | [05-session.md](./05-session.md) |
 | **TrackerState** | Temporal smoothing state (passed in/out) | [06-tracker-state.md](./06-tracker-state.md) |
-| **Annotator / DataStore / DemoManager** | Supporting objects | [07-supporting-objects.md](./07-supporting-objects.md) |
+| **Annotator / DataStore / DemoManager / process_video** | Supporting objects | [07-supporting-objects.md](./07-supporting-objects.md) |
+| **ONNX Batching and CoreML** | Dynamic batch surgery and CoreML compatibility | [08-onnx-batching-and-coreml.md](./08-onnx-batching-and-coreml.md) |
+| **Temporal Processing** | BBox policy, EMA smoothing, keypoint filtering | [09-temporal-processing.md](./09-temporal-processing.md) |
+| **Multi-Camera Batching** | Batched inference across cameras; pre/infer/post split | [10-multi-camera-batching.md](./10-multi-camera-batching.md) |
 
 ## Data Flow
+
+### Single-camera
 
 ```
                         ┌─────────────────────────────────────────┐
@@ -42,6 +47,30 @@ This folder documents the redesigned skellytracker architecture. The core shift 
   updated state ◄─────  │  update TrackerState                     │
                         └─────────────────────────────────────────┘
 ```
+
+### Multi-camera (batched)
+
+```
+  {"cam0": image, "cam1": image, ...} ──────────────────────────────► Tracker.process_batch()
+  {"cam0": state, "cam1": state, ...} ──────────────────────────────►
+                                                                        │
+                                                              DetectionStage.run_batch()
+                                                                        │
+                                              ┌─────────────────────────────────────────┐
+                                              │  preprocess  (per-camera, vectorized)   │
+                                              │      ↓                                  │
+                                              │  Session.run_batched()  [one GPU call]  │
+                                              │      ↓                                  │
+                                              │  postprocess (per-camera, vectorized)   │
+                                              │      ↓                                  │
+                                              │  temporal processing (per-camera)       │
+                                              └─────────────────────────────────────────┘
+                                                                        │
+  {"cam0": obs, "cam1": obs, ...}   ◄─────────────────────────────────┘
+  {"cam0": state, "cam1": state, ...} ◄───────────────────────────────┘
+```
+
+See [10-multi-camera-batching.md](./10-multi-camera-batching.md) for full detail.
 
 ## Key Design Decisions
 
