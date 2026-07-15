@@ -1,5 +1,5 @@
 from skellytracker.core.annotation.annotator import Annotator
-from skellytracker.core.io import process_folder, process_video, process_video_list, ProcessingTimer
+from skellytracker.core.io import process_folder, process_video, process_video_list, ProcessingTimer, TrackerMapping
 from skellytracker.core.config import (
     DetectionStageConfig,
     KeypointDetectorConfig,
