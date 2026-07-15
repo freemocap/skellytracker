@@ -266,6 +266,7 @@ _PROVIDER_EP_NAME: dict[str, str] = {
     "trt": "TensorrtExecutionProvider",
     "cuda": "CUDAExecutionProvider",
     "coreml": "CoreMLExecutionProvider",
+    "directml": "DmlExecutionProvider",
     "cpu": "CPUExecutionProvider",
 }
 
@@ -548,6 +549,13 @@ def build_tuned_ort_session(
             providers.append(("CoreMLExecutionProvider", coreml_options))
         else:
             providers.append("CoreMLExecutionProvider")
+        providers.append("CPUExecutionProvider")
+    elif provider == "directml":
+        logger.warning(
+            "DirectML support is experimental and has not been tested on real hardware. "
+            "Proceeding, but results may vary."
+        )
+        providers.append("DmlExecutionProvider")
         providers.append("CPUExecutionProvider")
     else:
         providers.append("CPUExecutionProvider")
