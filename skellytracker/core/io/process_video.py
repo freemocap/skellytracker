@@ -125,54 +125,51 @@ def process_video(
     return store
 
 
-def process_folder(
+def process_video_list(
     tracker: Tracker,
     annotator: Annotator | None,
-    video_dir: Path,
+    video_paths: list[Path],
     output_dir: Path,
     annotated_video_dir: Path | None = None,
     fmt: Literal["npy", "json"] = "npy",
     show_progress: bool = True,
     profile: bool = False,
+    progress_label: str = "videos",
 ) -> dict[str, DataStore]:
-    """Process all videos in *video_dir* with batched inference.
+    """Process an explicit list of video files with batched inference.
 
-    Opens all N camera videos simultaneously and calls ``tracker.process_batch()``
+    Opens all N videos simultaneously and calls ``tracker.process_batch()``
     once per frame, so ONNX-backed detectors make a single GPU call per model per
     frame rather than N sequential calls.  Suitable for synchronised multi-camera
     freemocap recordings where all videos cover the same time range.
 
     For best GPU utilisation, create the ``OnnxSession`` with
-    ``batch_size`` equal to the number of camera videos in *video_dir*.
+    ``batch_size`` equal to the number of videos.
 
     Args:
         tracker: Configured Tracker instance (already initialised; not closed here).
         annotator: If provided, draws landmarks on each frame. Required when
             *annotated_video_dir* is set; ignored otherwise.
-        video_dir: Directory containing the synchronised video files.
-        output_dir: Directory where one keypoint array per camera is written.
+        video_paths: Ordered list of video file paths to process together.
+        output_dir: Directory where one keypoint array per video is written.
             Files are named ``<video_stem>.<fmt>``.
-        annotated_video_dir: If set, write one annotated video per camera here.
+        annotated_video_dir: If set, write one annotated video per input here.
             *annotator* must be provided.
         fmt: ``"npy"`` (default) or ``"json"``.
         show_progress: Show a tqdm progress bar over frames.
+        profile: Print a timing breakdown after processing.
+        progress_label: Label shown in the tqdm progress bar.
 
     Returns:
         Mapping of video stem → DataStore for each processed video.
     """
-    video_dir = Path(video_dir)
-    video_paths = sorted(
-        p for p in video_dir.iterdir()
-        if p.is_file() and p.suffix.lower() in _VIDEO_SUFFIXES
-    )
     if not video_paths:
-        raise FileNotFoundError(f"No video files found in {video_dir}")
+        raise ValueError("video_paths must not be empty")
 
+    video_paths = [Path(p) for p in video_paths]
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Reset per-camera detector instances so repeated calls to this function
-    # don't inherit timestamp state from a previous recording.
     tracker.reset_temporal_state()
 
     captures = {p.stem: cv2.VideoCapture(str(p)) for p in video_paths}
@@ -214,7 +211,7 @@ def process_folder(
 
     iterator = tqdm(
         range(min_frames),
-        desc=video_dir.name,
+        desc=progress_label,
         unit="frames",
         dynamic_ncols=True,
         disable=not show_progress,
@@ -269,3 +266,59 @@ def process_folder(
         results[cam_id] = store
 
     return results
+
+
+def process_folder(
+    tracker: Tracker,
+    annotator: Annotator | None,
+    video_dir: Path,
+    output_dir: Path,
+    annotated_video_dir: Path | None = None,
+    fmt: Literal["npy", "json"] = "npy",
+    show_progress: bool = True,
+    profile: bool = False,
+) -> dict[str, DataStore]:
+    """Process all videos in *video_dir* with batched inference.
+
+    Collects video files from *video_dir* and delegates to
+    :func:`process_video_list`.  Suitable for synchronised multi-camera
+    freemocap recordings where all videos cover the same time range.
+
+    For best GPU utilisation, create the ``OnnxSession`` with
+    ``batch_size`` equal to the number of camera videos in *video_dir*.
+
+    Args:
+        tracker: Configured Tracker instance (already initialised; not closed here).
+        annotator: If provided, draws landmarks on each frame. Required when
+            *annotated_video_dir* is set; ignored otherwise.
+        video_dir: Directory containing the synchronised video files.
+        output_dir: Directory where one keypoint array per camera is written.
+            Files are named ``<video_stem>.<fmt>``.
+        annotated_video_dir: If set, write one annotated video per camera here.
+            *annotator* must be provided.
+        fmt: ``"npy"`` (default) or ``"json"``.
+        show_progress: Show a tqdm progress bar over frames.
+        profile: Print a timing breakdown after processing.
+
+    Returns:
+        Mapping of video stem → DataStore for each processed video.
+    """
+    video_dir = Path(video_dir)
+    video_paths = sorted(
+        p for p in video_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in _VIDEO_SUFFIXES
+    )
+    if not video_paths:
+        raise FileNotFoundError(f"No video files found in {video_dir}")
+
+    return process_video_list(
+        tracker=tracker,
+        annotator=annotator,
+        video_paths=video_paths,
+        output_dir=output_dir,
+        annotated_video_dir=annotated_video_dir,
+        fmt=fmt,
+        show_progress=show_progress,
+        profile=profile,
+        progress_label=video_dir.name,
+    )
