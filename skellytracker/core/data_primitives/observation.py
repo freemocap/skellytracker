@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from skellytracker.core.data_primitives import BoundingBox, Keypoints
+from skellytracker.core.data_primitives.bounding_box import BoundingBox
+from skellytracker.core.data_primitives.keypoints import Keypoints
 
 
 @dataclass

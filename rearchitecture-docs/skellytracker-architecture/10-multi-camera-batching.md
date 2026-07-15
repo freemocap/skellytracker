@@ -250,4 +250,4 @@ This gives true batched GPU inference across all cameras for the entire recordin
 
 ### Still to do
 
-- [ ] **Pipeline parallelism for realtime** — the producer-consumer overlap described in the "Parallelizing Pre/Postprocessing" section (preprocess frame N while inferring on frame N-1) is not yet implemented. Relevant for CPU users in live streaming scenarios.
+- [ ] **Pipeline parallelism for realtime** — the producer-consumer overlap described in the "Parallelizing Pre/Postprocessing" section (preprocess frame N while inferring on frame N-1) is not yet implemented. Relevant for CPU users in live streaming scenarios. Note: the object-detector preprocessing step (~2–5 ms) is small relative to total inference time, so measured speedup was negligible — this would only be worth revisiting if object-detector preprocessing becomes a meaningful fraction of frame time.

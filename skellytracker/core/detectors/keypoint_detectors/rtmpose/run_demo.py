@@ -23,7 +23,7 @@ from skellytracker.core.annotation.keypoint_annotator import (
 )
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.config.tracker_config import TrackerConfig
-from skellytracker.core.demo_manager import DemoManager
+from skellytracker.core.io.demo_manager import DemoManager
 from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_keypoint_detector import (
     RTMPoseDetectorConfig,
     RTMPoseKeypointDetector,

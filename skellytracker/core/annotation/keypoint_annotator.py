@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 
 from skellytracker.core.annotation.annotator import Annotator
 from skellytracker.core.data_primitives import BoundingBox, Keypoints
-from skellytracker.core.observation import Observation, StageObservation
+from skellytracker.core.data_primitives.observation import Observation, StageObservation
 
 
 @dataclass

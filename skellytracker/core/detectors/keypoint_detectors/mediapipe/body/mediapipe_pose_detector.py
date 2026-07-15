@@ -181,7 +181,7 @@ def _to_rgb(image: NDArray[np.uint8]) -> NDArray[np.uint8]:
 def run_demo(config: MediapipePoseDetectorConfig | None = None, camera_index: int = 0) -> None:
     from skellytracker.core.config.detection_stage_config import DetectionStageConfig
     from skellytracker.core.config.tracker_config import TrackerConfig
-    from skellytracker.core.demo_manager import DemoManager
+    from skellytracker.core.io.demo_manager import DemoManager
     from skellytracker.core.keypoint_annotator import KeypointAnnotator, KeypointAnnotatorConfig, StageAnnotationSchema
     from skellytracker.core.tracker.tracker import Tracker
     if config is None:

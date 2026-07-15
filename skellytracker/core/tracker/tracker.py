@@ -7,9 +7,9 @@ import numpy as np
 
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.detectors.detection_context import DetectionContext
-from skellytracker.core.processing_timer import ProcessingTimer
+from skellytracker.core.io.processing_timer import ProcessingTimer
 from skellytracker.core.tracker.detection_stage import DetectionStage
-from skellytracker.core.observation import Observation
+from skellytracker.core.data_primitives.observation import Observation
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.tracker.tracker_state import StageState, TrackerState
 

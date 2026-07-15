@@ -26,8 +26,8 @@ import numpy as np
 from tqdm import tqdm
 
 from skellytracker.core.annotation.annotator import Annotator
-from skellytracker.core.data_store import DataStore
-from skellytracker.core.processing_timer import ProcessingTimer
+from skellytracker.core.data_primitives.data_store import DataStore
+from skellytracker.core.io.processing_timer import ProcessingTimer
 from skellytracker.core.tracker.tracker import Tracker
 from skellytracker.core.tracker.tracker_state import TrackerState
 
@@ -84,6 +84,7 @@ def process_video(
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         video_writer = cv2.VideoWriter(str(annotated_video_path), fourcc, fps, (width, height))
 
+    tracker.reset_temporal_state()
     store = DataStore()
     state = TrackerState()
     frame_number = 0

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from skellytracker.core.processing_timer import ProcessingTimer
+from skellytracker.core.io.processing_timer import ProcessingTimer
 
 
 @dataclass

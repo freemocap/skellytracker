@@ -16,7 +16,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     build_keypoint_detector,
     build_object_detector,
 )
-from skellytracker.core.observation import StageObservation
+from skellytracker.core.data_primitives.observation import StageObservation
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.temporal_processing.bbox_policy import BBoxPolicy
 from skellytracker.core.temporal_processing.bbox_smoothing import apply_bbox_ema

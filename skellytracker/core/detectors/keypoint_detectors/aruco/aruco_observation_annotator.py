@@ -10,7 +10,7 @@ from skellytracker.core.detectors.keypoint_detectors.aruco.aruco_annotator impor
     ArucoAnnotator,
     ArucoAnnotatorConfig,
 )
-from skellytracker.core.observation import Observation
+from skellytracker.core.data_primitives.observation import Observation
 
 
 @dataclass

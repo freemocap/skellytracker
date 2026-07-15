@@ -13,7 +13,7 @@ from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_annotator i
 from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_board_definition import (
     CharucoBoardDefinition,
 )
-from skellytracker.core.observation import Observation
+from skellytracker.core.data_primitives.observation import Observation
 
 
 @dataclass

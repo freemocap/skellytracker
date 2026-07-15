@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from numpy.typing import NDArray
 import numpy as np
 
-from skellytracker.core.observation import Observation
+from skellytracker.core.data_primitives.observation import Observation
 
 
 @dataclass
