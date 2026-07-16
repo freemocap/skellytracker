@@ -107,7 +107,14 @@ class DetectionStage:
                 bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
 
         # 3. Keypoint detection — crop, detect, translate back to full-frame coords
-        crop = smoothed_bbox.to_crop(image) if smoothed_bbox is not None else image
+        #
+        # The crop bbox must be clipped to image bounds *before* use: to_crop()
+        # clamps negative/out-of-bounds coords when slicing, so translating by the
+        # original (unclamped) bbox origin would offset keypoints by the clamped
+        # amount — a translation bug whenever the bbox extends past the frame edge.
+        h, w = image.shape[:2]
+        crop_bbox = smoothed_bbox.clipped(h, w) if smoothed_bbox is not None else None
+        crop = crop_bbox.to_crop(image) if crop_bbox is not None else image
         all_keypoints: list[Keypoints] = []
         updated_kp_states: list[KeypointSmoothingState] = []
 
@@ -118,8 +125,8 @@ class DetectionStage:
                 else KeypointSmoothingState()
             )
             kpts = detector.detect(crop, context)
-            if smoothed_bbox is not None:
-                kpts = kpts.translated(smoothed_bbox.x1, smoothed_bbox.y1)
+            if crop_bbox is not None:
+                kpts = kpts.translated(crop_bbox.x1, crop_bbox.y1)
 
             # 4. Keypoint smoothing (one-euro filter)
             if self.keypoint_filter is not None:
@@ -280,10 +287,16 @@ class DetectionStage:
             bbox_states_per_cam[cam_id] = bbox_state
 
         # ── 3. Compute crops per camera ───────────────────────────────────────
+        # crop_bboxes are clipped to image bounds — to_crop() clamps internally
+        # when slicing, so translating keypoints back by the unclamped bbox
+        # origin would offset them whenever the bbox extends past the frame edge.
+        crop_bboxes: dict[str, BoundingBox | None] = {}
         crops: dict[str, NDArray[np.uint8]] = {}
         for cam_id in cam_ids:
             sb = smoothed_bboxes[cam_id]
-            crops[cam_id] = sb.to_crop(images[cam_id]) if sb is not None else images[cam_id]
+            h, w = images[cam_id].shape[:2]
+            crop_bboxes[cam_id] = sb.clipped(h, w) if sb is not None else None
+            crops[cam_id] = crop_bboxes[cam_id].to_crop(images[cam_id]) if crop_bboxes[cam_id] is not None else images[cam_id]
 
         # ── 4. Keypoint detection ─────────────────────────────────────────────
         # Collect per-detector results: list indexed by detector index, each a
@@ -311,9 +324,9 @@ class DetectionStage:
                     context.timings.stop(f"{self.name}.kp_infer", _t)
                 for cam_id in cam_ids:
                     kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
-                    sb = smoothed_bboxes[cam_id]
-                    if sb is not None:
-                        kpts = kpts.translated(sb.x1, sb.y1)
+                    cb = crop_bboxes[cam_id]
+                    if cb is not None:
+                        kpts = kpts.translated(cb.x1, cb.y1)
                     state = states.get(cam_id, StageState())
                     kp_state = (
                         state.keypoint_states[i]
@@ -332,9 +345,9 @@ class DetectionStage:
                     if cam_id not in cam_detectors:
                         cam_detectors[cam_id] = type(detector).create(detector.config, detector.session)
                     kpts = cam_detectors[cam_id].detect(crops[cam_id], context)
-                    sb = smoothed_bboxes[cam_id]
-                    if sb is not None:
-                        kpts = kpts.translated(sb.x1, sb.y1)
+                    cb = crop_bboxes[cam_id]
+                    if cb is not None:
+                        kpts = kpts.translated(cb.x1, cb.y1)
                     state = states.get(cam_id, StageState())
                     kp_state = (
                         state.keypoint_states[i]
