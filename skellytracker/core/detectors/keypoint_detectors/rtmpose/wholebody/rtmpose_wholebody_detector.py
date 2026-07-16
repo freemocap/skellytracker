@@ -62,6 +62,19 @@ _INPUT_SIZES: dict[str, tuple[int, int]] = {
 _POINT_NAMES: tuple[str, ...] = load_point_names(_YAML)
 _NUM_KEYPOINTS = len(_POINT_NAMES)  # 133
 
+# The RTMW model returns 133 keypoints in native COCO-WholeBody order:
+#   body(0..22) + face(23..90) + left_hand(91..111) + right_hand(112..132)
+# The wholebody YAML composes names as:
+#   body(0..22) + right_hand(23..43) + left_hand(44..64) + face(65..132)
+# This permutation maps native model index -> schema (YAML) index.
+_MODEL_TO_SCHEMA_PERM: NDArray[np.intp] = np.concatenate([
+    np.arange(0, 23, dtype=np.intp),      # body stays in place
+    np.arange(112, 133, dtype=np.intp),   # right_hand moves up
+    np.arange(91, 112, dtype=np.intp),    # left_hand moves up
+    np.arange(23, 91, dtype=np.intp),     # face moves down
+])
+assert _MODEL_TO_SCHEMA_PERM.shape == (_NUM_KEYPOINTS,)
+
 
 class RTMPoseDetectorConfig(KeypointDetectorConfig):
     detector_type: Literal["rtmpose"] = "rtmpose"
@@ -114,8 +127,8 @@ class RTMPoseKeypointDetector(KeypointDetector):
             model_input_size=(input_w, input_h),
             simcc_split_ratio=_SIMCC_SPLIT_RATIO,
         )
-        kpts_2d = keypoints_xy[0].copy()
-        kpt_scores = scores[0]
+        kpts_2d = keypoints_xy[0][_MODEL_TO_SCHEMA_PERM]
+        kpt_scores = scores[0][_MODEL_TO_SCHEMA_PERM]
 
         xyz = np.zeros((_NUM_KEYPOINTS, 3), dtype=np.float64)
         xyz[:, 0] = kpts_2d[:, 0]
@@ -155,8 +168,8 @@ class RTMPoseKeypointDetector(KeypointDetector):
             model_input_size=(input_w, input_h),
             simcc_split_ratio=_SIMCC_SPLIT_RATIO,
         )
-        kpts_2d = keypoints_xy[0].copy()
-        kpt_scores = scores[0]
+        kpts_2d = keypoints_xy[0][_MODEL_TO_SCHEMA_PERM]
+        kpt_scores = scores[0][_MODEL_TO_SCHEMA_PERM]
 
         xyz = np.zeros((_NUM_KEYPOINTS, 3), dtype=np.float64)
         xyz[:, 0] = kpts_2d[:, 0]
