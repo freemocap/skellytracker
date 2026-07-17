@@ -1,5 +1,7 @@
 # Temporal Processing
 
+> **This is a pre-implementation design doc.** The bbox-policy section below (`smooth_center`/`smooth_size`, the simpler `BBoxPolicy`) predates the actual implementation and no longer matches the code — see [11-bbox-policy-guide.md](./11-bbox-policy-guide.md) for the current, as-built API (`smooth_bbox`, `keypoint_tracked_bbox`, shrink-rate clamping, etc). The keypoint-smoothing (one-euro/Kalman) sections are still broadly accurate.
+
 Temporal processing is the logic inside `DetectionStage.process()` that uses `StageState` to carry information across frames. It has two sub-concerns: a pre-detection **bbox policy** that decides whether to re-run the object detector, and post-detection **output smoothing** that filters noisy bbox and keypoint measurements. Neither concern belongs to the detectors themselves — detectors are stateless and frame-local. The `TrackerState` exists precisely to give temporal processing the memory it needs.
 
 ## Why It Exists

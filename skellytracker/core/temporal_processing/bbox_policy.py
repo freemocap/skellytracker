@@ -146,7 +146,8 @@ class BBoxPolicy:
     fitness_checks: list[BBoxFitnessCheck] = field(default_factory=list)
     keypoint_bbox_expansion: float | None = None
     keypoint_bbox_min_visibility: float = 0.0
-    min_shrink_ratio_per_frame: float | None = 0.995
+    min_shrink_ratio_per_frame: float | None = 0.999
+    min_detected_bbox_ratio: float | None = 0.5
     min_bbox_size_px: float = 80.0
 
     def should_redetect(self, frame_number: int, stage_state: StageState) -> bool:
@@ -178,9 +179,16 @@ class BBoxPolicy:
         collapse. ``min_shrink_ratio_per_frame`` clamps how much the crop is
         allowed to shrink in a single frame (relative to the *previous*
         crop, not the tight keypoint box), which directly breaks the loop
-        instead of just slowing it down. ``min_bbox_size_px`` is a final
-        absolute floor so a degenerate (zero-area) crop can never reach the
-        keypoint detector.
+        instead of just slowing it down. But a per-frame rate limit still
+        drifts to the tight keypoint box eventually over a long enough
+        redetect_interval, so ``min_detected_bbox_ratio`` adds a second floor
+        tied to the object detector's last actual measurement of the
+        subject — the detector sees the whole frame and isn't blind to
+        points outside the current crop the way the keypoint detector is, so
+        trusting its size bounds how far a partial-visibility run can shrink
+        the crop regardless of how long it lasts. ``min_bbox_size_px`` is a
+        final absolute floor so a degenerate (zero-area) crop can never reach
+        the keypoint detector.
         """
         tracked = stage_state.bbox_state.keypoint_tracked_bbox
         if self.keypoint_bbox_expansion is None or tracked is None:
@@ -192,6 +200,20 @@ class BBoxPolicy:
         if prev_crop is not None and self.min_shrink_ratio_per_frame is not None:
             min_w = prev_crop.width * self.min_shrink_ratio_per_frame
             min_h = prev_crop.height * self.min_shrink_ratio_per_frame
+            if candidate.width < min_w or candidate.height < min_h:
+                cx, cy = candidate.center
+                w = max(candidate.width, min_w)
+                h = max(candidate.height, min_h)
+                candidate = BoundingBox(
+                    x1=cx - w / 2.0, y1=cy - h / 2.0,
+                    x2=cx + w / 2.0, y2=cy + h / 2.0,
+                    confidence=candidate.confidence,
+                )
+
+        detected = stage_state.bbox_state.last_detected_bbox
+        if detected is not None and self.min_detected_bbox_ratio is not None:
+            min_w = detected.width * self.min_detected_bbox_ratio
+            min_h = detected.height * self.min_detected_bbox_ratio
             if candidate.width < min_w or candidate.height < min_h:
                 cx, cy = candidate.center
                 w = max(candidate.width, min_w)
@@ -222,5 +244,6 @@ class BBoxPolicy:
             keypoint_bbox_expansion=config.keypoint_bbox_expansion,
             keypoint_bbox_min_visibility=config.keypoint_bbox_min_visibility,
             min_shrink_ratio_per_frame=config.min_shrink_ratio_per_frame,
+            min_detected_bbox_ratio=config.min_detected_bbox_ratio,
             min_bbox_size_px=config.min_bbox_size_px,
         )

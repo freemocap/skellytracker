@@ -23,6 +23,11 @@ class BBoxSmoothingState:
     # edge enough slack to be re-acquired instead of being permanently cropped
     # out the moment they dip below the crop boundary.
     keypoint_tracked_bbox: BoundingBox | None = None
+    # Raw box from the object detector's most recent actual run (not EMA-smoothed,
+    # not the keypoint-derived tracking box). Used as a floor on how far the
+    # keypoint-tracked crop is allowed to shrink between redetects — see
+    # BBoxPolicy.min_detected_bbox_ratio.
+    last_detected_bbox: BoundingBox | None = None
 
 
 @dataclass

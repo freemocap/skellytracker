@@ -17,6 +17,7 @@ This folder documents the redesigned skellytracker architecture. The core shift 
 | **ONNX Batching and CoreML** | Dynamic batch surgery and CoreML compatibility | [08-onnx-batching-and-coreml.md](./08-onnx-batching-and-coreml.md) |
 | **Temporal Processing** | BBox policy, EMA smoothing, keypoint filtering | [09-temporal-processing.md](./09-temporal-processing.md) |
 | **Multi-Camera Batching** | Batched inference across cameras; pre/infer/post split | [10-multi-camera-batching.md](./10-multi-camera-batching.md) |
+| **BBox Policy (current API)** | As-built bbox policy/smoothing API and freemocap RTMPose integration guide | [11-bbox-policy-guide.md](./11-bbox-policy-guide.md) |
 
 ## Data Flow
 

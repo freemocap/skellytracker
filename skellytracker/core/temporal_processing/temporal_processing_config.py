@@ -62,7 +62,23 @@ class BBoxPolicyConfig(BaseModel):
     # visible than last frame — a self-reinforcing shrink loop with no stable
     # equilibrium. Clamping the shrink rate breaks that loop directly. Set to
     # None to disable (unbounded shrink, old behavior).
-    min_shrink_ratio_per_frame: float | None = 0.995
+    #
+    # Kept close to 1.0 so a keypoint sitting near the crop edge (e.g. a
+    # shoulder at the frame boundary) survives many consecutive misses before
+    # the crop drifts past its location — once that happens the keypoint
+    # detector never sees that region again until the next redetect, so the
+    # per-frame rate needs to stay slow relative to redetect_interval, not
+    # just nonzero.
+    min_shrink_ratio_per_frame: float | None = 0.999
+    # Floor on predicted crop width/height as a fraction of the object
+    # detector's most recent actual box (not the EMA-smoothed crop). The
+    # per-frame rate limit above only paces the shrink; over a long
+    # redetect_interval it still eventually converges on the tight
+    # keypoint-only box. This ties the crop back to what the detector — which
+    # sees the whole frame and isn't blind to points outside the current crop
+    # — actually measured, so a long run of partial keypoint visibility can't
+    # shrink the crop indefinitely. Set to None to disable.
+    min_detected_bbox_ratio: float | None = 0.5
     # Hard floor on predicted crop width/height in pixels, regardless of the
     # shrink-rate clamp above. Purely a last-resort guard against a
     # zero-or-negative-size crop reaching cv2.warpAffine.

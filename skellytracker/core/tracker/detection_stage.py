@@ -90,6 +90,7 @@ class DetectionStage:
                 bbox_state = type(bbox_state)(
                     smooth_bbox=bbox_state.smooth_bbox,
                     last_detection_frame=frame_number,
+                    last_detected_bbox=bboxes[0] if bboxes else None,
                 )
                 detector_ran = True
             else:
@@ -271,6 +272,7 @@ class DetectionStage:
                     bbox_states_per_cam[cam_id] = type(bbox_state)(
                         smooth_bbox=bbox_state.smooth_bbox,
                         last_detection_frame=frame_number,
+                        last_detected_bbox=bboxes_per_cam[cam_id][0] if bboxes_per_cam[cam_id] else None,
                     )
                     detector_ran_per_cam[cam_id] = True
                 else:
@@ -304,6 +306,10 @@ class DetectionStage:
                     context.timings.stop(f"{self.name}.obj_infer", _t)
                 for cam_id in cams_needing_detect:
                     bboxes_per_cam[cam_id] = self.object_detector.postprocess(raw_batch[cam_id], metas[cam_id])
+                    bbox_states_per_cam[cam_id] = replace(
+                        bbox_states_per_cam[cam_id],
+                        last_detected_bbox=bboxes_per_cam[cam_id][0] if bboxes_per_cam[cam_id] else None,
+                    )
 
         # ── 2. BBox smoothing (EMA) per camera ───────────────────────────────
         smoothed_bboxes: dict[str, BoundingBox | None] = {}

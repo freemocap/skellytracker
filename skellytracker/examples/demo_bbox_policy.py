@@ -53,7 +53,8 @@ def build_demo(
     keypoint_bbox_expansion: float | None = 0.05,
     within_bbox_ratio_threshold: float = 0.5,
     bbox_smoothing_alpha: float = 0.4,
-    min_shrink_ratio_per_frame: float | None = 0.995,
+    min_shrink_ratio_per_frame: float | None = 0.999,
+    min_detected_bbox_ratio: float | None = 0.5,
     min_bbox_size_px: float = 80.0,
 ) -> DemoManager:
     models = [YoloxPersonDetector.model_spec("yolox-m"), RTMPoseKeypointDetector.model_spec(model_name)]
@@ -70,6 +71,7 @@ def build_demo(
             keypoint_bbox_expansion=keypoint_bbox_expansion,
             fitness_checks=[KeypointsWithinBBoxRatioConfig(threshold=within_bbox_ratio_threshold)],
             min_shrink_ratio_per_frame=min_shrink_ratio_per_frame,
+            min_detected_bbox_ratio=min_detected_bbox_ratio,
             min_bbox_size_px=min_bbox_size_px,
         ),
         bbox_smoothing=BBoxSmoothingConfig(alpha=bbox_smoothing_alpha),
@@ -104,7 +106,8 @@ def main() -> None:
     parser.add_argument("--keypoint-bbox-expansion", type=float, default=0.05)
     parser.add_argument("--within-bbox-ratio-threshold", type=float, default=0.5)
     parser.add_argument("--bbox-smoothing-alpha", type=float, default=0.4)
-    parser.add_argument("--min-shrink-ratio-per-frame", type=float, default=0.995)
+    parser.add_argument("--min-shrink-ratio-per-frame", type=float, default=0.999)
+    parser.add_argument("--min-detected-bbox-ratio", type=float, default=0.5)
     parser.add_argument("--min-bbox-size-px", type=float, default=80.0)
     args = parser.parse_args()
 
@@ -114,6 +117,7 @@ def main() -> None:
         within_bbox_ratio_threshold=args.within_bbox_ratio_threshold,
         bbox_smoothing_alpha=args.bbox_smoothing_alpha,
         min_shrink_ratio_per_frame=args.min_shrink_ratio_per_frame,
+        min_detected_bbox_ratio=args.min_detected_bbox_ratio,
         min_bbox_size_px=args.min_bbox_size_px,
     )
     demo.run_webcam(camera_index=args.camera)
