@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import concurrent.futures
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from numpy.typing import NDArray
 import numpy as np
@@ -18,7 +18,7 @@ from skellytracker.core.detectors.detector_base_classes import (
 )
 from skellytracker.core.data_primitives.observation import StageObservation
 from skellytracker.core.sessions.session import Session
-from skellytracker.core.temporal_processing.bbox_policy import BBoxPolicy
+from skellytracker.core.temporal_processing.bbox_policy import BBoxPolicy, predict_bbox_from_keypoints
 from skellytracker.core.temporal_processing.bbox_smoothing import apply_bbox_ema
 from skellytracker.core.temporal_processing.keypoint_filtering import (
     KalmanFilter,
@@ -83,6 +83,7 @@ class DetectionStage:
 
         # 1. Object detection with bbox reuse policy
         bbox_state = state.bbox_state
+        detector_ran = False
         if self.object_detector is not None:
             if self.bbox_policy.should_redetect(frame_number, state):
                 bboxes = self.object_detector.detect(image, context)
@@ -90,6 +91,7 @@ class DetectionStage:
                     smooth_bbox=bbox_state.smooth_bbox,
                     last_detection_frame=frame_number,
                 )
+                detector_ran = True
             else:
                 predicted = self.bbox_policy.predict_bbox(state)
                 bboxes = [predicted] if predicted is not None else []
@@ -105,7 +107,6 @@ class DetectionStage:
         else:
             smoothed_bbox = raw_bbox
             if raw_bbox is not None:
-                from dataclasses import replace
                 bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
 
         # 3. Keypoint detection — crop, detect, translate back to full-frame coords
@@ -151,6 +152,17 @@ class DetectionStage:
 
         merged = Keypoints.concatenate(all_keypoints) if all_keypoints else None
 
+        # 5b. Refresh the keypoint-tracked bbox every frame (detect or skip) from
+        # this frame's actual keypoints — see BBoxSmoothingState.keypoint_tracked_bbox.
+        if self.bbox_policy.keypoint_bbox_expansion is not None and merged is not None:
+            fresh_tracked = predict_bbox_from_keypoints(
+                merged,
+                self.bbox_policy.keypoint_bbox_expansion,
+                self.bbox_policy.keypoint_bbox_min_visibility,
+            )
+            if fresh_tracked is not None:
+                bbox_state = replace(bbox_state, keypoint_tracked_bbox=fresh_tracked)
+
         # 6. Child stages receive the crop; children translate their own coords
         child_observations: dict[str, StageObservation] = {}
         updated_child_states: dict[str, StageState] = {}
@@ -165,6 +177,7 @@ class DetectionStage:
             bounding_boxes=bboxes,
             keypoints=merged,
             children=child_observations,
+            detector_ran=detector_ran,
         )
         updated_state = StageState(
             bbox_state=bbox_state,
@@ -216,6 +229,7 @@ class DetectionStage:
         # ── 1. Object detection ───────────────────────────────────────────────
         bboxes_per_cam: dict[str, list[BoundingBox]] = {}
         bbox_states_per_cam: dict[str, object] = {}  # BBoxSmoothingState per cam
+        detector_ran_per_cam: dict[str, bool] = {}
 
         # For ONNX-batched detectors, synchronize redetection: if any camera
         # needs a fresh detection, redetect all cameras together.  This keeps
@@ -246,24 +260,29 @@ class DetectionStage:
                             smooth_bbox=bbox_state.smooth_bbox,
                             last_detection_frame=frame_number,
                         )
+                        detector_ran_per_cam[cam_id] = True
                     else:
                         predicted = self.bbox_policy.predict_bbox(state)
                         bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
                         bbox_states_per_cam[cam_id] = bbox_state
+                        detector_ran_per_cam[cam_id] = False
                 elif self.bbox_policy.should_redetect(frame_number, state):
                     bboxes_per_cam[cam_id] = self.object_detector.detect(images[cam_id], context)
                     bbox_states_per_cam[cam_id] = type(bbox_state)(
                         smooth_bbox=bbox_state.smooth_bbox,
                         last_detection_frame=frame_number,
                     )
+                    detector_ran_per_cam[cam_id] = True
                 else:
                     predicted = self.bbox_policy.predict_bbox(state)
                     bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
                     bbox_states_per_cam[cam_id] = bbox_state
+                    detector_ran_per_cam[cam_id] = False
             else:
                 h, w = images[cam_id].shape[:2]
                 bboxes_per_cam[cam_id] = [BoundingBox.full_image(h, w)]
                 bbox_states_per_cam[cam_id] = bbox_state
+                detector_ran_per_cam[cam_id] = False
 
         # Batched ONNX object detection for cameras needing redetect
         if onnx_object_detector is not None:
@@ -297,7 +316,6 @@ class DetectionStage:
             else:
                 smoothed_bboxes[cam_id] = raw_bbox
                 if raw_bbox is not None:
-                    from dataclasses import replace
                     bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
             bbox_states_per_cam[cam_id] = bbox_state
 
@@ -414,6 +432,22 @@ class DetectionStage:
             merged_per_cam[cam_id] = Keypoints.concatenate(all_kpts) if all_kpts else None
             kp_states_per_cam[cam_id] = kp_states
 
+        # ── 5b. Refresh the keypoint-tracked bbox every frame (detect or skip) ──
+        if self.bbox_policy.keypoint_bbox_expansion is not None:
+            for cam_id in cam_ids:
+                merged = merged_per_cam[cam_id]
+                if merged is None:
+                    continue
+                fresh_tracked = predict_bbox_from_keypoints(
+                    merged,
+                    self.bbox_policy.keypoint_bbox_expansion,
+                    self.bbox_policy.keypoint_bbox_min_visibility,
+                )
+                if fresh_tracked is not None:
+                    bbox_states_per_cam[cam_id] = replace(
+                        bbox_states_per_cam[cam_id], keypoint_tracked_bbox=fresh_tracked
+                    )
+
         # ── 6. Child stages ───────────────────────────────────────────────────
         child_obs_per_cam: dict[str, dict[str, StageObservation]] = {c: {} for c in cam_ids}
         child_states_per_cam: dict[str, dict[str, StageState]] = {c: {} for c in cam_ids}
@@ -438,6 +472,7 @@ class DetectionStage:
                 bounding_boxes=bboxes_per_cam[cam_id],
                 keypoints=merged_per_cam[cam_id],
                 children=child_obs_per_cam[cam_id],
+                detector_ran=detector_ran_per_cam[cam_id],
             )
             states_out[cam_id] = StageState(
                 bbox_state=bbox_states_per_cam[cam_id],

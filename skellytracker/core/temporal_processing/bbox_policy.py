@@ -158,21 +158,20 @@ class BBoxPolicy:
     def predict_bbox(self, stage_state: StageState) -> BoundingBox | None:
         """Return a bbox to use when the object detector is being skipped.
 
-        If keypoint_bbox_expansion is set and the previous frame's keypoints are
-        available, derives a fresh tight bbox from those keypoints. Otherwise falls
-        back to the last smoothed bbox from state.
+        ``keypoint_tracked_bbox`` (tight-around-keypoints + one expansion) is
+        recomputed every frame in DetectionStage.run from that frame's actual
+        keypoints, regardless of whether the object detector ran. Here it is
+        expanded a *second* time before being handed back as the next frame's
+        crop — matching the old (skellytracker/old/rtmpose_tracker) two-stage
+        update-then-predict expansion. Without this second expansion, keypoints
+        sitting right at the tight box's edge (or ones with a one-frame
+        confidence dip) fall outside the next crop and can never be
+        re-acquired until the next scheduled redetect — the crop ratchets
+        smaller frame over frame instead of tracking the subject.
         """
-        if (
-            self.keypoint_bbox_expansion is not None
-            and stage_state.last_keypoints is not None
-        ):
-            predicted = predict_bbox_from_keypoints(
-                stage_state.last_keypoints,
-                self.keypoint_bbox_expansion,
-                self.keypoint_bbox_min_visibility,
-            )
-            if predicted is not None:
-                return predicted
+        tracked = stage_state.bbox_state.keypoint_tracked_bbox
+        if self.keypoint_bbox_expansion is not None and tracked is not None:
+            return tracked.scaled(1.0 + 2.0 * self.keypoint_bbox_expansion)
         return stage_state.bbox_state.smooth_bbox
 
     @classmethod

@@ -79,7 +79,6 @@ def build_yolox_demo(
             "person": StageAnnotationSchema(
                 connections=(),
                 draw_boxes=True,
-                box_color=(0, 200, 255),
             ),
         })
     )

@@ -15,6 +15,14 @@ class BBoxSmoothingState:
 
     smooth_bbox: BoundingBox | None = None
     last_detection_frame: int | None = None
+    # Tight-around-keypoints + one expansion, recomputed every frame from that
+    # frame's actual keypoints (regardless of whether the object detector ran).
+    # BBoxPolicy.predict_bbox expands this a second time to build the next
+    # frame's crop — mirrors skellytracker/old/rtmpose_tracker's two-stage
+    # (update then predict) expansion, which gives keypoints near the crop
+    # edge enough slack to be re-acquired instead of being permanently cropped
+    # out the moment they dip below the crop boundary.
+    keypoint_tracked_bbox: BoundingBox | None = None
 
 
 @dataclass

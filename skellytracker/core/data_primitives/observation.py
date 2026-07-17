@@ -14,6 +14,7 @@ class StageObservation:
     bounding_boxes: list[BoundingBox] = field(default_factory=list)
     keypoints: Keypoints | None = None
     children: dict[str, StageObservation] = field(default_factory=dict)
+    detector_ran: bool = True
 
 
 @dataclass
