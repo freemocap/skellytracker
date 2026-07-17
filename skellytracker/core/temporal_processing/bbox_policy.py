@@ -146,6 +146,8 @@ class BBoxPolicy:
     fitness_checks: list[BBoxFitnessCheck] = field(default_factory=list)
     keypoint_bbox_expansion: float | None = None
     keypoint_bbox_min_visibility: float = 0.0
+    min_shrink_ratio_per_frame: float | None = 0.995
+    min_bbox_size_px: float = 80.0
 
     def should_redetect(self, frame_number: int, stage_state: StageState) -> bool:
         last = stage_state.bbox_state.last_detection_frame
@@ -168,11 +170,49 @@ class BBoxPolicy:
         confidence dip) fall outside the next crop and can never be
         re-acquired until the next scheduled redetect — the crop ratchets
         smaller frame over frame instead of tracking the subject.
+
+        Relative expansion alone can't stop that ratchet, though: expanding a
+        percentage of an already-shrunk tight box still yields a smaller box
+        than before whenever this frame has fewer visible keypoints than last
+        frame — there's no stable equilibrium, only a slower or faster
+        collapse. ``min_shrink_ratio_per_frame`` clamps how much the crop is
+        allowed to shrink in a single frame (relative to the *previous*
+        crop, not the tight keypoint box), which directly breaks the loop
+        instead of just slowing it down. ``min_bbox_size_px`` is a final
+        absolute floor so a degenerate (zero-area) crop can never reach the
+        keypoint detector.
         """
         tracked = stage_state.bbox_state.keypoint_tracked_bbox
-        if self.keypoint_bbox_expansion is not None and tracked is not None:
-            return tracked.scaled(1.0 + 2.0 * self.keypoint_bbox_expansion)
-        return stage_state.bbox_state.smooth_bbox
+        if self.keypoint_bbox_expansion is None or tracked is None:
+            return stage_state.bbox_state.smooth_bbox
+
+        candidate = tracked.scaled(1.0 + 2.0 * self.keypoint_bbox_expansion)
+
+        prev_crop = stage_state.bbox_state.smooth_bbox
+        if prev_crop is not None and self.min_shrink_ratio_per_frame is not None:
+            min_w = prev_crop.width * self.min_shrink_ratio_per_frame
+            min_h = prev_crop.height * self.min_shrink_ratio_per_frame
+            if candidate.width < min_w or candidate.height < min_h:
+                cx, cy = candidate.center
+                w = max(candidate.width, min_w)
+                h = max(candidate.height, min_h)
+                candidate = BoundingBox(
+                    x1=cx - w / 2.0, y1=cy - h / 2.0,
+                    x2=cx + w / 2.0, y2=cy + h / 2.0,
+                    confidence=candidate.confidence,
+                )
+
+        if candidate.width < self.min_bbox_size_px or candidate.height < self.min_bbox_size_px:
+            cx, cy = candidate.center
+            w = max(candidate.width, self.min_bbox_size_px)
+            h = max(candidate.height, self.min_bbox_size_px)
+            candidate = BoundingBox(
+                x1=cx - w / 2.0, y1=cy - h / 2.0,
+                x2=cx + w / 2.0, y2=cy + h / 2.0,
+                confidence=candidate.confidence,
+            )
+
+        return candidate
 
     @classmethod
     def from_config(cls, config: BBoxPolicyConfig) -> BBoxPolicy:
@@ -181,4 +221,6 @@ class BBoxPolicy:
             fitness_checks=[_build_check(c) for c in config.fitness_checks],
             keypoint_bbox_expansion=config.keypoint_bbox_expansion,
             keypoint_bbox_min_visibility=config.keypoint_bbox_min_visibility,
+            min_shrink_ratio_per_frame=config.min_shrink_ratio_per_frame,
+            min_bbox_size_px=config.min_bbox_size_px,
         )

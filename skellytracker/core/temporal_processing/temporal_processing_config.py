@@ -54,6 +54,19 @@ class BBoxPolicyConfig(BaseModel):
     fitness_checks: list[BBoxFitnessCheckConfig] = []
     keypoint_bbox_expansion: float | None = None
     keypoint_bbox_min_visibility: float = 0.0
+    # Floor on how much the keypoint-predicted crop may shrink from one frame
+    # to the next (as a fraction of the previous crop's width/height). This is
+    # a *rate limit*, not a one-time expansion: relative expansion alone can't
+    # stop collapse, because expanding a percentage of an already-shrunk tight
+    # box still yields a smaller box than before whenever fewer keypoints are
+    # visible than last frame — a self-reinforcing shrink loop with no stable
+    # equilibrium. Clamping the shrink rate breaks that loop directly. Set to
+    # None to disable (unbounded shrink, old behavior).
+    min_shrink_ratio_per_frame: float | None = 0.995
+    # Hard floor on predicted crop width/height in pixels, regardless of the
+    # shrink-rate clamp above. Purely a last-resort guard against a
+    # zero-or-negative-size crop reaching cv2.warpAffine.
+    min_bbox_size_px: float = 80.0
 
 
 class BBoxSmoothingConfig(BaseModel):
