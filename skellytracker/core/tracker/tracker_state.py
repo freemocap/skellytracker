@@ -56,6 +56,9 @@ class StageState:
     keypoint_states: list[KeypointSmoothingState] = field(default_factory=list)
     child_states: dict[str, StageState] = field(default_factory=dict)
     last_keypoints: Keypoints | None = None
+    # Consecutive zero-valid-keypoint frames per keypoint_detectors index, used by
+    # KeypointResetPolicy to detect and recover from stuck tracker state.
+    consecutive_misses: list[int] = field(default_factory=list)
 
 
 @dataclass

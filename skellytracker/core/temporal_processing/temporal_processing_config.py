@@ -87,6 +87,27 @@ class KalmanKeypointSmoothingConfig(BaseModel):
     max_velocity: float | None = None
 
 
+class KeypointResetPolicyConfig(BaseModel):
+    """Resets a keypoint detector's internal temporal state after consecutive misses.
+
+    Some keypoint detectors (e.g. MediaPipe's VIDEO-mode PoseLandmarker) maintain
+    an internal track-then-detect pipeline: after tracking is lost, the detector
+    can get stuck silently returning empty results even when the subject is
+    clearly visible, because re-detection is not automatically retried. Calling
+    detector.reset_temporal_state() discards the stale state and forces a fresh
+    full detection on the next frame.
+
+    A "miss" is a frame where the detector returns zero valid keypoints, checked
+    before any confidence/visibility filtering — a detector that found the person
+    but with low-visibility limbs does not count as a miss.
+
+    Set max_consecutive_misses to None to disable (the default — no behavior
+    change for detectors that don't need this, e.g. stateless ONNX detectors).
+    """
+
+    max_consecutive_misses: int | None = None
+
+
 class KeypointSmoothingConfig(BaseModel):
     """One-euro filter parameters for keypoint temporal smoothing.
 
