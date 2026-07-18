@@ -72,6 +72,11 @@ class StageState:
     # Consecutive zero-valid-keypoint frames per keypoint_detectors index, used by
     # KeypointResetPolicy to detect and recover from stuck tracker state.
     consecutive_misses: list[int] = field(default_factory=list)
+    # Consecutive resets fired per keypoint_detectors index with no intervening
+    # real (non-empty) detection, used by KeypointResetPolicy to back off the
+    # effective miss threshold instead of re-firing at a fixed cadence forever
+    # while the subject stays out of frame. Cleared back to 0 on any real detection.
+    consecutive_resets: list[int] = field(default_factory=list)
 
 
 @dataclass

@@ -132,9 +132,22 @@ class KeypointResetPolicyConfig(BaseModel):
 
     Set max_consecutive_misses to None to disable (the default — no behavior
     change for detectors that don't need this, e.g. stateless ONNX detectors).
+
+    If the subject is genuinely out of frame (not just a stuck tracker), a bare
+    threshold re-fires every max_consecutive_misses frames forever, since a
+    successful reset zeroes the miss counter and the empty-detection streak
+    immediately starts climbing again. backoff_multiplier compounds the
+    *effective* threshold each time a reset fires without an intervening real
+    detection (a non-empty result), so retries space out over time instead of
+    hammering reset_temporal_state() at a fixed cadence. max_backoff_misses
+    caps how far that growth can go, so the detector still retries
+    occasionally rather than effectively giving up forever. The backoff
+    resets to the base threshold as soon as a real detection occurs.
     """
 
     max_consecutive_misses: int | None = None
+    backoff_multiplier: float = 2.0
+    max_backoff_misses: int | None = None
 
 
 class KeypointSmoothingConfig(BaseModel):

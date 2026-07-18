@@ -122,6 +122,7 @@ class DetectionStage:
         all_keypoints: list[Keypoints] = []
         updated_kp_states: list[KeypointSmoothingState] = []
         updated_misses: list[int] = []
+        updated_resets: list[int] = []
 
         for i, detector in enumerate(self.keypoint_detectors):
             kp_state = (
@@ -136,13 +137,25 @@ class DetectionStage:
             # 4. Reset detector's internal temporal state after a run of misses
             # (e.g. MediaPipe VIDEO-mode tracking getting silently stuck).
             # Checked before any confidence filtering — a raw zero-keypoint result
-            # is what defines a miss here.
+            # is what defines a miss here. consecutive_resets backs off the
+            # effective threshold each time a reset fires with no real detection
+            # in between, so a subject genuinely out of frame doesn't trigger a
+            # reset every max_consecutive_misses frames forever; it's cleared by
+            # any real (non-empty) detection.
             prev_misses = state.consecutive_misses[i] if i < len(state.consecutive_misses) else 0
-            misses = prev_misses + 1 if kpts.n_valid == 0 else 0
-            if self.keypoint_reset_policy.should_reset(misses):
+            prev_resets = state.consecutive_resets[i] if i < len(state.consecutive_resets) else 0
+            if kpts.n_valid == 0:
+                misses = prev_misses + 1
+                resets = prev_resets
+            else:
+                misses = 0
+                resets = 0
+            if self.keypoint_reset_policy.should_reset(misses, resets):
                 detector.reset_temporal_state()
                 misses = 0
+                resets = resets + 1
             updated_misses.append(misses)
+            updated_resets.append(resets)
 
             # 5. Keypoint smoothing (one-euro filter)
             if self.keypoint_filter is not None:
@@ -186,6 +199,7 @@ class DetectionStage:
             child_states=updated_child_states,
             last_keypoints=merged,
             consecutive_misses=updated_misses,
+            consecutive_resets=updated_resets,
         )
         return obs, updated_state
 
@@ -341,9 +355,10 @@ class DetectionStage:
         # Collect per-detector results: list indexed by detector index, each a
         # dict from cam_id → (Keypoints, KeypointSmoothingState)
         all_detector_results: list[dict[str, tuple[Keypoints, KeypointSmoothingState]]] = []
-        # Per-camera consecutive-miss counters, appended to in detector order (index i)
-        # so misses_per_cam[cam_id][i] lines up with keypoint_detectors[i].
+        # Per-camera consecutive-miss/-reset counters, appended to in detector order
+        # (index i) so misses_per_cam[cam_id][i] lines up with keypoint_detectors[i].
         misses_per_cam: dict[str, list[int]] = {cam_id: [] for cam_id in cam_ids}
+        resets_per_cam: dict[str, list[int]] = {cam_id: [] for cam_id in cam_ids}
 
         def _update_misses(cam_id: str, detector: KeypointDetector, kpts: Keypoints, i: int) -> None:
             prior_state = states.get(cam_id, StageState())
@@ -352,11 +367,23 @@ class DetectionStage:
                 if i < len(prior_state.consecutive_misses)
                 else 0
             )
-            misses = prev_misses + 1 if kpts.n_valid == 0 else 0
-            if self.keypoint_reset_policy.should_reset(misses):
+            prev_resets = (
+                prior_state.consecutive_resets[i]
+                if i < len(prior_state.consecutive_resets)
+                else 0
+            )
+            if kpts.n_valid == 0:
+                misses = prev_misses + 1
+                resets = prev_resets
+            else:
+                misses = 0
+                resets = 0
+            if self.keypoint_reset_policy.should_reset(misses, resets):
                 detector.reset_temporal_state()
                 misses = 0
+                resets = resets + 1
             misses_per_cam[cam_id].append(misses)
+            resets_per_cam[cam_id].append(resets)
 
         for i, detector in enumerate(self.keypoint_detectors):
             detector_results: dict[str, tuple[Keypoints, KeypointSmoothingState]] = {}
@@ -486,6 +513,7 @@ class DetectionStage:
                 child_states=child_states_per_cam[cam_id],
                 last_keypoints=merged_per_cam[cam_id],
                 consecutive_misses=misses_per_cam[cam_id],
+                consecutive_resets=resets_per_cam[cam_id],
             )
 
         return obs_out, states_out
