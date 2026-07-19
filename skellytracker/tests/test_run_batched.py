@@ -378,3 +378,52 @@ class TestDetectionStageBatch:
 
         _, states_batch = stage.run_batch(images, states, ctx)
         assert states_batch["cam0"] is not states_batch["cam1"]
+
+    def test_run_batch_reuses_persistent_executor_across_calls(self, stage_and_session, test_image):
+        """The stage's thread pool should be created once and reused, not
+        recreated per call — repeated calls must keep working correctly."""
+        from skellytracker.core.tracker.tracker_state import StageState
+        from skellytracker.core.detectors.detection_context import DetectionContext
+
+        stage, _ = stage_and_session
+        images = _two_cam(test_image)
+        states = {"cam0": StageState(), "cam1": StageState()}
+        ctx = DetectionContext(frame_number=0, timestamp_ms=0)
+
+        stage.run_batch(images, states, ctx)
+        executor_after_first_call = stage._executor
+        assert executor_after_first_call is not None
+
+        obs_batch, states_batch = stage.run_batch(images, states, ctx)
+
+        assert stage._executor is executor_after_first_call
+        assert set(obs_batch.keys()) == {"cam0", "cam1"}
+        for cam_id in ("cam0", "cam1"):
+            assert obs_batch[cam_id].keypoints.xyz.shape == (133, 3)
+
+    def test_close_shuts_down_persistent_executor(self, combined_session_n2, test_image):
+        # Build a stage of its own (rather than reusing the class-scoped
+        # `stage_and_session` fixture) since close() tears down its detectors
+        # and would break the other tests sharing that fixture.
+        from skellytracker.core.tracker.tracker_state import StageState
+        from skellytracker.core.tracker.detection_stage import DetectionStage
+        from skellytracker.core.config.detection_stage_config import DetectionStageConfig as StageConfig
+        from skellytracker.core.detectors.detection_context import DetectionContext
+
+        stage = DetectionStage.create(
+            StageConfig(
+                name="body",
+                object_detector=YoloxPersonDetectorConfig(),
+                keypoint_detectors=[RTMPoseDetectorConfig()],
+            ),
+            sessions={"onnx": combined_session_n2},
+        )
+        images = _two_cam(test_image)
+        states = {"cam0": StageState(), "cam1": StageState()}
+        ctx = DetectionContext(frame_number=0, timestamp_ms=0)
+
+        stage.run_batch(images, states, ctx)
+        assert stage._executor is not None
+
+        stage.close()
+        assert stage._executor is None

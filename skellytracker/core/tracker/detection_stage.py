@@ -56,9 +56,22 @@ class DetectionStage:
     _cam_kp_detectors: list[dict[str, KeypointDetector]] = field(
         default_factory=list, init=False, repr=False
     )
+    # Persistent thread pool for run_batch's per-camera parallelism (preprocess +
+    # non-ONNX detection). Created lazily on first use and reused across frames —
+    # avoids the OS thread spawn/teardown cost of a fresh pool every call. Sized
+    # once from the first batch's camera count, which is assumed stable for the
+    # life of this stage.
+    _executor: concurrent.futures.ThreadPoolExecutor | None = field(
+        default=None, init=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         self._cam_kp_detectors = [{} for _ in self.keypoint_detectors]
+
+    def _get_executor(self, max_workers: int) -> concurrent.futures.ThreadPoolExecutor:
+        if self._executor is None:
+            self._executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
+        return self._executor
 
     def run(
         self,
@@ -307,8 +320,8 @@ class DetectionStage:
                 tensors = {}
                 metas = {}
                 _t = time.perf_counter()
-                with concurrent.futures.ThreadPoolExecutor(max_workers=len(cams_needing_detect)) as pool:
-                    fut_map = {cam_id: pool.submit(self.object_detector.preprocess, images[cam_id]) for cam_id in cams_needing_detect}
+                pool = self._get_executor(len(cam_ids))
+                fut_map = {cam_id: pool.submit(self.object_detector.preprocess, images[cam_id]) for cam_id in cams_needing_detect}
                 for cam_id, fut in fut_map.items():
                     tensors[cam_id], metas[cam_id] = fut.result()
                 if context is not None and context.timings is not None:
@@ -393,8 +406,8 @@ class DetectionStage:
                 tensors = {}
                 metas = {}
                 _t = time.perf_counter()
-                with concurrent.futures.ThreadPoolExecutor(max_workers=len(cam_ids)) as pool:
-                    fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in cam_ids}
+                pool = self._get_executor(len(cam_ids))
+                fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in cam_ids}
                 for cam_id, fut in fut_map.items():
                     tensors[cam_id], metas[cam_id] = fut.result()
                 if context is not None and context.timings is not None:
@@ -443,11 +456,11 @@ class DetectionStage:
                         kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
                     return cam_id, kpts, kp_state
 
-                with concurrent.futures.ThreadPoolExecutor() as executor:
-                    futures = [executor.submit(_detect_one, cam_id) for cam_id in cam_ids]
-                    for fut in concurrent.futures.as_completed(futures):
-                        cam_id, kpts, kp_state = fut.result()
-                        detector_results[cam_id] = (kpts, kp_state)
+                executor = self._get_executor(len(cam_ids))
+                futures = [executor.submit(_detect_one, cam_id) for cam_id in cam_ids]
+                for fut in concurrent.futures.as_completed(futures):
+                    cam_id, kpts, kp_state = fut.result()
+                    detector_results[cam_id] = (kpts, kp_state)
 
             all_detector_results.append(detector_results)
 
@@ -527,6 +540,9 @@ class DetectionStage:
         for cam_detectors in self._cam_kp_detectors:
             for cam_detector in cam_detectors.values():
                 cam_detector.close()
+        if self._executor is not None:
+            self._executor.shutdown(wait=True)
+            self._executor = None
         for child in self.children:
             child.close()
 

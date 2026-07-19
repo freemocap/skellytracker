@@ -219,35 +219,37 @@ def process_video_list(
 
     wall_start = time.perf_counter()
     try:
-        for _ in iterator:
-            # Read all camera frames in parallel — each cap is independent, and
-            # cv2 VideoCapture.read() releases the GIL during I/O and decoding.
-            _t = time.perf_counter()
-            with concurrent.futures.ThreadPoolExecutor(max_workers=len(captures)) as pool:
+        # Persistent pool for parallel cap.read() — created once since camera
+        # count is fixed for the life of this loop, reused every frame to avoid
+        # per-frame thread spawn/teardown cost. cv2 VideoCapture.read() releases
+        # the GIL during I/O and decoding, so this gives real concurrency.
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(captures)) as pool:
+            for _ in iterator:
+                _t = time.perf_counter()
                 fut_map = {cam_id: pool.submit(cap.read) for cam_id, cap in captures.items()}
-            images: dict[str, np.ndarray] = {}
-            for cam_id, fut in fut_map.items():
-                ok, frame = fut.result()
-                if not ok or frame is None:
-                    logger.warning("Camera %r ran out of frames at frame %d", cam_id, frame_number)
-                else:
-                    images[cam_id] = frame
-            if timer is not None:
-                timer.stop("frame_read", _t)
-            if len(images) < len(cam_ids):
-                break
+                images: dict[str, np.ndarray] = {}
+                for cam_id, fut in fut_map.items():
+                    ok, frame = fut.result()
+                    if not ok or frame is None:
+                        logger.warning("Camera %r ran out of frames at frame %d", cam_id, frame_number)
+                    else:
+                        images[cam_id] = frame
+                if timer is not None:
+                    timer.stop("frame_read", _t)
+                if len(images) < len(cam_ids):
+                    break
 
-            timestamp_ms = int(frame_number / fps * 1000)
-            observations, states = tracker.process_batch(
-                images, frame_number, states, timestamp_ms, timings=timer
-            )
+                timestamp_ms = int(frame_number / fps * 1000)
+                observations, states = tracker.process_batch(
+                    images, frame_number, states, timestamp_ms, timings=timer
+                )
 
-            for cam_id, obs in observations.items():
-                stores[cam_id].add(obs)
-                if cam_id in writers:
-                    writers[cam_id].write(annotator.annotate(images[cam_id], obs))
+                for cam_id, obs in observations.items():
+                    stores[cam_id].add(obs)
+                    if cam_id in writers:
+                        writers[cam_id].write(annotator.annotate(images[cam_id], obs))
 
-            frame_number += 1
+                frame_number += 1
     finally:
         for cap in captures.values():
             cap.release()
