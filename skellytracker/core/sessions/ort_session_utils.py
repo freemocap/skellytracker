@@ -520,7 +520,7 @@ def build_tuned_ort_session(
     providers: list[tuple[str, dict] | str] = []
     if provider == "trt":
         trt_options: dict[str, Any] = {
-            "trt_device_id": device_id,
+            "device_id": device_id,
             "trt_fp16_enable": fp16,
             "trt_engine_cache_enable": True,
             "trt_engine_cache_path": str(engine_cache_dir),

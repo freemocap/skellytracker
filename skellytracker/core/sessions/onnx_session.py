@@ -21,6 +21,7 @@ Usage::
 from __future__ import annotations
 
 import ctypes
+import gc
 import importlib.util
 import logging
 import os
@@ -321,7 +322,17 @@ class OnnxSession(Session):
         return {k: [out[i:i+1] for out in raw_outputs] for i, k in enumerate(ordered_keys)}
 
     def close(self) -> None:
+        """Explicitly tear down ORT sessions rather than relying on GC.
+
+        On macOS, CoreMLExecutionProvider sessions hold Metal/Neural-Engine/GCD
+        resources that aren't guaranteed to unwind synchronously when garbage
+        collected — GC could even run at interpreter-shutdown time, the worst
+        possible moment for native cleanup. Dropping references and forcing a
+        collection here makes native teardown happen deterministically during
+        the pipeline's own shutdown sequence instead.
+        """
         self._sessions.clear()
+        gc.collect()
 
 
 def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, batch_size: int = 1) -> None:
