@@ -70,12 +70,8 @@ class OnnxModelSpec:
     prepare:
         Optional callable applied to the downloaded model path before loading.
         Receives the raw path and returns the path to use for the ORT session
-        (e.g. YOLOX dynamic-batch surgery). ``None`` = load as-is.
-    coreml_prepare:
-        Optional callable used instead of ``prepare`` when the active provider
-        is CoreML. Useful when a model needs different graph surgery for CoreML
-        (e.g. YOLOX strips the NMS subgraph so CoreML can compile the backbone).
-        ``None`` = skip prepare entirely for CoreML.
+        (e.g. YOLOX dynamic-batch surgery). Applied identically for every
+        execution provider. ``None`` = load as-is.
     coreml_options:
         Provider options dict passed to ``CoreMLExecutionProvider`` when this
         model is loaded. ``None`` = use default CoreML options (no
@@ -88,7 +84,6 @@ class OnnxModelSpec:
     source: ModelSource
     input_size: tuple[int, int]
     prepare: Callable[[Path], Path] | None = None
-    coreml_prepare: Callable[[Path], Path] | None = None
     coreml_options: dict | None = None
 
 
@@ -187,11 +182,7 @@ class OnnxSession(Session):
         sessions: dict[str, ort.InferenceSession] = {}
         for spec in config.models:
             model_path = resolve_model_path(spec.source)
-            if active_provider == "coreml":
-                if spec.coreml_prepare is not None:
-                    model_path = spec.coreml_prepare(model_path)
-                # else: load original model as-is; CoreML batch=1 is fine
-            elif spec.prepare is not None:
+            if spec.prepare is not None:
                 model_path = spec.prepare(model_path)
 
             try:
@@ -342,12 +333,16 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
     call. Without warmup this happens on the first real frame, causing a silent
     hang of 5–30 seconds in the middle of the demo loop. Warming up here lets
     compilation happen during session creation with a clear log message.
+
+    The dummy batch is exactly the batch size the session will be run with, so
+    a graph that cannot handle that batch size fails here — at session creation
+    — rather than several seconds later inside the inference loop.
     """
     import time
     logger.info(
-        "OnnxSession: warming up %d model(s) on provider=%r "
+        "OnnxSession: warming up %d model(s) on provider=%r at batch_size=%d "
         "(first run may take 5–30 s on CoreML/TRT) ...",
-        len(specs), provider,
+        len(specs), provider, batch_size,
     )
     for spec in specs:
         ort_session = session.get_session(spec.name)
@@ -357,10 +352,14 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
         t0 = time.perf_counter()
         try:
             ort_session.run(None, {input_name: dummy})
-            elapsed = time.perf_counter() - t0
-            logger.info("OnnxSession: warmup OK for %r (%.1f s)", spec.name, elapsed)
         except Exception as exc:
-            logger.warning("OnnxSession: warmup failed for %r: %r (non-fatal)", spec.name, exc)
+            raise SessionCreationError(
+                f"Warmup inference failed for model {spec.name!r} "
+                f"(provider={provider!r}, batch_size={batch_size}, "
+                f"input shape={dummy.shape}): {exc}"
+            ) from exc
+        elapsed = time.perf_counter() - t0
+        logger.info("OnnxSession: warmup OK for %r (%.1f s)", spec.name, elapsed)
 
 
 def _verify_ort_install() -> None:

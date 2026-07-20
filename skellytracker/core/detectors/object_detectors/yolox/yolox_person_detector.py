@@ -29,7 +29,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     ObjectDetector,
 )
 from skellytracker.core.detectors.metadata import YoloxMetadata
-from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import ensure_dynamic_batch, ensure_prenms_for_coreml
+from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import prepare_yolox_onnx
 from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import multiclass_nms, yolox_letterbox_preprocess
 from skellytracker.core.sessions.model_registry import ModelSource
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
@@ -114,7 +114,7 @@ class YoloxPersonDetector(ObjectDetector):
         determines whether the model used pre-NMS or standard outputs.
         """
         if len(raw) == 2:
-            # Pre-NMS model (CoreML path)
+            # Pre-NMS model: NMS was stripped from the graph, apply it here.
             boxes_arr, scores_arr = raw
             boxes_nd, scores_nd = _postprocess_prenms(
                 boxes=boxes_arr,
@@ -199,8 +199,7 @@ class YoloxPersonDetector(ObjectDetector):
             name=model_name,
             source=ModelSource(url=url),
             input_size=_YOLOX_INPUT_SIZES[model_name],
-            prepare=ensure_dynamic_batch,
-            coreml_prepare=ensure_prenms_for_coreml,
+            prepare=prepare_yolox_onnx,
         )
 
 
@@ -239,9 +238,8 @@ def _detect_yolox(
     outputs = session.run(model_name, {input_name: inp})
 
     if len(outputs) == 2:
-        # Pre-NMS model (CoreML path): outputs are already-decoded xyxy boxes
-        # and per-anchor confidence scores. Skip anchor decoding, apply threshold
-        # and NMS directly.
+        # Pre-NMS model: outputs are already-decoded xyxy boxes and per-anchor
+        # confidence scores. Skip anchor decoding, apply threshold and NMS here.
         return _postprocess_prenms(
             boxes=outputs[0],
             scores=outputs[1],
@@ -265,17 +263,47 @@ def _postprocess_prenms(
     score_thr: float,
     nms_thr: float,
 ) -> tuple[NDArray, NDArray]:
-    """Postprocess pre-NMS model outputs (CoreML path).
+    """Postprocess pre-NMS model outputs for a single image.
 
-    The pre-NMS model skips the baked-in NMS subgraph and outputs all anchor
-    predictions directly:
-      boxes  : (N, 4)    already-decoded xyxy in letterboxed image space
-      scores : (1, N)    per-anchor confidence (objectness × max class score)
+    The pre-NMS model has the baked-in NMS subgraph stripped and outputs all
+    anchor predictions directly:
+      boxes  : (A, 4) or (1, A, 4)  already-decoded xyxy in letterboxed space
+      scores : (A,) or (1, A)       per-anchor confidence (objectness × max class)
+
+    ``A`` is the anchor count. Both arrays must describe exactly one image — a
+    leading dim > 1 means a whole camera batch was passed in where a per-camera
+    slice was expected, which would silently return camera 0's boxes for every
+    camera.
     """
     if boxes.ndim == 3:
-        boxes = boxes[0]  # (1, N, 4) → (N, 4)
+        if boxes.shape[0] != 1:
+            raise ValueError(
+                f"_postprocess_prenms expects one image, got boxes with batch "
+                f"dim {boxes.shape[0]} (shape {boxes.shape}). Split the batch "
+                f"per camera before calling postprocess."
+            )
+        boxes = boxes[0]
+    elif boxes.ndim != 2:
+        raise ValueError(
+            f"Expected pre-NMS boxes with ndim 2 or 3, got shape {boxes.shape}."
+        )
+
+    if scores.ndim > 1 and scores.shape[0] != 1:
+        raise ValueError(
+            f"_postprocess_prenms expects one image, got scores with batch "
+            f"dim {scores.shape[0]} (shape {scores.shape}). Split the batch "
+            f"per camera before calling postprocess."
+        )
+
     boxes = (boxes / ratio).astype(np.float64)
     scores = scores.reshape(-1).astype(np.float64)
+
+    if scores.shape[0] != boxes.shape[0]:
+        raise ValueError(
+            f"Pre-NMS anchor count mismatch: {boxes.shape[0]} boxes vs "
+            f"{scores.shape[0]} scores. The two pre-NMS graph outputs are not "
+            f"aligned to the same anchor grid."
+        )
 
     mask = scores > score_thr
     boxes, scores = boxes[mask], scores[mask]
