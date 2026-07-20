@@ -1097,7 +1097,7 @@ dev = [
 requires-dist = [
     { name = "beartype", specifier = ">=0.19" },
     { name = "mediapipe", marker = "extra == 'mediapipe'", specifier = "==0.10.33" },
-    { name = "numpy" },
+    { name = "numpy", specifier = "==2.4.6" },
     { name = "numpydantic", specifier = ">=1.6.7" },
     { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin' and extra == 'onnx-cuda'" },
     { name = "nvidia-cublas-cu12", marker = "sys_platform != 'darwin' and extra == 'onnx-trt'" },

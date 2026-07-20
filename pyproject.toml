@@ -54,7 +54,7 @@ keywords = [
 dependencies = [
     "opencv-contrib-python",
     "pydantic==2.*",
-    "numpy",
+    "numpy==2.4.6",
     "tqdm==4.*",
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
