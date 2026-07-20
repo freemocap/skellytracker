@@ -26,7 +26,23 @@ from skellytracker.core.temporal_processing.keypoint_filtering import (
     make_keypoint_filter,
 )
 from skellytracker.core.temporal_processing.keypoint_reset_policy import KeypointResetPolicy
-from skellytracker.core.tracker.tracker_state import KeypointSmoothingState, StageState
+from skellytracker.core.tracker.tracker_state import BBoxSmoothingState, KeypointSmoothingState, StageState
+
+
+@dataclass
+class RawStageDetection:
+    """A candidate person's raw (pre-smoothing) detection at one DetectionStage.
+
+    Produced by DetectionStage.detect_raw_at_bbox() and consumed by
+    DetectionStage.finalize_track() once cross-frame association has decided
+    which person track (if any) this candidate belongs to — carrying the crop
+    forward avoids re-running inference for the winning match.
+    """
+
+    bbox: BoundingBox
+    crop: NDArray[np.uint8]
+    crop_bbox: BoundingBox
+    keypoints: list[Keypoints]
 
 
 @dataclass
@@ -116,45 +132,116 @@ class DetectionStage:
         raw_bbox = bboxes[0] if bboxes else None
 
         # 2. BBox smoothing (EMA)
-        if raw_bbox is not None and self.bbox_smoothing_alpha is not None:
-            smoothed_bbox, bbox_state = apply_bbox_ema(raw_bbox, bbox_state, self.bbox_smoothing_alpha)
-        else:
-            smoothed_bbox = raw_bbox
-            if raw_bbox is not None:
-                bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
+        smoothed_bbox, bbox_state = self._smooth_bbox(raw_bbox, bbox_state)
 
         # 3. Keypoint detection — crop, detect, translate back to full-frame coords
-        #
-        # The crop bbox must be clipped to image bounds *before* use: to_crop()
-        # clamps negative/out-of-bounds coords when slicing, so translating by the
-        # original (unclamped) bbox origin would offset keypoints by the clamped
-        # amount — a translation bug whenever the bbox extends past the frame edge.
         h, w = image.shape[:2]
         crop_bbox = smoothed_bbox.clipped(h, w) if smoothed_bbox is not None else None
         crop = crop_bbox.to_crop(image) if crop_bbox is not None else image
-        all_keypoints: list[Keypoints] = []
-        updated_kp_states: list[KeypointSmoothingState] = []
-        updated_misses: list[int] = []
-        updated_resets: list[int] = []
+        raw_keypoints, updated_misses, updated_resets = self._detect_raw_keypoints(
+            crop, crop_bbox, state, context
+        )
 
-        for i, detector in enumerate(self.keypoint_detectors):
-            kp_state = (
-                state.keypoint_states[i]
-                if i < len(state.keypoint_states)
-                else KeypointSmoothingState()
+        # 4. Keypoint smoothing (one-euro/Kalman filter)
+        merged, updated_kp_states = self._smooth_keypoints(raw_keypoints, state, dt)
+
+        # 4b. Refresh the keypoint-tracked bbox every frame (detect or skip) from
+        # this frame's actual keypoints — see BBoxSmoothingState.keypoint_tracked_bbox.
+        if self.bbox_policy.keypoint_bbox_expansion is not None and merged is not None:
+            fresh_tracked = predict_bbox_from_keypoints(
+                merged,
+                self.bbox_policy.keypoint_bbox_expansion,
+                self.bbox_policy.keypoint_bbox_min_visibility,
             )
+            if fresh_tracked is not None:
+                bbox_state = replace(bbox_state, keypoint_tracked_bbox=fresh_tracked)
+
+        # 5. Child stages receive the crop; children translate their own coords
+        child_observations, updated_child_states = self._run_children(crop, state, merged, context)
+
+        obs = StageObservation(
+            name=self.name,
+            bounding_boxes=bboxes,
+            keypoints=merged,
+            children=child_observations,
+            detector_ran=detector_ran,
+        )
+        updated_state = StageState(
+            bbox_state=bbox_state,
+            keypoint_states=updated_kp_states,
+            child_states=updated_child_states,
+            last_keypoints=merged,
+            consecutive_misses=updated_misses,
+            consecutive_resets=updated_resets,
+        )
+        return obs, updated_state
+
+    def _smooth_bbox(
+        self,
+        raw_bbox: BoundingBox | None,
+        bbox_state: BBoxSmoothingState,
+    ) -> tuple[BoundingBox | None, BBoxSmoothingState]:
+        """Apply this stage's EMA bbox smoothing (step 2 of run())."""
+        if raw_bbox is not None and self.bbox_smoothing_alpha is not None:
+            return apply_bbox_ema(raw_bbox, bbox_state, self.bbox_smoothing_alpha)
+        if raw_bbox is not None:
+            return raw_bbox, replace(bbox_state, smooth_bbox=raw_bbox)
+        return None, bbox_state
+
+    def _detect_raw_keypoints(
+        self,
+        crop: NDArray[np.uint8],
+        crop_bbox: BoundingBox | None,
+        state: StageState,
+        context: DetectionContext | None,
+    ) -> tuple[list[Keypoints], list[int], list[int]]:
+        """Run all keypoint_detectors on `crop`, translate to full-frame coords,
+        and apply miss-driven detector-reset bookkeeping — no temporal smoothing.
+
+        `state` supplies the consecutive-miss/-reset history used by the reset
+        policy. Passing a fresh (empty) StageState — as MultiPersonTracker does
+        when probing candidate boxes ahead of track association — effectively
+        disables the reset policy for that call, since it has no miss history
+        to act on yet.
+        """
+        raw_keypoints = self._detect_and_translate(crop, crop_bbox, context)
+        updated_misses, updated_resets = self._apply_reset_policy(raw_keypoints, state)
+        return raw_keypoints, updated_misses, updated_resets
+
+    def _detect_and_translate(
+        self,
+        crop: NDArray[np.uint8],
+        crop_bbox: BoundingBox | None,
+        context: DetectionContext | None,
+    ) -> list[Keypoints]:
+        """Run all keypoint_detectors on `crop` and translate to full-frame coords."""
+        raw_keypoints: list[Keypoints] = []
+        for detector in self.keypoint_detectors:
             kpts = detector.detect(crop, context)
             if crop_bbox is not None:
                 kpts = kpts.translated(crop_bbox.x1, crop_bbox.y1)
+            raw_keypoints.append(kpts)
+        return raw_keypoints
 
-            # 4. Reset detector's internal temporal state after a run of misses
-            # (e.g. MediaPipe VIDEO-mode tracking getting silently stuck).
-            # Checked before any confidence filtering — a raw zero-keypoint result
-            # is what defines a miss here. consecutive_resets backs off the
-            # effective threshold each time a reset fires with no real detection
-            # in between, so a subject genuinely out of frame doesn't trigger a
-            # reset every max_consecutive_misses frames forever; it's cleared by
-            # any real (non-empty) detection.
+    def _apply_reset_policy(
+        self,
+        raw_keypoints: list[Keypoints],
+        state: StageState,
+    ) -> tuple[list[int], list[int]]:
+        """Miss-driven detector-reset bookkeeping, given already-detected keypoints.
+
+        Reset detector's internal temporal state after a run of misses (e.g.
+        MediaPipe VIDEO-mode tracking getting silently stuck). Checked before
+        any confidence filtering — a raw zero-keypoint result is what defines
+        a miss here. consecutive_resets backs off the effective threshold each
+        time a reset fires with no real detection in between, so a subject
+        genuinely out of frame doesn't trigger a reset every
+        max_consecutive_misses frames forever; it's cleared by any real
+        (non-empty) detection.
+        """
+        updated_misses: list[int] = []
+        updated_resets: list[int] = []
+        for i, (detector, kpts) in enumerate(zip(self.keypoint_detectors, raw_keypoints, strict=True)):
             prev_misses = state.consecutive_misses[i] if i < len(state.consecutive_misses) else 0
             prev_resets = state.consecutive_resets[i] if i < len(state.consecutive_resets) else 0
             if kpts.n_valid == 0:
@@ -169,18 +256,89 @@ class DetectionStage:
                 resets = resets + 1
             updated_misses.append(misses)
             updated_resets.append(resets)
+        return updated_misses, updated_resets
 
-            # 5. Keypoint smoothing (one-euro filter)
+    def _smooth_keypoints(
+        self,
+        raw_keypoints: list[Keypoints],
+        state: StageState,
+        dt: float,
+    ) -> tuple[Keypoints | None, list[KeypointSmoothingState]]:
+        """Apply this stage's keypoint temporal filter per detector, then merge."""
+        smoothed: list[Keypoints] = []
+        updated_kp_states: list[KeypointSmoothingState] = []
+        for i, kpts in enumerate(raw_keypoints):
+            kp_state = (
+                state.keypoint_states[i]
+                if i < len(state.keypoint_states)
+                else KeypointSmoothingState()
+            )
             if self.keypoint_filter is not None:
                 kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
-
-            all_keypoints.append(kpts)
+            smoothed.append(kpts)
             updated_kp_states.append(kp_state)
+        merged = Keypoints.concatenate(smoothed) if smoothed else None
+        return merged, updated_kp_states
 
-        merged = Keypoints.concatenate(all_keypoints) if all_keypoints else None
+    def _run_children(
+        self,
+        crop: NDArray[np.uint8],
+        state: StageState,
+        parent_keypoints: Keypoints | None,
+        context: DetectionContext | None,
+    ) -> tuple[dict[str, StageObservation], dict[str, StageState]]:
+        child_observations: dict[str, StageObservation] = {}
+        updated_child_states: dict[str, StageState] = {}
+        for child in self.children:
+            child_state = state.child_states.get(child.name, StageState())
+            child_obs, child_state = child.run(
+                crop, child_state, parent_keypoints=parent_keypoints, context=context
+            )
+            child_observations[child.name] = child_obs
+            updated_child_states[child.name] = child_state
+        return child_observations, updated_child_states
 
-        # 5b. Refresh the keypoint-tracked bbox every frame (detect or skip) from
-        # this frame's actual keypoints — see BBoxSmoothingState.keypoint_tracked_bbox.
+    def detect_raw_at_bbox(
+        self,
+        image: NDArray[np.uint8],
+        bbox: BoundingBox,
+        context: DetectionContext | None = None,
+    ) -> RawStageDetection:
+        """Crop at an externally supplied bbox and run this stage's own keypoint
+        detectors (no smoothing, no children) — used by MultiPersonTracker to
+        probe each frame's candidate person boxes ahead of track association,
+        without committing to any track's temporal state yet.
+        """
+        h, w = image.shape[:2]
+        crop_bbox = bbox.clipped(h, w)
+        crop = crop_bbox.to_crop(image)
+        raw_keypoints = self._detect_and_translate(crop, crop_bbox, context)
+        return RawStageDetection(bbox=bbox, crop=crop, crop_bbox=crop_bbox, keypoints=raw_keypoints)
+
+    def finalize_track(
+        self,
+        raw_detection: RawStageDetection,
+        state: StageState,
+        context: DetectionContext | None = None,
+    ) -> tuple[StageObservation, StageState]:
+        """Apply this stage's temporal smoothing + reset policy + child stages to a
+        raw candidate detection matched to a specific person track.
+
+        Reuses the keypoints already computed by detect_raw_at_bbox (no repeat
+        inference); only bbox EMA, keypoint filtering, reset-policy bookkeeping,
+        and child-stage recursion are (re-)applied here, now keyed to the
+        track's own accumulated StageState.
+        """
+        dt = _dt_from_context(context)
+
+        # Reset-policy bookkeeping is recomputed here (against the track's real
+        # miss history) from the keypoints detect_raw_at_bbox already produced —
+        # no repeat inference.
+        updated_misses, updated_resets = self._apply_reset_policy(raw_detection.keypoints, state)
+
+        smoothed_bbox, bbox_state = self._smooth_bbox(raw_detection.bbox, state.bbox_state)
+        merged, updated_kp_states = self._smooth_keypoints(raw_detection.keypoints, state, dt)
+
         if self.bbox_policy.keypoint_bbox_expansion is not None and merged is not None:
             fresh_tracked = predict_bbox_from_keypoints(
                 merged,
@@ -189,22 +347,19 @@ class DetectionStage:
             )
             if fresh_tracked is not None:
                 bbox_state = replace(bbox_state, keypoint_tracked_bbox=fresh_tracked)
+        elif smoothed_bbox is not None:
+            bbox_state = replace(bbox_state, last_detected_bbox=raw_detection.bbox)
 
-        # 6. Child stages receive the crop; children translate their own coords
-        child_observations: dict[str, StageObservation] = {}
-        updated_child_states: dict[str, StageState] = {}
-        for child in self.children:
-            child_state = state.child_states.get(child.name, StageState())
-            child_obs, child_state = child.run(crop, child_state, parent_keypoints=merged, context=context)
-            child_observations[child.name] = child_obs
-            updated_child_states[child.name] = child_state
+        child_observations, updated_child_states = self._run_children(
+            raw_detection.crop, state, merged, context
+        )
 
         obs = StageObservation(
             name=self.name,
-            bounding_boxes=bboxes,
+            bounding_boxes=[raw_detection.bbox],
             keypoints=merged,
             children=child_observations,
-            detector_ran=detector_ran,
+            detector_ran=True,
         )
         updated_state = StageState(
             bbox_state=bbox_state,

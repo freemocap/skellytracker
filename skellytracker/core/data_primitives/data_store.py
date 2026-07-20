@@ -8,6 +8,7 @@ from typing import Literal
 import numpy as np
 from numpy.typing import NDArray
 
+from skellytracker.core.data_primitives.multi_person_observation import MultiPersonObservation
 from skellytracker.core.data_primitives.observation import Observation
 
 
@@ -50,3 +51,35 @@ class DataStore:
             np.save(path, self.to_array())
         else:
             path.write_text(self.to_json())
+
+
+@dataclass
+class MultiPersonDataStore:
+    """Accumulates MultiPersonObservations, split into one DataStore per track_id.
+
+    Lazily creates a DataStore the first time a track_id is seen and forwards
+    that person's Observation to it every frame it appears — no changes to
+    DataStore itself are needed.
+    """
+
+    stores: dict[int, DataStore] = field(default_factory=dict)
+
+    def add(self, observation: MultiPersonObservation) -> None:
+        for track_id, person_obs in observation.people.items():
+            if track_id not in self.stores:
+                self.stores[track_id] = DataStore()
+            self.stores[track_id].add(person_obs)
+
+    def to_arrays(self) -> dict[int, NDArray[np.float64]]:
+        return {track_id: store.to_array() for track_id, store in self.stores.items()}
+
+    def save(
+        self,
+        directory: Path,
+        fmt: Literal["npy", "json"] = "npy",
+    ) -> None:
+        directory = Path(directory)
+        directory.mkdir(parents=True, exist_ok=True)
+        suffix = "npy" if fmt == "npy" else "json"
+        for track_id, store in self.stores.items():
+            store.save(directory / f"track_{track_id}.{suffix}", fmt=fmt)

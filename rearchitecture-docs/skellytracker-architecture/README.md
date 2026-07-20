@@ -18,6 +18,7 @@ This folder documents the redesigned skellytracker architecture. The core shift 
 | **Temporal Processing** | BBox policy, EMA smoothing, keypoint filtering | [09-temporal-processing.md](./09-temporal-processing.md) |
 | **Multi-Camera Batching** | Batched inference across cameras; pre/infer/post split | [10-multi-camera-batching.md](./10-multi-camera-batching.md) |
 | **BBox Policy (current API)** | As-built bbox policy/smoothing API and freemocap RTMPose integration guide | [11-bbox-policy-guide.md](./11-bbox-policy-guide.md) |
+| **Multi-Person Tracking** | Cross-frame identity tracking for N people, single camera (IoU + keypoint association) | [12-multi-person-tracking.md](./12-multi-person-tracking.md) |
 
 ## Data Flow
 

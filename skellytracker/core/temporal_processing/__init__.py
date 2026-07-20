@@ -1,3 +1,6 @@
+from skellytracker.core.temporal_processing.multi_person_config import (
+    MultiPersonTrackingConfig,
+)
 from skellytracker.core.temporal_processing.temporal_processing_config import (
     BBoxAreaCollapseConfig,
     BBoxFitnessCheckConfig,
@@ -20,4 +23,5 @@ __all__ = [
     "KeypointSmoothingConfig",
     "MaxFramesWithoutRedetectConfig",
     "MinKeypointVisibilityConfig",
+    "MultiPersonTrackingConfig",
 ]

@@ -61,6 +61,7 @@ dependencies = [
     "beartype>=0.19",
     "pyyaml>=6.0",
     "polars",
+    "scipy",
 ]
 requires-python = ">=3.11,<3.13"
 
