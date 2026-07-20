@@ -22,6 +22,19 @@ _KEY_QUIT_ESC = 27
 _KEY_PAUSE = ord(" ")
 _KEY_HELP = ord("h")
 
+_ROTATION_CODES: dict[int, int] = {
+    0: -1,  # sentinel, never applied
+    90: cv2.ROTATE_90_CLOCKWISE,
+    180: cv2.ROTATE_180,
+    270: cv2.ROTATE_90_COUNTERCLOCKWISE,
+}
+
+
+def _rotate_frame(frame: NDArray[np.uint8], rotation: int) -> NDArray[np.uint8]:
+    if rotation == 0:
+        return frame
+    return cv2.rotate(frame, _ROTATION_CODES[rotation])
+
 
 class _CaptureThread:
     """Reads frames from a VideoCapture in a background thread.
@@ -69,24 +82,28 @@ class DemoManager:
     _fps_history: deque = field(default_factory=lambda: deque(maxlen=30), init=False, repr=False)
     _inference_history: deque = field(default_factory=lambda: deque(maxlen=30), init=False, repr=False)
 
-    def run_webcam(self, camera_index: int = 0) -> None:
+    def run_webcam(self, camera_index: int = 0, rotation: int = 0) -> None:
+        if rotation not in _ROTATION_CODES:
+            raise ValueError(f"rotation must be one of {sorted(_ROTATION_CODES)}, got {rotation}")
         cap = self._open_camera(camera_index)
         capture_thread = _CaptureThread(cap)
         self._wait_for_first_frame(capture_thread)
         try:
-            self._run_loop(capture_thread)
+            self._run_loop(capture_thread, rotation)
         finally:
             capture_thread.stop()
             cap.release()
             cv2.destroyAllWindows()
             self.tracker.close()
 
-    def run_video(self, video_path: Path) -> None:
+    def run_video(self, video_path: Path, rotation: int = 0) -> None:
+        if rotation not in _ROTATION_CODES:
+            raise ValueError(f"rotation must be one of {sorted(_ROTATION_CODES)}, got {rotation}")
         cap = cv2.VideoCapture(str(video_path))
         if not cap.isOpened():
             raise RuntimeError(f"Could not open video: {video_path}")
         try:
-            self._run_loop_video(cap)
+            self._run_loop_video(cap, rotation)
         finally:
             cap.release()
             cv2.destroyAllWindows()
@@ -107,7 +124,7 @@ class DemoManager:
                 return
             time.sleep(0.01)
 
-    def _run_loop(self, capture_thread: _CaptureThread) -> None:
+    def _run_loop(self, capture_thread: _CaptureThread, rotation: int = 0) -> None:
         state = TrackerState()
         frame_number = 0
         paused = False
@@ -130,6 +147,7 @@ class DemoManager:
                 ok, frame = capture_thread.read()
                 if not ok or frame is None:
                     continue
+                frame = _rotate_frame(frame, rotation)
 
                 t_now = time.perf_counter()
                 self._fps_history.append(t_now - t_prev)
@@ -148,7 +166,7 @@ class DemoManager:
                 self._draw_hud(display, show_help)
                 cv2.imshow(self.window_title, display)
 
-    def _run_loop_video(self, cap: cv2.VideoCapture) -> None:
+    def _run_loop_video(self, cap: cv2.VideoCapture, rotation: int = 0) -> None:
         state = TrackerState()
         frame_number = 0
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
@@ -158,6 +176,7 @@ class DemoManager:
             ok, frame = cap.read()
             if not ok:
                 break
+            frame = _rotate_frame(frame, rotation)
 
             timestamp_ms = int(frame_number / fps * 1000)
             observation, state = self.tracker.process_image(frame, frame_number, state, timestamp_ms)

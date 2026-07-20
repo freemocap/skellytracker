@@ -46,6 +46,13 @@ def cli_main() -> None:
         default=0,
         help="camera index (default: 0)",
     )
+    parser.add_argument(
+        "--rotate",
+        type=int,
+        choices=[0, 90, 180, 270],
+        default=0,
+        help="rotate incoming frames clockwise by this many degrees before tracking (default: 0)",
+    )
     args = parser.parse_args()
 
     if args.list:
@@ -54,7 +61,7 @@ def cli_main() -> None:
         return
 
     demo = _BUILDERS[args.tracker]()
-    demo.run_webcam(camera_index=args.camera)
+    demo.run_webcam(camera_index=args.camera, rotation=args.rotate)
 
 
 if __name__ == "__main__":
