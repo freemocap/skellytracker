@@ -3,14 +3,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 import cv2
+from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, \
+    MediapipeImageAnnotator
+from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
 from tqdm import tqdm
 
 from skellytracker.io.process_videos.video_handler import VideoHandler
 from skellytracker.trackers.mediapipe_tracker.__mediapipe_tracker import MediapipeRecorder, MediapipeTracker, \
     MediapipeTrackerConfig
-from skellytracker.trackers.mediapipe_tracker.mediapipe_annotator import MediapipeAnnotatorConfig, \
-    MediapipeImageAnnotator
-from skellytracker.trackers.mediapipe_tracker.mediapipe_detector import MediapipeDetector, MediapipeDetectorConfig
 
 if TYPE_CHECKING:
     from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker

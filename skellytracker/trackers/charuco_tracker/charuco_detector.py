@@ -1,36 +1,15 @@
-import json
+from dataclasses import dataclass
 from typing import List
 
 import cv2
 import numpy as np
-from pydantic import ConfigDict
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetectorConfig, BaseDetector
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
+from skellytracker.trackers.charuco_tracker.charuco_tracker_config import CharucoDetectorConfig
 
-DEFAULT_ARUCO_DICTIONARY_NAME: str = "cv2.aruco.DICT_4X4_50"
-DEFAULT_ARUCO_DICTIONARY: int = cv2.aruco.DICT_4X4_50
-
-
-class CharucoDetectorConfig(BaseDetectorConfig):
-    squares_x: int = 5
-    squares_y: int = 3
-    aruco_dictionary_name: str = DEFAULT_ARUCO_DICTIONARY_NAME
-    aruco_dictionary_enum: int = DEFAULT_ARUCO_DICTIONARY
-    square_length: float = 1 #size of the edge of a black square in user-defined units (e.g., millimeters)
-    marker_length: float = 0.8
-
-    @property
-    def charuco_corner_ids(self) -> List[int]:
-        return list(range((self.squares_x - 1) * (self.squares_y - 1)))
-
-    @property
-    def aruco_dictionary(self) -> cv2.aruco.Dictionary:
-        return cv2.aruco.getPredefinedDictionary(self.aruco_dictionary_enum)
-
-
+@dataclass
 class CharucoDetector(BaseDetector):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
     config: CharucoDetectorConfig
     board: cv2.aruco.CharucoBoard
     detector: cv2.aruco.CharucoDetector
@@ -39,8 +18,8 @@ class CharucoDetector(BaseDetector):
     def create(cls, config: CharucoDetectorConfig):
         board = cv2.aruco.CharucoBoard(
             size=(config.squares_x, config.squares_y),
-            squareLength=config.square_length,
-            markerLength=config.marker_length,
+            squareLength=config.square_length, #mm
+            markerLength=config.square_length * config.marker_length,
             dictionary=config.aruco_dictionary,
         )
 
@@ -53,7 +32,7 @@ class CharucoDetector(BaseDetector):
 
     @property
     def aruco_marker_ids(self) -> List[int]:
-        return list(self.board.getIds())
+        return [int(i) for i in self.board.getIds()]
 
     @property
     def board_object_points(self) -> List[np.ndarray]:
@@ -88,7 +67,7 @@ class CharucoDetector(BaseDetector):
             all_charuco_ids=self.config.charuco_corner_ids,
             all_aruco_ids=self.aruco_marker_ids,
             all_charuco_corners_in_object_coordinates=self.board.getChessboardCorners(),
-            all_aruco_corners_in_object_coordinates=self.board.getObjPoints()
+            all_aruco_corners_in_object_coordinates=np.array(self.board.getObjPoints(), dtype=np.float32)
         )
 
     def save_board_image(self,

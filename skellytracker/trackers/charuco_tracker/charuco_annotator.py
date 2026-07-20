@@ -1,10 +1,12 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.charuco_tracker.charuco_observation import CharucoObservation
 
-
+@dataclass
 class CharucoAnnotatorConfig(BaseImageAnnotatorConfig):
     show_tracks: int | None = 15
     corner_marker_type: int = cv2.MARKER_DIAMOND
@@ -60,7 +62,9 @@ class CharucoImageAnnotator(BaseImageAnnotator):
             marker_size = max(1, int(self.config.corner_marker_size * obs_count_scale))
 
             for corner_id, corner in observation.to_tracked_points().items():
-                if corner is not None:
+                if str(corner_id).startswith("ArucoMarker"):
+                    continue  # aruco corners rendered separately by charuco overlay
+                if corner is not None and not np.isnan(corner[0]) and not np.isnan(corner[1]):
                     cv2.drawMarker(
                         annotated_image,
                         (int(corner[0]), int(corner[1])),

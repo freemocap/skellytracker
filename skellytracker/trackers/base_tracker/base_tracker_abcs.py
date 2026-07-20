@@ -1,89 +1,121 @@
 import json
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
+from enum import Enum
 from pathlib import Path
-from typing import List
 
 import cv2
 import numpy as np
-from numpydantic import NDArray, Shape
-from pydantic import BaseModel, ConfigDict, Field
+from numpy.typing import NDArray
+from pydantic import BaseModel, Field
 
-from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
-from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
+
+from skellytracker.trackers.base_tracker.point_cloud import PointCloud
+from skellytracker.trackers.base_tracker.tracked_object_definition import TrackedObjectDefinition
 
 logger = logging.getLogger(__name__)
 
 TrackedPointIdString = str
 TrackerTypeString = str
 
-TrackedPoint2dArray = NDArray[Shape["2 xyz"], float]
-TrackedPoints2dArray = NDArray[Shape["* number_of_points,2 xyz"], float]
+
+class TrackerType(str, Enum):
+    CHARUCO = "charuco"
+    MEDIAPIPE = "mediapipe" # composite of body, hands, and face - like holistic
+    MEDIAPIPE_POSE = "mediapipe_pose"
+    MEDIAPIPE_FACE = "mediapipe_face"
+    MEDIAPIPE_HAND = "mediapipe_hand"
+    LEGACY_MEDIAPIPE = "legacy_mediapipe"
+    RTMPOSE = "rtmpose"
+    VITPOSE = "vitpose"
+    BRIGHTEST_POINT = "brightest_point"
+
+# Shape-annotated aliases kept for documentation; numpy.typing.NDArray is used
+# in method signatures because it is beartype-compatible.
+TrackedPoint2dArray = NDArray[np.float64]       # shape (2,)  — (x, y)
+TrackedPoints2dArray = NDArray[np.float64]      # shape (N, 2) — one row per point
 
 
-class BaseObservation(BaseModel, ABC):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
-    frame_number: int  # the frame number of the image in which this observation was made
-    tracker_type: TrackerTypeString = Field(description="Name of the tracker that made this observation.")
+class BaseObservation(ABC):
+    """
+    Base class for all tracker observations.
+
+    Every observation carries a PointCloud as its canonical data. The PointCloud
+    structurally couples point names with coordinate arrays — they cannot desync.
+
+    Subclasses must be dataclasses (or any class) that provide:
+        - points: PointCloud
+        - frame_number: int
+        - tracker_type: TrackerType
+        - from_detection_results() classmethod
+
+    The concrete methods (to_2d_array, to_tracked_points, etc.) all delegate
+    to the PointCloud, so they are structurally guaranteed to be consistent.
+    """
+
+    # Subclasses must have these attributes
+    points: PointCloud
+    frame_number: int
+    tracker_type: TrackerType
 
     @classmethod
     @abstractmethod
-    def from_detection_results(cls, *args, **kwargs):
-        pass
+    def from_detection_results(cls, *args, **kwargs) -> "BaseObservation":
+        ...
 
-    @abstractmethod
-    def to_tracked_points(cls, *args, **kwargs) -> dict[TrackedPointIdString, TrackedPoint2dArray]:
-        pass
+    # =========================================================================
+    # Concrete methods — all delegate to PointCloud
+    # =========================================================================
 
-    @abstractmethod
-    def to_2d_array(self, *, confidence_threshold: float | None = None,
-                    fill_with_nans: bool = True) -> TrackedPoints2dArray:
+    def to_tracked_points(
+        self,
+        *,
+        confidence_threshold: float | None = None,
+    ) -> dict[TrackedPointIdString, NDArray[np.float64]]:
         """
-        Convert observation to 2D array, optionally filtering by confidence.
+        Get all tracked points as {name: (x, y)} dict.
 
-        Args:
-            confidence_threshold: Minimum confidence to include point. If None, uses detector config default.
-            fill_with_nans: Whether to fill filtered points with NaN to maintain array shape.
-
-        Returns:
-            2D array of tracked points
+        When confidence_threshold is None, returns ALL points (including NaN)
+        to maintain structural consistency with to_2d_array().
         """
-        pass
+        if confidence_threshold is not None:
+            filtered = self.points.filtered_by_confidence(threshold=confidence_threshold)
+            return filtered.to_named_dict(dimensions=2)
+        return self.points.to_named_dict(dimensions=2)
 
-    def get_confidence_scores(self) -> NDArray[Shape["* number_of_points"], float] | None:
+    def to_2d_array(
+        self,
+        *,
+        confidence_threshold: float | None = None,
+        fill_with_nans: bool = True,
+    ) -> NDArray[np.float64]:
         """
-        Get confidence scores for all tracked points.
+        Convert observation to (N, 2) array.
 
-        Returns:
-            Array of confidence scores, or None if tracker doesn't support confidence.
-
-        Raises:
-            NotImplementedError: If tracker doesn't support confidence scores.
+        Always returns the same N rows in the same order as
+        to_tracked_points().keys() — guaranteed by PointCloud.
         """
-        raise NotImplementedError(f"{self.tracker_type} does not support confidence scores")
+        if confidence_threshold is not None:
+            filtered = self.points.filtered_by_confidence(
+                threshold=confidence_threshold,
+                fill_with_nans=fill_with_nans,
+            )
+            return filtered.to_2d_array()
+        return self.points.to_2d_array()
+
+    def get_confidence_scores(self) -> NDArray[np.float64]:
+        """Get visibility/confidence scores for all tracked points."""
+        return self.points.visibility.copy()
 
     def filter_by_confidence(
-            self,
-            points: NDArray,
-            confidence_scores: NDArray[Shape["* number_of_points"], float] | None,
-            confidence_threshold: float,
-            fill_with_nans: bool = True
-    ) -> NDArray:
-        """
-        Filter points by confidence threshold.
-
-        Args:
-            points: Array of points to filter
-            confidence_scores: Array of confidence scores
-            confidence_threshold: Minimum confidence threshold
-            fill_with_nans: Whether to fill filtered points with NaN
-
-        Returns:
-            Filtered points array
-        """
-        if confidence_scores is None:
-            raise NotImplementedError(f"{self.tracker_type} does not support confidence filtering")
-
+        self,
+        points: NDArray[np.float64],
+        confidence_scores: NDArray[np.float64],
+        confidence_threshold: float,
+        fill_with_nans: bool = True,
+    ) -> NDArray[np.float64]:
+        """Filter a points array by confidence threshold."""
         if fill_with_nans:
             filtered_points = points.copy()
             mask = confidence_scores < confidence_threshold
@@ -94,50 +126,65 @@ class BaseObservation(BaseModel, ABC):
             return points[mask]
 
     def to_json_string(self) -> str:
-        return json.dumps(self.model_dump_json(), indent=4)
+        """Serialize observation to JSON string."""
+        data: dict[str, object] = {
+            "frame_number": self.frame_number,
+            "tracker_type": self.tracker_type,
+            "point_names": list(self.points.names),
+            "xyz": self.points.xyz.tolist(),
+            "visibility": self.points.visibility.tolist(),
+        }
+        return json.dumps(data, indent=4)
 
     def to_json_bytes(self) -> bytes:
         return self.to_json_string().encode("utf-8")
 
 
-BaseObservations = list[BaseObservation]
-
-
-class BaseImageAnnotatorConfig(BaseModel, ABC):
-    show_overlay: bool = False
-
-
-class BaseImageAnnotator(BaseModel, ABC):
-    config: BaseImageAnnotatorConfig
-    observations: BaseObservations  # make it a list to allow plotting trails, etc.
-
-    @classmethod
-    @abstractmethod
-    def create(cls, config: BaseImageAnnotatorConfig):
-        pass
-
-    @abstractmethod
-    def annotate_image(self, image: np.ndarray, observation: BaseObservation) -> np.ndarray:
-        pass
-
-    @staticmethod
-    def draw_doubled_text(image: np.ndarray,
-                          text: str,
-                          x: int,
-                          y: int,
-                          font_scale: float,
-                          color: tuple[int, int, int],
-                          thickness: int):
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
-        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
-
 
 class BaseDetectorConfig(BaseModel, ABC):
     confidence_threshold: float = Field(
-        default=0.5,
-        description="Default confidence threshold for filtering tracked points (0.0-1.0) - Should tune the default value to the tracker, confidence scores mean different things in different trackers."
+        default=0.005,
+        description="Peak softmax probability threshold for filtering tracked points. "
+                    "Higher = stricter. ~0.005 filters uniform noise (~0.002 per bin) "
+                    "while keeping anything with real signal.",
     )
-    pass
+
+
+@dataclass
+class BaseImageAnnotatorConfig( ABC):
+    show_overlay: bool = False
+
+
+@dataclass
+class BaseImageAnnotator(ABC):
+    config: BaseImageAnnotatorConfig
+    observations: list[BaseObservation] = field(default_factory=list)
+
+    @classmethod
+    @abstractmethod
+    def create(cls, config: BaseImageAnnotatorConfig) -> "BaseImageAnnotator":
+        pass
+
+    @abstractmethod
+    def annotate_image(
+        self,
+        image: NDArray[np.uint8],
+        observation: BaseObservation,
+    ) -> NDArray[np.uint8]:
+        pass
+
+    @staticmethod
+    def draw_doubled_text(
+        image: NDArray[np.uint8],
+        text: str,
+        x: int,
+        y: int,
+        font_scale: float,
+        color: tuple[int, int, int],
+        thickness: int,
+    ) -> None:
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 0, 0), thickness * 3)
+        cv2.putText(image, text, (x, y), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, thickness)
 
 
 class BaseTrackerConfig(BaseModel, ABC):
@@ -145,72 +192,74 @@ class BaseTrackerConfig(BaseModel, ABC):
     annotator_config: BaseImageAnnotatorConfig | None = None
 
 
-class BaseDetector(BaseModel, ABC):
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+@dataclass
+class BaseDetector(ABC):
     config: BaseDetectorConfig
+    # The schema of points (names + connections) this detector produces.
+    # Loaded from a YAML at detector creation time. None for legacy detectors
+    # that haven't migrated yet; concrete detectors should always supply one.
+    tracked_object: TrackedObjectDefinition | None = field(default=None, kw_only=True)
 
     @classmethod
-    def create(cls, config: BaseDetectorConfig):
+    def create(cls, config: BaseDetectorConfig) -> "BaseDetector":
         raise NotImplementedError("Must implement a method to create a detector from a config.")
 
     @abstractmethod
-    def detect(self,
-               frame_number: int,
-               image: np.ndarray) -> BaseObservation:
+    def detect(
+        self,
+        frame_number: int,
+        image: NDArray[np.uint8],
+    ) -> BaseObservation:
         pass
 
 
-class BaseRecorder(BaseModel, ABC):
-    observations: List[BaseObservation] = Field(default_factory=list)
+@dataclass
+class BaseRecorder(ABC):
+    observations: list[BaseObservation] = field(default_factory=list)
 
-    def add_observation(self, observation: BaseObservation):
+    def add_observation(self, observation: BaseObservation) -> None:
         self.observations.append(observation)
 
-    # I'm imagining these can be used if you want the data but want to handle saving elsewhere
     @property
-    def to_array(self) -> np.ndarray:
+    def to_array(self) -> NDArray[np.float64]:
         return np.stack([observation.to_2d_array() for observation in self.observations])
 
     @property
     def to_json_string(self) -> str:
-        output_dict = {frame_number: observation.model_dump_json() for frame_number, observation in
-                       enumerate(self.observations)}
+        output_dict = {
+            frame_number: observation.to_json_string()
+            for frame_number, observation in enumerate(self.observations)
+        }
         return json.dumps(output_dict, indent=4)
 
-    # and these are used if you want skellytracker to handle the saving
-    def save_array(self, output_path: Path):
+    def save_array(self, output_path: Path) -> None:
         np.save(file=output_path, arr=self.to_array)
 
-    def save_json_file(self, output_path: Path):
-        with open(output_path, 'w') as json_file:
+    def save_json_file(self, output_path: Path) -> None:
+        with open(output_path, "w") as json_file:
             json_file.write(self.to_json_string)
 
-    def clear(self):
+    def clear(self) -> None:
         self.observations = []
 
 
-class BaseObservationManager(BaseModel, ABC):
-    observations: List[BaseObservation]
-
-    @abstractmethod
-    def create_observation(self, **kwargs) -> BaseObservation:
-        pass
-
-
-class BaseTracker(BaseModel, ABC):
+@dataclass
+class BaseTracker(ABC):
     config: BaseTrackerConfig
     detector: BaseDetector
     annotator: BaseImageAnnotator
     recorder: BaseRecorder | None = None
 
     @classmethod
-    def create(cls, config: BaseTrackerConfig):
+    def create(cls, config: BaseTrackerConfig) -> "BaseTracker":
         raise NotImplementedError("Must implement a method to create a tracker from a config.")
 
-    def process_image(self,
-                      frame_number: int,
-                      image: np.ndarray,
-                      record_observation: bool = True) -> BaseObservation:
+    def process_image(
+        self,
+        frame_number: int,
+        image: NDArray[np.uint8],
+        record_observation: bool = True,
+    ) -> BaseObservation:
         latest_observation = self.detector.detect(image=image, frame_number=frame_number)
 
         if record_observation and self.recorder is not None:
@@ -218,75 +267,23 @@ class BaseTracker(BaseModel, ABC):
 
         return latest_observation
 
-    def annotate_image(self, image: np.ndarray, observation: BaseObservation) -> np.ndarray:
+    def annotate_image(
+        self,
+        image: NDArray[np.uint8],
+        observation: BaseObservation,
+    ) -> NDArray[np.uint8]:
         return self.annotator.annotate_image(image=image, observation=observation)
 
     def demo(self) -> None:
+        from skellytracker.io.demo_viewers.webcam_demo_viewer import WebcamDemoViewer
         camera_viewer = WebcamDemoViewer(
             tracker=self,
-            window_title=self.__class__.__name__
+            window_title=self.__class__.__name__,
         )
         camera_viewer.run()
 
     def image_demo(self, image_path: Path) -> None:
-        """
-        Run tracker on single image
-    
-        :return: None
-        """
+        from skellytracker.io.demo_viewers.image_demo_viewer import ImageDemoViewer
 
         image_viewer = ImageDemoViewer(self, self.__class__.__name__)
         image_viewer.run(image_path=image_path)
-
-#
-# class BaseCumulativeTracker(BaseTracker):
-#     """
-#     A base class for tracking algorithms that run cumulatively, i.e are not able to process videos frame by frame.
-#     Throws a descriptive error for the abstract methods of BaseTracker that do not apply to this type of tracker.
-#     Trackers inheriting from this will need to overwrite the `process_video` method.
-#     """
-#
-#     def __init__(
-#             self,
-#             tracked_object_names: List[str],
-#             recorder: BaseCumulativeRecorder,
-#             **data: Any,
-#     ):
-#         super().__init__(
-#             tracked_object_names=tracked_object_names, recorder=recorder, **data
-#         )
-#
-#     def process_image(self, **kwargs) -> None:
-#         raise NotImplementedError(
-#             "This tracker does not support processing individual images, please use process_video instead."
-#         )
-#
-#     def annotate_image(self, **kwargs) -> None:
-#         raise NotImplementedError(
-#             "This tracker does not support processing individual images, please use process_video instead."
-#         )
-#
-#     @abstractmethod
-#     def process_video(
-#             self,
-#             input_video_filepath: Union[str, Path],
-#             output_video_filepath: Optional[Union[str, Path]] = None,
-#             save_data_bool: bool = False,
-#             use_tqdm: bool = True,
-#             **kwargs,
-#     ) -> Union[np.ndarray, None]:
-#         """
-#         Run the tracker on a video.
-#
-#         :param input_video_filepath: Path to video file.
-#         :param output_video_filepath: Path to save annotated video to, does not save video if None.
-#         :param save_data_bool: Whether to save the data to a file.
-#         :param use_tqdm: Whether to use tqdm to show a progress bar
-#         :return: Array of tracked keypoint data
-#         """
-#         pass
-#
-#     def image_demo(self, image_path: Path) -> None:
-#         raise NotImplementedError(
-#             "This tracker does not support processing individual images, please use process_video instead."
-#         )
