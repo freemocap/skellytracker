@@ -8,6 +8,9 @@ The base package includes OpenCV-based trackers (Aruco, Charuco) with no extras 
 
 ```bash
 pip install skellytracker
+
+# Or with uv
+uv add skellytracker
 ```
 
 Add extras to enable additional tracker backends. Pick the bundle that matches your hardware:
@@ -24,12 +27,15 @@ Add extras to enable additional tracker backends. Pick the bundle that matches y
 ```bash
 # CPU / Mac
 pip install "skellytracker[recommended-cpu]"
+uv add "skellytracker[recommended-cpu]"
 
 # NVIDIA GPU
 pip install "skellytracker[recommended-cuda]"
+uv add "skellytracker[recommended-cuda]"
 
 # Windows with non-NVIDIA GPU
 pip install "skellytracker[all-directml]"
+uv add "skellytracker[all-directml]"
 ```
 
 You can also mix extras for more granular control:
@@ -37,9 +43,11 @@ You can also mix extras for more granular control:
 ```bash
 # RTMPose + YOLOX only (no MediaPipe), CUDA backend
 pip install "skellytracker[rtmlib,onnx-cuda]"
+uv add "skellytracker[rtmlib,onnx-cuda]"
 
 # MediaPipe only
 pip install "skellytracker[mediapipe]"
+uv add "skellytracker[mediapipe]"
 ```
 
 Available granular extras: `mediapipe`, `rtmlib`, `onnx-cpu`, `onnx-cuda`, `onnx-trt`, `onnx-directml`.
