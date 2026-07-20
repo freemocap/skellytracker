@@ -81,8 +81,10 @@ class Tracker:
 
         Args:
             images:
-                Mapping from camera ID to BGR image array (H, W, 3).
-                All images must have the same spatial dimensions.
+                Mapping from camera ID to BGR image array (H, W, 3). Cameras
+                may have different spatial dimensions (e.g. a rotated camera
+                mixed with unrotated ones) — each detector letterboxes/warps
+                its own image to the model's fixed input size independently.
             frame_number:
                 Frame index; recorded in every per-camera Observation.
             states:
@@ -98,8 +100,6 @@ class Tracker:
         if not images:
             return {}, {}
 
-        first_image = next(iter(images.values()))
-        h, w = first_image.shape[:2]
         context = DetectionContext(frame_number=frame_number, timestamp_ms=timestamp_ms, timings=timings)
         cam_ids = list(images.keys())
 
@@ -120,7 +120,7 @@ class Tracker:
         observations = {
             cam_id: Observation(
                 frame_number=frame_number,
-                image_size=(h, w),
+                image_size=images[cam_id].shape[:2],
                 stages=per_cam_stage_obs[cam_id],
             )
             for cam_id in cam_ids
