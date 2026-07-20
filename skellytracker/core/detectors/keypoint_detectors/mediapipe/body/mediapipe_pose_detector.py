@@ -139,6 +139,10 @@ class MediapipePoseKeypointDetector(KeypointDetector):
         return load_connections(Path(__file__).parent / "mediapipe_body.yaml")
 
     @classmethod
+    def canonical_mapping_path(cls) -> Path:
+        return Path(__file__).parent / "mediapipe_body_to_canonical_mapping.yaml"
+
+    @classmethod
     def create(
         cls,
         config: KeypointDetectorConfig,

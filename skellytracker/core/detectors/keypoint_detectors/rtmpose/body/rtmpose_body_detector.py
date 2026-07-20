@@ -171,6 +171,10 @@ class RTMPoseBodyDetector(KeypointDetector):
         return load_connections(_YAML)
 
     @classmethod
+    def canonical_mapping_path(cls) -> Path:
+        return Path(__file__).parent / "rtmpose_body_to_canonical_mapping.yaml"
+
+    @classmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> RTMPoseBodyDetector:
         if not isinstance(session, OnnxSession):
             raise TypeError(f"Expected OnnxSession, got {type(session).__name__}")

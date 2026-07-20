@@ -165,6 +165,10 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         return right + left
 
     @classmethod
+    def canonical_mapping_path(cls) -> Path:
+        return Path(__file__).parent / "mediapipe_hand_to_canonical_mapping.yaml"
+
+    @classmethod
     def create(
         cls,
         config: KeypointDetectorConfig,
