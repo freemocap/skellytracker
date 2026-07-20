@@ -512,9 +512,9 @@ def build_tuned_ort_session(
 
     if trt_set_batch_profile:
         engine_cache_dir = engine_cache_dir / "dynbatch_v1"
-        engine_cache_dir.mkdir(parents=True, exist_ok=True)
 
     if provider == "trt":
+        engine_cache_dir.mkdir(parents=True, exist_ok=True)
         validate_engine_cache(engine_cache_dir)
 
     providers: list[tuple[str, dict] | str] = []
