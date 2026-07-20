@@ -13,7 +13,7 @@ def run_mediapipe_on_folder(synchronized_videos_folder: Path, output_folder: Pat
     keypoint_detectors=[MediapipePoseDetectorConfig()])]),
         {"mediapipe": session}
     )
-    process_folder(tracker, None, synchronized_videos_folder, output_folder)
+    process_folder(tracker, None, synchronized_videos_folder, output_folder, profile=True)
 
 if __name__ == "__main__":
     import sys
