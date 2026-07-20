@@ -12,6 +12,10 @@ from skellytracker.core.detectors.keypoint_detectors.charuco import (
     compute_board_pose,
     to_anipose_camera_row,
 )
+from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_detector import (
+    _squeeze_aruco,
+    _squeeze_charuco,
+)
 from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
 
 
@@ -147,3 +151,23 @@ class TestAniposeExport:
         kpts = detector.detect(blank)
         row = to_anipose_camera_row(kpts, board_def, frame_number=0)
         assert np.all(np.isnan(row["filled"]))
+
+
+class TestSqueezeHelpers:
+    def test_squeeze_charuco_handles_shape_1(self):
+        # OpenCV can return already-1D (N,) ids/corners instead of (N,1);
+        # for a single detected corner that used to squeeze to a 0-d array.
+        ids = np.array([5])
+        corners = np.array([[[100.0, 200.0]]])
+        squeezed_ids, squeezed_corners = _squeeze_charuco(ids, corners)
+        assert squeezed_ids.ndim == 1
+        assert list(squeezed_ids) == [5]
+        assert squeezed_corners.shape == (1, 2)
+
+    def test_squeeze_aruco_handles_shape_1(self):
+        ids = np.array([7])
+        corners = [np.array([[[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]]])]
+        squeezed_ids, squeezed_corners = _squeeze_aruco(ids, corners, valid_ids=(7,))
+        assert squeezed_ids.ndim == 1
+        assert list(squeezed_ids) == [7]
+        assert squeezed_corners.shape == (1, 4, 2)

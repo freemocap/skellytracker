@@ -207,7 +207,7 @@ def _squeeze_charuco(
         ids = ids[0]
         corners = corners[0]
     else:
-        ids = np.squeeze(ids)
+        ids = np.atleast_1d(np.squeeze(ids))
         corners = np.squeeze(corners)
     if corners.ndim == 1:
         corners = corners[np.newaxis, :]
@@ -224,7 +224,7 @@ def _squeeze_aruco(
     if ids.shape == (1, 1):
         ids = ids[0]
     else:
-        ids = np.squeeze(ids)
+        ids = np.atleast_1d(np.squeeze(ids))
     corners_squeezed = [np.squeeze(c) for c in corners]
 
     valid_pairs = [
