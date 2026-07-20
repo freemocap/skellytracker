@@ -107,13 +107,18 @@ onnx-cuda = [
 
 # NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone).
 # First run compiles TRT engines (1-5 min); cached thereafter.
+# tensorrt is pinned to the 10.x line: onnxruntime-gpu<1.27's bundled TensorRT EP
+# is built against the TensorRT 10.x ABI (it loads nvinfer_10.dll). Letting this
+# float to TensorRT 11.x (released 2026 Q2) installs nvinfer_11.dll instead, so
+# the EP fails to load with "nvinfer_10.dll is missing" and silently falls back
+# to CUDA/CPU.
 onnx-trt = [
     "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
     "nvidia-cufft-cu12; sys_platform != 'darwin'",
     "nvidia-cudnn-cu12; sys_platform != 'darwin'",
-    "tensorrt; sys_platform != 'darwin'",
+    "tensorrt>=10,<11; sys_platform != 'darwin'",
 ]
 
 # Any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm). No CUDA needed.

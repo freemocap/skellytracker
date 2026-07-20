@@ -1125,7 +1125,7 @@ requires-dist = [
     { name = "skellytracker", extras = ["mediapipe", "rtmlib", "onnx-cuda"], marker = "extra == 'all-cuda'" },
     { name = "skellytracker", extras = ["mediapipe", "rtmlib", "onnx-directml"], marker = "extra == 'all-directml'" },
     { name = "skellytracker", extras = ["mediapipe", "rtmlib", "onnx-trt"], marker = "extra == 'all-trt'" },
-    { name = "tensorrt", marker = "sys_platform != 'darwin' and extra == 'onnx-trt'" },
+    { name = "tensorrt", marker = "sys_platform != 'darwin' and extra == 'onnx-trt'", specifier = ">=10,<11" },
     { name = "tqdm", specifier = "==4.*" },
 ]
 provides-extras = ["all-cpu", "all-cuda", "all-directml", "all-trt", "mediapipe", "onnx-cpu", "onnx-cuda", "onnx-directml", "onnx-trt", "recommended-cpu", "recommended-cuda", "rtmlib"]
@@ -1169,41 +1169,41 @@ wheels = [
 
 [[package]]
 name = "tensorrt"
-version = "11.1.0.106"
+version = "10.16.1.11"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "tensorrt-cu13", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt')" },
 ]
-sdist = { url = "https://pypi.nvidia.com/tensorrt/tensorrt-11.1.0.106.tar.gz", hash = "sha256:18ee99dc9cb0b2c14d12a68e1a062a79699c05a684ae564390130a1293af059a" }
+sdist = { url = "https://pypi.nvidia.com/tensorrt/tensorrt-10.16.1.11.tar.gz", hash = "sha256:5c31ef98e1a1b53197acc600327d6b1e4abb503024119a2e66f21a5654ea3996" }
 
 [[package]]
 name = "tensorrt-cu13"
-version = "11.1.0.106"
+version = "10.16.1.11"
 source = { registry = "https://pypi.nvidia.com/" }
 dependencies = [
     { name = "tensorrt-cu13-bindings", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt')" },
     { name = "tensorrt-cu13-libs", marker = "(platform_machine == 'x86_64' and sys_platform == 'linux') or (platform_machine == 'AMD64' and sys_platform == 'win32') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform != 'linux' and sys_platform != 'win32' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'linux' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-cuda') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cpu' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-directml') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-cuda' and extra == 'extra-13-skellytracker-onnx-trt') or (sys_platform == 'win32' and extra == 'extra-13-skellytracker-onnx-directml' and extra == 'extra-13-skellytracker-onnx-trt')" },
 ]
-sdist = { url = "https://pypi.nvidia.com/tensorrt-cu13/tensorrt_cu13-11.1.0.106.tar.gz", hash = "sha256:7511c9fa102306c5841a3a261a18a99eab3a5e4bf2e1f64a34f3331475f8e804" }
+sdist = { url = "https://pypi.nvidia.com/tensorrt-cu13/tensorrt_cu13-10.16.1.11.tar.gz", hash = "sha256:5d34203a92f38851b150c4eddd32b9b55c01fd40fc4d19bff83e8dfef1d8f69e" }
 
 [[package]]
 name = "tensorrt-cu13-bindings"
-version = "11.1.0.106"
+version = "10.16.1.11"
 source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-11.1.0.106-cp311-none-manylinux_2_28_x86_64.whl", hash = "sha256:14b6073352fddc66fc859956b86a8e601f9a35ce15e8d331026a7f7947e4e683" },
-    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-11.1.0.106-cp311-none-win_amd64.whl", hash = "sha256:32a961b9c262d2fba49b63433f855ac11921e83495c29c48b57e14ae3280bdb7" },
-    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-11.1.0.106-cp312-none-manylinux_2_28_x86_64.whl", hash = "sha256:c02e93843a7bbe0b1cba15fb1fa01424d240f9037326e66d21628a2f1fcf2bf2" },
-    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-11.1.0.106-cp312-none-win_amd64.whl", hash = "sha256:42864885cfc87f904ee30eb817a3aa8062608a6b5b0cb3cea72feb557d83c047" },
+    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-10.16.1.11-cp311-none-manylinux_2_28_x86_64.whl", hash = "sha256:f986d47980d042cc126506a9b84586e55ad13737a7a46826fe45457c04d66294" },
+    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-10.16.1.11-cp311-none-win_amd64.whl", hash = "sha256:483a58b8cf3a7e97d66d7245084d08f9ee9cd19d09210305ed43b34fbb721f7c" },
+    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-10.16.1.11-cp312-none-manylinux_2_28_x86_64.whl", hash = "sha256:2fb87ac24a5e5f42e43f283c16d1b661dc72ef18568fd847ce2080b7db9ca232" },
+    { url = "https://pypi.nvidia.com/tensorrt-cu13-bindings/tensorrt_cu13_bindings-10.16.1.11-cp312-none-win_amd64.whl", hash = "sha256:70ca2d73301ff427104d7986c26d5fa56f6a91578242d20e82b37c139be14ec0" },
 ]
 
 [[package]]
 name = "tensorrt-cu13-libs"
-version = "11.1.0.106"
+version = "10.16.1.11"
 source = { registry = "https://pypi.nvidia.com/" }
 wheels = [
-    { url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-11.1.0.106-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:eeb8bb436c80976d920db56c7ef27b8dd07c3203619a2c1ef18fe042525b6d6d" },
-    { url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-11.1.0.106-py3-none-win_amd64.whl", hash = "sha256:b727cb67d272d0b6d8eedba560a9ab6f5edc06057e82bafe7952a58c611488c7" },
+    { url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-10.16.1.11-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:91142c8ab3c58bed213cf1a563a6eb4e4f0ac529d05b5f909073acece0e3b712" },
+    { url = "https://pypi.nvidia.com/tensorrt-cu13-libs/tensorrt_cu13_libs-10.16.1.11-py3-none-win_amd64.whl", hash = "sha256:96262c3e8c64a45abd29aa3482d99480fac6845bd420b6de125699bb1ae365ff" },
 ]
 
 [[package]]
