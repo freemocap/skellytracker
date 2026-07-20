@@ -23,9 +23,11 @@ Pass 2 — dynamic shape computation for Reshapes that already contain -1:
 
 NMS bypass via extracted subgraph:
   rtmlib's YOLOX checkpoints bake in a NonMaxSuppression subgraph that contains
-  a Squeeze(axis=0) node. That node only works for batch=1. This module exposes
-  pre-NMS Identity outputs so that a stripped pre-NMS session can be built for
-  batch > 1 inference.
+  a Squeeze(axis=0) node. That node only works for batch=1 — with batch>1 it
+  raises "Dimension of input 0 must be 1 instead of N". This module exposes
+  pre-NMS Identity outputs and extracts a stripped backbone-only model, so NMS
+  runs in Python (`multiclass_nms`) and the ONNX graph is batch-safe on every
+  execution provider.
 """
 import logging
 from pathlib import Path
@@ -63,7 +65,16 @@ def ensure_prenms_model(dynbatch_path: str | Path) -> Path | None:
     """Return a path to a stripped ONNX containing only the YOLOX backbone+decode.
 
     Idempotent: produces (or reuses) a sibling `<name>.prenms.onnx` file.
-    Returns None if the dynbatch ONNX does not have the expected pre-NMS outputs.
+    Returns None when the checkpoint has no baked-in NMS, so there is nothing to
+    strip and the dynbatch model is already batch-safe.
+
+    Raises
+    ------
+    RuntimeError
+        If the graph contains a NonMaxSuppression subgraph but the pre-NMS
+        bypass outputs are missing. The NMS subgraph carries a
+        ``Squeeze(axis=0)`` that only accepts batch=1, so returning the
+        unstripped model here would blow up at inference time instead.
     """
     import onnx.utils
 
@@ -80,9 +91,17 @@ def ensure_prenms_model(dynbatch_path: str | Path) -> Path | None:
     model = onnx.load(str(src))
     output_names = {o.name for o in model.graph.output}
     if PRENMS_BBOX_OUTPUT not in output_names or PRENMS_CONF_OUTPUT not in output_names:
+        if any(node.op_type == "NonMaxSuppression" for node in model.graph.node):
+            raise RuntimeError(
+                f"{src} contains a NonMaxSuppression subgraph but is missing the "
+                f"pre-NMS bypass outputs ({PRENMS_BBOX_OUTPUT!r}, {PRENMS_CONF_OUTPUT!r}), "
+                f"so the batch=1-only Squeeze inside NMS cannot be stripped. "
+                f"This usually means the cached dynamic-batch ONNX was written by an "
+                f"older version of this module — delete {src} to regenerate it."
+            )
         logger.debug(
-            "Dynbatch ONNX has no pre-NMS Identity outputs; "
-            "YOLOX has no baked-in NMS to strip — skipping prenms extraction."
+            "Dynbatch ONNX has no pre-NMS Identity outputs and no NonMaxSuppression "
+            "node; nothing to strip — skipping prenms extraction."
         )
         return None
 
@@ -344,20 +363,22 @@ def _build_dynamic_target(
     return nodes, inits, target_out
 
 
-def ensure_prenms_for_coreml(src_path: str | Path) -> Path:
-    """Prepare a YOLOX model for CoreML by stripping the NMS subgraph.
+def prepare_yolox_onnx(src_path: str | Path) -> Path:
+    """Prepare a YOLOX checkpoint for batched inference on any provider.
 
-    CoreML cannot compile the baked-in NonMaxSuppression nodes. This chains
-    the dynamic-batch surgery (which adds pre-NMS bypass outputs) with
-    prenms extraction (which removes everything after those outputs), giving
-    CoreML a clean backbone it can compile. Falls back to the dynbatch model
-    if prenms extraction is not possible (model has no baked-in NMS).
+    Chains the dynamic-batch surgery (which symbolizes the batch dim and adds
+    pre-NMS bypass outputs) with prenms extraction (which removes the baked-in
+    NonMaxSuppression subgraph after those outputs). The resulting graph has no
+    batch=1-only nodes, so it runs correctly for any batch size on CPU, CUDA,
+    TensorRT, and CoreML. NMS is applied in Python by the detector's
+    postprocess step. Falls back to the dynbatch model when the checkpoint has
+    no baked-in NMS to strip.
     """
     dynbatch_path = ensure_dynamic_batch(src_path)
     prenms_path = ensure_prenms_model(dynbatch_path)
     if prenms_path is None:
         logger.info(
-            "No baked-in NMS found in %s; using dynbatch model for CoreML.",
+            "No baked-in NMS found in %s; using dynbatch model.",
             Path(src_path).name,
         )
         return dynbatch_path
@@ -366,9 +387,9 @@ def ensure_prenms_for_coreml(src_path: str | Path) -> Path:
 
 __all__ = [
     "ensure_dynamic_batch",
-    "ensure_prenms_for_coreml",
     "ensure_prenms_model",
     "make_dynamic_batch_onnx",
+    "prepare_yolox_onnx",
     "PRENMS_BBOX_OUTPUT",
     "PRENMS_CONF_OUTPUT",
 ]
