@@ -8,7 +8,6 @@ sys.path.insert(0, str(base_package_path))  # add parent directory to sys.path
 
 import logging  # noqa: E402
 
-from skellytracker.RUN_ME import main  # noqa: E402
 
 logger = logging.getLogger(__name__)
 

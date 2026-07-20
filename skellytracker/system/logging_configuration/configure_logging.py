@@ -1,6 +1,4 @@
 import logging
-import multiprocessing
-from typing import Optional
 
 from skellytracker.system.logging_configuration.log_levels import LogLevels
 from skellytracker.system.logging_configuration.package_log_quieters import suppress_noisy_package_logs

@@ -1,0 +1,62 @@
+---
+# RTMPose single-hand tracked points and skeleton connections.
+# 21 landmarks per hand. Used for both sides — the wholebody composition
+# adds side-specific prefixes (left_hand_ / right_hand_).
+# With prefix applied: root → left_hand_root / right_hand_root, etc.
+name: rtmpose_hand
+tracker_type: rtmpose
+landmark_schema: COCO_WholeBody
+
+tracked_points:
+  - root
+  - thumb1
+  - thumb2
+  - thumb3
+  - thumb4
+  - forefinger1
+  - forefinger2
+  - forefinger3
+  - forefinger4
+  - middle_finger1
+  - middle_finger2
+  - middle_finger3
+  - middle_finger4
+  - ring_finger1
+  - ring_finger2
+  - ring_finger3
+  - ring_finger4
+  - pinky_finger1
+  - pinky_finger2
+  - pinky_finger3
+  - pinky_finger4
+
+connections:
+  # thumb chain
+  - [root, thumb1]
+  - [thumb1, thumb2]
+  - [thumb2, thumb3]
+  - [thumb3, thumb4]
+  # forefinger chain
+  - [root, forefinger1]
+  - [forefinger1, forefinger2]
+  - [forefinger2, forefinger3]
+  - [forefinger3, forefinger4]
+  # middle finger chain
+  - [root, middle_finger1]
+  - [middle_finger1, middle_finger2]
+  - [middle_finger2, middle_finger3]
+  - [middle_finger3, middle_finger4]
+  # ring finger chain
+  - [root, ring_finger1]
+  - [ring_finger1, ring_finger2]
+  - [ring_finger2, ring_finger3]
+  - [ring_finger3, ring_finger4]
+  # pinky chain
+  - [root, pinky_finger1]
+  - [pinky_finger1, pinky_finger2]
+  - [pinky_finger2, pinky_finger3]
+  - [pinky_finger3, pinky_finger4]
+  # knuckle crossbar
+  - [forefinger1, middle_finger1]
+  - [middle_finger1, ring_finger1]
+  - [ring_finger1, pinky_finger1]

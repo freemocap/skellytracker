@@ -41,3 +41,9 @@ requests:
 4. Ensure the test suite passes by running `pytest skellytracker/tests`.
 5. Make sure your code lints.
 6. Make that pull request!
+
+---
+
+# GPU setup 
+
+For help setting up your GPU for use in gpu-enabled trackers like RTMPose, see the [GPU_SETUP_GUIDE](GPU_SETUP_GUIDE.md)

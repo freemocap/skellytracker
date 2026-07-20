@@ -1,15 +1,16 @@
+from dataclasses import dataclass
+
 import cv2
 import numpy as np
 from mediapipe.python.solutions import drawing_utils
 from mediapipe.python.solutions import holistic as mp_holistic
 from mediapipe.python.solutions.face_mesh_connections import FACEMESH_RIGHT_IRIS, FACEMESH_LEFT_IRIS
-from numpydantic import NDArray, Shape
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
-from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import MediapipeObservation
+from skellytracker.trackers.legacy_mediapipe_tracker.legacy_mediapipe_observation import LegacyMediapipeObservation
 
 
-class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
+class LegacyMediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     show_tracks: int | None = 15
     show_overlay: bool = True
     corner_marker_type: int = cv2.MARKER_DIAMOND
@@ -25,19 +26,19 @@ class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     text_thickness: int = 2
     text_font: int = cv2.FONT_HERSHEY_SIMPLEX
 
-
-class MediapipeImageAnnotator(BaseImageAnnotator):
-    config: MediapipeAnnotatorConfig
-    observations: list[MediapipeObservation]
+@dataclass
+class LegacyMediapipeImageAnnotator(BaseImageAnnotator):
+    config: LegacyMediapipeAnnotatorConfig
+    observations: list[LegacyMediapipeObservation]
 
     @classmethod
-    def create(cls, config: MediapipeAnnotatorConfig):
+    def create(cls, config: LegacyMediapipeAnnotatorConfig):
         return cls(config=config, observations=[])
 
     def annotate_image(
             self,
-            image: NDArray[Shape["* width, * height, 1-4 channels"], np.uint8],
-            observation: MediapipeObservation | None = None,
+            image: np.ndarray,
+            observation: LegacyMediapipeObservation | None = None,
     ) -> np.ndarray:
         image_height, image_width = image.shape[:2]
         text_offset = int(image_height * 0.01)

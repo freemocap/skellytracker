@@ -1,12 +1,15 @@
+from typing import Literal
+
 import cv2
 import numpy as np
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig, TrackerType
 from skellytracker.trackers.brightest_point_tracker.brightest_point_observation import BrightPatch, \
     BrightestPointObservation
 
 
 class BrightestPointDetectorConfig(BaseDetectorConfig):
+    tracker_type: Literal[TrackerType.BRIGHTEST_POINT] = TrackerType.BRIGHTEST_POINT
     num_tracked_points: int = 1
     luminance_threshold: int = 200
 
