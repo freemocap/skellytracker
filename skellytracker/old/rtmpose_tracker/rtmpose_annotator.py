@@ -8,7 +8,6 @@ from skellytracker.trackers.rtmpose_tracker._skeleton_viz import draw_skeleton
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig, BaseImageAnnotator
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseImageAnnotatorConfig
 
 logger = logging.getLogger(__name__)
 

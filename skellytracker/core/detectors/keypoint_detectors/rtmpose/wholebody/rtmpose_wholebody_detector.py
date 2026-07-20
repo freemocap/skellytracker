@@ -73,7 +73,7 @@ _MODEL_TO_SCHEMA_PERM: NDArray[np.intp] = np.concatenate([
     np.arange(91, 112, dtype=np.intp),    # left_hand moves up
     np.arange(23, 91, dtype=np.intp),     # face moves down
 ])
-assert _MODEL_TO_SCHEMA_PERM.shape == (_NUM_KEYPOINTS,)
+assert _MODEL_TO_SCHEMA_PERM.shape == (_NUM_KEYPOINTS,)  # noqa: S101
 
 
 class RTMPoseDetectorConfig(KeypointDetectorConfig):

@@ -26,10 +26,12 @@ def _stage(
     smooth_bbox: BoundingBox | None = None,
     last_detection_frame: int | None = None,
     last_keypoints: Keypoints | None = None,
+    keypoint_tracked_bbox: BoundingBox | None = None,
 ) -> StageState:
     state = StageState()
     state.bbox_state.smooth_bbox = smooth_bbox
     state.bbox_state.last_detection_frame = last_detection_frame
+    state.bbox_state.keypoint_tracked_bbox = keypoint_tracked_bbox
     state.last_keypoints = last_keypoints
     return state
 
@@ -241,9 +243,14 @@ class TestBBoxPolicy:
         assert result is bbox
 
     def test_predict_bbox_uses_keypoints_when_configured(self):
-        kpts = _kpts_grid()
-        state = _stage(last_keypoints=kpts)
-        policy = BBoxPolicy(keypoint_bbox_expansion=0.0)
+        tracked = predict_bbox_from_keypoints(_kpts_grid(), expansion_ratio=0.0)
+        state = _stage(keypoint_tracked_bbox=tracked)
+        policy = BBoxPolicy(
+            keypoint_bbox_expansion=0.0,
+            min_shrink_ratio_per_frame=None,
+            min_detected_bbox_ratio=None,
+            min_bbox_size_px=0.0,
+        )
         result = policy.predict_bbox(state)
         assert result is not None
         assert result.x1 == pytest.approx(50.0)

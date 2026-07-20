@@ -12,6 +12,7 @@ from skellytracker.core.config.detector_configs import (
     ObjectDetectorConfig,
 )
 from skellytracker.core.data_primitives import Keypoints
+from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.sessions.session import Session
 
@@ -61,10 +62,10 @@ class ObjectDetector(ABC):
     def create(cls, config: ObjectDetectorConfig, session: Session) -> ObjectDetector:
         ...
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027
         """Release any resources owned by this detector. Override if needed."""
 
-    def reset_temporal_state(self) -> None:
+    def reset_temporal_state(self) -> None:  # noqa: B027
         """Reset any internal temporal state (e.g. tracking history).
 
         Called by process_folder between videos so each video is processed
@@ -131,10 +132,10 @@ class KeypointDetector(ABC):
     def create(cls, config: KeypointDetectorConfig, session: Session) -> KeypointDetector:
         ...
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027
         """Release any resources owned by this detector. Override if needed."""
 
-    def reset_temporal_state(self) -> None:
+    def reset_temporal_state(self) -> None:  # noqa: B027
         """Reset any internal temporal state (e.g. tracking history).
 
         Called by process_folder between videos so each video is processed

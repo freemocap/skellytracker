@@ -12,7 +12,6 @@ from skellytracker.old.composite_gpu_tracker.composite_gpu_observation import (
 )
 from skellytracker.old.composite_gpu_tracker.composite_gpu_session import (
     CompositeGPUSession,
-    CompositeGPUSessionConfig,
 )
 from skellytracker.old.composite_gpu_tracker.names_and_connections import (
     RTMO_HYBRID_DEFINITION,

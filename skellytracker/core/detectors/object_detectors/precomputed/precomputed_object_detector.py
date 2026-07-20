@@ -70,4 +70,4 @@ class PrecomputedObjectDetector(ObjectDetector):
         bboxes: list[list[BoundingBox]],
     ) -> PrecomputedObjectDetector:
         """Create from a list where the list index is the frame number."""
-        return cls(bboxes_by_frame={i: boxes for i, boxes in enumerate(bboxes)})
+        return cls(bboxes_by_frame=dict(enumerate(bboxes)))

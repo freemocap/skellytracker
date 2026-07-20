@@ -9,7 +9,7 @@ from skellytracker.old.mediapipe_tracker.face.mediapipe_face_config import Media
 from skellytracker.old.mediapipe_tracker.face.mediapipe_face_observation import MediapipeFaceObservation
 from skellytracker.old.mediapipe_tracker.mediapipe_model_manager import get_face_model_path
 from skellytracker.old.mediapipe_tracker.names_and_connections import (
-    MEDIAPIPE_FACE_TESSELATED_DEFINITION, MEDIAPIPE_FACE_CONTOUR_DEFINITION,
+    MEDIAPIPE_FACE_CONTOUR_DEFINITION,
 )
 
 logger = logging.getLogger(__name__)

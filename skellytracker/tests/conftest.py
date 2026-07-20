@@ -34,7 +34,7 @@ class _SessionInfo:
 
 
 def _cache_path(url: str) -> pathlib.Path:
-    url_hash = hashlib.sha1(url.encode()).hexdigest()[:12]
+    url_hash = hashlib.sha1(url.encode(), usedforsecurity=False).hexdigest()[:12]
     return _CACHE_DIR / f"{url_hash}.jpg"
 
 

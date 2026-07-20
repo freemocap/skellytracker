@@ -70,5 +70,6 @@ __all__ = [
     "StageState",
     "Tracker",
     "TrackerConfig",
+    "TrackerMapping",
     "TrackerState",
 ]

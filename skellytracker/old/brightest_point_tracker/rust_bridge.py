@@ -17,7 +17,6 @@ OpenCV DLL discovery on Windows:
 import logging
 import os
 import platform
-import sys
 from typing import Any
 
 import numpy as np

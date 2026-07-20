@@ -11,7 +11,6 @@ from skellytracker.old.legacy_mediapipe_tracker.legacy_mediapipe_detector_config
 )
 from skellytracker.old.legacy_mediapipe_tracker.legacy_mediapipe_observation import (
     LegacyMediapipeObservation,
-    LegacyMediapipeResults,
 )
 
 

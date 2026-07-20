@@ -6,7 +6,6 @@ from numpy.typing import NDArray
 
 from skellytracker.old.base_tracker.base_tracker_abcs import (
     BaseImageAnnotator,
-    BaseImageAnnotatorConfig,
 )
 from skellytracker.old.composite_gpu_tracker.composite_gpu_config import (
     CompositeGPUImageAnnotatorConfig,

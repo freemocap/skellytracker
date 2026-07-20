@@ -870,14 +870,14 @@ class RTMPoseSession:
         has_cached_engine = is_trt and any(self.config.engine_cache_dir.glob("**/*.engine"))
         if is_trt and not has_cached_engine:
             logger.warning(
-                f"\n"
-                f"  ╔══════════════════════════════════════════════════════════════╗\n"
-                f"  ║         TensorRT FIRST-RUN ENGINE COMPILATION                ║\n"
-                f"  ╠══════════════════════════════════════════════════════════════╣\n"
-                f"  ║  TRT is compiling your models to native GPU kernels.         ║\n"
-                f"  ║  This happens ONCE and is cached for all future runs.        ║\n"
-                f"  ║  Expected time: 1–5 minutes. Do not close the process.       ║\n"
-                f"  ╚══════════════════════════════════════════════════════════════╝"
+                "\n"
+                "  ╔══════════════════════════════════════════════════════════════╗\n"
+                "  ║         TensorRT FIRST-RUN ENGINE COMPILATION                ║\n"
+                "  ╠══════════════════════════════════════════════════════════════╣\n"
+                "  ║  TRT is compiling your models to native GPU kernels.         ║\n"
+                "  ║  This happens ONCE and is cached for all future runs.        ║\n"
+                "  ║  Expected time: 1–5 minutes. Do not close the process.       ║\n"
+                "  ╚══════════════════════════════════════════════════════════════╝"
             )
 
         stop_event = threading.Event()

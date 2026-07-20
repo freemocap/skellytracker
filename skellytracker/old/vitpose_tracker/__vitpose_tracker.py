@@ -1,4 +1,3 @@
-from easy_ViTPose import VitInference
 from pydantic import Field
 
 from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker, BaseTrackerConfig, BaseRecorder

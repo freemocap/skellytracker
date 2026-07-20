@@ -3,7 +3,7 @@ import threading
 import time
 from collections import deque
 from enum import Enum
-from typing import Optional, TYPE_CHECKING
+from typing import Optional
 
 import cv2
 import numpy as np

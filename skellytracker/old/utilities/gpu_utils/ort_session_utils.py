@@ -10,13 +10,11 @@ for now. When TRT is needed, callers can enable it via provider="trt".
 
 import ctypes
 import logging
-import os
 import sys
 import time
 from pathlib import Path
 from typing import Any, Literal
 
-import numpy as np
 import onnx
 import onnxruntime as ort
 from numpy.typing import NDArray

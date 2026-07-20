@@ -140,7 +140,7 @@ def run(
         )
 
     print(
-        f"\nReference: target < 33 ms/frame per camera for real-time (30 FPS).\n"
+        "\nReference: target < 33 ms/frame per camera for real-time (30 FPS).\n"
     )
 
 

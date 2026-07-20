@@ -112,9 +112,9 @@ def run(
         )
 
     print(
-        f"\nReference: legacy 3-camera pipeline measured ~71 ms/frame per camera "
-        f"on rtmw-dw-l-m. A single-context batched session should beat that on "
-        f"the per-image-mean column above.\n"
+        "\nReference: legacy 3-camera pipeline measured ~71 ms/frame per camera "
+        "on rtmw-dw-l-m. A single-context batched session should beat that on "
+        "the per-image-mean column above.\n"
     )
 
 

@@ -106,7 +106,7 @@ class CharucoDetector(BaseDetector):
 
         annotated_board_image = cv2.putText(
             annotated_board_image,
-            f"Generated with command:",
+            "Generated with command:",
             (200, annotated_board_image.shape[0] - 600),
             cv2.FONT_HERSHEY_SIMPLEX,
             4,

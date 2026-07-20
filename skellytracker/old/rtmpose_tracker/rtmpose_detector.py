@@ -5,17 +5,15 @@ import os
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
 
 import numpy as np
 import onnxruntime
 from numpy.typing import NDArray
 
-from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector, BaseDetectorConfig, TrackerType
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseDetector
 from skellytracker.trackers.rtmpose_tracker.rtmpose_detector_config import RTMPoseDetectorConfig
 from skellytracker.trackers.rtmpose_tracker.rtmpose_observation import RTMPoseObservation
 from skellytracker.trackers.rtmpose_tracker.rtmpose_session import (
-    ExecutionProviderName,
     RTMPoseSession,
     RTMPoseSessionConfig,
 )
@@ -119,10 +117,6 @@ def _verify_ort_install_sane() -> None:
 # RTMPoseDetectorConfig and the device→provider map now live in a backend-free
 # module (rtmpose_detector_config) so they can be imported without loading
 # onnxruntime. Re-exported here for backwards compatibility with existing callers.
-from skellytracker.trackers.rtmpose_tracker.rtmpose_detector_config import (  # noqa: E402
-    RTMPoseDetectorConfig,
-    _DEVICE_TO_PROVIDER,
-)
 
 
 @dataclass

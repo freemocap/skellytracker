@@ -320,14 +320,8 @@ class TestDetectionStageBatch:
     @pytest.fixture(scope="class")
     @classmethod
     def stage_and_session(cls, combined_session_n2):
-        from skellytracker.core import DetectionStageConfig, TrackerConfig, Tracker
         from skellytracker.core.tracker.detection_stage import DetectionStage
         from skellytracker.core.config.detection_stage_config import DetectionStageConfig as StageConfig
-        from skellytracker.core.detectors.detector_base_classes import (
-            build_keypoint_detector,
-            build_object_detector,
-        )
-        from skellytracker.core.temporal_processing.bbox_policy import BBoxPolicy
 
         stage = DetectionStage.create(
             StageConfig(
