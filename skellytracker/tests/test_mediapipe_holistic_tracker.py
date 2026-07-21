@@ -1,12 +1,11 @@
-import pytest
 import numpy as np
+import pytest
 
-
-from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-    MediapipeModelInfo,
-)
 from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
     MediapipeHolisticTracker,
+)
+from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
+    MediapipeModelInfo,
 )
 
 

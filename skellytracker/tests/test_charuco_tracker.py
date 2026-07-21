@@ -1,23 +1,22 @@
 import cv2
-import pytest
 import numpy as np
+import pytest
 
-
-from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
+from skellytracker.trackers.charuco_tracker.__charuco_tracker import CharucoTracker
 
 
 @pytest.mark.usefixtures("charuco_test_image")
 def test_process_image(charuco_test_image):
     charuco_squares_x_in = 7
     charuco_squares_y_in = 5
-
     number_of_charuco_markers = (charuco_squares_x_in - 1) * (charuco_squares_y_in - 1)
     charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     tracker = CharucoTracker(
+        tracked_object_names=charuco_ids,
         squares_x=charuco_squares_x_in,
         squares_y=charuco_squares_y_in,
-        dict_id=cv2.aruco.DICT_4X4_250,
+        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
     )
     tracked_objects = tracker.process_image(charuco_test_image)
 
@@ -66,11 +65,11 @@ def test_image_without_charuco(test_image):
     charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     tracker = CharucoTracker(
+        tracked_object_names=charuco_ids,
         squares_x=charuco_squares_x_in,
         squares_y=charuco_squares_y_in,
-        dict_id=cv2.aruco.DICT_4X4_250,
+        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
     )
-
     tracked_objects = tracker.process_image(test_image)
 
     assert len(tracked_objects) == len(charuco_ids)
@@ -84,11 +83,14 @@ def test_image_without_charuco(test_image):
 def test_annotate_image(charuco_test_image):
     charuco_squares_x_in = 7
     charuco_squares_y_in = 5
+    number_of_charuco_markers = (charuco_squares_x_in - 1) * (charuco_squares_y_in - 1)
+    charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     tracker = CharucoTracker(
+        tracked_object_names=charuco_ids,
         squares_x=charuco_squares_x_in,
         squares_y=charuco_squares_y_in,
-        dict_id=cv2.aruco.DICT_4X4_250,
+        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
     )
     tracker.process_image(charuco_test_image)
 
@@ -104,9 +106,10 @@ def test_record(charuco_test_image):
     charuco_ids = [str(index) for index in range(number_of_charuco_markers)]
 
     tracker = CharucoTracker(
+        tracked_object_names=charuco_ids,
         squares_x=charuco_squares_x_in,
         squares_y=charuco_squares_y_in,
-        dict_id=cv2.aruco.DICT_4X4_250,
+        dictionary=cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250),
     )
     tracked_objects = tracker.process_image(charuco_test_image)
     tracker.recorder.record(tracked_objects=tracked_objects)

@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+
 from skellytracker.system.default_paths import FIGSHARE_CHARUCO_TEST_IMAGE_URL
 from skellytracker.utilities.download_test_image import download_test_image
 

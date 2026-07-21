@@ -1,21 +1,21 @@
 import logging
-import numpy as np
 from multiprocessing import Pool, cpu_count
 from pathlib import Path
 from typing import Optional
-from pydantic import BaseModel
 
+import numpy as np
+from pydantic import BaseModel
+from skellytracker.trackers.base_tracker.model_info import ModelInfo
 
 from skellytracker.system.constants import BASE_2D_FILE_NAME
-from skellytracker.trackers.base_tracker.base_tracker import BaseTracker
-from skellytracker.trackers.base_tracker.model_info import ModelInfo
-from skellytracker.trackers.bright_point_tracker.brightest_point_tracker import (
+from skellytracker.trackers.base_tracker.base_tracker_abcs import BaseTracker
+from skellytracker.trackers.brightest_point_tracker.brightest_point_tracker import (
     BrightestPointTracker,
 )
 from skellytracker.utilities.get_video_paths import get_video_paths
 
 try:
-    from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
+    from skellytracker.trackers.v1.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
         YOLOMediapipeComboTracker,
     )
 except ModuleNotFoundError:
@@ -23,8 +23,8 @@ except ModuleNotFoundError:
         "\n\nTo use yolo_mediapipe_combo_tracker, install skellytracker[yolo, mediapipe]\n\n"
     )
 try:
-    from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOTrackingParams
+    from skellytracker.trackers.v1.yolo_tracker import YOLOPoseTracker
+    from skellytracker.trackers.v1.yolo_tracker import YOLOTrackingParams
 except ModuleNotFoundError:
     print("To use yolo_tracker, install skellytracker[yolo]")
 try:
@@ -37,15 +37,10 @@ try:
 except ModuleNotFoundError:
     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
 
-from skellytracker.trackers.charuco_tracker.charuco_tracker import CharucoTracker
-from skellytracker.trackers.charuco_tracker.charuco_model_info import (
-    CharucoTrackingParams,
-)
-
 logger = logging.getLogger(__name__)
 
 try:
-    from skellytracker.trackers.openpose_tracker.openpose_tracker import (
+    from skellytracker.trackers.v1.openpose_tracker.openpose_tracker import (
         OpenPoseTracker,
     )
 except ModuleNotFoundError:
@@ -75,36 +70,6 @@ def process_folder_of_videos(
     :return: Array of tracking data
     """
     video_paths = get_video_paths(synchronized_video_path)
-    return process_list_of_videos(
-        model_info=model_info,
-        tracking_params=tracking_params,
-        video_paths=video_paths,
-        output_folder_path=output_folder_path,
-        annotated_video_path=annotated_video_path,
-        num_processes=num_processes,
-    )
-
-
-def process_list_of_videos(
-    model_info: ModelInfo,
-    tracking_params: BaseModel,
-    video_paths: list[Path],
-    output_folder_path: Optional[Path] = None,
-    annotated_video_path: Optional[Path] = None,
-    num_processes: Optional[int] = None,
-) -> np.ndarray:
-    """
-    Process a folder of synchronized videos with the given tracker.
-    Tracked data will be saved to a .npy file with the shape (numCams, numFrames, numTrackedPoints, pixelXYZ).
-
-    :param model_info: Model info for tracker.
-    :param tracking_params: Tracking parameters to use.
-    :param video_paths: List of videos to process.
-    :param output_folder_path: Path to save tracked data to.
-    :param annotated_video_path: Path to save annotated videos to.
-    :param num_processes: Number of processes to use, 1 to disable multiprocessing.
-    :return: Array of tracking data
-    """
 
     if num_processes is None:
         num_processes = min((cpu_count() - 1), len(video_paths))
@@ -112,7 +77,7 @@ def process_list_of_videos(
         num_processes = min(num_processes, len(video_paths), cpu_count() - 1)
 
     file_name = model_info.name + "_" + BASE_2D_FILE_NAME
-    synchronized_video_path = video_paths[0].parent
+    synchronized_video_path = Path(synchronized_video_path)
     if output_folder_path is None:
         output_folder_path = (
             synchronized_video_path.parent / "output_data" / "raw_data" / file_name
@@ -123,29 +88,15 @@ def process_list_of_videos(
         output_folder_path.parent.mkdir(parents=True, exist_ok=True)
 
     if annotated_video_path is None:
-        if (
-            model_info.tracker_name == "MediapipeHolisticTracker"
-            or model_info.tracker_name == "YOLOMediapipeComboTracker"
-        ):
-            annotated_video_path = synchronized_video_path.parent / "annotated_videos"
-        else:
-            annotated_video_path = (
-                synchronized_video_path.parent / f"{model_info.name}_annotated_videos"
-            )
-
+        annotated_video_path = synchronized_video_path.parent / "annotated_videos"
     if not annotated_video_path.exists():
         annotated_video_path.mkdir(parents=True, exist_ok=True)
 
     tasks = [
-        (
-            model_info.tracker_name,
-            model_info.name,
-            tracking_params,
-            video_path,
-            annotated_video_path,
-        )
+        (model_info.tracker_name, tracking_params, video_path, annotated_video_path)
         for video_path in video_paths
     ]
+
     if num_processes > 1:
         logging.info("Using multiprocessing to run pose estimation")
         with Pool(processes=num_processes) as pool:
@@ -155,24 +106,16 @@ def process_list_of_videos(
         for task in tasks:
             array_list.append(process_single_video(*task))
 
-    if len(array_list) != len(video_paths):
-        raise ValueError(
-            f"Expected {len(video_paths)} outputs, but got {len(array_list)}. "
-            "This may indicate that some videos were not processed correctly."
-        )
-
     combined_array = np.stack(array_list)
 
     logger.info(f"Shape of output array: {combined_array.shape}")
     np.save(output_folder_path, combined_array)
-    logger.info(f"Data saved to: {output_folder_path}")
 
     return combined_array
 
 
 def process_single_video(
     tracker_name: str,
-    model_name: str,
     tracking_params: BaseModel,
     video_path: Path,
     annotated_video_path: Path,
@@ -192,7 +135,7 @@ def process_single_video(
         video_name = video_path.stem + "_openpose.avi"
     else:
         video_name = (
-            video_path.stem + f"_{model_name}.mp4"
+            video_path.stem + "_mediapipe.mp4"
         )  # TODO: fix it so blender output doesn't require mediapipe addendum here
 
     tracker = get_tracker(tracker_name=tracker_name, tracking_params=tracking_params)
@@ -254,14 +197,6 @@ def get_tracker(tracker_name: str, tracking_params: BaseModel) -> BaseTracker:
             output_resolution=tracking_params.output_resolution,
         )
 
-    elif tracker_name == "CharucoTracker":
-
-        tracker = CharucoTracker(
-            squares_x=tracking_params.charuco_squares_x_in,
-            squares_y=tracking_params.charuco_squares_y_in,
-            dict_id=tracking_params.charuco_dict_id,
-        )
-
     else:
         raise ValueError("Invalid tracker type")
 
@@ -272,15 +207,11 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
     if tracker_name == "MediapipeHolisticTracker":
         return MediapipeTrackingParams()
     elif tracker_name == "YOLOMediapipeComboTracker":
-        return (
-            MediapipeTrackingParams()
-        )  # TODO: figure out how to reference both tracking params in a stable way
+        return YOLOTrackingParams()  # TODO: figure out how to reference both tracking params in a stable way
     elif tracker_name == "YOLOPoseTracker":
         return YOLOTrackingParams()
     elif tracker_name == "BrightestPointTracker":
         return BaseModel()
-    elif tracker_name == "CharucoTracker":
-        return CharucoTrackingParams()
     elif tracker_name == "OpenPoseTracker":
         raise ValueError(
             "OpenPoseTracker requires explicitly setting the OpenPose root folder path and output json path, please provide tracking params directly"
@@ -290,33 +221,17 @@ def get_tracker_params(tracker_name: str) -> BaseModel:
 
 
 if __name__ == "__main__":
-    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-        MediapipeModelInfo,
-    )
-    from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
-    from skellytracker.trackers.charuco_tracker.charuco_model_info import (
-        CharucoModelInfo,
-    )
+    from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import MediapipeModelInfo
 
     synchronized_video_path = Path(
         "/Your/Path/To/freemocap_data/recording_sessions/freemocap_sample_data/synchronized_videos"
     )
 
-    tracker_name = "MediapipeHolisticTracker"
-    num_processes = 3
-
-    if tracker_name == "MediapipeHolisticTracker":
-        model_info = MediapipeModelInfo()
-    elif tracker_name == "YOLOMediapipeComboTracker":
-        model_info = MediapipeModelInfo()
-        model_info.tracker_name = "YOLOMediapipeComboTracker"  # this is not ideal in the least - just a patch so we don't need to make any freemocap changes
-    elif tracker_name == "YOLOPoseTracker":
-        model_info = YOLOModelInfo()
-    elif tracker_name == "CharucoTracker":
-        model_info = CharucoModelInfo()
+    tracker_name = "YOLOMediapipeComboTracker"
+    num_processes = None
 
     process_folder_of_videos(
-        model_info=model_info,
+        model_info=MediapipeModelInfo(),
         tracking_params=get_tracker_params(tracker_name=tracker_name),
         synchronized_video_path=synchronized_video_path,
         num_processes=num_processes,
