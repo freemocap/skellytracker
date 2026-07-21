@@ -5,8 +5,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Install with dev dependencies and recommended GPU extras
-uv sync --extra recommended
+# Install with dev dependencies and all trackers (CPU)
+uv sync --extra all-cpu
+# Or for NVIDIA GPU with TensorRT:
+uv sync --extra all-trt
 
 # Run all tests
 pytest skellytracker/tests

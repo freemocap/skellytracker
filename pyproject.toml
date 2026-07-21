@@ -54,79 +54,89 @@ keywords = [
 dependencies = [
     "opencv-contrib-python",
     "pydantic==2.*",
-    "numpy",
+    "numpy==2.4.6",
     "tqdm==4.*",
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
     "beartype>=0.19",
     "pyyaml>=6.0",
     "polars",
+    "scipy",
 ]
 requires-python = ">=3.11,<3.13"
 
 dynamic = ["version", "description"]
 
-# Extras for package consumers: `pip install skellytracker[rtmpose-gpu]`
-# Also usable in local dev: `uv sync --extra rtmpose-gpu`
+# Extras for package consumers: `pip install skellytracker[all-cuda]`
+# Also usable in local dev: `uv sync --extra all-cuda`
 [project.optional-dependencies]
-legacy-mediapipe = ["mediapipe==0.10.14"]
-mediapipe = ["mediapipe==0.10.33"]
-yolo = ["ultralytics~=8.0.202"]
-#
-## RTMPose — CPU only
-rtmpose-cpu = ["rtmlib==0.0.14", "onnxruntime", "onnx"]
+# ── Detector-library extras ───────────────────────────────────────────────────
+# Install the tracker libraries you want to use. These are independent of the
+# ONNX session backend — add one of the onnx-* extras below to run inference.
 
-# RTMPose — NVIDIA GPU via CUDA 12
+mediapipe = ["mediapipe==0.10.33"]
+
+# RTMPose + YOLOX detector libraries. Requires one of the onnx-* session extras.
+rtmlib = ["rtmlib==0.0.14", "onnx"]
+
+# ── ONNX session/backend extras ──────────────────────────────────────────────
+# Pick exactly one that matches your hardware. These provide the ONNX Runtime
+# used by rtmlib (RTMPose + YOLOX) for inference.
+
+# CPU — any platform. Also enables CoreML EP on macOS with Apple Silicon.
+onnx-cpu = ["onnxruntime"]
+
+# NVIDIA GPU via CUDA 12 (Linux / Windows).
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users
 # don't need to install the CUDA Toolkit or cuDNN manually.
-# We pin onnxruntime-gpu<1.27 together with the CUDA 12 libs: ORT <1.27 on PyPI is
-# built against CUDA 12, but ORT 1.27+ switched its PyPI build to CUDA 13 (it links
-# cublasLt64_13.dll / cudart64_13.dll etc., needs a newer driver floor, and drops
-# Maxwell/Pascal/Volta GPUs). Without the cap, a fresh resolve grabs 1.27, which then
-# fails to load its CUDA EP against these cu12 DLLs and silently falls back to CPU.
-# Capping below 1.27 keeps ORT on the CUDA 12 build that matches these libs — the
-# widest GPU/driver compatibility. NVIDIA drivers are backward compatible, so users
-# with newer drivers (e.g. CUDA 13 capable) still work fine on these cu12 libs.
+# We pin onnxruntime-gpu<1.27: ORT <1.27 on PyPI is built against CUDA 12, but
+# ORT 1.27+ switched to CUDA 13 (links cublasLt64_13.dll etc., needs a newer
+# driver floor, drops Maxwell/Pascal/Volta). Without the cap a fresh resolve grabs
+# 1.27, which fails to load its CUDA EP against these cu12 DLLs and silently falls
+# back to CPU. NVIDIA drivers are backward-compatible, so users with newer drivers
+# still work fine on the cu12 libs.
 # Code must call `onnxruntime.preload_dlls(directory="")` before creating a session
 # so ORT finds these pip-installed DLLs — skellytracker already does this.
-rtmpose-gpu = [
+onnx-cuda = [
     "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
-    "onnx",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
     "nvidia-cufft-cu12; sys_platform != 'darwin'",
     "nvidia-cudnn-cu12; sys_platform != 'darwin'",
 ]
 
-# RTMPose — any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm)
-# No CUDA toolkit needed. Just pip install and go.
-rtmpose-directml = ["onnxruntime-directml; sys_platform == 'win32'", "onnx"]
-
-# RTMPose — NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone)
-# Requires an NVIDIA GPU. First run triggers engine compilation (1-5 min); cached thereafter.
-# Install with: uv pip install -e ".[rtmpose-trt]"
-rtmpose-trt = [
+# NVIDIA GPU via CUDA 12 + TensorRT (2-5x faster than CUDA EP alone).
+# First run compiles TRT engines (1-5 min); cached thereafter.
+# tensorrt is pinned to the 10.x line: onnxruntime-gpu<1.27's bundled TensorRT EP
+# is built against the TensorRT 10.x ABI (it loads nvinfer_10.dll). Letting this
+# float to TensorRT 11.x (released 2026 Q2) installs nvinfer_11.dll instead, so
+# the EP fails to load with "nvinfer_10.dll is missing" and silently falls back
+# to CUDA/CPU.
+onnx-trt = [
     "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
-    "onnx",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
     "nvidia-cufft-cu12; sys_platform != 'darwin'",
     "nvidia-cudnn-cu12; sys_platform != 'darwin'",
-    "tensorrt; sys_platform != 'darwin'",
+    "tensorrt>=10,<11; sys_platform != 'darwin'",
 ]
 
-# RECOMMENDED - mediapipe + RTMPose with TensorRT (2-5x faster than CUDA EP alone).
-# Requires an NVIDIA GPU. First run compiles TRT engines (1-5 min); cached thereafter.
-recommended = [
-    "mediapipe==0.10.33",
-    "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
-    "onnx",
-    "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
-    "nvidia-cublas-cu12; sys_platform != 'darwin'",
-    "nvidia-cudnn-cu12; sys_platform != 'darwin'",
-    "nvidia-cufft-cu12; sys_platform != 'darwin'",
-    "tensorrt; sys_platform != 'darwin'",
-]
+# Any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm). No CUDA needed.
+onnx-directml = ["onnxruntime-directml; sys_platform == 'win32'"]
+
+# ── Convenience bundles ───────────────────────────────────────────────────────
+# mediapipe + rtmlib + the matching ONNX session backend.
+
+all-cpu      = ["skellytracker[mediapipe,rtmlib,onnx-cpu]"]
+all-cuda     = ["skellytracker[mediapipe,rtmlib,onnx-cuda]"]
+all-trt      = ["skellytracker[mediapipe,rtmlib,onnx-trt]"]
+all-directml = ["skellytracker[mediapipe,rtmlib,onnx-directml]"]
+
+# Recommended installs — sensible defaults for the most common hardware targets.
+# CPU/Mac users (includes CoreML on Apple Silicon): uv sync --extra recommended-cpu
+recommended-cpu  = ["skellytracker[all-cpu]"]
+# NVIDIA GPU users (TensorRT for best performance): uv sync --extra recommended-cuda
+recommended-cuda = ["skellytracker[all-trt]"]
 
 # Dev-only tooling: `uv sync` (installed by default via default-groups)
 [dependency-groups]
@@ -149,39 +159,39 @@ environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 
-# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. We want the
-# GPU build (`onnxruntime-gpu`) or the DirectML build (`onnxruntime-directml`)
-# instead, pulled in via the relevant extra. All three packages provide the
-# same top-level `onnxruntime` Python import, but they cannot coexist on disk:
-# they share the same namespace directory and their DLLs / .pyd files clobber
-# each other, producing a broken install that fails at import with things like
+# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. When paired with
+# an accelerated backend (onnx-cuda, onnx-trt, onnx-directml), this creates a
+# conflict: all three provider packages share the same top-level `onnxruntime`
+# Python import but cannot coexist on disk — their DLLs/.pyd files clobber each
+# other, causing import errors like
 # `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
 #
-# `exclude-dependencies` drops the CPU `onnxruntime` package from the resolution
-# graph entirely, even when rtmlib requests it transitively. rtmlib still works
-# at runtime because whichever accelerated build is installed provides the
-# `onnxruntime` import.
-#
-# Caveat: this setting only takes effect when uv resolves this workspace. A
-# downstream `pip install skellytracker[recommended]` will NOT honor it and
-# will reintroduce the conflict. The upstream fix is for rtmlib to stop pinning
-# `onnxruntime` as a hard dependency.
-#exclude-dependencies = ["onnxruntime"]
+# Fix: override rtmlib's metadata to strip its onnxruntime dep from the resolution
+# graph entirely (see [[tool.uv.dependency-metadata]] below). rtmlib still works at
+# runtime because the chosen onnx-* extra always supplies an onnxruntime build that
+# satisfies the import. opencv-python is excluded because this project uses
+# opencv-contrib-python, which provides a superset of opencv-python; having both
+# installed causes a file-collision error.
+exclude-dependencies = ["opencv-python"]
 
 conflicts = [
     [
-        { extra = "rtmpose-cpu" },
-        { extra = "rtmpose-gpu" },
-        { extra = "rtmpose-trt" },
-        { extra = "rtmpose-directml" },
-        { extra = "recommended" },
-    ],
-    [
-        { extra = "legacy-mediapipe" },
-        { extra = "mediapipe" },
-        { extra = "recommended" },
+        { extra = "onnx-cpu" },
+        { extra = "onnx-cuda" },
+        { extra = "onnx-trt" },
+        { extra = "onnx-directml" },
     ],
 ]
+
+# Strip onnxruntime from rtmlib's transitive deps so that the onnx-cpu extra can
+# install the CPU build while the onnx-cuda/trt/directml extras install the GPU
+# build — without either conflicting with rtmlib's hard requirement.
+# [[tool.uv.dependency-metadata]] must come after all plain [tool.uv] keys
+# because TOML array tables absorb subsequent sibling keys into their scope.
+[[tool.uv.dependency-metadata]]
+name = "rtmlib"
+version = "0.0.14"
+requires-dist = ["numpy", "opencv-contrib-python", "opencv-python", "tqdm"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"
@@ -226,8 +236,15 @@ url = "https://pypi.nvidia.com"
 #
 # =============================================================================
 
+[tool.pytest.ini_options]
+testpaths = ["skellytracker/tests"]
+markers = [
+    "video: tests that run inference over real video frames (slow, requires test recording)",
+]
+
 [tool.poe.tasks]
-rebuild  = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker", help = "Rebuild Rust engine with full cargo output" }
-lint     = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules" }
-lint-fix = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
-test     = { cmd = "pytest", help = "Run test suite" }
+rebuild   = { cmd = "uv sync -v --reinstall-package skellytracker-rust --reinstall-package skellytracker", help = "Rebuild Rust engine with full cargo output" }
+lint      = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules" }
+lint-fix  = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
+test      = { cmd = "pytest", help = "Run full test suite" }
+test-fast = { cmd = "pytest -m 'not video'", help = "Run tests excluding slow video tests" }
