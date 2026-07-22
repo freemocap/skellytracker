@@ -76,12 +76,13 @@ dynamic = ["version", "description"]
 
 mediapipe = ["mediapipe==0.10.33"]
 
-# RTMPose + YOLOX detector libraries. Requires one of the onnx-* session extras.
-rtmlib = ["rtmlib==0.0.14", "onnx"]
+# RTMPose + YOLOX detectors (vendored, see skellytracker/core/detectors) need
+# the onnx package for graph surgery. Requires one of the onnx-* session extras.
+onnx = ["onnx"]
 
 # ── ONNX session/backend extras ──────────────────────────────────────────────
 # Pick exactly one that matches your hardware. These provide the ONNX Runtime
-# used by rtmlib (RTMPose + YOLOX) for inference.
+# used by the RTMPose + YOLOX detectors for inference.
 
 # CPU — any platform. Also enables CoreML EP on macOS with Apple Silicon.
 onnx-cpu = ["onnxruntime"]
@@ -125,12 +126,12 @@ onnx-trt = [
 onnx-directml = ["onnxruntime-directml; sys_platform == 'win32'"]
 
 # ── Convenience bundles ───────────────────────────────────────────────────────
-# mediapipe + rtmlib + the matching ONNX session backend.
+# mediapipe + onnx + the matching ONNX session backend.
 
-all-cpu      = ["skellytracker[mediapipe,rtmlib,onnx-cpu]"]
-all-cuda     = ["skellytracker[mediapipe,rtmlib,onnx-cuda]"]
-all-trt      = ["skellytracker[mediapipe,rtmlib,onnx-trt]"]
-all-directml = ["skellytracker[mediapipe,rtmlib,onnx-directml]"]
+all-cpu      = ["skellytracker[mediapipe,onnx,onnx-cpu]"]
+all-cuda     = ["skellytracker[mediapipe,onnx,onnx-cuda]"]
+all-trt      = ["skellytracker[mediapipe,onnx,onnx-trt]"]
+all-directml = ["skellytracker[mediapipe,onnx,onnx-directml]"]
 
 # Recommended installs — sensible defaults for the most common hardware targets.
 # CPU/Mac users (includes CoreML on Apple Silicon): uv sync --extra recommended-cpu
@@ -159,19 +160,9 @@ environments = [
     "sys_platform == 'win32' and platform_machine == 'AMD64'",
 ]
 
-# rtmlib==0.0.14 hard-depends on the CPU `onnxruntime` package. When paired with
-# an accelerated backend (onnx-cuda, onnx-trt, onnx-directml), this creates a
-# conflict: all three provider packages share the same top-level `onnxruntime`
-# Python import but cannot coexist on disk — their DLLs/.pyd files clobber each
-# other, causing import errors like
-# `AttributeError: module 'onnxruntime' has no attribute 'get_available_providers'`.
-#
-# Fix: override rtmlib's metadata to strip its onnxruntime dep from the resolution
-# graph entirely (see [[tool.uv.dependency-metadata]] below). rtmlib still works at
-# runtime because the chosen onnx-* extra always supplies an onnxruntime build that
-# satisfies the import. opencv-python is excluded because this project uses
-# opencv-contrib-python, which provides a superset of opencv-python; having both
-# installed causes a file-collision error.
+# opencv-python is excluded because this project uses opencv-contrib-python,
+# which provides a superset of opencv-python; having both installed causes a
+# file-collision error.
 exclude-dependencies = ["opencv-python"]
 
 conflicts = [
@@ -182,16 +173,6 @@ conflicts = [
         { extra = "onnx-directml" },
     ],
 ]
-
-# Strip onnxruntime from rtmlib's transitive deps so that the onnx-cpu extra can
-# install the CPU build while the onnx-cuda/trt/directml extras install the GPU
-# build — without either conflicting with rtmlib's hard requirement.
-# [[tool.uv.dependency-metadata]] must come after all plain [tool.uv] keys
-# because TOML array tables absorb subsequent sibling keys into their scope.
-[[tool.uv.dependency-metadata]]
-name = "rtmlib"
-version = "0.0.14"
-requires-dist = ["numpy", "opencv-contrib-python", "opencv-python", "tqdm"]
 
 [project.urls]
 Homepage = "https://github.com/freemocap/skellytracker"

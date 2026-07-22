@@ -42,15 +42,15 @@ You can also mix extras for more granular control:
 
 ```bash
 # RTMPose + YOLOX only (no MediaPipe), CUDA backend
-pip install "skellytracker[rtmlib,onnx-cuda]"
-uv add "skellytracker[rtmlib,onnx-cuda]"
+pip install "skellytracker[onnx,onnx-cuda]"
+uv add "skellytracker[onnx,onnx-cuda]"
 
 # MediaPipe only
 pip install "skellytracker[mediapipe]"
 uv add "skellytracker[mediapipe]"
 ```
 
-Available granular extras: `mediapipe`, `rtmlib`, `onnx-cpu`, `onnx-cuda`, `onnx-trt`, `onnx-directml`.
+Available granular extras: `mediapipe`, `onnx`, `onnx-cpu`, `onnx-cuda`, `onnx-trt`, `onnx-directml`.
 
 > **Note:** `onnx-*` backend extras are mutually exclusive — install exactly one.
 
