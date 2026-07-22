@@ -172,3 +172,7 @@ recorded_objects.npy
 
 .claude/*
 .CLAUDE.md
+
+# Docs site (Docusaurus)
+node_modules/
+.docusaurus/

@@ -1,0 +1,65 @@
+---
+title: Running Demos
+sidebar_position: 3
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Running Demos
+
+`skellytracker` installs a console script, so once it's on your environment you
+can run live webcam demos with `uv run skellytracker` (or plain `skellytracker` /
+`python -m skellytracker` if you've activated the venv yourself).
+
+```bash
+# Default demo (MediaPipe holistic: pose + hands + face)
+uv run skellytracker
+
+# Pick a different tracker
+uv run skellytracker --tracker rtmpose
+uv run skellytracker --tracker aruco
+uv run skellytracker --tracker charuco
+
+# Use a non-default camera
+uv run skellytracker --tracker mediapipe --camera 1
+
+# Rotate incoming frames clockwise before tracking (0, 90, 180, 270)
+uv run skellytracker --tracker mediapipe --rotate 90
+
+# List available trackers
+uv run skellytracker --list
+```
+
+`--tracker` chooses among `mediapipe`, `rtmpose`, `aruco`, and `charuco`. Each
+demo opens a live OpenCV window; press `q` (or close the window) to quit.
+
+## Tracker-specific options
+
+For options beyond `--camera` / `--rotate` (model choice, execution provider,
+which body parts to detect, board geometry, etc.), run that tracker's `run_demo`
+module directly with `--help`:
+
+```bash
+# MediaPipe: toggle pose/hands/face
+uv run python -m skellytracker.core.detectors.keypoint_detectors.mediapipe.run_demo --no-hands --no-face
+
+# RTMPose: choose model/provider, or skip the YOLOX person detector
+uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --model rtmw-x-l_384x288 --provider cpu
+uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --no-detector
+
+# Aruco: choose which marker IDs to look for
+uv run python -m skellytracker.core.detectors.keypoint_detectors.aruco.run_demo --ids 0 1 2 3
+
+# Charuco: set board geometry
+uv run python -m skellytracker.core.detectors.keypoint_detectors.charuco.run_demo --squares-x 7 --squares-y 5 --square-mm 58
+```
+
+{/* TODO(prose): confirm each run_demo module's full --help flag list against
+    core/detectors/.../run_demo.py before finalizing. */}
+
+## Next steps
+
+- [Processing Videos](./processing-videos.mdx) — run trackers over image folders and video files
+- [Choosing a Tracker](../guides/choosing-a-tracker.mdx) — which backend fits your use case

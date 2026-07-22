@@ -1,0 +1,36 @@
+---
+title: Extending skellytracker
+sidebar_position: 5
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Extending skellytracker
+
+You can add a new keypoint detector by subclassing `KeypointDetector` and
+registering it:
+
+```python
+from skellytracker.core.detectors import KeypointDetector, KEYPOINT_DETECTOR_REGISTRY
+
+class MyDetector(KeypointDetector):
+    ...
+
+KEYPOINT_DETECTOR_REGISTRY["my_detector"] = MyDetector
+```
+
+Object detectors work the same way via `OBJECT_DETECTOR_REGISTRY`.
+
+{/* TODO(prose):
+    - Full KeypointDetector / ObjectDetector base-class contract: which methods to implement
+      (detect / preprocess / postprocess), the config class pattern, and how a Session is wired in.
+      SOURCE: core/detectors/detector_base_classes.py, arch 02-detectors.md.
+    - How build_keypoint_detector / build_object_detector resolve configs to instances.
+    - Reference an existing detector as a worked example (e.g. aruco — no session, or rtmpose — onnx). */}
+
+## See also
+
+- [Detectors](../core-concepts/detectors.mdx)
+- [Contributing](../development/contributing.mdx) — add tests and open a PR

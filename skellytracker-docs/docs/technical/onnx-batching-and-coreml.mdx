@@ -1,0 +1,25 @@
+---
+title: ONNX Batching & CoreML
+sidebar_position: 3
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# ONNX Batching & CoreML
+
+The ONNX-backed detectors support dynamic batching so that N cameras can be
+inferred in a single ONNX Runtime call, and remain compatible with the CoreML
+execution provider on Apple Silicon.
+
+{/* TODO(prose): document the dynamic batch-dimension surgery on the ONNX graph
+    and the CoreML compatibility handling.
+    SOURCE: core/sessions/onnx_session.py, core/sessions/ort_session_utils.py,
+    core/detectors/object_detectors/yolox/_yolox_dynamic_batch.py;
+    rearchitecture-docs/skellytracker-architecture/08-onnx-batching-and-coreml.md. */}
+
+## See also
+
+- [Multi-Camera Batching](../guides/multi-camera-batching.mdx)
+- [GPU Setup](../guides/gpu-setup.mdx)

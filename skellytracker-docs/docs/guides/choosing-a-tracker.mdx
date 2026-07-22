@@ -1,0 +1,30 @@
+---
+title: Choosing a Tracker
+sidebar_position: 1
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Choosing a Tracker
+
+Which backend to use depends on what you're tracking and what hardware you have.
+
+| Backend | Tracks | Hardware | Notes |
+|---------|--------|----------|-------|
+| **MediaPipe** | Body pose, hands, face | CPU (or CoreML on macOS) | Easiest to run; no GPU required |
+| **RTMPose (+ YOLOX)** | 133 whole-body keypoints | CPU or GPU (ONNX Runtime) | Highest accuracy; best on GPU |
+| **Aruco** | Fiducial markers | CPU | Marker tracking / calibration |
+| **Charuco** | Charuco board corners | CPU | Camera calibration |
+
+{/* TODO(prose):
+    - Accuracy/speed tradeoffs; when to add the YOLOX person detector to RTMPose.
+    - CPU vs GPU decision guidance; link install extras.
+    - Confirm backend list against core/detectors/. */}
+
+## See also
+
+- [Installation](../getting-started/installation.mdx) — extras per backend
+- [GPU Setup](./gpu-setup.mdx)
+- [Detectors](../core-concepts/detectors.mdx)

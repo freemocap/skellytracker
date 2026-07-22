@@ -1,0 +1,26 @@
+---
+title: BBox Policy Reference
+sidebar_position: 4
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# BBox Policy Reference
+
+Reference for the bounding-box policy and smoothing API that keeps per-subject
+crops stable across frames.
+
+{/* TODO(prose): document the BBoxPolicy API as implemented — smooth_bbox,
+    keypoint_tracked_bbox, shrink-rate clamping, and every config knob, with the
+    values a caller building an RTMPose tracker needs for correct, non-collapsing
+    bbox tracking.
+    SOURCE: core/temporal_processing/bbox_policy.py, bbox_smoothing.py,
+    core/tracker/detection_stage.py, core/tracker/tracker_state.py;
+    rearchitecture-docs/skellytracker-architecture/11-bbox-policy-guide.md (as-built). */}
+
+## See also
+
+- [Temporal Smoothing](../guides/temporal-smoothing.mdx)
+- [Tracker State](../core-concepts/tracker-state.mdx)

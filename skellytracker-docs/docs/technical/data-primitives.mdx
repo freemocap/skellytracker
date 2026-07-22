@@ -1,0 +1,37 @@
+---
+title: Data Primitives
+sidebar_position: 2
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Data Primitives
+
+`Keypoints` and `BoundingBox` are the two low-level data primitives everything
+else is built on. Callers usually work with [`Observation`](../core-concepts/observations-and-keypoints.mdx);
+these are the structures the internals use to hold and pass detection results.
+
+## Keypoints
+
+```python
+keypoints.xyz          # (N, 3) float array
+keypoints.names        # tuple[str, ...] — the i-th name maps to the i-th row
+keypoints.visibility   # (N,) float array
+```
+
+{/* TODO(prose): full Keypoints API — construction, coordinate conventions,
+    helper methods (SOURCE: core/data_primitives/keypoints.py; arch 00). */}
+
+## BoundingBox
+
+{/* TODO(prose): BoundingBox fields, coordinate convention (xyxy vs xywh), helpers
+    (SOURCE: core/data_primitives/bounding_box.py; arch 00). */}
+
+## See also
+
+- [Observations & Keypoints](../core-concepts/observations-and-keypoints.mdx)
+- [API Reference](./api-reference.mdx)
+
+{/* SOURCE: rearchitecture-docs/skellytracker-architecture/00-data-primitives.md */}

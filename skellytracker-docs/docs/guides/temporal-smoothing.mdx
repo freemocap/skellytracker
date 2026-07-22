@@ -1,0 +1,48 @@
+---
+title: Temporal Smoothing
+sidebar_position: 3
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Temporal Smoothing
+
+Tracking across frames uses temporal state (held in
+[`TrackerState`](../core-concepts/tracker-state.mdx)) to stabilize both the
+bounding boxes that crop each subject and the keypoints estimated inside them.
+
+## Bounding-box policy
+
+The bounding-box policy controls how the crop for the next frame is derived from
+the current detection and keypoints, with smoothing to keep it from jittering or
+collapsing.
+
+{/* TODO(prose): document the BBoxPolicy / bbox-smoothing API — smooth_bbox,
+    keypoint_tracked_bbox, shrink-rate clamping, config knobs.
+    SOURCE: core/temporal_processing/bbox_policy.py, bbox_smoothing.py;
+    rearchitecture-docs/skellytracker-architecture/11-bbox-policy-guide.md (as-built).
+    See also technical/bbox-policy-reference.mdx. */}
+
+## Keypoint filtering
+
+Keypoints can be smoothed with filters (e.g. one-euro / Kalman) to reduce
+frame-to-frame noise.
+
+{/* TODO(prose): document keypoint filtering config and options.
+    SOURCE: core/temporal_processing/keypoint_filtering.py; arch 09 (keypoint-smoothing sections). */}
+
+## Keypoint reset policy
+
+A reset policy determines when a keypoint detector's temporal state is cleared
+(for example when a subject is lost) so tracking recovers cleanly.
+
+{/* TODO(prose): document the reset policy and how to enable it.
+    SOURCE: core/temporal_processing/keypoint_reset_policy.py;
+    rearchitecture-docs/skellytracker-architecture/KEYPOINT_RESET_POLICY_GUIDE.md. */}
+
+## See also
+
+- [BBox Policy Reference](../technical/bbox-policy-reference.mdx)
+- [Tracker State](../core-concepts/tracker-state.mdx)

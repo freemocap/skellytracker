@@ -1,0 +1,85 @@
+---
+title: API Reference
+sidebar_position: 5
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# API Reference
+
+The public surface is exported from `skellytracker.core`. These are the names in
+`skellytracker.core.__all__`:
+
+## Pipeline
+
+| Name | Role |
+|------|------|
+| `Tracker` | Top-level pipeline orchestrator |
+| `TrackerState` | Per-frame temporal state (passed in/out) |
+| `StageState` | Per-stage temporal state |
+| `DetectionStage` | Compositional pipeline step |
+
+## Configuration
+
+| Name | Role |
+|------|------|
+| `TrackerConfig` | Configures a `Tracker` (list of stages) |
+| `DetectionStageConfig` | Configures one stage |
+| `ObjectDetectorConfig` | Base object-detector config |
+| `KeypointDetectorConfig` | Base keypoint-detector config |
+| `SessionConfig` | Base session config |
+
+## Data primitives
+
+| Name | Role |
+|------|------|
+| `Observation` | Per-frame result |
+| `StageObservation` | Per-stage slice of an `Observation` |
+| `Keypoints` | Named keypoints (`.xyz`, `.names`, `.visibility`) |
+| `BoundingBox` | Bounding-box primitive |
+| `DataStore` | Collects/serializes observations across frames |
+
+## Detectors
+
+| Name | Role |
+|------|------|
+| `ObjectDetector` / `KeypointDetector` | Detector base classes |
+| `PrecomputedObjectDetector` (+ `Config`) | Supply externally computed boxes |
+| `build_object_detector` / `build_keypoint_detector` | Build a detector from config |
+| `OBJECT_DETECTOR_REGISTRY` / `KEYPOINT_DETECTOR_REGISTRY` | Name → class registries |
+
+## Sessions
+
+| Name | Role |
+|------|------|
+| `Session` | Backend resource manager |
+| `SessionCreationError`, `InferenceError`, `InferencePipelineError`, `VRAMExhaustionError`, `SkellytrackerSessionError` | Session error types |
+
+## Temporal smoothing state
+
+| Name | Role |
+|------|------|
+| `BBoxSmoothingState` | Bounding-box smoothing state |
+| `KeypointSmoothingState` | Keypoint smoothing state |
+
+## IO & annotation
+
+| Name | Role |
+|------|------|
+| `process_video` | Run a tracker over one video |
+| `process_video_list` / `process_folder` | Run batched over multiple videos |
+| `ProcessingTimer` | Profiling helper |
+| `TrackerMapping` | Named tracker presets |
+| `Annotator` | Draws landmarks/connections onto images |
+
+:::note
+Backend session classes (`OnnxSession`, `MediaPipeSession`) and concrete detector
+configs (e.g. `RTMPoseDetectorConfig`, `YoloxPersonDetectorConfig`) are imported
+from their submodules under `skellytracker.core.detectors` / `.sessions` — see the
+[Quick Start](../getting-started/quick-start.mdx) for import paths.
+:::
+
+{/* TODO(prose): expand into per-symbol signatures/fields, or wire up an
+    autodoc generator. Keep synced with core/__init__.py __all__. */}

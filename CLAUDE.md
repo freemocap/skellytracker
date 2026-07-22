@@ -5,92 +5,128 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-# Install with dev dependencies and all trackers (CPU)
-uv sync --extra all-cpu
-# Or for NVIDIA GPU with TensorRT:
-uv sync --extra all-trt
+# Install with dev dependencies + tracker backends (CPU / Apple Silicon)
+uv sync --extra recommended-cpu
+# Or NVIDIA GPU with TensorRT:
+uv sync --extra recommended-cuda
 
-# Run all tests
+# Run the tests
 pytest skellytracker/tests
+# Skip the slow video tests
+pytest -m 'not video'
+# A single test file
+pytest skellytracker/tests/test_mediapipe_detectors.py
 
-# Run a single test file
-pytest skellytracker/tests/test_mediapipe_holistic_tracker.py
-
-# Lint
+# Lint / format
 ruff check skellytracker/
-
-# Format
 black skellytracker/
 isort skellytracker/
 
-# Run the webcam demo (defaults to mediapipe_holistic)
+# Run the live webcam demo (defaults to mediapipe)
 python -m skellytracker
-# Or with a specific tracker:
-python -m skellytracker composite_gpu
-python -m skellytracker mediapipe_holistic
+python -m skellytracker --tracker rtmpose
+python -m skellytracker --list
 
-# Run a specific tracker's demo directly
-python -m skellytracker.trackers.mediapipe_tracker
+# Run a specific detector's demo directly (more options via --help)
+python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --help
 ```
 
 ## Architecture
 
-Skellytracker is the pose-estimation backend for freemocap. It collects different pose estimation tools behind a consistent API built around the **Tracker → Detector / Annotator / Recorder** pattern.
+skellytracker is the pose-estimation backend for freemocap. It collects
+pose-estimation tools behind one consistent API built around a **Tracker →
+Session → Detector** pipeline, implemented in the `skellytracker/core/` package.
+`beartype` runtime type-checking is enabled package-wide in `__init__.py` via
+`beartype_this_package()`.
 
 ### Core pipeline
 
-1. **`BaseTracker`** (`trackers/base_tracker/base_tracker_abcs.py`) — top-level orchestrator. Composes three sub-objects:
-   - **`BaseDetector`** — runs inference on an image, returns a `BaseObservation`
-   - **`BaseImageAnnotator`** — draws landmarks/connections onto an image
-   - **`BaseRecorder`** — collects observations across frames, can serialize to `.npy` or JSON
-2. **`process_image(frame_number, image)`** calls `detector.detect()` and appends to `recorder`. `annotate_image()` is called separately so the caller controls when annotation happens.
-3. **`BaseTracker.demo()`** opens a webcam viewer. **`process_video()`** (`io/process_videos/process_single_video.py`) runs frame-by-frame on a video file.
+1. **`Tracker`** (`core/tracker/tracker.py`) — top-level orchestrator. A
+   `@dataclass` of `stages` + `sessions`, built via `Tracker.create(config, sessions)`.
+   `process_image(image, frame_number, state, timestamp_ms=None)` runs all stages
+   and returns `(Observation, TrackerState)`; `process_batch(images, frame_number, states, ...)`
+   runs N cameras in one batched call. `close()` releases resources. The tracker
+   is stateless between calls — temporal data lives in `TrackerState`.
+2. **`DetectionStage`** (`core/tracker/detection_stage.py`) — the compositional
+   unit. Binds one optional `ObjectDetector` (crop) and one or more
+   `KeypointDetector`s, and can carry child stages that run on its crop
+   (hierarchical body → hands/face). `run()` / `run_batch()`.
+3. **`ObjectDetector` / `KeypointDetector`** (`core/detectors/`) — the two
+   primitive detection units, built from Pydantic configs via
+   `KEYPOINT_DETECTOR_REGISTRY` / `OBJECT_DETECTOR_REGISTRY` and
+   `build_keypoint_detector` / `build_object_detector`.
+4. **`Session`** (`core/sessions/`) — owns backend resources (GPU memory, model
+   weights, handles); created once per backend and shared across detectors.
+   Concrete: `OnnxSession` (`OnnxSessionConfig(batch_size, models)`),
+   `MediaPipeSession`, `CpuSession`.
 
 ### Canonical data types
 
-- **`PointCloud`** (`trackers/base_tracker/point_cloud.py`) — the canonical data primitive for tracked landmarks. A struct holding names (`tuple[str, ...]`), xyz coordinates (`(N, 3)`), and visibility scores (`(N,)`). Names and coordinates are structurally coupled — the i‑th name always corresponds to the i‑th row. Used throughout: detection → triangulation → filtering → visualization.
-- **`BaseObservation`** — abstract base for per-frame results. Every observation carries a `PointCloud` as its canonical data. Subclasses add tracker-specific extras (e.g., raw keypoints for RTMPose). Concrete methods (`to_2d_array()`, `to_tracked_points()`) delegate to the PointCloud.
-- **`TrackedObjectDefinition`** (`trackers/base_tracker/tracked_object_definition.py`) — a Pydantic model loaded from YAML that defines the schema of named points and skeleton connections a tracker produces. Supports composition: a YAML with `composed_of` can merge multiple sub-definitions with name prefixes (e.g., `mediapipe_holistic.yaml` composes body + left_hand + right_hand + face_contour).
+- **`Keypoints`** (`core/data_primitives/keypoints.py`) — named keypoints:
+  `.xyz` `(N, 3)`, `.names` `tuple[str, ...]` (i-th name ↔ i-th row),
+  `.visibility` `(N,)`.
+- **`BoundingBox`** (`core/data_primitives/bounding_box.py`).
+- **`Observation`** (`core/data_primitives/observation.py`) — per-frame result;
+  `observation.stages["name"].keypoints` (a `StageObservation` → `Keypoints`).
+  This is the stable contract for downstream consumers.
+- **`TrackerState`** (`core/tracker/tracker_state.py`) — explicit external
+  temporal state, passed into and returned from each call (`StageState`,
+  `BBoxSmoothingState`, `KeypointSmoothingState`).
+- **`DataStore`** (`core/data_primitives/data_store.py`) — collects and
+  serializes observations to `.npy` / JSON.
 
-### YAML-driven tracker schema
+### Detectors
 
-Each tracker has a `tracked_object_definitions/` or `names_and_connections/` directory containing YAML files that define `tracked_points` (ordered list of point names) and `connections` (pairs of names forming skeleton edges). This is the single source of truth for point identity and ordering. Detectors use these YAMLs to construct `PointCloud`s with consistent naming; annotators resolve connection name-pairs to array indices for drawing.
-
-### Tracker implementations
-
-| Tracker | Location | Notes |
+| Backend | Location | Notes |
 |---------|----------|-------|
-| CompositeGPU | `trackers/composite_gpu_tracker/` | RTMO body + RTMPose hands + RTMPose face, single CUDA context with batched inference. Configurable via `SubModelSpec` presets (light/medium/heavy). |
-| MediapipeComposite | `trackers/mediapipe_tracker/` | Holistic full-body (pose + hands + face). MediaPipe's native Python API. |
-| RTMPose | `trackers/rtmpose_tracker/` | 133-keypoint whole-body via ONNX Runtime (RTMLib). |
-| VitPose | `trackers/vitpose_tracker/` | ViT-based pose estimation. |
-| Charuco | `trackers/charuco_tracker/` | OpenCV Charuco board detection. |
-| BrightestPoint | `trackers/brightest_point_tracker/` | Simple brightest-point-in-frame tracker. |
-| Legacy (v1) | `trackers/v1/` | Old tracker implementations (YOLO, OpenPose, MMPose, etc.). Not actively maintained. |
+| MediaPipe | `core/detectors/keypoint_detectors/mediapipe` | pose / hands / face (native MediaPipe API) |
+| RTMPose | `core/detectors/keypoint_detectors/rtmpose` | body / face / hand / wholebody (133 keypoints) via ONNX |
+| YOLOX | `core/detectors/object_detectors/yolox` | person object detector (crops for top-down) |
+| Aruco | `core/detectors/keypoint_detectors/aruco` | OpenCV Aruco marker detection |
+| Charuco | `core/detectors/keypoint_detectors/charuco` | OpenCV Charuco board detection |
+| Precomputed | `core/detectors/object_detectors/precomputed` | supply externally computed bounding boxes |
+
+Each keypoint detector defines its keypoint names and skeleton connections (see
+`core/detectors/keypoint_detectors/_schema_loader.py`); annotators
+(`core/annotation/`) resolve connection name-pairs to array indices for drawing.
 
 ### GPU / ONNX Runtime
 
-All GPU trackers use ONNX Runtime. The execution provider is selected via config:
+The ONNX-backed detectors (RTMPose, YOLOX) run through ONNX Runtime; the
+execution provider is selected per session:
 
-- **CompositeGPU**: `CompositeGPUSessionConfig(execution_provider="cuda")`. Sub-model selection uses `SubModelSpec` presets — `CompositeGPUSessionConfig.preset("light")` for rtmo-s body, `"medium"` (default) for rtmo-m, `"heavy"` for rtmo-l. Hand and face models can be overridden per-component via `body_spec`/`hand_spec`/`face_spec` fields.
-- **RTMPose**: `RTMPoseDetectorConfig.resolved_provider()`.
+- **`cuda`** — CUDA 12 + cuDNN 9. On Windows, skellytracker preloads the
+  pip-installed `nvidia-*` DLLs so no separate CUDA Toolkit / cuDNN system
+  install is required.
+- **`trt`** — TensorRT (fastest). First run compiles engines (1–5 min); cached thereafter.
+- **`directml`** — non-NVIDIA GPUs on Windows.
+- **`cpu`** — fallback; enables the CoreML EP on Apple Silicon.
 
-Execution providers:
+`pyproject.toml` extras (`onnx-cuda`, `onnx-trt`, `onnx-directml`, `onnx-cpu`, and
+the `recommended-*` / `all-*` bundles) pull in the matching ONNX Runtime + NVIDIA
+runtime packages. The `onnx-*` backend extras are mutually exclusive — install
+exactly one.
 
-- **`cuda`** — CUDA 12 + cuDNN 9. On Windows, skellytracker patches `PATH` and proactively loads NVIDIA DLLs from pip-installed `nvidia-*` packages so users don't need separate CUDA Toolkit/cuDNN system installs.
-- **`trt`** — TensorRT engine (2-5x faster than CUDA EP). First run compiles engines (1-5 min); cached thereafter.
-- **`directml`** — DirectML for non-NVIDIA GPUs on Windows.
-- **`cpu`** — CPU fallback.
+### Temporal processing
 
-The `pyproject.toml` extras (`rtmpose-gpu`, `rtmpose-trt`, `rtmpose-directml`, `recommended`) pull in the correct ONNX Runtime build and NVIDIA runtime packages. Conflicting extras are declared in `[tool.uv].conflicts`. CPU `onnxruntime` is excluded from resolution via `exclude-dependencies`.
+`core/temporal_processing/` holds the cross-frame smoothing: bounding-box policy
+and smoothing (`bbox_policy.py`, `bbox_smoothing.py`), keypoint filtering
+(`keypoint_filtering.py`), and the keypoint reset policy
+(`keypoint_reset_policy.py`). All persisted state lives in `TrackerState`.
 
-### Key structural conventions
+### IO & demos
 
-- **`beartype`** runtime type checking is enabled package-wide in `__init__.py` via `beartype_this_package()`.
-- **Pydantic for configs**: all detector/tracker configs are Pydantic `BaseModel` subclasses. Detectors and trackers themselves are `@dataclass` classes.
-- **YAML for point schemas**: tracked point names and skeleton connections live in YAML under each tracker's `names_and_connections/` directory, loaded by `TrackedObjectDefinition.from_yaml()`.
-- **`__main__.py`** references an undefined `main()` function — this path is not currently functional.
+`core/io/`: `process_video` (one file), `process_video_list` / `process_folder`
+(multiple synchronized videos, batched via `Tracker.process_batch`), `DemoManager`
+(live webcam viewer, used by each detector's `run_demo.py`), `ProcessingTimer`,
+`TrackerMapping`. The `skellytracker` / `python -m skellytracker` CLI
+(`__main__.py:cli_main`) runs the webcam demos (`--tracker`, `--camera`,
+`--rotate`, `--list`).
 
 ### Tests
 
-Tests use `pytest`. `conftest.py` downloads test images from Figshare at session start and provides them as fixtures (`test_image`, `charuco_test_image`). Tests instantiate tracker objects and run `process_image()` on these fixtures, then assert on observation structure and array shapes/values.
+Tests use `pytest` under `skellytracker/tests/`. `conftest.py` provides shared
+test-image fixtures. Tests build trackers and run `process_image` / `process_batch`
+on the fixtures, then assert on observation structure and array shapes. Slow
+tests are marked `video` (skip with `pytest -m 'not video'`).
+```

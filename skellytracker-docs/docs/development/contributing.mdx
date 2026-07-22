@@ -1,0 +1,26 @@
+---
+title: Contributing
+sidebar_position: 2
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Contributing
+
+Pull requests are welcome. skellytracker uses
+[GitHub Flow](https://docs.github.com/en/get-started/quickstart/github-flow).
+
+1. Fork the repo and create your branch from `main`.
+2. Install with dev dependencies: `uv sync --extra recommended-cpu`.
+3. If you've added a tracker, add tests under `skellytracker/tests/`.
+4. Ensure the suite passes: `pytest skellytracker/tests/` (or `pytest -m 'not video'`
+   to skip slow video tests).
+5. Lint: `ruff check skellytracker/`.
+6. Open a pull request.
+
+## See also
+
+- [Development](./index.mdx) — running from source
+- [Extending skellytracker](../guides/extending-skellytracker.mdx) — adding a detector

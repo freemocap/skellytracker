@@ -1,0 +1,52 @@
+---
+title: Development
+sidebar_position: 1
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Development
+
+Running skellytracker from source.
+
+## Install with dev dependencies
+
+```bash
+# CPU backends (includes CoreML on Apple Silicon)
+uv sync --extra recommended-cpu
+
+# Or, for NVIDIA GPU with TensorRT:
+uv sync --extra recommended-cuda
+```
+
+## Tests
+
+```bash
+# Run the suite
+pytest skellytracker/tests/
+
+# Skip the slow video tests
+pytest -m 'not video'
+
+# A single test file
+pytest skellytracker/tests/test_mediapipe_detectors.py
+```
+
+## Lint & format
+
+```bash
+ruff check skellytracker/
+black skellytracker/
+isort skellytracker/
+```
+
+{/* TODO(prose): confirm test markers ('not video') and any CI workflow; describe
+    the tests/conftest.py fixture behavior (downloads test images) if relevant.
+    SOURCE: skellytracker/tests/, pyproject.toml [dependency-groups] dev, CLAUDE.md. */}
+
+## See also
+
+- [Contributing](./contributing.mdx)
+- [Extending skellytracker](../guides/extending-skellytracker.mdx)
