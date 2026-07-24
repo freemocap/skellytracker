@@ -11,7 +11,7 @@ from skellytracker.trackers.mediapipe_tracker.mediapipe_observation import Media
 
 class MediapipeAnnotatorConfig(BaseImageAnnotatorConfig):
     show_tracks: int | None = 15
-    show_overlay: bool = True
+    show_overlay: bool = False
     corner_marker_type: int = cv2.MARKER_DIAMOND
     corner_marker_size: int = 10
     corner_marker_thickness: int = 2

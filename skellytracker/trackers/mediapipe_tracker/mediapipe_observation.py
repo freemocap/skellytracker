@@ -264,7 +264,7 @@ class MediapipeObservation(BaseObservation):
                 self.body_points_xyz[..., :2],
                 self.right_hand_points_xyz[..., :2],
                 self.left_hand_points_xyz[..., :2],
-                self.face_contour_points_xyz[..., :2],
+                self.face_tesselation_points_xyz[..., :2],
             ),
             axis=0,
         )
@@ -294,7 +294,7 @@ class MediapipeObservation(BaseObservation):
                 self.body_points_xyz,
                 self.right_hand_points_xyz,
                 self.left_hand_points_xyz,
-                self.face_contour_points_xyz,
+                self.face_tesselation_points_xyz,
             ),
             axis=0,
         )
