@@ -27,6 +27,7 @@ from skellytracker.core.temporal_processing.keypoint_filtering import (
 )
 from skellytracker.core.temporal_processing.keypoint_reset_policy import KeypointResetPolicy
 from skellytracker.core.tracker.tracker_state import BBoxSmoothingState, KeypointSmoothingState, StageState
+from skellytracker.core.tracker.task_events import TrackerTaskEventContext
 
 
 @dataclass
@@ -409,6 +410,13 @@ class DetectionStage:
         dt = _dt_from_context(context)
         cam_ids = list(images.keys())
 
+        # ── 0. Pipeline metrics timing context ──────────────────────────────────
+        timing_ctx = TrackerTaskEventContext.from_call(
+            frame_number=context.frame_number if context is not None else 0,
+            camera_ids=cam_ids,
+            event_collector=context.event_collector if context is not None else None,
+        )
+
         # ── 1. Object detection ───────────────────────────────────────────────
         bboxes_per_cam: dict[str, list[BoundingBox]] = {}
         bbox_states_per_cam: dict[str, object] = {}  # BBoxSmoothingState per cam
@@ -445,12 +453,20 @@ class DetectionStage:
                         )
                         detector_ran_per_cam[cam_id] = True
                     else:
+                        if timing_ctx is not None:
+                            _t_obj = time.perf_counter_ns()
                         predicted = self.bbox_policy.predict_bbox(state)
                         bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
+                        if timing_ctx is not None:
+                            timing_ctx.record_stage("bbox_reuse", _t_obj, time.perf_counter_ns(), camera_id=cam_id)
                         bbox_states_per_cam[cam_id] = bbox_state
                         detector_ran_per_cam[cam_id] = False
                 elif self.bbox_policy.should_redetect(frame_number, state):
+                    if timing_ctx is not None:
+                        _t_obj = time.perf_counter_ns()
                     bboxes_per_cam[cam_id] = self.object_detector.detect(images[cam_id], context)
+                    if timing_ctx is not None:
+                        timing_ctx.record_stage("object_detection", _t_obj, time.perf_counter_ns(), camera_id=cam_id)
                     bbox_states_per_cam[cam_id] = type(bbox_state)(
                         smooth_bbox=bbox_state.smooth_bbox,
                         last_detection_frame=frame_number,
@@ -458,8 +474,12 @@ class DetectionStage:
                     )
                     detector_ran_per_cam[cam_id] = True
                 else:
+                    if timing_ctx is not None:
+                        _t_obj = time.perf_counter_ns()
                     predicted = self.bbox_policy.predict_bbox(state)
                     bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
+                    if timing_ctx is not None:
+                        timing_ctx.record_stage("bbox_reuse", _t_obj, time.perf_counter_ns(), camera_id=cam_id)
                     bbox_states_per_cam[cam_id] = bbox_state
                     detector_ran_per_cam[cam_id] = False
             else:
@@ -482,10 +502,13 @@ class DetectionStage:
                 if context is not None and context.timings is not None:
                     context.timings.stop(f"{self.name}.obj_preprocess", _t)
                 model_name = self.object_detector.config.model_name
+                _t_infer_ns = time.perf_counter_ns()
                 _t = time.perf_counter()
                 raw_batch = self.object_detector.session.run_batched(model_name, tensors)
                 if context is not None and context.timings is not None:
                     context.timings.stop(f"{self.name}.obj_infer", _t)
+                if timing_ctx is not None:
+                    timing_ctx.record_stage("object_detection_infer", _t_infer_ns, time.perf_counter_ns())
                 for cam_id in cams_needing_detect:
                     bboxes_per_cam[cam_id] = self.object_detector.postprocess(raw_batch[cam_id], metas[cam_id])
                     bbox_states_per_cam[cam_id] = replace(
@@ -496,6 +519,8 @@ class DetectionStage:
         # ── 2. BBox smoothing (EMA) per camera ───────────────────────────────
         smoothed_bboxes: dict[str, BoundingBox | None] = {}
         for cam_id in cam_ids:
+            if timing_ctx is not None:
+                _t_bs = time.perf_counter_ns()
             raw_bbox = bboxes_per_cam[cam_id][0] if bboxes_per_cam[cam_id] else None
             bbox_state = bbox_states_per_cam[cam_id]
             if raw_bbox is not None and self.bbox_smoothing_alpha is not None:
@@ -506,6 +531,8 @@ class DetectionStage:
                 if raw_bbox is not None:
                     bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
             bbox_states_per_cam[cam_id] = bbox_state
+            if timing_ctx is not None:
+                timing_ctx.record_stage("bbox_smoothing", _t_bs, time.perf_counter_ns(), camera_id=cam_id)
 
         # ── 3. Compute crops per camera ───────────────────────────────────────
         # crop_bboxes are clipped to image bounds — to_crop() clamps internally
@@ -514,10 +541,14 @@ class DetectionStage:
         crop_bboxes: dict[str, BoundingBox | None] = {}
         crops: dict[str, NDArray[np.uint8]] = {}
         for cam_id in cam_ids:
+            if timing_ctx is not None:
+                _t_crop = time.perf_counter_ns()
             sb = smoothed_bboxes[cam_id]
             h, w = images[cam_id].shape[:2]
             crop_bboxes[cam_id] = sb.clipped(h, w) if sb is not None else None
             crops[cam_id] = crop_bboxes[cam_id].to_crop(images[cam_id]) if crop_bboxes[cam_id] is not None else images[cam_id]
+            if timing_ctx is not None:
+                timing_ctx.record_stage("crop", _t_crop, time.perf_counter_ns(), camera_id=cam_id)
 
         # ── 4. Keypoint detection ─────────────────────────────────────────────
         # Collect per-detector results: list indexed by detector index, each a
@@ -568,11 +599,17 @@ class DetectionStage:
                 if context is not None and context.timings is not None:
                     context.timings.stop(f"{self.name}.kp_preprocess", _t)
                 model_name = detector.config.model_name
+                _t_infer_ns = time.perf_counter_ns()
                 _t = time.perf_counter()
                 raw_batch = detector.session.run_batched(model_name, tensors)
                 if context is not None and context.timings is not None:
                     context.timings.stop(f"{self.name}.kp_infer", _t)
+                if timing_ctx is not None:
+                    timing_ctx.record_stage("keypoint_detection_infer", _t_infer_ns, time.perf_counter_ns())
                 for cam_id in cam_ids:
+                    if timing_ctx is not None:
+                        _t_kp = time.perf_counter_ns()
+
                     kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
@@ -584,14 +621,23 @@ class DetectionStage:
                         if i < len(state.keypoint_states)
                         else KeypointSmoothingState()
                     )
+
                     if self.keypoint_filter is not None:
+                        _t_smooth = time.perf_counter_ns()
                         kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
+                        if timing_ctx is not None:
+                            timing_ctx.record_stage("keypoint_smoothing", _t_smooth, time.perf_counter_ns(), camera_id=cam_id)
+
                     detector_results[cam_id] = (kpts, kp_state)
+
+                    if timing_ctx is not None:
+                        timing_ctx.record_stage("keypoint_detection", _t_kp, time.perf_counter_ns(), camera_id=cam_id)
             else:
                 # Non-ONNX path — per-camera detector instances + thread pool.
                 # Each camera needs its own detector so stateful backends (e.g.
                 # MediaPipe VIDEO mode) can maintain independent timestamp streams.
-                def _detect_one(cam_id: str, detector: KeypointDetector = detector, i: int = i) -> tuple[str, Keypoints, KeypointSmoothingState]:
+                def _detect_one(cam_id: str, detector: KeypointDetector = detector, i: int = i
+                                ) -> tuple[str, Keypoints, KeypointSmoothingState, int, int]:
                     cam_detectors = self._cam_kp_detectors[i]
                     if cam_id not in cam_detectors:
                         cam_detectors[cam_id] = type(detector).create(detector.config, detector.session)
@@ -607,14 +653,26 @@ class DetectionStage:
                         if i < len(state.keypoint_states)
                         else KeypointSmoothingState()
                     )
+
+                    smooth_start_ns = 0
+                    smooth_end_ns = 0
                     if self.keypoint_filter is not None:
+                        smooth_start_ns = time.perf_counter_ns()
                         kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
-                    return cam_id, kpts, kp_state
+                        smooth_end_ns = time.perf_counter_ns()
+
+                    return cam_id, kpts, kp_state, smooth_start_ns, smooth_end_ns
 
                 executor = self._get_executor(len(cam_ids))
                 futures = [executor.submit(_detect_one, cam_id) for cam_id in cam_ids]
                 for fut in concurrent.futures.as_completed(futures):
-                    cam_id, kpts, kp_state = fut.result()
+                    if timing_ctx is not None:
+                        _t_kp = time.perf_counter_ns()
+                    cam_id, kpts, kp_state, smooth_start_ns, smooth_end_ns = fut.result()
+                    if timing_ctx is not None:
+                        timing_ctx.record_stage("keypoint_detection", _t_kp, time.perf_counter_ns(), camera_id=cam_id)
+                        if smooth_start_ns > 0:
+                            timing_ctx.record_stage("keypoint_smoothing", smooth_start_ns, smooth_end_ns, camera_id=cam_id)
                     detector_results[cam_id] = (kpts, kp_state)
 
             all_detector_results.append(detector_results)
@@ -624,6 +682,8 @@ class DetectionStage:
         kp_states_per_cam: dict[str, list[KeypointSmoothingState]] = {}
 
         for cam_id in cam_ids:
+            if timing_ctx is not None:
+                _t_merge = time.perf_counter_ns()
             all_kpts = []
             kp_states = []
             for det_results in all_detector_results:
@@ -632,6 +692,8 @@ class DetectionStage:
                 kp_states.append(kp_state)
             merged_per_cam[cam_id] = Keypoints.concatenate(all_kpts) if all_kpts else None
             kp_states_per_cam[cam_id] = kp_states
+            if timing_ctx is not None:
+                timing_ctx.record_stage("keypoint_merge", _t_merge, time.perf_counter_ns(), camera_id=cam_id)
 
         # ── 5b. Refresh the keypoint-tracked bbox every frame (detect or skip) ──
         if self.bbox_policy.keypoint_bbox_expansion is not None:
@@ -639,11 +701,15 @@ class DetectionStage:
                 merged = merged_per_cam[cam_id]
                 if merged is None:
                     continue
+                if timing_ctx is not None:
+                    _t_kptb = time.perf_counter_ns()
                 fresh_tracked = predict_bbox_from_keypoints(
                     merged,
                     self.bbox_policy.keypoint_bbox_expansion,
                     self.bbox_policy.keypoint_bbox_min_visibility,
                 )
+                if timing_ctx is not None:
+                    timing_ctx.record_stage("keypoint_tracked_bbox", _t_kptb, time.perf_counter_ns(), camera_id=cam_id)
                 if fresh_tracked is not None:
                     bbox_states_per_cam[cam_id] = replace(
                         bbox_states_per_cam[cam_id], keypoint_tracked_bbox=fresh_tracked
@@ -658,7 +724,11 @@ class DetectionStage:
                 cam_id: states.get(cam_id, StageState()).child_states.get(child.name, StageState())
                 for cam_id in cam_ids
             }
+            if timing_ctx is not None:
+                _t_child = time.perf_counter_ns()
             child_obs_batch, child_states_batch = child.run_batch(crops, child_stage_states, context)
+            if timing_ctx is not None:
+                timing_ctx.record_stage(f"child_{child.name}", _t_child, time.perf_counter_ns())
             for cam_id in cam_ids:
                 child_obs_per_cam[cam_id][child.name] = child_obs_batch[cam_id]
                 child_states_per_cam[cam_id][child.name] = child_states_batch[cam_id]
