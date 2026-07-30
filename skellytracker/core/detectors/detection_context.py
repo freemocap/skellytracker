@@ -1,12 +1,7 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
 
 from skellytracker.core.io.processing_timer import ProcessingTimer
-
-if TYPE_CHECKING:
-    from skellytracker.core.tracker.task_events import TrackerTaskEventCollector
+from skellytracker.core.tracker.task_events import TrackerTaskEventCollector
 
 
 @dataclass
