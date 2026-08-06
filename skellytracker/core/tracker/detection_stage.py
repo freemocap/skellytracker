@@ -519,7 +519,7 @@ class DetectionStage:
         # ── 2. BBox smoothing (EMA) per camera ───────────────────────────────
         smoothed_bboxes: dict[str, BoundingBox | None] = {}
         for cam_id in cam_ids:
-            if timing_ctx is not None:
+            if timing_ctx is not None and self.object_detector is not None:
                 _t_bs = time.perf_counter_ns()
             raw_bbox = bboxes_per_cam[cam_id][0] if bboxes_per_cam[cam_id] else None
             bbox_state = bbox_states_per_cam[cam_id]
@@ -531,7 +531,7 @@ class DetectionStage:
                 if raw_bbox is not None:
                     bbox_state = replace(bbox_state, smooth_bbox=raw_bbox)
             bbox_states_per_cam[cam_id] = bbox_state
-            if timing_ctx is not None:
+            if timing_ctx is not None and self.object_detector is not None:
                 timing_ctx.record_stage("bbox_smoothing", _t_bs, time.perf_counter_ns(), camera_id=cam_id)
 
         # ── 3. Compute crops per camera ───────────────────────────────────────
@@ -541,13 +541,13 @@ class DetectionStage:
         crop_bboxes: dict[str, BoundingBox | None] = {}
         crops: dict[str, NDArray[np.uint8]] = {}
         for cam_id in cam_ids:
-            if timing_ctx is not None:
+            if timing_ctx is not None and self.object_detector is not None:
                 _t_crop = time.perf_counter_ns()
             sb = smoothed_bboxes[cam_id]
             h, w = images[cam_id].shape[:2]
             crop_bboxes[cam_id] = sb.clipped(h, w) if sb is not None else None
             crops[cam_id] = crop_bboxes[cam_id].to_crop(images[cam_id]) if crop_bboxes[cam_id] is not None else images[cam_id]
-            if timing_ctx is not None:
+            if timing_ctx is not None and self.object_detector is not None:
                 timing_ctx.record_stage("crop", _t_crop, time.perf_counter_ns(), camera_id=cam_id)
 
         # ── 4. Keypoint detection ─────────────────────────────────────────────
@@ -636,13 +636,23 @@ class DetectionStage:
                 # Non-ONNX path — per-camera detector instances + thread pool.
                 # Each camera needs its own detector so stateful backends (e.g.
                 # MediaPipe VIDEO mode) can maintain independent timestamp streams.
-                def _detect_one(cam_id: str, detector: KeypointDetector = detector, i: int = i
-                                ) -> tuple[str, Keypoints, KeypointSmoothingState, int, int]:
+                # ── Derive a short detector-type suffix for per-detector stage names ──
+                _det_type: str = getattr(detector.config, "detector_type", "")
+                _det_suffix: str = _det_type.removeprefix("mediapipe_") if _det_type else ""
+                _infer_stage: str = f"keypoint_detection_infer:{_det_suffix}" if _det_suffix else "keypoint_detection_infer"
+                _detect_stage: str = f"keypoint_detection:{_det_suffix}" if _det_suffix else "keypoint_detection"
+
+                def _detect_one(cam_id: str, detector: KeypointDetector = detector, i: int = i,
+                                _infer_stage: str = _infer_stage, _detect_stage: str = _detect_stage,
+                                ) -> tuple[str, Keypoints, KeypointSmoothingState, int, int, int, int, int, int, str, str]:
                     cam_detectors = self._cam_kp_detectors[i]
                     if cam_id not in cam_detectors:
                         cam_detectors[cam_id] = type(detector).create(detector.config, detector.session)
                     cam_detector = cam_detectors[cam_id]
+                    _t_detect_start = time.perf_counter_ns()
                     kpts = cam_detector.detect(crops[cam_id], context)
+                    _t_detect_end = time.perf_counter_ns()
+                    _t_process_start = time.perf_counter_ns()
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)
@@ -653,6 +663,7 @@ class DetectionStage:
                         if i < len(state.keypoint_states)
                         else KeypointSmoothingState()
                     )
+                    _t_process_end = time.perf_counter_ns()
 
                     smooth_start_ns = 0
                     smooth_end_ns = 0
@@ -661,16 +672,23 @@ class DetectionStage:
                         kpts, kp_state = self.keypoint_filter.smooth(kpts, kp_state, dt)
                         smooth_end_ns = time.perf_counter_ns()
 
-                    return cam_id, kpts, kp_state, smooth_start_ns, smooth_end_ns
+                    return (cam_id, kpts, kp_state,
+                            _t_detect_start, _t_detect_end,
+                            _t_process_start, _t_process_end,
+                            smooth_start_ns, smooth_end_ns,
+                            _infer_stage, _detect_stage)
 
                 executor = self._get_executor(len(cam_ids))
                 futures = [executor.submit(_detect_one, cam_id) for cam_id in cam_ids]
                 for fut in concurrent.futures.as_completed(futures):
+                    (cam_id, kpts, kp_state,
+                     t_detect_start, t_detect_end,
+                     t_process_start, t_process_end,
+                     smooth_start_ns, smooth_end_ns,
+                     infer_stage, detect_stage) = fut.result()
                     if timing_ctx is not None:
-                        _t_kp = time.perf_counter_ns()
-                    cam_id, kpts, kp_state, smooth_start_ns, smooth_end_ns = fut.result()
-                    if timing_ctx is not None:
-                        timing_ctx.record_stage("keypoint_detection", _t_kp, time.perf_counter_ns(), camera_id=cam_id)
+                        timing_ctx.record_stage(infer_stage, t_detect_start, t_detect_end, camera_id=cam_id)
+                        timing_ctx.record_stage(detect_stage, t_process_start, t_process_end, camera_id=cam_id)
                         if smooth_start_ns > 0:
                             timing_ctx.record_stage("keypoint_smoothing", smooth_start_ns, smooth_end_ns, camera_id=cam_id)
                     detector_results[cam_id] = (kpts, kp_state)
