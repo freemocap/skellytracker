@@ -9,8 +9,8 @@ Three forms are supported::
     list    →  unweighted mean  ``hips_center: ["left_hip", "right_hip"]``
     dict    →  weighted sum     ``head_center: {left_ear: 0.5, right_ear: 0.5}``
 
-Virtual markers as a separate concept disappear — a "virtual marker" is
-simply a canonical landmark whose mapping happens to be a list or dict.
+Every canonical landmark is produced this way — including computed ones like
+``neck_center`` and ``hips_center``, whose mapping is a list or dict.
 
 Usage::
 
