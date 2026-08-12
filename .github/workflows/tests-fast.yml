@@ -17,7 +17,7 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - run: uv sync --extra recommended-cpu
-      - run: sudo apt-get update && sudo apt-get install -y libgl1-mesa-glx xvfb
+      - run: sudo apt-get update && sudo apt-get install -y libgl1 libegl1 libgles2 xvfb
       - uses: actions/cache@v6.1.0
         with:
           path: |
