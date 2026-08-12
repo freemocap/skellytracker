@@ -1,6 +1,6 @@
-﻿"""Task-event timing metadata for pipeline metrics integration.
+"""Task-event timing metadata for pipeline metrics integration.
 
-Events use ``time.monotonic_ns()`` timestamps (system-wide, cross-process
+Events use ``time.perf_counter_ns()`` timestamps (system-wide, cross-process
 comparable) and deterministic task IDs so FreeMoCap can relay them through
 ``pipeline_timing`` WebSocket payloads without losing parent-child links
 across processes.
