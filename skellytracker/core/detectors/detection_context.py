@@ -1,8 +1,7 @@
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 
 from skellytracker.core.io.processing_timer import ProcessingTimer
+from skellytracker.core.tracker.task_events import TrackerTaskEventCollector
 
 
 @dataclass
@@ -20,8 +19,11 @@ class DetectionContext:
                   from time.monotonic().
     timings:      Optional profiler. When set, DetectionStage.run_batch records
                   per-section wall-clock times into it.
+    event_collector: Optional task-event sink. When set, DetectionStage.run_batch
+                     emits per-stage TrackerTaskEvent records for pipeline metrics.
     """
 
     frame_number: int = 0
     timestamp_ms: int | None = None
     timings: ProcessingTimer | None = field(default=None, repr=False)
+    event_collector: TrackerTaskEventCollector | None = field(default=None, repr=False)
