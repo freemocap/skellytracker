@@ -110,12 +110,19 @@ class TrackerMapping:
     prefix : str or None
         If set, strip this prefix from tracker keypoint names before
         looking them up.
+    known_tracker_keypoints : set of str or None
+        The set of tracker keypoint names the tracker actually produces.
+        When provided, every tracker-side name this mapping references is
+        checked against it at load time and a name the tracker NEVER
+        produces raises.  A keypoint missing THIS frame (occlusion) is
+        still a silent skip at apply time.
     """
 
     def __init__(
         self,
         entries: dict[str, MappingEntry],
         prefix: str | None = None,
+        known_tracker_keypoints: set[str] | None = None,
     ) -> None:
         self._entries: dict[str, MappingEntry] = {}
         self._anatomical_offsets: dict[str, _AnatomicalOffsetDef] = {}
@@ -147,6 +154,46 @@ class TrackerMapping:
                     f"list, or dict, got {type(entry).__name__}"
                 )
 
+        if known_tracker_keypoints is not None:
+            offenders = sorted(
+                self._referenced_tracker_names() - known_tracker_keypoints
+            )
+            if offenders:
+                raise ValueError(
+                    "mapping references tracker keypoints the tracker "
+                    "never produces: " + ", ".join(offenders)
+                )
+
+    def _referenced_tracker_names(self) -> set[str]:
+        """Every tracker-side name referenced by this mapping (prefix applied).
+
+        Named reference lengths like ``shoulder_width`` are NOT tracker names
+        (they resolve to keypoint pairs at apply time) and are excluded.
+        """
+        names: set[str] = set()
+        prefix = self._prefix
+        for entry in self._entries.values():
+            if isinstance(entry, str):
+                names.add(prefix + entry)
+            elif isinstance(entry, tuple):
+                names.update(prefix + n for n in entry)
+            elif isinstance(entry, dict):
+                names.update(prefix + n for n in entry)
+        for offset_def in self._anatomical_offsets.values():
+            names.update(
+                prefix + n for n in offset_def.origin_keypoints
+            )
+            for axis in offset_def.axes:
+                names.update(prefix + n for n in axis.from_keypoints)
+                names.update(prefix + n for n in axis.to_keypoints)
+            names.update(
+                prefix + n for n in offset_def.reference_length_from
+            )
+            names.update(
+                prefix + n for n in offset_def.reference_length_to
+            )
+        return names
+
     # ------------------------------------------------------------------
     # Factory
     # ------------------------------------------------------------------
@@ -157,6 +204,7 @@ class TrackerMapping:
         yaml_path: Path,
         *,
         prefix: str | None = None,
+        known_tracker_keypoints: set[str] | None = None,
     ) -> "TrackerMapping":
         """Load a mapping from a YAML file."""
         with open(yaml_path, "r") as fh:
@@ -166,7 +214,11 @@ class TrackerMapping:
                 f"Mapping YAML must be a dict at top level, "
                 f"got {type(data).__name__}"
             )
-        return cls(entries=data, prefix=prefix)
+        return cls(
+            entries=data,
+            prefix=prefix,
+            known_tracker_keypoints=known_tracker_keypoints,
+        )
 
     # ------------------------------------------------------------------
     # Apply
@@ -563,6 +615,10 @@ def _resolve_named_length(
         "hip_width": (
             ["left_hip"],
             ["right_hip"],
+        ),
+        "eye_width": (
+            ["left_eye"],
+            ["right_eye"],
         ),
     }
     if name not in _NAMED_LENGTHS:

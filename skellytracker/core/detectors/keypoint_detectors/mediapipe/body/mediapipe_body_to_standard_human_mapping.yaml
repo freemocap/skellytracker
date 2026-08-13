@@ -117,3 +117,114 @@ right_sternoclavicular:
     up: -0.05
     lateral: 0.06
   reference_length: shoulder_width
+
+# ---- Derived: the sternal midline point ----
+#
+# mid_sternum is the sternum's anterior midline point at the manubrium level —
+# the same estimation basis as the bilateral sternoclavicular joints, which
+# straddle it at ±0.06 lateral of shoulder width. Estimated from surface
+# anatomy rather than a published table; refine if a sourced value appears.
+mid_sternum:
+  form: anatomical_offset
+  origin: ["left_shoulder", "right_shoulder"]
+  frame:
+    up:
+      from: hips_center
+      to: neck_center
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    anterior: 0.15
+    up: -0.05
+  reference_length: shoulder_width
+
+# ---- Derived: the top of the head ----
+#
+# head_vertex = head_center + the head's vertical × 0.17 × shoulder width.
+# Sourced: Winter (2009) head-center→vertex = 0.040 H, expressed as a ratio of
+# shoulder width (0.234 H) ≈ 0.17. The axis is the head's vertical.
+head_vertex:
+  form: anatomical_offset
+  origin: ["head_center"]
+  frame:
+    up:
+      from: neck_center
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: 0.17
+  reference_length: shoulder_width
+
+# ---- Derived: the ball of the foot ----
+#
+# foot_ball sits 2/3 of the way ankle→big_toe — the Task 3 2:1 split of the
+# ankle→toe span (0.026/0.013 of height) at the metatarsophalangeal joint.
+# The approximate axis is the shin direction: the ankle→heel axis would be
+# anti-parallel to the forward axis and MediaPipe's foot_index maps both toes
+# to one point, so a toe-fan axis would be degenerate there.
+left_foot_ball:
+  form: anatomical_offset
+  origin: ["left_ankle"]
+  frame:
+    forward:
+      from: left_ankle
+      to: left_big_toe
+      kind: exact
+    shin:
+      from: left_knee
+      to: left_ankle
+      kind: approximate
+  offset:
+    forward: 0.67
+  reference_length:
+    from: left_ankle
+    to: left_big_toe
+
+right_foot_ball:
+  form: anatomical_offset
+  origin: ["right_ankle"]
+  frame:
+    forward:
+      from: right_ankle
+      to: right_big_toe
+      kind: exact
+    shin:
+      from: right_knee
+      to: right_ankle
+      kind: approximate
+  offset:
+    forward: 0.67
+  reference_length:
+    from: right_ankle
+    to: right_big_toe
+
+# ---- Derived: the jaw (chin) ----
+#
+# jaw = nose + down 0.9 × eye_width + posterior 0.2 × eye_width.
+# Estimated from the facial-proportions canon (eye width as the facial-third
+# unit) rather than a published table; refine if a sourced value appears.
+# The same ratios derive the jaw segment's rest direction (Task 4) — change
+# one, change the other.
+jaw:
+  form: anatomical_offset
+  origin: ["nose"]
+  frame:
+    up:
+      from: neck_center
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: -0.9
+    anterior: -0.2
+  reference_length: eye_width
