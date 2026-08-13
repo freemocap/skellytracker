@@ -18,6 +18,8 @@
 nose: "nose"
 left_eye: "left_eye"
 right_eye: "right_eye"
+left_mouth: "mouth_left"
+right_mouth: "mouth_right"
 left_ear: "left_ear"
 right_ear: "right_ear"
 left_shoulder: "left_shoulder"

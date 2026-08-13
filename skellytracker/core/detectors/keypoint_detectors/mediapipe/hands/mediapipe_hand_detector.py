@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
 from skellytracker.core.data_primitives import Keypoints
+from skellytracker.core.io.mapping_paths import MEDIAPIPE_HAND_MAPPING
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
@@ -166,7 +167,7 @@ class MediapipeHandKeypointDetector(KeypointDetector):
 
     @classmethod
     def standard_human_mapping_path(cls) -> Path:
-        return Path(__file__).parent / "mediapipe_hand_to_standard_human_mapping.yaml"
+        return MEDIAPIPE_HAND_MAPPING
 
     @classmethod
     def create(

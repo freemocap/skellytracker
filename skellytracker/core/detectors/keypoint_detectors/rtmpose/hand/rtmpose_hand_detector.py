@@ -18,6 +18,7 @@ from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
 from skellytracker.core.data_primitives import Keypoints
+from skellytracker.core.io.mapping_paths import RTMPOSE_HAND_MAPPING
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KEYPOINT_DETECTOR_REGISTRY,
@@ -169,7 +170,7 @@ class RTMPoseHandDetector(KeypointDetector):
 
     @classmethod
     def standard_human_mapping_path(cls) -> Path:
-        return Path(__file__).parent / "rtmpose_hand_to_standard_human_mapping.yaml"
+        return RTMPOSE_HAND_MAPPING
 
     @classmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> RTMPoseHandDetector:

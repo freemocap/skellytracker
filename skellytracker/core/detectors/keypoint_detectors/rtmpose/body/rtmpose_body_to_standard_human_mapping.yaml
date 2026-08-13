@@ -218,3 +218,49 @@ jaw:
     up: -0.9
     anterior: -0.2
   reference_length: eye_width
+
+# ---- Derived: the mouth corners ----
+#
+# left_mouth = nose + down 0.35 × eye_width + posterior 0.2 × eye_width
+#              + lateral 0.3 × eye_width (toward the left eye).
+# right_mouth = the same, but lateral runs toward the right eye.
+# Estimated from the facial-proportions canon (eye width as the facial-third
+# unit) rather than a published table; refine if a sourced value appears.
+# `lateral` runs left_eye -> right_eye, so +lateral is the subject's RIGHT and
+# -lateral is their LEFT — mirroring the jaw's frame and the trunk-frame
+# convention used above.
+left_mouth:
+  form: anatomical_offset
+  origin: ["nose"]
+  frame:
+    up:
+      from: neck_center
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: -0.35
+    anterior: -0.2
+    lateral: -0.3
+  reference_length: eye_width
+
+right_mouth:
+  form: anatomical_offset
+  origin: ["nose"]
+  frame:
+    up:
+      from: neck_center
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: -0.35
+    anterior: -0.2
+    lateral: 0.3
+  reference_length: eye_width
