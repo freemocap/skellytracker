@@ -23,7 +23,7 @@ from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_m
 from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
 
 _HAND_POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_hand.yaml")
-_NUM_HAND_LANDMARKS = len(_HAND_POINT_NAMES)
+_NUM_HAND_KEYPOINTS = len(_HAND_POINT_NAMES)
 
 _RIGHT_NAMES: tuple[str, ...] = tuple(f"right_hand_{n}" for n in _HAND_POINT_NAMES)
 _LEFT_NAMES: tuple[str, ...] = tuple(f"left_hand_{n}" for n in _HAND_POINT_NAMES)
@@ -41,7 +41,7 @@ class MediapipeHandDetectorConfig(KeypointDetectorConfig):
 
 @dataclass
 class MediapipeHandKeypointDetector(KeypointDetector):
-    """Detects hand landmarks for both hands using MediaPipe HandLandmarker.
+    """Detects hand keypoints for both hands using MediaPipe HandLandmarker.
 
     Returns 42 named keypoints: 21 right-hand points (prefixed right_hand_)
     followed by 21 left-hand points (prefixed left_hand_). Points for an
@@ -63,7 +63,7 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         return rgb, EmptyMetadata()
 
     def postprocess(self, raw: Any, metadata: EmptyMetadata) -> Keypoints:
-        """Extract hand landmarks from a MediaPipe HandLandmarkerResult.
+        """Extract hand keypoints from a MediaPipe HandLandmarkerResult.
 
         raw should be a (result, h, w) tuple when called from the split-path.
         """
@@ -72,21 +72,21 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         else:
             return Keypoints.empty(self._point_names)
 
-        right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
-        left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
-        right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
-        left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
+        right_xyz = np.full((_NUM_HAND_KEYPOINTS, 3), np.nan, dtype=np.float64)
+        left_xyz = np.full((_NUM_HAND_KEYPOINTS, 3), np.nan, dtype=np.float64)
+        right_vis = np.zeros(_NUM_HAND_KEYPOINTS, dtype=np.float64)
+        left_vis = np.zeros(_NUM_HAND_KEYPOINTS, dtype=np.float64)
 
-        for i, hand_landmarks in enumerate(result.hand_landmarks):
+        for i, lms in enumerate(result.hand_landmarks):
             handedness = result.handedness[i]
             label = handedness[0].category_name
 
             xyz = np.array(
-                [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
+                [(lm.x * w, lm.y * h, lm.z * w) for lm in lms],
                 dtype=np.float64,
             )
             vis = np.array(
-                [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
+                [lm.presence if lm.presence is not None else 1.0 for lm in lms],
                 dtype=np.float64,
             )
 
@@ -120,21 +120,21 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         else:
             result = self.landmarker.detect(mp_image)
 
-        right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
-        left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
-        right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
-        left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
+        right_xyz = np.full((_NUM_HAND_KEYPOINTS, 3), np.nan, dtype=np.float64)
+        left_xyz = np.full((_NUM_HAND_KEYPOINTS, 3), np.nan, dtype=np.float64)
+        right_vis = np.zeros(_NUM_HAND_KEYPOINTS, dtype=np.float64)
+        left_vis = np.zeros(_NUM_HAND_KEYPOINTS, dtype=np.float64)
 
-        for i, hand_landmarks in enumerate(result.hand_landmarks):
+        for i, lms in enumerate(result.hand_landmarks):
             handedness = result.handedness[i]
-            label = handedness[0].category_name  # "Left" or "Right"
+            label = handedness[0].category_name
 
             xyz = np.array(
-                [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
+                [(lm.x * w, lm.y * h, lm.z * w) for lm in lms],
                 dtype=np.float64,
             )
             vis = np.array(
-                [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
+                [lm.presence if lm.presence is not None else 1.0 for lm in lms],
                 dtype=np.float64,
             )
 
@@ -165,8 +165,8 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         return right + left
 
     @classmethod
-    def canonical_mapping_path(cls) -> Path:
-        return Path(__file__).parent / "mediapipe_hand_to_canonical_mapping.yaml"
+    def standard_human_mapping_path(cls) -> Path:
+        return Path(__file__).parent / "mediapipe_hand_to_standard_human_mapping.yaml"
 
     @classmethod
     def create(

@@ -171,8 +171,8 @@ class RTMPoseBodyDetector(KeypointDetector):
         return load_connections(_YAML)
 
     @classmethod
-    def canonical_mapping_path(cls) -> Path:
-        return Path(__file__).parent / "rtmpose_body_to_canonical_mapping.yaml"
+    def standard_human_mapping_path(cls) -> Path:
+        return Path(__file__).parent / "rtmpose_body_to_standard_human_mapping.yaml"
 
     @classmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> RTMPoseBodyDetector:

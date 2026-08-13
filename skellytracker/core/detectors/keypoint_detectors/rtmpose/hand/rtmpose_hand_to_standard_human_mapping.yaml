@@ -1,8 +1,8 @@
-# RTMPose hand → canonical hand landmark mapping.
+# RTMPose hand → standard-human keypoint mapping.
 #
-# Keys are canonical hand landmark names (MediaPipe Hand convention).
+# Keys are the standard human's hand keypoint names (MediaPipe Hand convention).
 # Values point to RTMPose tracker keypoint names.
-# All mappings are 1:1 — same 21 landmarks, different names.
+# All mappings are 1:1 — same 21 keypoints, different names.
 
 wrist: "root"
 thumb_cmc: "thumb1"

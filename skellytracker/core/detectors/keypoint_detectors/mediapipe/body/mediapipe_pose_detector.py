@@ -26,7 +26,6 @@ from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_m
 from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
 
 _POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_body.yaml")
-_NUM_LANDMARKS = len(_POINT_NAMES)
 
 
 class MediapipePoseDetectorConfig(KeypointDetectorConfig):
@@ -41,7 +40,7 @@ class MediapipePoseDetectorConfig(KeypointDetectorConfig):
 
 @dataclass
 class MediapipePoseKeypointDetector(KeypointDetector):
-    """Detects body pose landmarks using MediaPipe PoseLandmarker.
+    """Detects body pose keypoints using MediaPipe PoseLandmarker.
 
     Returns 33 named keypoints in pixel space. Points not detected have NaN
     coordinates and 0.0 visibility.
@@ -63,7 +62,7 @@ class MediapipePoseKeypointDetector(KeypointDetector):
         return rgb, EmptyMetadata()
 
     def postprocess(self, raw: Any, metadata: EmptyMetadata) -> Keypoints:
-        """Extract landmarks from a MediaPipe PoseLandmarkerResult.
+        """Extract keypoints from a MediaPipe PoseLandmarkerResult.
 
         raw is the result object returned by landmarker.detect() or
         detect_for_video(). image dimensions are encoded in EmptyMetadata —
@@ -82,13 +81,13 @@ class MediapipePoseKeypointDetector(KeypointDetector):
         if not result.pose_landmarks:
             return Keypoints.empty(self._point_names)
 
-        landmarks = result.pose_landmarks[0]
+        lms = result.pose_landmarks[0]
         xyz = np.array(
-            [(lm.x * w, lm.y * h, lm.z * w) for lm in landmarks],
+            [(lm.x * w, lm.y * h, lm.z * w) for lm in lms],
             dtype=np.float64,
         )
         visibility = np.array(
-            [lm.visibility if lm.visibility is not None else 0.0 for lm in landmarks],
+            [lm.visibility if lm.visibility is not None else 0.0 for lm in lms],
             dtype=np.float64,
         )
         return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
@@ -115,13 +114,13 @@ class MediapipePoseKeypointDetector(KeypointDetector):
         if not result.pose_landmarks:
             return Keypoints.empty(self._point_names)
 
-        landmarks = result.pose_landmarks[0]
+        lms = result.pose_landmarks[0]
         xyz = np.array(
-            [(lm.x * w, lm.y * h, lm.z * w) for lm in landmarks],
+            [(lm.x * w, lm.y * h, lm.z * w) for lm in lms],
             dtype=np.float64,
         )
         visibility = np.array(
-            [lm.visibility if lm.visibility is not None else 0.0 for lm in landmarks],
+            [lm.visibility if lm.visibility is not None else 0.0 for lm in lms],
             dtype=np.float64,
         )
         return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
@@ -139,8 +138,8 @@ class MediapipePoseKeypointDetector(KeypointDetector):
         return load_connections(Path(__file__).parent / "mediapipe_body.yaml")
 
     @classmethod
-    def canonical_mapping_path(cls) -> Path:
-        return Path(__file__).parent / "mediapipe_body_to_canonical_mapping.yaml"
+    def standard_human_mapping_path(cls) -> Path:
+        return Path(__file__).parent / "mediapipe_body_to_standard_human_mapping.yaml"
 
     @classmethod
     def create(

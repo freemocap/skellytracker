@@ -1,0 +1,109 @@
+# RTMPose body → standard-human keypoint mapping.
+#
+# Maps RTMPose COCO-WholeBody body keypoint names to the standard human's
+# keypoint names. Three mapping forms are supported:
+#
+#   string  →  1:1 passthrough  (standard-human = tracker keypoint at that name)
+#   list    →  unweighted mean   (standard-human = mean of listed tracker keypoints)
+#   dict    →  weighted sum      (standard-human = weighted sum of name:weight pairs)
+#
+# Missing tracker keypoints are silently skipped. For list/dict forms,
+# only present keypoints contribute to the result.
+
+# ---- Direct 1:1 mappings (most body keypoints share names) ----
+nose: "nose"
+left_eye: "left_eye"
+right_eye: "right_eye"
+left_ear: "left_ear"
+right_ear: "right_ear"
+left_shoulder: "left_shoulder"
+right_shoulder: "right_shoulder"
+left_elbow: "left_elbow"
+right_elbow: "right_elbow"
+left_wrist: "left_wrist"
+right_wrist: "right_wrist"
+left_hip: "left_hip"
+right_hip: "right_hip"
+left_knee: "left_knee"
+right_knee: "right_knee"
+left_ankle: "left_ankle"
+right_ankle: "right_ankle"
+left_big_toe: "left_big_toe"
+left_small_toe: "left_small_toe"
+left_heel: "left_heel"
+right_big_toe: "right_big_toe"
+right_small_toe: "right_small_toe"
+right_heel: "right_heel"
+
+# ---- Computed keypoints (mean of tracker keypoints) ----
+head_center: ["left_ear", "right_ear"]
+neck_center: ["left_shoulder", "right_shoulder"]
+trunk_center: ["left_shoulder", "right_shoulder", "left_hip", "right_hip"]
+hips_center: ["left_hip", "right_hip"]
+
+
+# ---- Off-surface joint centers (anatomical_offset) ----
+#
+# These keypoints sit OFF the marked surface — the convex forms above
+# cannot produce them. The anatomical_offset form builds a local
+# anatomical frame from keypoints and applies an anthropometric offset
+# that scales with the subject.
+
+# The sternoclavicular joints are BILATERAL — one either side of the midline at
+# the manubrium. Both are placed from the same trunk frame: origin at the
+# shoulder midpoint (the midline reference), then offset anterior, slightly
+# inferior, and laterally to each side.
+#
+# `lateral` runs left_shoulder -> right_shoulder, so +lateral is the subject's
+# RIGHT and -lateral is their LEFT.
+#
+# ALL VALUES ARE RATIOS OF `reference_length` (here shoulder_width = biacromial
+# breadth), never absolute distances — the keypoint must scale with the subject,
+# and a millimetre constant would silently assume one body size. Expressed as
+# fractions of biacromial width W:
+#
+#   anterior  0.15  -> the manubrium sits well anterior of the acromion line
+#   up       -0.05  -> the sternal notch sits below acromion level
+#   lateral +-0.06  -> half the inter-SC spacing, so the joints are 0.12 W apart
+#
+# Anthropometric basis: the SC joints straddle the manubrium at roughly an
+# eighth of biacromial breadth apart, and the manubrium lies forward of and
+# below the acromion line. Estimated from surface anatomy rather than taken from
+# a published table — Winter and Drillis & Contini tabulate segment lengths, not
+# SC joint placement. Refine if a sourced value appears.
+
+left_sternoclavicular:
+  form: anatomical_offset
+  origin: ["left_shoulder", "right_shoulder"]
+  frame:
+    up:
+      from: hips_center
+      to: neck_center
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    anterior: 0.15
+    up: -0.05
+    lateral: -0.06
+  reference_length: shoulder_width
+
+right_sternoclavicular:
+  form: anatomical_offset
+  origin: ["left_shoulder", "right_shoulder"]
+  frame:
+    up:
+      from: hips_center
+      to: neck_center
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    anterior: 0.15
+    up: -0.05
+    lateral: 0.06
+  reference_length: shoulder_width
