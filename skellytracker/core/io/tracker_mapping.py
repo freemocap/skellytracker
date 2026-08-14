@@ -1,7 +1,7 @@
-"""Four-form tracker→standard-human keypoint mapping.
+"""Four-form tracker→standard-human landmark mapping.
 
 A ``TrackerMapping`` loads a YAML file that defines, for each standard-human
-keypoint, how to produce its position from the tracker's keypoints.
+landmark, how to hydrate its position from the tracker's keypoints.
 Four forms are supported::
 
     string    →  1:1 passthrough  ``left_elbow: "left_elbow"``
@@ -10,7 +10,7 @@ Four forms are supported::
     dict      →  anatomical_offset  off-surface joint center via local frame
                   (detected by ``form: anatomical_offset`` key)
 
-Every standard-human keypoint is produced this way — including computed ones
+Every standard-human landmark is produced this way — including computed ones
 like ``neck_center`` and ``hips_center``, whose mapping is a list or dict,
 and off-surface joint centers like the sternoclavicular and glenohumeral
 joints, whose mapping is an ``anatomical_offset``.
@@ -18,15 +18,15 @@ joints, whose mapping is an ``anatomical_offset``.
 Usage::
 
     mapping = TrackerMapping.from_yaml(Path("rtmpose_body_to_standard_human_mapping.yaml"))
-    keypoints = mapping.apply(tracker_positions)
-    # keypoints use the standard-human keypoint names, ready for FABRIK/CoM/etc.
+    landmarks = mapping.apply(tracker_positions)
+    # landmarks use the standard-human landmark names, ready for FABRIK/CoM/etc.
 
 anatomical_offset form
 ----------------------
 Places a joint center that sits *off* the marked surface — the anterior
 sternoclavicular joint (clavicle base), glenohumeral joint, hip joint
 centers.  These are real and required; the three convex forms (string,
-list, dict) cannot produce a point outside the keypoints' convex hull.
+list, dict) cannot produce a point outside the tracker keypoints' convex hull.
 
 The form is deterministic and subject-scaled — no runtime fitting.
 It is a dict with these keys::
@@ -85,7 +85,7 @@ class _FrameAxisDef:
 class _AnatomicalOffsetDef:
     """Parsed anatomical_offset mapping entry."""
 
-    keypoint_name: str
+    landmark_name: str
     origin_keypoints: list[str]
     axes: list[_FrameAxisDef]  # exactly 2: one exact, one approximate
     offset_ratios: dict[str, float]  # axis_name → ratio
@@ -99,14 +99,15 @@ class _AnatomicalOffsetDef:
 
 
 class TrackerMapping:
-    """Load and apply a tracker→standard-human keypoint mapping.
+    """Load and apply a tracker→standard-human landmark mapping.
 
     Parameters
     ----------
     entries : dict
-        Mapping from standard-human keypoint name to its definition
+        Mapping from standard-human landmark name to its definition
         (string, list of strings, dict of name→weight pairs, or
-        dict with ``form: anatomical_offset``).
+        dict with ``form: anatomical_offset``).  Keys are landmark names;
+        values name the tracker keypoints used to hydrate them.
     prefix : str or None
         If set, strip this prefix from tracker keypoint names before
         looking them up.
@@ -128,29 +129,29 @@ class TrackerMapping:
         self._anatomical_offsets: dict[str, _AnatomicalOffsetDef] = {}
         self._prefix = prefix or ""
 
-        for keypoint_name, entry in entries.items():
+        for landmark_name, entry in entries.items():
             if isinstance(entry, str):
-                self._entries[keypoint_name] = entry
+                self._entries[landmark_name] = entry
             elif isinstance(entry, list):
                 if len(entry) == 0:
                     raise ValueError(
-                        f"List mapping for '{keypoint_name}' is empty"
+                        f"List mapping for '{landmark_name}' is empty"
                     )
-                self._entries[keypoint_name] = tuple(entry)
+                self._entries[landmark_name] = tuple(entry)
             elif isinstance(entry, dict):
                 if entry.get("form") == "anatomical_offset":
-                    self._anatomical_offsets[keypoint_name] = (
-                        _parse_anatomical_offset(keypoint_name, entry)
+                    self._anatomical_offsets[landmark_name] = (
+                        _parse_anatomical_offset(landmark_name, entry)
                     )
                 else:
                     if len(entry) == 0:
                         raise ValueError(
-                            f"Dict mapping for '{keypoint_name}' is empty"
+                            f"Dict mapping for '{landmark_name}' is empty"
                         )
-                    self._entries[keypoint_name] = dict(entry)
+                    self._entries[landmark_name] = dict(entry)
             else:
                 raise TypeError(
-                    f"Mapping entry for '{keypoint_name}' must be str, "
+                    f"Mapping entry for '{landmark_name}' must be str, "
                     f"list, or dict, got {type(entry).__name__}"
                 )
 
@@ -228,7 +229,7 @@ class TrackerMapping:
         self,
         tracker_positions: dict[str, np.ndarray],
     ) -> dict[str, np.ndarray]:
-        """Produce standard-human keypoint positions from tracker positions.
+        """Produce standard-human landmark positions from tracker positions.
 
         Parameters
         ----------
@@ -238,19 +239,19 @@ class TrackerMapping:
         Returns
         -------
         dict of str → (3,) ndarray
-            Positions keyed by standard-human keypoint names.  Keypoints
-            whose tracker source is missing are silently omitted.
+            Positions keyed by standard-human landmark name.  Landmarks whose
+            tracker source is missing are silently omitted.
         """
         result: dict[str, np.ndarray] = {}
         prefix = self._prefix
 
         # ── Pass 1: string / list / weighted-sum forms ──────────
-        for keypoint_name, entry in self._entries.items():
+        for landmark_name, entry in self._entries.items():
             if isinstance(entry, str):
                 tracker_name = prefix + entry
                 pos = tracker_positions.get(tracker_name)
                 if pos is not None:
-                    result[keypoint_name] = np.asarray(
+                    result[landmark_name] = np.asarray(
                         pos, dtype=np.float64
                     )
             elif isinstance(entry, tuple):
@@ -262,7 +263,7 @@ class TrackerMapping:
                             np.asarray(pos, dtype=np.float64)
                         )
                 if positions:
-                    result[keypoint_name] = np.mean(
+                    result[landmark_name] = np.mean(
                         np.column_stack(positions), axis=1
                     )
             elif isinstance(entry, dict):
@@ -276,20 +277,20 @@ class TrackerMapping:
                         )
                         total_weight += weight
                 if weighted and total_weight > 0.0:
-                    result[keypoint_name] = sum(weighted) / total_weight
+                    result[landmark_name] = sum(weighted) / total_weight
 
         # ── Pass 2: anatomical_offset form ───────────────────────
-        # anatomical_offsets may reference other standard-human keypoints
+        # anatomical_offsets may reference other standard-human landmarks
         # (e.g. hips_center, neck_center) that were computed in pass 1.
         # We merge raw tracker positions + pass-1 results so the offset
         # resolver can find both.
         combined_positions = {**tracker_positions, **result}
-        for keypoint_name, offset_def in self._anatomical_offsets.items():
+        for landmark_name, offset_def in self._anatomical_offsets.items():
             pos = _apply_anatomical_offset(
                 offset_def, combined_positions, prefix
             )
             if pos is not None:
-                result[keypoint_name] = pos
+                result[landmark_name] = pos
 
         return result
 
@@ -298,8 +299,8 @@ class TrackerMapping:
     # ------------------------------------------------------------------
 
     @property
-    def keypoint_names(self) -> list[str]:
-        """Ordered list of standard-human keypoint names this mapping produces."""
+    def landmark_names(self) -> list[str]:
+        """The standard-human landmark names this mapping produces, in order."""
         names: list[str] = list(self._entries.keys())
         names.extend(self._anatomical_offsets.keys())
         return names
@@ -342,10 +343,10 @@ class TrackerMapping:
 
 
 def _parse_anatomical_offset(
-    keypoint_name: str, entry: dict[str, Any]
+    landmark_name: str, entry: dict[str, Any]
 ) -> _AnatomicalOffsetDef:
     """Parse and validate an ``anatomical_offset`` mapping entry."""
-    _err = lambda msg: _mapping_error(keypoint_name, msg)
+    _err = lambda msg: _mapping_error(landmark_name, msg)
 
     origin = entry.get("origin")
     if not isinstance(origin, list) or len(origin) == 0:
@@ -423,7 +424,7 @@ def _parse_anatomical_offset(
         )
 
     return _AnatomicalOffsetDef(
-        keypoint_name=keypoint_name,
+        landmark_name=landmark_name,
         origin_keypoints=origin,
         axes=axes,
         offset_ratios=offset_ratios,
@@ -432,9 +433,9 @@ def _parse_anatomical_offset(
     )
 
 
-def _mapping_error(keypoint_name: str, detail: str) -> ValueError:
+def _mapping_error(landmark_name: str, detail: str) -> ValueError:
     return ValueError(
-        f"anatomical_offset '{keypoint_name}': {detail}"
+        f"anatomical_offset '{landmark_name}': {detail}"
     )
 
 
@@ -448,9 +449,9 @@ def _apply_anatomical_offset(
     tracker_positions: dict[str, np.ndarray],
     prefix: str,
 ) -> np.ndarray | None:
-    """Compute a derived keypoint position via anatomical offset.
+    """Compute a derived landmark position via anatomical offset.
 
-    Returns ``None`` if any required keypoint is missing or degenerate.
+    Returns ``None`` if any required tracker keypoint is missing or degenerate.
     """
     # ── 1. Resolve origin ───────────────────────────────────────
     origin = _mean_position(
@@ -515,7 +516,7 @@ def _apply_anatomical_offset(
 
     if len(undeclared_offset_names) > 1:
         raise ValueError(
-            f"Anatomical offset for {offset_def.keypoint_name!r} references "
+            f"Anatomical offset for {offset_def.landmark_name!r} references "
             f"{sorted(undeclared_offset_names)} beyond the declared frame axes "
             f"{sorted(defined_names)}. A frame has exactly three axes, so at most "
             f"one offset component may name the implicit third axis."
@@ -534,14 +535,14 @@ def _apply_anatomical_offset(
 
     # ── 5. Apply offset ─────────────────────────────────────────
     # Every named component must resolve to a basis axis. Silently skipping an
-    # unrecognized name would place the keypoint somewhere plausible-looking but
+    # unrecognized name would place the landmark somewhere plausible-looking but
     # wrong, with nothing to notice — a typo'd axis must fail, not degrade.
     offset_vec = np.zeros(3, dtype=np.float64)
     for axis_name, ratio in offset_def.offset_ratios.items():
         direction = basis.get(axis_name)
         if direction is None:
             raise ValueError(
-                f"Anatomical offset for {offset_def.keypoint_name!r} names axis "
+                f"Anatomical offset for {offset_def.landmark_name!r} names axis "
                 f"{axis_name!r}, which is not part of its frame "
                 f"{sorted(basis)}."
             )
@@ -556,13 +557,13 @@ def _apply_anatomical_offset(
 
 
 def _mean_position(
-    keypoint_names: list[str],
+    names: list[str],
     positions: dict[str, np.ndarray],
     prefix: str,
 ) -> np.ndarray | None:
-    """Compute the mean position of named keypoints, or None if any missing."""
+    """Compute the mean position of named tracker keypoints, or None if any missing."""
     pts: list[np.ndarray] = []
-    for name in keypoint_names:
+    for name in names:
         pos = positions.get(prefix + name)
         if pos is not None:
             pts.append(np.asarray(pos, dtype=np.float64))

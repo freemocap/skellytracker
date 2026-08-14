@@ -1,8 +1,9 @@
 """The tracker→standard-human mapping YAML paths.
 
-This module exists so that light consumers (skellyforge, a base-only install
-with no extras) can reach the tracker→standard-human mapping YAML files without
-importing any detector machinery (mediapipe / onnxruntime / torch trees).
+Each YAML defines how a tracker's keypoints hydrate the standard-human
+landmarks. This module exists so that light consumers (skellyforge, a base-only
+install with no extras) can reach those YAML files without importing any
+detector machinery (mediapipe / onnxruntime / torch trees).
 
 The four detector classes that produce a mapping path simply delegate to the
 constants defined here — this is the single source of truth for those paths, so

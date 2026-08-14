@@ -42,7 +42,7 @@ def _known_keypoints(mapping: TrackerMapping, mapping_path: str) -> set[str]:
     points (from the schema YAML) *plus* every name the mapping itself produces.
     """
     raw = set(load_point_names(Path(mapping_path).with_name(_SCHEMA_NAME[mapping_path])))
-    return raw | set(mapping.keypoint_names)
+    return raw | set(mapping.landmark_names)
 
 
 def test_both_body_mappings_load_with_known_tracker_keypoints():

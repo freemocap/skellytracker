@@ -1,12 +1,12 @@
-# MediaPipe body → standard-human keypoint mapping.
+# MediaPipe body → standard-human landmark hydration.
 #
-# Maps MediaPipe Pose (33-keypoint) keypoint names to the standard human's
-# keypoint names (COCO-WholeBody convention).
+# Keys are the standard human's landmark names; values are the MediaPipe Pose
+# (33-keypoint) keypoints that hydrate each landmark (COCO-WholeBody convention).
 #
-# Three mapping forms:
+# Three hydration forms:
 #   string  →  1:1 passthrough
 #   list    →  unweighted mean of listed keypoints
-#   dict    →  weighted sum of name:weight pairs
+#   dict    →  weighted sum of name:weight keypoints
 #
 # MediaPipe body differences from the standard human:
 #   - Uses left_foot_index / right_foot_index instead of

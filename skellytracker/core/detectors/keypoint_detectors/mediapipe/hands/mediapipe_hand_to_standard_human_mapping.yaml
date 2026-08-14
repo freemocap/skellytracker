@@ -1,7 +1,7 @@
-# MediaPipe hand → standard-human keypoint mapping.
+# MediaPipe hand → standard-human landmark hydration.
 #
 # Identity mapping — MediaPipe Hand keypoint names ARE the standard human's
-# hand keypoint names. Both use the same 21-point naming convention:
+# hand landmark names. Both use the same 21-point naming convention:
 # wrist, thumb_cmc, thumb_mcp, thumb_ip, thumb_tip,
 # index_finger_mcp/pip/dip/tip, middle_finger_mcp/pip/dip/tip,
 # ring_finger_mcp/pip/dip/tip, pinky_mcp/pip/dip/tip.

@@ -1,11 +1,12 @@
-# RTMPose body → standard-human keypoint mapping.
+# RTMPose body → standard-human landmark hydration.
 #
-# Maps RTMPose COCO-WholeBody body keypoint names to the standard human's
-# keypoint names. Three mapping forms are supported:
+# Keys are the standard human's landmark names; values are the RTMPose
+# COCO-WholeBody body keypoints that hydrate each landmark. Three hydration
+# forms are supported:
 #
-#   string  →  1:1 passthrough  (standard-human = tracker keypoint at that name)
-#   list    →  unweighted mean   (standard-human = mean of listed tracker keypoints)
-#   dict    →  weighted sum      (standard-human = weighted sum of name:weight pairs)
+#   string  →  1:1 passthrough  (landmark = tracker keypoint at that name)
+#   list    →  unweighted mean   (landmark = mean of listed tracker keypoints)
+#   dict    →  weighted sum      (landmark = weighted sum of name:weight keypoints)
 #
 # Missing tracker keypoints are silently skipped. For list/dict forms,
 # only present keypoints contribute to the result.
