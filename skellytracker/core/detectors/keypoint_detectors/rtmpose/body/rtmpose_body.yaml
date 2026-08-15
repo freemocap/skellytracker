@@ -1,9 +1,11 @@
 ---
 # RTMPose body tracked points and skeleton connections.
-# 17 landmarks (COCO17). Models: rtmpose-s/m_simcc-body7.
+# 23 keypoints (COCO17 + 6 foot points) in native body7 model channel order.
+# The body7 models emit the foot channels — every one is listed so the tracker
+# never drops its own keypoints. Models: rtmpose-s/m_simcc-body7.
 name: rtmpose_body
 tracker_type: rtmpose
-landmark_schema: COCO17
+landmark_schema: COCO17 + foot
 
 tracked_points:
   - nose
@@ -23,6 +25,12 @@ tracked_points:
   - right_knee
   - left_ankle
   - right_ankle
+  - left_big_toe
+  - left_small_toe
+  - left_heel
+  - right_big_toe
+  - right_small_toe
+  - right_heel
 
 connections:
   # face
