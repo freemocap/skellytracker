@@ -106,7 +106,7 @@ class TrackerMapping:
             produces ``right_hand_root`` but the mapping defines
             ``root`` → ``wrist``.
         """
-        with open(yaml_path, "r") as fh:
+        with open(yaml_path, "r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         if not isinstance(data, dict):
             raise TypeError(
