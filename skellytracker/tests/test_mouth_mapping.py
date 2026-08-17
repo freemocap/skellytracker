@@ -22,7 +22,7 @@ from skellytracker.core.io.mapping_paths import (
 )
 from skellytracker.core.io.tracker_mapping import TrackerMapping
 
-# Left–right handedness of the synthetic pose follows the canonical standard-human
+# Left–right handedness of the synthetic pose follows the standard-human
 # frame: +X forward (anterior), +Y LEFT, +Z up.  (right-handed: X × Y = Z)
 
 
