@@ -4,54 +4,54 @@
 # keypoints are side-prefixed (left_hand_* / right_hand_*) and use the
 # MediaPipe Hand 21-point naming (index_finger_*, pinky_*, ...).
 #
-# Keys are the standard human's SIDED hand landmark names (left_/right_ -
-# the hand.yaml part is instantiated left_/right_); values are the MediaPipe
+# Keys are the standard human's SIDED hand landmark names (left_hand_* / right_hand_* -
+# the hand.yaml part is instantiated left_hand_*/right_hand_*); values are the MediaPipe
 # hand keypoints that hydrate them. The wrist is NOT mapped here: it is
 # hydrated by the body mapping (left_wrist/right_wrist from the pose), the
 # shared arm<->hand joint.
 #
 # Finger-name reconciliation (MediaPipe -> standard human):
-#   index_finger_*  -> index_*      middle_finger_* -> middle_*
-#   ring_finger_*   -> ring_*       pinky_*         -> little_*
+#   index_finger_*  -> hand_index_*      middle_finger_* -> hand_middle_*
+#   ring_finger_*   -> hand_ring_*       pinky_*         -> hand_little_*
 
-left_thumb_cmc: "left_hand_thumb_cmc"
-left_thumb_mcp: "left_hand_thumb_mcp"
-left_thumb_ip: "left_hand_thumb_ip"
-left_thumb_tip: "left_hand_thumb_tip"
-left_index_mcp: "left_hand_index_finger_mcp"
-left_index_pip: "left_hand_index_finger_pip"
-left_index_dip: "left_hand_index_finger_dip"
-left_index_tip: "left_hand_index_finger_tip"
-left_middle_mcp: "left_hand_middle_finger_mcp"
-left_middle_pip: "left_hand_middle_finger_pip"
-left_middle_dip: "left_hand_middle_finger_dip"
-left_middle_tip: "left_hand_middle_finger_tip"
-left_ring_mcp: "left_hand_ring_finger_mcp"
-left_ring_pip: "left_hand_ring_finger_pip"
-left_ring_dip: "left_hand_ring_finger_dip"
-left_ring_tip: "left_hand_ring_finger_tip"
-left_little_mcp: "left_hand_pinky_mcp"
-left_little_pip: "left_hand_pinky_pip"
-left_little_dip: "left_hand_pinky_dip"
-left_little_tip: "left_hand_pinky_tip"
+left_hand_thumb_cmc: "left_hand_thumb_cmc"
+left_hand_thumb_mcp: "left_hand_thumb_mcp"
+left_hand_thumb_ip: "left_hand_thumb_ip"
+left_hand_thumb_tip: "left_hand_thumb_tip"
+left_hand_index_mcp: "left_hand_index_finger_mcp"
+left_hand_index_pip: "left_hand_index_finger_pip"
+left_hand_index_dip: "left_hand_index_finger_dip"
+left_hand_index_tip: "left_hand_index_finger_tip"
+left_hand_middle_mcp: "left_hand_middle_finger_mcp"
+left_hand_middle_pip: "left_hand_middle_finger_pip"
+left_hand_middle_dip: "left_hand_middle_finger_dip"
+left_hand_middle_tip: "left_hand_middle_finger_tip"
+left_hand_ring_mcp: "left_hand_ring_finger_mcp"
+left_hand_ring_pip: "left_hand_ring_finger_pip"
+left_hand_ring_dip: "left_hand_ring_finger_dip"
+left_hand_ring_tip: "left_hand_ring_finger_tip"
+left_hand_little_mcp: "left_hand_pinky_mcp"
+left_hand_little_pip: "left_hand_pinky_pip"
+left_hand_little_dip: "left_hand_pinky_dip"
+left_hand_little_tip: "left_hand_pinky_tip"
 
-right_thumb_cmc: "right_hand_thumb_cmc"
-right_thumb_mcp: "right_hand_thumb_mcp"
-right_thumb_ip: "right_hand_thumb_ip"
-right_thumb_tip: "right_hand_thumb_tip"
-right_index_mcp: "right_hand_index_finger_mcp"
-right_index_pip: "right_hand_index_finger_pip"
-right_index_dip: "right_hand_index_finger_dip"
-right_index_tip: "right_hand_index_finger_tip"
-right_middle_mcp: "right_hand_middle_finger_mcp"
-right_middle_pip: "right_hand_middle_finger_pip"
-right_middle_dip: "right_hand_middle_finger_dip"
-right_middle_tip: "right_hand_middle_finger_tip"
-right_ring_mcp: "right_hand_ring_finger_mcp"
-right_ring_pip: "right_hand_ring_finger_pip"
-right_ring_dip: "right_hand_ring_finger_dip"
-right_ring_tip: "right_hand_ring_finger_tip"
-right_little_mcp: "right_hand_pinky_mcp"
-right_little_pip: "right_hand_pinky_pip"
-right_little_dip: "right_hand_pinky_dip"
-right_little_tip: "right_hand_pinky_tip"
+right_hand_thumb_cmc: "right_hand_thumb_cmc"
+right_hand_thumb_mcp: "right_hand_thumb_mcp"
+right_hand_thumb_ip: "right_hand_thumb_ip"
+right_hand_thumb_tip: "right_hand_thumb_tip"
+right_hand_index_mcp: "right_hand_index_finger_mcp"
+right_hand_index_pip: "right_hand_index_finger_pip"
+right_hand_index_dip: "right_hand_index_finger_dip"
+right_hand_index_tip: "right_hand_index_finger_tip"
+right_hand_middle_mcp: "right_hand_middle_finger_mcp"
+right_hand_middle_pip: "right_hand_middle_finger_pip"
+right_hand_middle_dip: "right_hand_middle_finger_dip"
+right_hand_middle_tip: "right_hand_middle_finger_tip"
+right_hand_ring_mcp: "right_hand_ring_finger_mcp"
+right_hand_ring_pip: "right_hand_ring_finger_pip"
+right_hand_ring_dip: "right_hand_ring_finger_dip"
+right_hand_ring_tip: "right_hand_ring_finger_tip"
+right_hand_little_mcp: "right_hand_pinky_mcp"
+right_hand_little_pip: "right_hand_pinky_pip"
+right_hand_little_dip: "right_hand_pinky_dip"
+right_hand_little_tip: "right_hand_pinky_tip"

@@ -31,10 +31,10 @@ left_ankle: "left_ankle"
 right_ankle: "right_ankle"
 left_big_toe: "left_big_toe"
 left_small_toe: "left_small_toe"
-left_heel: "left_heel"
+left_foot_heel: "left_heel"
 right_big_toe: "right_big_toe"
 right_small_toe: "right_small_toe"
-right_heel: "right_heel"
+right_foot_heel: "right_heel"
 
 # ---- Computed keypoints (mean of tracker keypoints) ----
 head_center: ["left_ear", "right_ear"]

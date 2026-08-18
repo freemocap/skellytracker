@@ -34,8 +34,8 @@ left_knee: "left_knee"
 right_knee: "right_knee"
 left_ankle: "left_ankle"
 right_ankle: "right_ankle"
-left_heel: "left_heel"
-right_heel: "right_heel"
+left_foot_heel: "left_heel"
+right_foot_heel: "right_heel"
 
 # ---- MediaPipe → standard-human foot name mapping ----
 left_big_toe: "left_foot_index"
