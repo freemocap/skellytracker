@@ -60,7 +60,7 @@ Session → Detector** pipeline, implemented in the `skellytracker/core/` packag
    Concrete: `OnnxSession` (`OnnxSessionConfig(batch_size, models)`),
    `MediaPipeSession`, `CpuSession`.
 
-### Canonical data types
+### Core data types
 
 - **`Keypoints`** (`core/data_primitives/keypoints.py`) — named keypoints:
   `.xyz` `(N, 3)`, `.names` `tuple[str, ...]` (i-th name ↔ i-th row),
