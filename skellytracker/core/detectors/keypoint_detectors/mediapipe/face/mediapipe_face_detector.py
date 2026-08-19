@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
-import mediapipe as mp
 import numpy as np
 from numpy.typing import NDArray
 
@@ -105,6 +104,7 @@ class MediapipeFaceKeypointDetector(KeypointDetector):
     ) -> Keypoints:
         h, w = image.shape[:2]
         rgb = _to_rgb(image)
+        import mediapipe as mp  # noqa: PLC0415 — heavy; deferred to the per-frame path
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
 
         if self.session.running_mode == "video":
