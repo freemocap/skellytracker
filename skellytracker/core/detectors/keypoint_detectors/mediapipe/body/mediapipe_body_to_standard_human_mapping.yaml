@@ -9,8 +9,8 @@
 #   dict    →  weighted sum of name:weight keypoints
 #
 # MediaPipe body differences from the standard human:
-#   - Uses left_foot_index / right_foot_index instead of
-#     left_big_toe / left_small_toe
+#   - Uses left_foot_index / right_foot_index (one point for both toes)
+#     instead of distinct big-toe / pinky-toe tips
 #   - Has extra face-related body points (left_eye_inner, mouth_left, etc.)
 #     that have no standard-human analogue — these are not mapped.
 
@@ -39,9 +39,9 @@ right_foot_calcaneus: "right_heel"
 
 # ---- MediaPipe → standard-human foot name mapping ----
 left_foot_big_toe_tip: "left_foot_index"
-left_small_toe: "left_foot_index"    # MediaPipe has no small_toe; map to foot_index
+left_foot_pinky_toe_tip: "left_foot_index"    # MediaPipe has no pinky toe; map to foot_index
 right_foot_big_toe_tip: "right_foot_index"
-right_small_toe: "right_foot_index"
+right_foot_pinky_toe_tip: "right_foot_index"
 
 # ---- Computed keypoints ----
 head_center: ["left_ear", "right_ear"]
