@@ -34,13 +34,13 @@ left_knee: "left_knee"
 right_knee: "right_knee"
 left_ankle: "left_ankle"
 right_ankle: "right_ankle"
-left_foot_heel: "left_heel"
-right_foot_heel: "right_heel"
+left_foot_calcaneus: "left_heel"
+right_foot_calcaneus: "right_heel"
 
 # ---- MediaPipe → standard-human foot name mapping ----
-left_big_toe: "left_foot_index"
+left_foot_big_toe_tip: "left_foot_index"
 left_small_toe: "left_foot_index"    # MediaPipe has no small_toe; map to foot_index
-right_big_toe: "right_foot_index"
+right_foot_big_toe_tip: "right_foot_index"
 right_small_toe: "right_foot_index"
 
 # ---- Computed keypoints ----
@@ -177,7 +177,7 @@ left_foot_ball:
   frame:
     forward:
       from: left_ankle
-      to: left_big_toe
+      to: left_foot_big_toe_tip
       kind: exact
     shin:
       from: left_knee
@@ -187,7 +187,7 @@ left_foot_ball:
     forward: 0.67
   reference_length:
     from: left_ankle
-    to: left_big_toe
+    to: left_foot_big_toe_tip
 
 right_foot_ball:
   form: anatomical_offset
@@ -195,7 +195,7 @@ right_foot_ball:
   frame:
     forward:
       from: right_ankle
-      to: right_big_toe
+      to: right_foot_big_toe_tip
       kind: exact
     shin:
       from: right_knee
@@ -205,7 +205,7 @@ right_foot_ball:
     forward: 0.67
   reference_length:
     from: right_ankle
-    to: right_big_toe
+    to: right_foot_big_toe_tip
 
 # ---- Derived: the jaw (chin) ----
 #
