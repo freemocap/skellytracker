@@ -28,7 +28,7 @@ from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_preprocessi
 )
 from skellytracker.core.detectors.metadata import RTMPoseMetadata
 from skellytracker.core.sessions.model_registry import ModelSource
-from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
+from skellytracker.core.sessions.onnx_model_spec import OnnxModelSpec
 from skellytracker.core.sessions.session import Session
 
 logger = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ class RTMPoseFaceDetector(KeypointDetector):
     """RTMPose face SIMCC detector — 106 keypoints (LaPa format)."""
 
     config: RTMPoseFaceDetectorConfig
-    session: OnnxSession
+    session: Session
     _point_names: tuple[str, ...] = field(default_factory=lambda: _POINT_NAMES, init=False, repr=False)
 
     def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], RTMPoseMetadata]:
@@ -167,6 +167,7 @@ class RTMPoseFaceDetector(KeypointDetector):
 
     @classmethod
     def create(cls, config: KeypointDetectorConfig, session: Session) -> RTMPoseFaceDetector:
+        from skellytracker.core.sessions.onnx_session import OnnxSession  # noqa: PLC0415 — heavy; deferred
         if not isinstance(session, OnnxSession):
             raise TypeError(f"Expected OnnxSession, got {type(session).__name__}")
         if not isinstance(config, RTMPoseFaceDetectorConfig):

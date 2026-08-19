@@ -32,7 +32,7 @@ from skellytracker.core.detectors.metadata import YoloxMetadata
 from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import prepare_yolox_onnx
 from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import multiclass_nms, yolox_letterbox_preprocess
 from skellytracker.core.sessions.model_registry import ModelSource
-from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
+from skellytracker.core.sessions.onnx_model_spec import OnnxModelSpec
 from skellytracker.core.sessions.session import Session
 
 logger = logging.getLogger(__name__)
@@ -93,7 +93,7 @@ class YoloxPersonDetector(ObjectDetector):
     """
 
     config: YoloxPersonDetectorConfig
-    session: OnnxSession
+    session: Session
 
     def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], YoloxMetadata]:
         """Letterbox-pad and transpose image for YOLOX inference.
@@ -174,6 +174,7 @@ class YoloxPersonDetector(ObjectDetector):
 
     @classmethod
     def create(cls, config: ObjectDetectorConfig, session: Session) -> YoloxPersonDetector:
+        from skellytracker.core.sessions.onnx_session import OnnxSession  # noqa: PLC0415 — heavy; deferred
         if not isinstance(session, OnnxSession):
             raise TypeError(f"Expected OnnxSession, got {type(session).__name__}")
         if not isinstance(config, YoloxPersonDetectorConfig):
@@ -217,7 +218,7 @@ YOLOX_MODEL_SPECS: dict[str, OnnxModelSpec] = {
 
 def _detect_yolox(
     image: NDArray[np.uint8],
-    session: OnnxSession,
+    session: Session,
     model_name: str,
     input_size: tuple[int, int],
     score_threshold: float,
