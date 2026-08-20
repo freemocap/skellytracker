@@ -256,27 +256,33 @@ class TrackerMapping:
                     )
             elif isinstance(entry, tuple):
                 positions: list[np.ndarray] = []
+                complete = True
                 for name in entry:
                     pos = tracker_positions.get(prefix + name)
-                    if pos is not None:
-                        positions.append(
-                            np.asarray(pos, dtype=np.float64)
-                        )
-                if positions:
+                    if pos is None:
+                        complete = False
+                        break
+                    positions.append(np.asarray(pos, dtype=np.float64))
+                # A mean requires ALL its inputs: a partial mean would silently
+                # relabel a different point. Missing any -> omit (occlusion is data).
+                if complete and positions:
                     result[landmark_name] = np.mean(
                         np.column_stack(positions), axis=1
                     )
             elif isinstance(entry, dict):
                 weighted: list[np.ndarray] = []
                 total_weight = 0.0
+                complete = True
                 for name, weight in entry.items():
                     pos = tracker_positions.get(prefix + name)
-                    if pos is not None:
-                        weighted.append(
-                            np.asarray(pos, dtype=np.float64) * weight
-                        )
-                        total_weight += weight
-                if weighted and total_weight > 0.0:
+                    if pos is None:
+                        complete = False
+                        break
+                    weighted.append(np.asarray(pos, dtype=np.float64) * weight)
+                    total_weight += weight
+                # All weighted inputs required: renormalizing over survivors would
+                # silently change what the landmark means. Missing any -> omit.
+                if complete and weighted and total_weight > 0.0:
                     result[landmark_name] = sum(weighted) / total_weight
 
         # ── Pass 2: anatomical_offset form ───────────────────────
@@ -561,12 +567,15 @@ def _mean_position(
     positions: dict[str, np.ndarray],
     prefix: str,
 ) -> np.ndarray | None:
-    """Compute the mean position of named tracker keypoints, or None if any missing."""
+    """Compute the mean position of named tracker keypoints, or None if ANY is
+    missing. A partial mean would silently relabel a different point (e.g. one
+    hip returned as ``hips_center``), so an incomplete input yields no result."""
     pts: list[np.ndarray] = []
     for name in names:
         pos = positions.get(prefix + name)
-        if pos is not None:
-            pts.append(np.asarray(pos, dtype=np.float64))
+        if pos is None:
+            return None
+        pts.append(np.asarray(pos, dtype=np.float64))
     if not pts:
         return None
     return np.mean(np.column_stack(pts), axis=1)
