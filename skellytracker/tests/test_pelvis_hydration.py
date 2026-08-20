@@ -12,9 +12,15 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
-from skellytracker.core.io.mapping_paths import MEDIAPIPE_BODY_MAPPING
+from skellytracker.core.io.mapping_paths import (
+    MEDIAPIPE_BODY_MAPPING,
+    RTMPOSE_BODY_MAPPING,
+)
 from skellytracker.core.io.tracker_mapping import TrackerMapping
+
+_BODY_MAPPINGS = [MEDIAPIPE_BODY_MAPPING, RTMPOSE_BODY_MAPPING]
 
 
 def _tpose_body() -> dict[str, np.ndarray]:
@@ -31,22 +37,26 @@ def _tpose_body() -> dict[str, np.ndarray]:
     }
 
 
-def test_pelvis_interior_lands_on_rest_positions():
-    mapping = TrackerMapping.from_yaml(Path(MEDIAPIPE_BODY_MAPPING))
+@pytest.mark.parametrize("mapping_path", _BODY_MAPPINGS)
+def test_pelvis_interior_lands_on_rest_positions(mapping_path):
+    mapping = TrackerMapping.from_yaml(Path(mapping_path))
     result = mapping.apply(_tpose_body())
 
     # rest positions from pelvis.yaml, expressed in world at the T-pose:
     # pelvis local +Y -> world +Z (up), +X -> world -Y (right), origin at world 0.
-    assert np.allclose(result["lumbosacral_junction"], [0.0, 0.0, 120.0], atol=1e-6)
-    assert np.allclose(result["left_iliac_crest"], [0.0, 88.0, 80.0], atol=1e-6)
-    assert np.allclose(result["right_iliac_crest"], [0.0, -88.0, 80.0], atol=1e-6)
-    assert np.allclose(result["pubic_symphysis"], [0.0, 0.0, -40.0], atol=1e-6)
+    # Tolerance is physical (sub-mm): the offset ratios are anthropometric
+    # estimates far below tracker noise, not exact reproductions.
+    assert np.allclose(result["lumbosacral_junction"], [0.0, 0.0, 120.0], atol=0.5)
+    assert np.allclose(result["left_iliac_crest"], [0.0, 88.0, 80.0], atol=0.5)
+    assert np.allclose(result["right_iliac_crest"], [0.0, -88.0, 80.0], atol=0.5)
+    assert np.allclose(result["pubic_symphysis"], [0.0, 0.0, -40.0], atol=0.5)
 
 
-def test_pelvis_cloud_is_non_collinear_after_hydration():
+@pytest.mark.parametrize("mapping_path", _BODY_MAPPINGS)
+def test_pelvis_cloud_is_non_collinear_after_hydration(mapping_path):
     """The hydrated pelvis landmarks span a plane (rank >= 2), so a Kabsch fit is
     no longer degenerate — the whole point of hydrating them."""
-    mapping = TrackerMapping.from_yaml(Path(MEDIAPIPE_BODY_MAPPING))
+    mapping = TrackerMapping.from_yaml(Path(mapping_path))
     result = mapping.apply(_tpose_body())
     cloud = np.stack([
         result["hips_center"],

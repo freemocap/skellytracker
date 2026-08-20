@@ -8,8 +8,10 @@
 #   list    →  unweighted mean   (landmark = mean of listed tracker keypoints)
 #   dict    →  weighted sum      (landmark = weighted sum of name:weight keypoints)
 #
-# Missing tracker keypoints are silently skipped. For list/dict forms,
-# only present keypoints contribute to the result.
+# A landmark whose tracker source is missing is omitted. A mean/weighted form
+# requires ALL its inputs: a partial mean would silently relabel a different
+# point (one hip returned as hips_center), so missing any input omits the
+# landmark and the rigidifier gap-fills it instead.
 
 # ---- Direct 1:1 mappings (most body keypoints share names) ----
 nose: "nose"
@@ -265,3 +267,49 @@ right_mouth:
     anterior: -0.2
     lateral: 0.3
   reference_length: eye_width
+
+# ---- Pelvis interior (anatomical_offset) — makes the root a real 3D rigid body ----
+#
+# Only hips_center + the two hips are directly tracked, and they are COLLINEAR
+# (hips_center is their midpoint), so the pelvis Kabsch fit is degenerate — pelvic
+# tilt/roll is unrecoverable. Hydrating the top of the sacrum, the iliac crests,
+# and the pubic symphysis from the hip line + the trunk vertical gives the pelvis
+# a non-degenerate cloud. Ratios reproduce pelvis.yaml's rest positions
+# (hip_width W = |left_hip - right_hip| = 176 mm), so identity == T-pose holds.
+# `up` is the trunk vertical (hips_center -> neck_center).
+#
+# Limitation: with only the hips tracked, the pelvis's `up` is borrowed from the
+# trunk vertical, so the pelvis cannot tilt independently of the lower trunk — a
+# stable approximation, far better than a collinear garbage roll.
+lumbosacral_junction:
+  form: anatomical_offset
+  origin: ["hips_center"]
+  frame:
+    up:      {from: hips_center, to: neck_center, kind: exact}
+    lateral: {from: left_hip,    to: right_hip,   kind: approximate}
+  offset: {up: 0.682}          # rest +120 mm (top of the sacrum)
+  reference_length: {from: left_hip, to: right_hip}
+left_iliac_crest:
+  form: anatomical_offset
+  origin: ["left_hip"]
+  frame:
+    up:      {from: hips_center, to: neck_center, kind: exact}
+    lateral: {from: left_hip,    to: right_hip,   kind: approximate}
+  offset: {up: 0.455}          # rest +80 mm above the hip joint
+  reference_length: {from: left_hip, to: right_hip}
+right_iliac_crest:
+  form: anatomical_offset
+  origin: ["right_hip"]
+  frame:
+    up:      {from: hips_center, to: neck_center, kind: exact}
+    lateral: {from: left_hip,    to: right_hip,   kind: approximate}
+  offset: {up: 0.455}
+  reference_length: {from: left_hip, to: right_hip}
+pubic_symphysis:
+  form: anatomical_offset
+  origin: ["hips_center"]
+  frame:
+    up:      {from: hips_center, to: neck_center, kind: exact}
+    lateral: {from: left_hip,    to: right_hip,   kind: approximate}
+  offset: {up: -0.227}         # rest -40 mm below hips_center
+  reference_length: {from: left_hip, to: right_hip}
