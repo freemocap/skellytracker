@@ -1,4 +1,4 @@
-commitfrom skellytracker.core.config.detection_stage_config import DetectionStageConfig
+from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.config.detector_configs import (
     KeypointDetectorConfig,
     ObjectDetectorConfig,
