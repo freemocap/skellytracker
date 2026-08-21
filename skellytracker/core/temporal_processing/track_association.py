@@ -121,6 +121,7 @@ class AssociationResult:
     matches: list[tuple[int, int]]
     unmatched_tracks: list[int]
     unmatched_detections: list[int]
+    held_detections: list[int]
 
 
 def associate(
@@ -143,6 +144,7 @@ def associate(
             matches=[],
             unmatched_tracks=list(range(n_tracks)),
             unmatched_detections=list(range(n_dets)),
+            held_detections=[],
         )
 
     cost = combined_cost_matrix(track_bboxes, track_keypoints, det_bboxes, det_keypoints, config)
@@ -156,16 +158,31 @@ def associate(
     matches: list[tuple[int, int]] = []
     matched_tracks: set[int] = set()
     matched_dets: set[int] = set()
+    held_dets: set[int] = set()
     for t, d in zip(track_idx, det_idx, strict=False):
-        if cost[t, d] <= config.max_match_cost:
+        alternatives = np.delete(cost[t], d)
+        finite_alternatives = alternatives[np.isfinite(alternatives)]
+        ambiguous = (
+            finite_alternatives.size > 0
+            and float(finite_alternatives.min() - cost[t, d]) < config.ambiguity_margin
+        )
+        if ambiguous:
+            # Reserve this detection for the frame, but hold the existing
+            # track instead of accepting a low-confidence identity decision
+            # or spawning a duplicate track during a crossing.
+            held_dets.add(int(d))
+        elif cost[t, d] <= config.max_match_cost:
             matches.append((int(t), int(d)))
             matched_tracks.add(int(t))
             matched_dets.add(int(d))
 
     unmatched_tracks = [t for t in range(n_tracks) if t not in matched_tracks]
-    unmatched_detections = [d for d in range(n_dets) if d not in matched_dets]
+    unmatched_detections = [
+        d for d in range(n_dets) if d not in matched_dets and d not in held_dets
+    ]
     return AssociationResult(
         matches=matches,
         unmatched_tracks=unmatched_tracks,
         unmatched_detections=unmatched_detections,
+        held_detections=sorted(held_dets),
     )

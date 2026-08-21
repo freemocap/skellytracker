@@ -31,3 +31,5 @@ class MultiPersonTrackingConfig(BaseModel):
     max_match_cost: float = 0.8
     max_age: int = 10
     min_hits: int = 3
+    max_persons: int = 2
+    ambiguity_margin: float = 0.08

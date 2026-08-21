@@ -133,3 +133,17 @@ class TestAssociate:
         assert result.matches == []
         assert result.unmatched_tracks == [0]
         assert result.unmatched_detections == []
+
+    def test_ambiguous_crossing_holds_tracks_instead_of_swapping(self):
+        config = MultiPersonTrackingConfig(ambiguity_margin=0.1)
+        track_bboxes = [_box(0, 0, 20, 20), _box(0, 0, 20, 20)]
+        track_kpts = [_kpts(10, 10), _kpts(10, 10)]
+        det_bboxes = [_box(1, 0, 21, 20), _box(-1, 0, 19, 20)]
+        det_kpts = [_kpts(10, 10), _kpts(10, 10)]
+
+        result = associate(track_bboxes, track_kpts, det_bboxes, det_kpts, config)
+
+        assert result.matches == []
+        assert result.unmatched_tracks == [0, 1]
+        assert result.unmatched_detections == []
+        assert result.held_detections == [0, 1]

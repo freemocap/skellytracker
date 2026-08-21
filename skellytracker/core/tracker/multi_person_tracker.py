@@ -71,7 +71,11 @@ class MultiPersonTracker:
         root = self.stages[0]
 
         # 1. Propose candidate person boxes for the whole frame.
-        candidate_bboxes = root.object_detector.detect(image, context)
+        candidate_bboxes = sorted(
+            root.object_detector.detect(image, context),
+            key=lambda bbox: bbox.confidence,
+            reverse=True,
+        )[: self.multi_person_config.max_persons]
 
         # 2. Run keypoint detection per candidate, independent of identity —
         # every downstream stage (root + children) computes raw detections,
@@ -86,7 +90,7 @@ class MultiPersonTracker:
 
         # 3. Associate this frame's candidates against existing tracks.
         track_ids = list(tracks.keys())
-        track_bboxes: list[BoundingBox | None] = [tracks[tid].last_bbox for tid in track_ids]
+        track_bboxes: list[BoundingBox | None] = [tracks[tid].predicted_bbox() for tid in track_ids]
         track_keypoints: list[Keypoints | None] = [tracks[tid].last_keypoints for tid in track_ids]
         result = associate(
             track_bboxes, track_keypoints, candidate_bboxes, candidate_keypoints, self.multi_person_config
@@ -100,6 +104,8 @@ class MultiPersonTracker:
 
         # 5. Unmatched detections: spawn new tracks.
         for det_idx in result.unmatched_detections:
+            if len(tracks) >= self.multi_person_config.max_persons:
+                continue
             track_id = self._next_track_id
             self._next_track_id += 1
             track = PersonTrackState(track_id=track_id)
@@ -158,7 +164,9 @@ class MultiPersonTracker:
             obs, updated_state = stage.finalize_track(raw, state, context)
             track.stage_states[stage.name] = updated_state
             if stage.name == self.stages[0].name:
-                track.last_bbox = obs.bounding_boxes[0] if obs.bounding_boxes else raw.bbox
+                next_bbox = obs.bounding_boxes[0] if obs.bounding_boxes else raw.bbox
+                track.update_motion(next_bbox)
+                track.last_bbox = next_bbox
                 track.last_keypoints = obs.keypoints
             for child in stage.children:
                 _recurse(child)

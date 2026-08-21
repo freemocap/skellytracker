@@ -116,6 +116,21 @@ _IMAGE = np.zeros((480, 640, 3), dtype=np.uint8)
 # ---------------------------------------------------------------------------
 
 class TestMultiPersonTracker:
+    def test_limits_candidates_to_two_highest_confidence_people(self):
+        script = {
+            0: [
+                BoundingBox(0, 0, 50, 50, confidence=0.7),
+                BoundingBox(100, 0, 150, 50, confidence=0.95),
+                BoundingBox(200, 0, 250, 50, confidence=0.8),
+            ]
+        }
+        tracker = _make_tracker(script)
+        observation, tracks = tracker.process_image(_IMAGE, 0, {})
+
+        assert len(tracks) == 2
+        assert len(observation.people) == 2
+        assert sorted(track.last_bbox.confidence for track in tracks.values()) == [0.8, 0.95]
+
     def test_two_people_get_stable_distinct_track_ids_across_frames(self):
         # Two people, non-overlapping, drifting slowly — 6 frames.
         script = {
