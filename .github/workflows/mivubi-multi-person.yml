@@ -1,0 +1,29 @@
+name: Mivubi multi-person regression
+
+on:
+  push:
+    branches: [feature/mivubi-multi-person]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.12.5"
+          enable-cache: true
+      - run: uv sync --frozen --extra all-cpu
+      - run: uv run ruff check skellytracker/
+      - run: >-
+          uv run pytest -q
+          skellytracker/tests/test_track_association.py
+          skellytracker/tests/test_multi_person_tracker.py
+          skellytracker/tests/test_temporal_processing.py
+          skellytracker/tests/test_keypoints.py
+          skellytracker/tests/test_precomputed_object_detector.py
