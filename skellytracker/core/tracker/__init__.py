@@ -6,6 +6,8 @@ from skellytracker.core.tracker.tracker_state import (
     StageState,
     TrackerState,
 )
+from skellytracker.core.tracker.multi_person_tracker import MultiPersonTracker
+from skellytracker.core.tracker.person_track import PersonTrackState
 
 __all__ = [
     "BBoxSmoothingState",
@@ -14,4 +16,6 @@ __all__ = [
     "StageState",
     "Tracker",
     "TrackerState",
+    "MultiPersonTracker",
+    "PersonTrackState",
 ]

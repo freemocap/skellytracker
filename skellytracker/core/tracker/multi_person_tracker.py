@@ -40,6 +40,7 @@ class MultiPersonTracker:
     stages: list[DetectionStage]
     multi_person_config: MultiPersonTrackingConfig = field(default_factory=MultiPersonTrackingConfig)
     sessions: dict[str, Session] = field(default_factory=dict)
+    owns_sessions: bool = True
     _next_track_id: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
@@ -200,8 +201,9 @@ class MultiPersonTracker:
     def close(self) -> None:
         for stage in self.stages:
             stage.close()
-        for session in self.sessions.values():
-            session.close()
+        if self.owns_sessions:
+            for session in self.sessions.values():
+                session.close()
 
     def reset_temporal_state(self) -> None:
         for stage in self.stages:
@@ -213,10 +215,12 @@ class MultiPersonTracker:
         config: TrackerConfig,
         sessions: dict[str, Session],
         multi_person_config: MultiPersonTrackingConfig | None = None,
+        owns_sessions: bool = True,
     ) -> MultiPersonTracker:
         stages = [DetectionStage.create(stage_cfg, sessions) for stage_cfg in config.stages]
         return cls(
             stages=stages,
             multi_person_config=multi_person_config or MultiPersonTrackingConfig(),
             sessions=sessions,
+            owns_sessions=owns_sessions,
         )

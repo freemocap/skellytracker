@@ -35,12 +35,14 @@ class _FakeKeypointDetectorConfig(KeypointDetectorConfig):
 
 @dataclass
 class _FakeSession(Session):
+    close_count: int = 0
+
     @classmethod
     def create(cls, config: SessionConfig) -> "_FakeSession":
         return cls()
 
     def close(self) -> None:
-        pass
+        self.close_count += 1
 
 
 @dataclass
@@ -116,6 +118,14 @@ _IMAGE = np.zeros((480, 640, 3), dtype=np.uint8)
 # ---------------------------------------------------------------------------
 
 class TestMultiPersonTracker:
+    def test_shared_session_can_be_closed_by_its_owner_only(self):
+        session = _FakeSession()
+        tracker = _make_tracker({})
+        tracker.sessions = {"shared": session}
+        tracker.owns_sessions = False
+        tracker.close()
+        assert session.close_count == 0
+
     def test_limits_candidates_to_two_highest_confidence_people(self):
         script = {
             0: [

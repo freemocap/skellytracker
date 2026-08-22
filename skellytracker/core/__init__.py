@@ -7,7 +7,7 @@ from skellytracker.core.config import (
     SessionConfig,
     TrackerConfig,
 )
-from skellytracker.core.data_primitives import BoundingBox, DataStore, Keypoints, Observation, StageObservation
+from skellytracker.core.data_primitives import BoundingBox, DataStore, Keypoints, MultiPersonObservation, Observation, StageObservation
 from skellytracker.core.detectors import (
     KEYPOINT_DETECTOR_REGISTRY,
     OBJECT_DETECTOR_REGISTRY,
@@ -33,6 +33,8 @@ from skellytracker.core.tracker import (
     StageState,
     Tracker,
     TrackerState,
+    MultiPersonTracker,
+    PersonTrackState,
 )
 
 __all__ = [
@@ -59,6 +61,7 @@ __all__ = [
     "PrecomputedObjectDetector",
     "PrecomputedObjectDetectorConfig",
     "Observation",
+    "MultiPersonObservation",
     "InferenceError",
     "InferencePipelineError",
     "Session",
@@ -72,4 +75,6 @@ __all__ = [
     "TrackerConfig",
     "TrackerMapping",
     "TrackerState",
+    "MultiPersonTracker",
+    "PersonTrackState",
 ]
