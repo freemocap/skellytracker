@@ -149,6 +149,7 @@ dev = [
     "poethepoet>=0.32.0",
     "pytest",
     "ruff",
+    "skellyforge",
 ]
 
 [tool.uv]
@@ -200,6 +201,7 @@ skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
 
 [tool.uv.sources]
 skellytracker-rust = { path = "skellytracker-rust" }
+skellyforge = { git = "https://github.com/freemocap/skellyforge", branch = "development-streaming" }
 
 [[tool.uv.index]]
 name = "nvidia"

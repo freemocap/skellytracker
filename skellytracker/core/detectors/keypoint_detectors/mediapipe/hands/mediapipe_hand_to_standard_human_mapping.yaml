@@ -1,54 +1,52 @@
-# MediaPipe hand -> standard-human hand landmark hydration.
+# MediaPipe hand → standard-human hand landmark hydration.
 #
-# The realtime path triangulates the MediaPipe HandLandmarker stage, whose
-# keypoints are side-prefixed (left_hand_* / right_hand_*) and use the
-# MediaPipe Hand 21-point naming (thumb_cmc, thumb_mcp, index_finger_mcp, ...).
+# The realtime path triangulates the MediaPipe HandLandmarker stage, whose keypoints are
+# side-prefixed (left_hand_* / right_hand_*) and use the MediaPipe Hand 21-point naming
+# (thumb_cmc, thumb_mcp, thumb_ip, thumb_tip, index_finger_mcp, ...).
 #
-# Keys are the standard human SIDED hand landmark names (left_hand_*/right_hand_*);
-# values are the MediaPipe hand keypoints that hydrate them. The wrist is NOT
-# mapped here: it is hydrated by the body mapping (left_wrist/right_wrist from
-# the pose), the shared arm<->hand joint. The seven derived carpal bones
-# (scaphoid, lunate, triquetrum, pisiform, trapezoid, capitate, hamate) ride the
-# hand rigid solve and are not mapped; only the trapezium (the thumb
-# carpometacarpal joint) has a tracker keypoint (thumb_cmc).
-#
-left_hand_trapezium: "left_hand_thumb_cmc"
-left_hand_thumb_metacarpophalangeal_joint: "left_hand_thumb_mcp"
-left_hand_thumb_interphalangeal_joint: "left_hand_thumb_ip"
-left_hand_thumb_tip: "left_hand_thumb_tip"
-left_hand_index_finger_metacarpophalangeal_joint: "left_hand_index_finger_mcp"
-left_hand_index_finger_proximal_interphalangeal_joint: "left_hand_index_finger_pip"
-left_hand_index_finger_distal_interphalangeal_joint: "left_hand_index_finger_dip"
-left_hand_index_finger_tip: "left_hand_index_finger_tip"
-left_hand_middle_finger_metacarpophalangeal_joint: "left_hand_middle_finger_mcp"
-left_hand_middle_finger_proximal_interphalangeal_joint: "left_hand_middle_finger_pip"
-left_hand_middle_finger_distal_interphalangeal_joint: "left_hand_middle_finger_dip"
-left_hand_middle_finger_tip: "left_hand_middle_finger_tip"
-left_hand_ring_finger_metacarpophalangeal_joint: "left_hand_ring_finger_mcp"
-left_hand_ring_finger_proximal_interphalangeal_joint: "left_hand_ring_finger_pip"
-left_hand_ring_finger_distal_interphalangeal_joint: "left_hand_ring_finger_dip"
-left_hand_ring_finger_tip: "left_hand_ring_finger_tip"
-left_hand_pinky_finger_metacarpophalangeal_joint: "left_hand_pinky_mcp"
-left_hand_pinky_finger_proximal_interphalangeal_joint: "left_hand_pinky_pip"
-left_hand_pinky_finger_distal_interphalangeal_joint: "left_hand_pinky_dip"
-left_hand_pinky_finger_tip: "left_hand_pinky_tip"
-right_hand_trapezium: "right_hand_thumb_cmc"
-right_hand_thumb_metacarpophalangeal_joint: "right_hand_thumb_mcp"
-right_hand_thumb_interphalangeal_joint: "right_hand_thumb_ip"
-right_hand_thumb_tip: "right_hand_thumb_tip"
-right_hand_index_finger_metacarpophalangeal_joint: "right_hand_index_finger_mcp"
-right_hand_index_finger_proximal_interphalangeal_joint: "right_hand_index_finger_pip"
-right_hand_index_finger_distal_interphalangeal_joint: "right_hand_index_finger_dip"
-right_hand_index_finger_tip: "right_hand_index_finger_tip"
-right_hand_middle_finger_metacarpophalangeal_joint: "right_hand_middle_finger_mcp"
-right_hand_middle_finger_proximal_interphalangeal_joint: "right_hand_middle_finger_pip"
-right_hand_middle_finger_distal_interphalangeal_joint: "right_hand_middle_finger_dip"
-right_hand_middle_finger_tip: "right_hand_middle_finger_tip"
-right_hand_ring_finger_metacarpophalangeal_joint: "right_hand_ring_finger_mcp"
-right_hand_ring_finger_proximal_interphalangeal_joint: "right_hand_ring_finger_pip"
-right_hand_ring_finger_distal_interphalangeal_joint: "right_hand_ring_finger_dip"
-right_hand_ring_finger_tip: "right_hand_ring_finger_tip"
-right_hand_pinky_finger_metacarpophalangeal_joint: "right_hand_pinky_mcp"
-right_hand_pinky_finger_proximal_interphalangeal_joint: "right_hand_pinky_pip"
-right_hand_pinky_finger_distal_interphalangeal_joint: "right_hand_pinky_dip"
-right_hand_pinky_finger_tip: "right_hand_pinky_tip"
+# Keys are the standard human SIDED hand landmark names (left_*/right_*); values are the
+# MediaPipe hand keypoints. The wrist is NOT mapped here: it is hydrated by the body
+# mapping (left_wrist/right_wrist), the shared arm<->hand joint (its landmark is
+# carpal_origin). The derived carpal bones and the finger CMC joints ride the hand rigid
+# solve and are not mapped; only thumb_cmc has a tracker keypoint (thumb_cmc).
+
+left_thumb_cmc: "left_hand_thumb_cmc"
+left_thumb_mcp: "left_hand_thumb_mcp"
+left_thumb_ip: "left_hand_thumb_ip"
+left_thumb_tip: "left_hand_thumb_tip"
+left_index_mcp: "left_hand_index_finger_mcp"
+left_index_pip: "left_hand_index_finger_pip"
+left_index_dip: "left_hand_index_finger_dip"
+left_index_tip: "left_hand_index_finger_tip"
+left_middle_mcp: "left_hand_middle_finger_mcp"
+left_middle_pip: "left_hand_middle_finger_pip"
+left_middle_dip: "left_hand_middle_finger_dip"
+left_middle_tip: "left_hand_middle_finger_tip"
+left_ring_mcp: "left_hand_ring_finger_mcp"
+left_ring_pip: "left_hand_ring_finger_pip"
+left_ring_dip: "left_hand_ring_finger_dip"
+left_ring_tip: "left_hand_ring_finger_tip"
+left_pinky_mcp: "left_hand_pinky_mcp"
+left_pinky_pip: "left_hand_pinky_pip"
+left_pinky_dip: "left_hand_pinky_dip"
+left_pinky_tip: "left_hand_pinky_tip"
+right_thumb_cmc: "right_hand_thumb_cmc"
+right_thumb_mcp: "right_hand_thumb_mcp"
+right_thumb_ip: "right_hand_thumb_ip"
+right_thumb_tip: "right_hand_thumb_tip"
+right_index_mcp: "right_hand_index_finger_mcp"
+right_index_pip: "right_hand_index_finger_pip"
+right_index_dip: "right_hand_index_finger_dip"
+right_index_tip: "right_hand_index_finger_tip"
+right_middle_mcp: "right_hand_middle_finger_mcp"
+right_middle_pip: "right_hand_middle_finger_pip"
+right_middle_dip: "right_hand_middle_finger_dip"
+right_middle_tip: "right_hand_middle_finger_tip"
+right_ring_mcp: "right_hand_ring_finger_mcp"
+right_ring_pip: "right_hand_ring_finger_pip"
+right_ring_dip: "right_hand_ring_finger_dip"
+right_ring_tip: "right_hand_ring_finger_tip"
+right_pinky_mcp: "right_hand_pinky_mcp"
+right_pinky_pip: "right_hand_pinky_pip"
+right_pinky_dip: "right_hand_pinky_dip"
+right_pinky_tip: "right_hand_pinky_tip"

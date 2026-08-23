@@ -1,54 +1,53 @@
-# RTMPose (wholebody) hand -> standard-human hand landmark hydration.
+# RTMPose (wholebody) hand → standard-human hand landmark hydration.
 #
-# The realtime RTMPose path runs the wholebody detector, whose hand keypoints
-# are side-prefixed (left_hand_* / right_hand_*) and use the COCO-WholeBody
-# hand naming (thumb1..4, forefinger1..4, middle_finger1..4, ring_finger1..4,
-# pinky_finger1..4, root).
+# The realtime RTMPose path runs the wholebody detector, whose hand keypoints are
+# side-prefixed (left_hand_* / right_hand_*) and use the COCO-WholeBody hand naming
+# (thumb1..4, forefinger1..4, middle_finger1..4, ring_finger1..4, pinky_finger1..4).
 #
-# Keys are the standard human SIDED hand landmark names (left_hand_*/right_hand_*);
-# values are the RTMPose wholebody hand keypoints that hydrate them. The wrist
-# (root) is NOT mapped here: it is hydrated by the body mapping
-# (left_wrist/right_wrist from the pose), the shared arm<->hand joint. The seven
-# derived carpal bones ride the hand rigid solve and are not mapped; only the
-# trapezium (the thumb carpometacarpal joint) has a tracker keypoint (thumb1).
-#
-left_hand_trapezium: "left_hand_thumb1"
-left_hand_thumb_metacarpophalangeal_joint: "left_hand_thumb2"
-left_hand_thumb_interphalangeal_joint: "left_hand_thumb3"
-left_hand_thumb_tip: "left_hand_thumb4"
-left_hand_index_finger_metacarpophalangeal_joint: "left_hand_forefinger1"
-left_hand_index_finger_proximal_interphalangeal_joint: "left_hand_forefinger2"
-left_hand_index_finger_distal_interphalangeal_joint: "left_hand_forefinger3"
-left_hand_index_finger_tip: "left_hand_forefinger4"
-left_hand_middle_finger_metacarpophalangeal_joint: "left_hand_middle_finger1"
-left_hand_middle_finger_proximal_interphalangeal_joint: "left_hand_middle_finger2"
-left_hand_middle_finger_distal_interphalangeal_joint: "left_hand_middle_finger3"
-left_hand_middle_finger_tip: "left_hand_middle_finger4"
-left_hand_ring_finger_metacarpophalangeal_joint: "left_hand_ring_finger1"
-left_hand_ring_finger_proximal_interphalangeal_joint: "left_hand_ring_finger2"
-left_hand_ring_finger_distal_interphalangeal_joint: "left_hand_ring_finger3"
-left_hand_ring_finger_tip: "left_hand_ring_finger4"
-left_hand_pinky_finger_metacarpophalangeal_joint: "left_hand_pinky_finger1"
-left_hand_pinky_finger_proximal_interphalangeal_joint: "left_hand_pinky_finger2"
-left_hand_pinky_finger_distal_interphalangeal_joint: "left_hand_pinky_finger3"
-left_hand_pinky_finger_tip: "left_hand_pinky_finger4"
-right_hand_trapezium: "right_hand_thumb1"
-right_hand_thumb_metacarpophalangeal_joint: "right_hand_thumb2"
-right_hand_thumb_interphalangeal_joint: "right_hand_thumb3"
-right_hand_thumb_tip: "right_hand_thumb4"
-right_hand_index_finger_metacarpophalangeal_joint: "right_hand_forefinger1"
-right_hand_index_finger_proximal_interphalangeal_joint: "right_hand_forefinger2"
-right_hand_index_finger_distal_interphalangeal_joint: "right_hand_forefinger3"
-right_hand_index_finger_tip: "right_hand_forefinger4"
-right_hand_middle_finger_metacarpophalangeal_joint: "right_hand_middle_finger1"
-right_hand_middle_finger_proximal_interphalangeal_joint: "right_hand_middle_finger2"
-right_hand_middle_finger_distal_interphalangeal_joint: "right_hand_middle_finger3"
-right_hand_middle_finger_tip: "right_hand_middle_finger4"
-right_hand_ring_finger_metacarpophalangeal_joint: "right_hand_ring_finger1"
-right_hand_ring_finger_proximal_interphalangeal_joint: "right_hand_ring_finger2"
-right_hand_ring_finger_distal_interphalangeal_joint: "right_hand_ring_finger3"
-right_hand_ring_finger_tip: "right_hand_ring_finger4"
-right_hand_pinky_finger_metacarpophalangeal_joint: "right_hand_pinky_finger1"
-right_hand_pinky_finger_proximal_interphalangeal_joint: "right_hand_pinky_finger2"
-right_hand_pinky_finger_distal_interphalangeal_joint: "right_hand_pinky_finger3"
-right_hand_pinky_finger_tip: "right_hand_pinky_finger4"
+# Keys are the standard human SIDED hand landmark names (left_*/right_*); values are the
+# RTMPose hand keypoints. The wrist is NOT mapped here: it is hydrated by the body mapping
+# (left_wrist/right_wrist), the shared arm<->hand joint (its landmark is carpal_origin).
+# The derived carpal bones (scaphoid, lunate, triquetrum, pisiform, trapezoid, capitate,
+# hamate, trapezium) and the finger CMC joints ride the hand rigid solve and are not
+# mapped; only thumb_cmc has a tracker keypoint (thumb1).
+
+left_thumb_cmc: "left_hand_thumb1"
+left_thumb_mcp: "left_hand_thumb2"
+left_thumb_ip: "left_hand_thumb3"
+left_thumb_tip: "left_hand_thumb4"
+left_index_mcp: "left_hand_forefinger1"
+left_index_pip: "left_hand_forefinger2"
+left_index_dip: "left_hand_forefinger3"
+left_index_tip: "left_hand_forefinger4"
+left_middle_mcp: "left_hand_middle_finger1"
+left_middle_pip: "left_hand_middle_finger2"
+left_middle_dip: "left_hand_middle_finger3"
+left_middle_tip: "left_hand_middle_finger4"
+left_ring_mcp: "left_hand_ring_finger1"
+left_ring_pip: "left_hand_ring_finger2"
+left_ring_dip: "left_hand_ring_finger3"
+left_ring_tip: "left_hand_ring_finger4"
+left_pinky_mcp: "left_hand_pinky_finger1"
+left_pinky_pip: "left_hand_pinky_finger2"
+left_pinky_dip: "left_hand_pinky_finger3"
+left_pinky_tip: "left_hand_pinky_finger4"
+right_thumb_cmc: "right_hand_thumb1"
+right_thumb_mcp: "right_hand_thumb2"
+right_thumb_ip: "right_hand_thumb3"
+right_thumb_tip: "right_hand_thumb4"
+right_index_mcp: "right_hand_forefinger1"
+right_index_pip: "right_hand_forefinger2"
+right_index_dip: "right_hand_forefinger3"
+right_index_tip: "right_hand_forefinger4"
+right_middle_mcp: "right_hand_middle_finger1"
+right_middle_pip: "right_hand_middle_finger2"
+right_middle_dip: "right_hand_middle_finger3"
+right_middle_tip: "right_hand_middle_finger4"
+right_ring_mcp: "right_hand_ring_finger1"
+right_ring_pip: "right_hand_ring_finger2"
+right_ring_dip: "right_hand_ring_finger3"
+right_ring_tip: "right_hand_ring_finger4"
+right_pinky_mcp: "right_hand_pinky_finger1"
+right_pinky_pip: "right_hand_pinky_finger2"
+right_pinky_dip: "right_hand_pinky_finger3"
+right_pinky_tip: "right_hand_pinky_finger4"

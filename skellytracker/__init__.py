@@ -15,33 +15,3 @@ __repo_issues_url__ = f"{__repo_url__}/issues"
 
 from beartype.claw import beartype_this_package
 beartype_this_package()
-
-
-
-#
-
-#
-# try:
-#     from skellytracker.trackers.mediapipe_tracker.mediapipe_holistic_tracker import (
-#         MediapipeHolisticTracker,
-#     )
-#     from skellytracker.trackers.mediapipe_tracker.mediapipe_model_info import (
-#         MediapipeModelInfo,
-#     )
-# except ModuleNotFoundError:
-#     print("To use mediapipe_holistic_tracker, install skellytracker[mediapipe]")
-# try:
-#     from skellytracker.trackers.yolo_tracker.yolo_tracker import YOLOPoseTracker
-#     from skellytracker.trackers.yolo_tracker.yolo_model_info import YOLOModelInfo
-# except ModuleNotFoundError:
-#     print("To use yolo_tracker, install skellytracker[yolo]")
-# try:
-#     from skellytracker.trackers.yolo_mediapipe_combo_tracker.yolo_mediapipe_combo_tracker import (
-#         YOLOMediapipeComboTracker,
-#     )
-# except ModuleNotFoundError:
-#     print(
-#         "To use yolo_mediapipe_combo_tracker, install skellytracker[mediapipe, yolo] or skellytracker[all]"
-#     )
-
-

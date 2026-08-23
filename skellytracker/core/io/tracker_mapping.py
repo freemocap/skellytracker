@@ -5,13 +5,13 @@ landmark, how to hydrate its position from the tracker's keypoints.
 Four forms are supported::
 
     string    →  1:1 passthrough  ``left_elbow: "left_elbow"``
-    list      →  unweighted mean  ``hips_center: ["left_hip", "right_hip"]``
+    list      →  unweighted mean  ``pelvis_origin: ["left_hip", "right_hip"]``
     dict      →  weighted sum     ``head_center: {left_ear: 0.5, right_ear: 0.5}``
     dict      →  anatomical_offset  off-surface joint center via local frame
                   (detected by ``form: anatomical_offset`` key)
 
 Every standard-human landmark is produced this way — including computed ones
-like ``neck_center`` and ``hips_center``, whose mapping is a list or dict,
+like ``head_center`` and ``pelvis_origin``, whose mapping is a list or dict,
 and off-surface joint centers like the sternoclavicular and glenohumeral
 joints, whose mapping is an ``anatomical_offset``.
 
@@ -287,7 +287,7 @@ class TrackerMapping:
 
         # ── Pass 2: anatomical_offset form ───────────────────────
         # anatomical_offsets may reference other standard-human landmarks
-        # (e.g. hips_center, neck_center) that were computed in pass 1.
+        # (e.g. pelvis_origin, head_center) that were computed in pass 1.
         # We merge raw tracker positions + pass-1 results so the offset
         # resolver can find both.
         combined_positions = {**tracker_positions, **result}
@@ -569,7 +569,7 @@ def _mean_position(
 ) -> np.ndarray | None:
     """Compute the mean position of named tracker keypoints, or None if ANY is
     missing. A partial mean would silently relabel a different point (e.g. one
-    hip returned as ``hips_center``), so an incomplete input yields no result."""
+    hip returned as ``pelvis_origin``), so an incomplete input yields no result."""
     pts: list[np.ndarray] = []
     for name in names:
         pos = positions.get(prefix + name)
