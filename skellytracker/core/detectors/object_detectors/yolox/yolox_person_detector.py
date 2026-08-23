@@ -114,12 +114,17 @@ class YoloxPersonDetector(ObjectDetector):
         (already split from a batch along axis 0). The number of outputs
         determines whether the model used pre-NMS or standard outputs.
         """
+        if _SIDECAR.decode is None:
+            raise ValueError(
+                "yolox.yaml must declare `decode` (role includes object_detector)"
+            )
         boxes_nd, scores_nd = sidecar_detection_decode(
             raw,
             ratio=metadata.ratio,
             model_input_size=self.config.input_size,
             score_threshold=self.config.score_threshold,
             nms_threshold=self.config.nms_threshold,
+            decode_spec=_SIDECAR.decode,
         )
 
         if len(boxes_nd) == 0:
@@ -145,32 +150,13 @@ class YoloxPersonDetector(ObjectDetector):
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
     ) -> list[BoundingBox]:
-        boxes, scores = _detect_yolox(
-            image=image,
-            session=self.session,
-            model_name=self.config.model_name,
-            input_size=self.config.input_size,
-            score_threshold=self.config.score_threshold,
-            nms_threshold=self.config.nms_threshold,
+        tensor, metadata = self.preprocess(image)
+        inp = np.ascontiguousarray(tensor[np.newaxis])
+        input_name = (
+            self.session.get_session(self.config.model_name).get_inputs()[0].name
         )
-        if len(boxes) == 0:
-            return []
-
-        result = [
-            BoundingBox(
-                x1=float(b[0]),
-                y1=float(b[1]),
-                x2=float(b[2]),
-                y2=float(b[3]),
-                confidence=float(s),
-            )
-            for b, s in zip(boxes, scores, strict=False)
-        ]
-        result.sort(key=lambda bb: bb.confidence, reverse=True)
-
-        if self.config.max_detections is not None:
-            result = result[: self.config.max_detections]
-        return result
+        outputs = self.session.run(self.config.model_name, {input_name: inp})
+        return self.postprocess(outputs, metadata)
 
     @classmethod
     def create(
@@ -213,39 +199,3 @@ OBJECT_DETECTOR_REGISTRY["yolox_person"] = YoloxPersonDetector
 YOLOX_MODEL_SPECS: dict[str, OnnxModelSpec] = {
     name: YoloxPersonDetector.model_spec(name) for name in _SIDECAR.sizes
 }
-
-
-# ---------------------------------------------------------------------------
-# Internal inference helpers
-# ---------------------------------------------------------------------------
-
-
-def _detect_yolox(
-    image: NDArray[np.uint8],
-    session: OnnxSession,
-    model_name: str,
-    input_size: tuple[int, int],
-    score_threshold: float,
-    nms_threshold: float,
-) -> tuple[NDArray, NDArray]:
-    """Run YOLOX on a single image.
-
-    Returns
-    -------
-    boxes : (N, 4) float64  x1y1x2y2 in image pixel coords
-    scores : (N,) float64
-    """
-    tensor, ratio = sidecar_letterbox_preprocess(
-        image, input_size, _SIDECAR.input, precision="fp32"
-    )
-    inp = np.ascontiguousarray(tensor[np.newaxis])
-    input_name = session.get_session(model_name).get_inputs()[0].name
-    outputs = session.run(model_name, {input_name: inp})
-
-    return sidecar_detection_decode(
-        outputs,
-        ratio=ratio,
-        model_input_size=input_size,
-        score_threshold=score_threshold,
-        nms_threshold=nms_threshold,
-    )

@@ -11,7 +11,7 @@ import cv2
 import numpy as np
 from numpy.typing import NDArray
 
-from skellytracker.core.sidecar.model import InputSpec, Precision
+from skellytracker.core.sidecar.model import DetectionDecodeSpec, InputSpec, Precision
 from skellytracker.core.sidecar.runtime import build_normalization_fn
 
 # ==========================================================================
@@ -284,6 +284,38 @@ def _postprocess_yolox(
 # ==========================================================================
 
 
+def _check_letterbox_resize_spec(input_spec: InputSpec) -> None:
+    """Guard the subset of `input.resize` this module actually implements.
+
+    `yolox_letterbox_preprocess` always does: method=letterbox, pad with 114,
+    preserve aspect ratio, `cv2.INTER_LINEAR`. It does not read `input_spec.resize`
+    at all, so a sidecar declaring anything else (e.g. `affine_person_crop`, a
+    different pad value, `preserve_aspect_ratio: false`) would silently get the
+    wrong preprocessing. Fail loudly instead until this module grows support for
+    those cases.
+    """
+    resize = input_spec.resize
+    if resize is None or resize.method != "letterbox":
+        raise ValueError(
+            f"sidecar_letterbox_preprocess only implements resize.method='letterbox', "
+            f"got {resize.method if resize else None!r}"
+        )
+    if resize.pad_value not in (None, 114):
+        raise ValueError(
+            f"sidecar_letterbox_preprocess hardcodes pad_value=114, got {resize.pad_value!r}"
+        )
+    if resize.preserve_aspect_ratio not in (None, True):
+        raise ValueError(
+            "sidecar_letterbox_preprocess always preserves aspect ratio, got "
+            f"preserve_aspect_ratio={resize.preserve_aspect_ratio!r}"
+        )
+    if resize.interpolation != "linear":
+        raise ValueError(
+            f"sidecar_letterbox_preprocess hardcodes cv2.INTER_LINEAR, got "
+            f"interpolation={resize.interpolation!r}"
+        )
+
+
 def sidecar_letterbox_preprocess(
     image: NDArray[np.uint8],
     target_size: tuple[int, int],
@@ -293,9 +325,14 @@ def sidecar_letterbox_preprocess(
     """Letterbox `image` to `target_size` and apply `input_spec`'s normalization.
 
     Thin wrapper around `yolox_letterbox_preprocess`; the letterbox math itself
-    is unchanged. Returns `(tensor, ratio)` where `tensor` is laid out per
+    is in `yolox_letterbox_preprocess`. Returns `(tensor, ratio)` where `tensor` is laid out per
     `input_spec.layout` (`NCHW` transposes; `NHWC` leaves HWC as-is).
+
+    Only supports the `input.resize` variant YOLOX's sidecar actually declares
+    (letterbox, pad_value 114, aspect-preserving, linear interpolation) — see
+    `_check_letterbox_resize_spec`.
     """
+    _check_letterbox_resize_spec(input_spec)
     padded, ratio = yolox_letterbox_preprocess(image, target_size)
     normalize = build_normalization_fn(input_spec, precision)
     normalized = normalize(padded)
@@ -305,12 +342,46 @@ def sidecar_letterbox_preprocess(
     return np.ascontiguousarray(tensor.astype(np.float32)), ratio
 
 
+def _check_yolox_decode_spec(decode_spec: DetectionDecodeSpec) -> None:
+    """Guard the subset of `decode` this module actually implements.
+
+    `_postprocess_prenms`/`_postprocess_yolox` always: return `xyxy` boxes,
+    treat class 0 as the only class kept (person), and read score as a single
+    trailing column. Neither function reads `decode` at all, so a sidecar
+    declaring a different `box_format`/`person_class_id`/`class_id_base` would
+    silently get boxes decoded under the wrong assumptions. Fail loudly instead
+    until this module grows support for those cases.
+    """
+    if decode_spec.box_format not in (None, "xyxy"):
+        raise ValueError(
+            f"sidecar_detection_decode only produces box_format='xyxy', got "
+            f"{decode_spec.box_format!r}"
+        )
+    if decode_spec.score_field not in (None, "score"):
+        raise ValueError(
+            f"sidecar_detection_decode hardcodes score_field='score', got "
+            f"{decode_spec.score_field!r}"
+        )
+    if decode_spec.class_id_base != 0:
+        raise ValueError(
+            f"sidecar_detection_decode assumes class_id_base=0, got "
+            f"{decode_spec.class_id_base!r}"
+        )
+    if decode_spec.person_class_id != 0:
+        raise ValueError(
+            f"sidecar_detection_decode hardcodes person_class_id=0 (see "
+            f"_postprocess_yolox's `final_cls == 0` filter), got "
+            f"{decode_spec.person_class_id!r}"
+        )
+
+
 def sidecar_detection_decode(
     raw: list[NDArray],
     ratio: float,
     model_input_size: tuple[int, int],
     score_threshold: float,
     nms_threshold: float,
+    decode_spec: DetectionDecodeSpec,
 ) -> tuple[NDArray, NDArray]:
     """Decode raw YOLOX ONNX outputs for a single image into `(boxes, scores)`.
 
@@ -320,7 +391,11 @@ def sidecar_detection_decode(
     NMS-baked-in `[x1,y1,x2,y2,score]` rows or a raw anchor grid, both handled
     by `_postprocess_yolox`. Decode math is unchanged from the pre-migration
     implementation.
+
+    Only supports the `decode` variant YOLOX's sidecar actually declares (xyxy
+    boxes, class 0 = person) — see `_check_yolox_decode_spec`.
     """
+    _check_yolox_decode_spec(decode_spec)
     if len(raw) == 2:
         return _postprocess_prenms(
             boxes=raw[0],
