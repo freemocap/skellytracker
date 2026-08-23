@@ -8,24 +8,31 @@ detector base classes. This keeps the existing `ObjectDetector`/
 `KeypointDetector` ABCs and `OBJECT_DETECTOR_REGISTRY`/
 `KEYPOINT_DETECTOR_REGISTRY` as the only plug-in point.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
 
-from beartype.typing import Callable
-
 import numpy as np
+from beartype.typing import Callable
 from numpy.typing import NDArray
 
-from skellytracker.core.sidecar.model import CustomNormalization, InputSpec, Precision, SidecarModel
-from skellytracker.core.sessions.model_registry import ModelSource, resolve_model_path
+from skellytracker.core.sessions.model_registry import ModelSource
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec
+from skellytracker.core.sidecar.model import (
+    CustomNormalization,
+    InputSpec,
+    Precision,
+    SidecarModel,
+)
 
 _IMAGENET_MEAN: tuple[float, float, float] = (123.675, 116.28, 103.53)
 _IMAGENET_STD: tuple[float, float, float] = (58.395, 57.12, 57.375)
 
 
-def resolve_normalization_mode(input_spec: InputSpec, precision: Precision) -> str | CustomNormalization:
+def resolve_normalization_mode(
+    input_spec: InputSpec, precision: Precision
+) -> str | CustomNormalization:
     """Resolve the effective normalization mode for `precision`.
 
     Resolution order (see specs/sidecar-spec.md, "Normalization modes"):
@@ -37,7 +44,9 @@ def resolve_normalization_mode(input_spec: InputSpec, precision: Precision) -> s
     return input_spec.normalization
 
 
-def build_normalization_fn(input_spec: InputSpec, precision: Precision) -> Callable[[NDArray[np.uint8]], NDArray[np.float32]]:
+def build_normalization_fn(
+    input_spec: InputSpec, precision: Precision
+) -> Callable[[NDArray[np.uint8]], NDArray[np.float32]]:
     """Return a function mapping a letterboxed/cropped uint8 HWC image to a
     normalized float32 HWC tensor, per the resolved normalization mode.
     """
@@ -74,15 +83,25 @@ def sidecar_model_spec(
     size: str,
     batch_key: str,
     precision: Precision,
+    name: str,
     sidecar_dir: Path,
     prepare: Callable[[Path], Path] | None = None,
     coreml_options: dict | None = None,
 ) -> OnnxModelSpec:
-    """Build the `OnnxModelSpec` for one (size, batch, precision) artifact.
+    """Build a lazy `OnnxModelSpec` for one (size, batch, precision) artifact.
 
-    Resolves the artifact's `url`/`filename`/`url_sha256` through the sidecar's
-    own directory (`sidecar_dir`), per specs/sidecar-spec.md "Storage layout" —
-    the sidecar and its ONNX files live together in one leaf directory.
+    Pure — no I/O. Resolution (download, archive extraction, SHA-256
+    verification against `artifact.url_sha256`) happens later, at the single
+    choke point `OnnxSession.create()` already resolves every model through —
+    this just carries `expected_filename`/`expected_sha256` for it to use.
+
+    `name` is the caller's choice, not derived from `sidecar.model_id`/`size`
+    — it's the key detectors later look up via `session.get_session(name)`,
+    and a fixed naming convention here could collide across sidecars sharing
+    one session. For a `local_path` artifact, `sidecar_dir` is used to build
+    the absolute path (per specs/sidecar-spec.md "Storage layout" — the
+    sidecar and its ONNX files live together in one leaf directory); its
+    existence is not checked here, only when actually resolved.
     """
     resolved_size = sidecar.resolved_size(size)
     group = resolved_size.onnx.batch_artifacts[batch_key]
@@ -93,23 +112,21 @@ def sidecar_model_spec(
     else:
         source = ModelSource(local_path=str(sidecar_dir / artifact.filename))
 
-    # Force resolution now so callers get a concrete, cached local path;
-    # OnnxModelSpec.source stays a ModelSource for OnnxSession.create() to
-    # resolve again (idempotent — already cached after this call).
-    resolve_model_path(
-        source,
-        cache_dir=sidecar_dir,
-        expected_filename=artifact.filename,
-        expected_sha256=artifact.url_sha256,
+    target_size = (
+        resolved_size.input.resize.target_size if resolved_size.input.resize else None
+    )
+    input_size = (
+        tuple(target_size)
+        if target_size is not None
+        else tuple(resolved_size.input.shape[2:4])
     )
 
-    target_size = resolved_size.input.resize.target_size if resolved_size.input.resize else None
-    input_size = tuple(target_size) if target_size is not None else tuple(resolved_size.input.shape[2:4])
-
     return OnnxModelSpec(
-        name=f"{sidecar.model_id}-{size}",
-        source=ModelSource(local_path=str(sidecar_dir / artifact.filename)),
+        name=name,
+        source=source,
         input_size=input_size,  # type: ignore[arg-type]
         prepare=prepare,
         coreml_options=coreml_options,
+        expected_filename=artifact.filename,
+        expected_sha256=artifact.url_sha256,
     )

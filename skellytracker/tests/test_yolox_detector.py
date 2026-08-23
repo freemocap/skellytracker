@@ -6,6 +6,7 @@ config, model_spec, and create type guards.
 Integration tests at the bottom (TestYoloxInference) require onnxruntime and a network connection
 to download the model. They are skipped automatically when onnxruntime is not installed.
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -14,10 +15,10 @@ import pytest
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
-    _postprocess_prenms,
-    _postprocess_yolox,
 )
 from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import (
+    _postprocess_prenms,
+    _postprocess_yolox,
     multiclass_nms,
     nms,
     yolox_letterbox_preprocess,
@@ -25,10 +26,10 @@ from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing imp
 from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec
 
-
 # ---------------------------------------------------------------------------
 # yolox_letterbox_preprocess
 # ---------------------------------------------------------------------------
+
 
 class TestLetterboxPreprocess:
     def test_output_shape_matches_target(self):
@@ -68,6 +69,7 @@ class TestLetterboxPreprocess:
 # nms
 # ---------------------------------------------------------------------------
 
+
 class TestNms:
     def test_keeps_single_box(self):
         boxes = np.array([[0.0, 0.0, 10.0, 10.0]])
@@ -76,46 +78,56 @@ class TestNms:
         assert keep == [0]
 
     def test_keeps_non_overlapping_boxes(self):
-        boxes = np.array([
-            [0.0, 0.0, 10.0, 10.0],
-            [100.0, 100.0, 110.0, 110.0],
-        ])
+        boxes = np.array(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [100.0, 100.0, 110.0, 110.0],
+            ]
+        )
         scores = np.array([0.9, 0.8])
         keep = nms(boxes, scores, nms_thr=0.5)
         assert sorted(keep) == [0, 1]
 
     def test_suppresses_fully_overlapping_lower_score(self):
-        boxes = np.array([
-            [0.0, 0.0, 10.0, 10.0],
-            [0.0, 0.0, 10.0, 10.0],
-        ])
+        boxes = np.array(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [0.0, 0.0, 10.0, 10.0],
+            ]
+        )
         scores = np.array([0.9, 0.5])
         keep = nms(boxes, scores, nms_thr=0.5)
         assert keep == [0]
 
     def test_suppresses_highly_overlapping_box(self):
-        boxes = np.array([
-            [0.0, 0.0, 100.0, 100.0],
-            [1.0, 1.0, 99.0, 99.0],  # nearly same, high IoU
-        ])
+        boxes = np.array(
+            [
+                [0.0, 0.0, 100.0, 100.0],
+                [1.0, 1.0, 99.0, 99.0],  # nearly same, high IoU
+            ]
+        )
         scores = np.array([0.9, 0.8])
         keep = nms(boxes, scores, nms_thr=0.5)
         assert keep == [0]
 
     def test_keeps_when_iou_below_threshold(self):
-        boxes = np.array([
-            [0.0, 0.0, 10.0, 10.0],
-            [8.0, 0.0, 20.0, 10.0],  # small overlap
-        ])
+        boxes = np.array(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [8.0, 0.0, 20.0, 10.0],  # small overlap
+            ]
+        )
         scores = np.array([0.9, 0.8])
         keep = nms(boxes, scores, nms_thr=0.9)
         assert sorted(keep) == [0, 1]
 
     def test_higher_score_wins(self):
-        boxes = np.array([
-            [0.0, 0.0, 10.0, 10.0],
-            [0.0, 0.0, 10.0, 10.0],
-        ])
+        boxes = np.array(
+            [
+                [0.0, 0.0, 10.0, 10.0],
+                [0.0, 0.0, 10.0, 10.0],
+            ]
+        )
         scores = np.array([0.4, 0.9])
         keep = nms(boxes, scores, nms_thr=0.5)
         assert keep == [1]
@@ -124,6 +136,7 @@ class TestNms:
 # ---------------------------------------------------------------------------
 # multiclass_nms
 # ---------------------------------------------------------------------------
+
 
 class TestMulticlassNms:
     def test_returns_none_when_no_valid_scores(self):
@@ -160,6 +173,7 @@ class TestMulticlassNms:
 # _postprocess_yolox — baked-NMS format (last dim == 5)
 # ---------------------------------------------------------------------------
 
+
 class TestPostprocessYoloxBakedNms:
     def _make_outputs(self, boxes_xyxy: np.ndarray, scores: np.ndarray) -> np.ndarray:
         """Pack boxes + scores into the (1, N, 5) baked-NMS format."""
@@ -174,9 +188,11 @@ class TestPostprocessYoloxBakedNms:
         scores = np.array([0.95])
         outputs = self._make_outputs(boxes, scores)
         result_boxes, result_scores = _postprocess_yolox(
-            outputs_one=outputs, ratio=1.0,
+            outputs_one=outputs,
+            ratio=1.0,
             model_input_size=(640, 640),
-            score_thr=0.7, nms_thr=0.45,
+            score_thr=0.7,
+            nms_thr=0.45,
         )
         assert len(result_boxes) == 1
         assert result_scores[0] == pytest.approx(0.95)
@@ -186,9 +202,11 @@ class TestPostprocessYoloxBakedNms:
         scores = np.array([0.3])
         outputs = self._make_outputs(boxes, scores)
         result_boxes, _ = _postprocess_yolox(
-            outputs_one=outputs, ratio=1.0,
+            outputs_one=outputs,
+            ratio=1.0,
             model_input_size=(640, 640),
-            score_thr=0.7, nms_thr=0.45,
+            score_thr=0.7,
+            nms_thr=0.45,
         )
         assert len(result_boxes) == 0
 
@@ -197,9 +215,11 @@ class TestPostprocessYoloxBakedNms:
         scores = np.array([0.95])
         outputs = self._make_outputs(boxes, scores)
         result_boxes, _ = _postprocess_yolox(
-            outputs_one=outputs, ratio=2.0,
+            outputs_one=outputs,
+            ratio=2.0,
             model_input_size=(640, 640),
-            score_thr=0.7, nms_thr=0.45,
+            score_thr=0.7,
+            nms_thr=0.45,
         )
         assert len(result_boxes) == 1
         assert result_boxes[0, 0] == pytest.approx(50.0)  # 100 / 2.0
@@ -208,15 +228,18 @@ class TestPostprocessYoloxBakedNms:
         bad = np.zeros((1, 10, 7), dtype=np.float32)
         with pytest.raises(RuntimeError, match="Unexpected YOLOX output shape"):
             _postprocess_yolox(
-                outputs_one=bad, ratio=1.0,
+                outputs_one=bad,
+                ratio=1.0,
                 model_input_size=(640, 640),
-                score_thr=0.7, nms_thr=0.45,
+                score_thr=0.7,
+                nms_thr=0.45,
             )
 
 
 # ---------------------------------------------------------------------------
 # _postprocess_prenms
 # ---------------------------------------------------------------------------
+
 
 class TestPostprocessPrenms:
     def test_returns_empty_when_no_scores_pass_threshold(self):
@@ -249,6 +272,7 @@ class TestPostprocessPrenms:
 # YoloxPersonDetectorConfig
 # ---------------------------------------------------------------------------
 
+
 class TestYoloxPersonDetectorConfig:
     def test_default_model_name(self):
         config = YoloxPersonDetectorConfig()
@@ -278,6 +302,7 @@ class TestYoloxPersonDetectorConfig:
 # YoloxPersonDetector.model_spec
 # ---------------------------------------------------------------------------
 
+
 class TestYoloxPersonDetectorModelSpec:
     def test_returns_onnx_model_spec_for_known_model(self):
         spec = YoloxPersonDetector.model_spec("yolox-m")
@@ -299,6 +324,7 @@ class TestYoloxPersonDetectorModelSpec:
 # YoloxPersonDetector.create — type-guard checks (no model needed)
 # ---------------------------------------------------------------------------
 
+
 class TestYoloxPersonDetectorCreate:
     def test_wrong_session_type_raises_type_error(self):
         config = YoloxPersonDetectorConfig()
@@ -309,8 +335,14 @@ class TestYoloxPersonDetectorCreate:
 
     def test_wrong_config_type_raises_type_error(self):
         pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
-        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-        from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseKeypointDetector
+        from skellytracker.core.detectors.keypoint_detectors.rtmpose import (
+            RTMPoseKeypointDetector,
+        )
+        from skellytracker.core.sessions.onnx_session import (
+            OnnxSession,
+            OnnxSessionConfig,
+        )
+
         session_config = OnnxSessionConfig(
             batch_size=1,
             models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
@@ -329,11 +361,12 @@ class TestYoloxPersonDetectorCreate:
 # (requires onnxruntime and network; skipped automatically otherwise)
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def yolox_onnx_session():
     pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
-    from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
     import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401
+    from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
 
     config = OnnxSessionConfig(
         batch_size=1,
@@ -349,23 +382,31 @@ class TestYoloxInference:
         assert yolox_onnx_session.get_session("yolox-m") is not None
 
     def test_detect_returns_list(self, test_image, yolox_onnx_session):
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_onnx_session)
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_onnx_session
+        )
         result = detector.detect(test_image)
         assert isinstance(result, list)
 
     def test_detect_finds_person_in_test_image(self, test_image, yolox_onnx_session):
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_onnx_session)
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_onnx_session
+        )
         result = detector.detect(test_image)
         assert len(result) > 0, "Expected at least one person in the test image"
 
     def test_detect_returns_valid_bounding_boxes(self, test_image, yolox_onnx_session):
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_onnx_session)
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_onnx_session
+        )
         for bb in detector.detect(test_image):
             assert bb.x1 < bb.x2
             assert bb.y1 < bb.y2
             assert 0.0 <= bb.confidence <= 1.0
 
-    def test_results_sorted_by_confidence_descending(self, test_image, yolox_onnx_session):
+    def test_results_sorted_by_confidence_descending(
+        self, test_image, yolox_onnx_session
+    ):
         config = YoloxPersonDetectorConfig(max_detections=None)
         detector = YoloxPersonDetector.create(config, yolox_onnx_session)
         result = detector.detect(test_image)
@@ -380,13 +421,19 @@ class TestYoloxInference:
     def test_max_detections_none_returns_all(self, test_image, yolox_onnx_session):
         config_limited = YoloxPersonDetectorConfig(max_detections=1)
         config_all = YoloxPersonDetectorConfig(max_detections=None)
-        detector_limited = YoloxPersonDetector.create(config_limited, yolox_onnx_session)
+        detector_limited = YoloxPersonDetector.create(
+            config_limited, yolox_onnx_session
+        )
         detector_all = YoloxPersonDetector.create(config_all, yolox_onnx_session)
-        assert len(detector_all.detect(test_image)) >= len(detector_limited.detect(test_image))
+        assert len(detector_all.detect(test_image)) >= len(
+            detector_limited.detect(test_image)
+        )
 
     def test_blank_image_returns_empty_list(self, yolox_onnx_session):
         blank = np.zeros((480, 640, 3), dtype=np.uint8)
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_onnx_session)
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_onnx_session
+        )
         result = detector.detect(blank)
         assert isinstance(result, list)
         assert len(result) == 0
