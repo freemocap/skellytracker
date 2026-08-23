@@ -30,13 +30,13 @@ from skellytracker.core.detectors.detector_base_classes import (
     OBJECT_DETECTOR_REGISTRY,
     ObjectDetector,
 )
+from skellytracker.core.detectors.image_preprocessing import preprocess_image
 from skellytracker.core.detectors.metadata import YoloxMetadata
 from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import (
     prepare_yolox_onnx,
 )
-from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import (
-    sidecar_detection_decode,
-    sidecar_letterbox_preprocess,
+from skellytracker.core.detectors.object_detectors.yolox.yolox_decode import (
+    yolox_detection_decode,
 )
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
 from skellytracker.core.sessions.session import Session
@@ -102,7 +102,7 @@ class YoloxPersonDetector(ObjectDetector):
         float32 — ready to stack into a batch. metadata.ratio is needed by
         postprocess to scale detections back to original image space.
         """
-        tensor, ratio = sidecar_letterbox_preprocess(
+        tensor, ratio = preprocess_image(
             image, self.config.input_size, _SIDECAR.input, precision="fp32"
         )
         return tensor, YoloxMetadata(ratio=ratio, original_size=image.shape[:2])
@@ -118,7 +118,7 @@ class YoloxPersonDetector(ObjectDetector):
             raise ValueError(
                 "yolox.yaml must declare `decode` (role includes object_detector)"
             )
-        boxes_nd, scores_nd = sidecar_detection_decode(
+        boxes_nd, scores_nd = yolox_detection_decode(
             raw,
             ratio=metadata.ratio,
             model_input_size=self.config.input_size,

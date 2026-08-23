@@ -1,7 +1,10 @@
-"""Tests for YOLOX preprocessing, NMS, postprocessing, config, and detector construction.
+"""Tests for YOLOX-specific decode (raw anchor grid + dispatch), config, and
+detector construction.
 
-Model-free tests (no ONNX runtime or network needed) cover preprocessing, NMS, postprocessing,
-config, model_spec, and create type guards.
+Generic sidecar preprocessing (letterbox) and generic decode utilities (NMS,
+box-format conversion, pre-NMS/NMS-baked-in decode) are tested in
+`test_image_preprocessing.py` and `test_object_detection_decode.py`
+instead, since they're not YOLOX-specific.
 
 Integration tests at the bottom (TestYoloxInference) require onnxruntime and a network connection
 to download the model. They are skipped automatically when onnxruntime is not installed.
@@ -12,260 +15,148 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from skellytracker.core.detectors.object_detectors.yolox.yolox_decode import (
+    _decode_yolox_raw_anchor_grid,
+    yolox_detection_decode,
+)
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )
-from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import (
-    _postprocess_prenms,
-    _postprocess_yolox,
-    multiclass_nms,
-    nms,
-    yolox_letterbox_preprocess,
-)
 from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec
+from skellytracker.core.sidecar.model import DetectionDecodeSpec
 
-# ---------------------------------------------------------------------------
-# yolox_letterbox_preprocess
-# ---------------------------------------------------------------------------
-
-
-class TestLetterboxPreprocess:
-    def test_output_shape_matches_target(self):
-        img = np.zeros((480, 640, 3), dtype=np.uint8)
-        padded, _ = yolox_letterbox_preprocess(img, (640, 640))
-        assert padded.shape == (640, 640, 3)
-
-    def test_ratio_for_square_image(self):
-        img = np.zeros((100, 100, 3), dtype=np.uint8)
-        _, ratio = yolox_letterbox_preprocess(img, (200, 200))
-        assert ratio == pytest.approx(2.0)
-
-    def test_ratio_limited_by_shorter_side(self):
-        img = np.zeros((480, 640, 3), dtype=np.uint8)
-        _, ratio = yolox_letterbox_preprocess(img, (640, 640))
-        assert ratio == pytest.approx(640 / 640)
-
-    def test_ratio_limited_by_height(self):
-        img = np.zeros((800, 400, 3), dtype=np.uint8)
-        _, ratio = yolox_letterbox_preprocess(img, (640, 640))
-        assert ratio == pytest.approx(640 / 800)
-
-    def test_padding_color_is_114(self):
-        # 100h × 50w image → ratio=2.0, resized to 200h × 100w.
-        # Columns 100–200 are untouched padding (value 114).
-        img = np.zeros((100, 50, 3), dtype=np.uint8)
-        padded, _ = yolox_letterbox_preprocess(img, (200, 200))
-        assert padded[100, 150, 0] == 114
-
-    def test_output_dtype_is_uint8(self):
-        img = np.zeros((100, 100, 3), dtype=np.uint8)
-        padded, _ = yolox_letterbox_preprocess(img, (416, 416))
-        assert padded.dtype == np.uint8
+_DEFAULT_DECODE_SPEC = DetectionDecodeSpec()
 
 
 # ---------------------------------------------------------------------------
-# nms
+# _decode_yolox_raw_anchor_grid — raw undecoded anchor grid (last dim == 4)
 # ---------------------------------------------------------------------------
 
 
-class TestNms:
-    def test_keeps_single_box(self):
-        boxes = np.array([[0.0, 0.0, 10.0, 10.0]])
-        scores = np.array([0.9])
-        keep = nms(boxes, scores, nms_thr=0.5)
-        assert keep == [0]
-
-    def test_keeps_non_overlapping_boxes(self):
-        boxes = np.array(
-            [
-                [0.0, 0.0, 10.0, 10.0],
-                [100.0, 100.0, 110.0, 110.0],
-            ]
-        )
-        scores = np.array([0.9, 0.8])
-        keep = nms(boxes, scores, nms_thr=0.5)
-        assert sorted(keep) == [0, 1]
-
-    def test_suppresses_fully_overlapping_lower_score(self):
-        boxes = np.array(
-            [
-                [0.0, 0.0, 10.0, 10.0],
-                [0.0, 0.0, 10.0, 10.0],
-            ]
-        )
-        scores = np.array([0.9, 0.5])
-        keep = nms(boxes, scores, nms_thr=0.5)
-        assert keep == [0]
-
-    def test_suppresses_highly_overlapping_box(self):
-        boxes = np.array(
-            [
-                [0.0, 0.0, 100.0, 100.0],
-                [1.0, 1.0, 99.0, 99.0],  # nearly same, high IoU
-            ]
-        )
-        scores = np.array([0.9, 0.8])
-        keep = nms(boxes, scores, nms_thr=0.5)
-        assert keep == [0]
-
-    def test_keeps_when_iou_below_threshold(self):
-        boxes = np.array(
-            [
-                [0.0, 0.0, 10.0, 10.0],
-                [8.0, 0.0, 20.0, 10.0],  # small overlap
-            ]
-        )
-        scores = np.array([0.9, 0.8])
-        keep = nms(boxes, scores, nms_thr=0.9)
-        assert sorted(keep) == [0, 1]
-
-    def test_higher_score_wins(self):
-        boxes = np.array(
-            [
-                [0.0, 0.0, 10.0, 10.0],
-                [0.0, 0.0, 10.0, 10.0],
-            ]
-        )
-        scores = np.array([0.4, 0.9])
-        keep = nms(boxes, scores, nms_thr=0.5)
-        assert keep == [1]
-
-
-# ---------------------------------------------------------------------------
-# multiclass_nms
-# ---------------------------------------------------------------------------
-
-
-class TestMulticlassNms:
-    def test_returns_none_when_no_valid_scores(self):
-        boxes = np.array([[0.0, 0.0, 10.0, 10.0]])
-        scores = np.array([[0.1]])  # below any reasonable threshold
-        dets, keep = multiclass_nms(boxes, scores, nms_thr=0.5, score_thr=0.5)
-        assert dets is None
-        assert keep is None
-
-    def test_output_has_6_columns(self):
-        boxes = np.array([[0.0, 0.0, 10.0, 10.0]])
-        scores = np.array([[0.9]])
-        dets, _ = multiclass_nms(boxes, scores, nms_thr=0.5, score_thr=0.5)
-        assert dets is not None
-        assert dets.shape[1] == 6
-
-    def test_keeps_high_score_box(self):
-        boxes = np.array([[0.0, 0.0, 10.0, 10.0], [100.0, 100.0, 200.0, 200.0]])
-        scores = np.array([[0.9], [0.3]])
-        dets, _ = multiclass_nms(boxes, scores, nms_thr=0.5, score_thr=0.5)
-        assert dets is not None
-        assert len(dets) == 1
-        assert dets[0, 4] == pytest.approx(0.9)
-
-    def test_class_index_recorded_in_column_5(self):
-        boxes = np.array([[0.0, 0.0, 10.0, 10.0]])
-        scores = np.array([[0.0, 0.95]])  # class 1 wins
-        dets, _ = multiclass_nms(boxes, scores, nms_thr=0.5, score_thr=0.5)
-        assert dets is not None
-        assert dets[0, 5] == pytest.approx(1.0)
-
-
-# ---------------------------------------------------------------------------
-# _postprocess_yolox — baked-NMS format (last dim == 5)
-# ---------------------------------------------------------------------------
-
-
-class TestPostprocessYoloxBakedNms:
-    def _make_outputs(self, boxes_xyxy: np.ndarray, scores: np.ndarray) -> np.ndarray:
-        """Pack boxes + scores into the (1, N, 5) baked-NMS format."""
-        n = len(boxes_xyxy)
-        out = np.zeros((1, n, 5), dtype=np.float32)
-        out[0, :, :4] = boxes_xyxy
-        out[0, :, 4] = scores
+class TestDecodeYoloxRawAnchorGrid:
+    def _make_raw_output(
+        self, model_input_size: tuple[int, int], target_xyxy: np.ndarray
+    ) -> np.ndarray:
+        """Build a raw (pre-grid-decode) YOLOX anchor tensor with one anchor
+        pre-set to decode to `target_xyxy` at the finest (stride-8) grid cell.
+        """
+        strides = [8, 16, 32]
+        h, w = model_input_size
+        num_anchors = sum((h // s) * (w // s) for s in strides)
+        # channels: cx, cy, w, h, objectness, class_0
+        out = np.zeros((1, num_anchors, 6), dtype=np.float32)
+        cx = (target_xyxy[0] + target_xyxy[2]) / 2.0
+        cy = (target_xyxy[1] + target_xyxy[3]) / 2.0
+        box_w = target_xyxy[2] - target_xyxy[0]
+        box_h = target_xyxy[3] - target_xyxy[1]
+        # Anchor 0 sits at grid cell (0, 0), stride 8: decoded cx = (0+0)*8 = 0
+        # before adding the pre-grid-decode offset, so pre-decode value = cx/8.
+        out[0, 0, 0] = cx / 8.0
+        out[0, 0, 1] = cy / 8.0
+        out[0, 0, 2] = np.log(box_w / 8.0)
+        out[0, 0, 3] = np.log(box_h / 8.0)
+        out[0, 0, 4] = 1.0  # objectness
+        out[0, 0, 5] = 1.0  # class score (person)
         return out
 
-    def test_returns_boxes_above_threshold(self):
-        boxes = np.array([[10.0, 10.0, 50.0, 50.0]])
-        scores = np.array([0.95])
-        outputs = self._make_outputs(boxes, scores)
-        result_boxes, result_scores = _postprocess_yolox(
+    def test_returns_decoded_box(self):
+        model_input_size = (640, 640)
+        target = np.array([16.0, 16.0, 48.0, 48.0])
+        outputs = self._make_raw_output(model_input_size, target)
+        boxes, scores = _decode_yolox_raw_anchor_grid(
             outputs_one=outputs,
             ratio=1.0,
-            model_input_size=(640, 640),
-            score_thr=0.7,
+            model_input_size=model_input_size,
+            score_thr=0.5,
             nms_thr=0.45,
+            decode_spec=_DEFAULT_DECODE_SPEC,
         )
-        assert len(result_boxes) == 1
-        assert result_scores[0] == pytest.approx(0.95)
+        assert len(boxes) == 1
+        assert boxes[0] == pytest.approx(target, abs=1e-2)
+        assert scores[0] == pytest.approx(1.0, abs=1e-3)
 
-    def test_filters_low_score_detections(self):
-        boxes = np.array([[10.0, 10.0, 50.0, 50.0]])
-        scores = np.array([0.3])
-        outputs = self._make_outputs(boxes, scores)
-        result_boxes, _ = _postprocess_yolox(
+    def test_person_class_id_filters_other_classes(self):
+        model_input_size = (640, 640)
+        target = np.array([16.0, 16.0, 48.0, 48.0])
+        outputs = self._make_raw_output(model_input_size, target)
+        decode_spec = DetectionDecodeSpec(person_class_id=1)
+        boxes, _ = _decode_yolox_raw_anchor_grid(
             outputs_one=outputs,
             ratio=1.0,
-            model_input_size=(640, 640),
-            score_thr=0.7,
+            model_input_size=model_input_size,
+            score_thr=0.5,
             nms_thr=0.45,
+            decode_spec=decode_spec,
         )
-        assert len(result_boxes) == 0
+        # Only class 0 was populated with a score, so requesting class 1
+        # should find nothing.
+        assert len(boxes) == 0
 
-    def test_scales_boxes_by_inverse_ratio(self):
-        boxes = np.array([[100.0, 100.0, 200.0, 200.0]])
-        scores = np.array([0.95])
-        outputs = self._make_outputs(boxes, scores)
-        result_boxes, _ = _postprocess_yolox(
-            outputs_one=outputs,
-            ratio=2.0,
-            model_input_size=(640, 640),
-            score_thr=0.7,
-            nms_thr=0.45,
-        )
-        assert len(result_boxes) == 1
-        assert result_boxes[0, 0] == pytest.approx(50.0)  # 100 / 2.0
-
-    def test_raises_on_unexpected_output_shape(self):
-        bad = np.zeros((1, 10, 7), dtype=np.float32)
-        with pytest.raises(RuntimeError, match="Unexpected YOLOX output shape"):
-            _postprocess_yolox(
-                outputs_one=bad,
+    def test_unsupported_box_format_raises_not_implemented(self):
+        model_input_size = (640, 640)
+        target = np.array([16.0, 16.0, 48.0, 48.0])
+        outputs = self._make_raw_output(model_input_size, target)
+        decode_spec = DetectionDecodeSpec(box_format="cxcywh")
+        with pytest.raises(NotImplementedError):
+            _decode_yolox_raw_anchor_grid(
+                outputs_one=outputs,
                 ratio=1.0,
-                model_input_size=(640, 640),
-                score_thr=0.7,
+                model_input_size=model_input_size,
+                score_thr=0.5,
                 nms_thr=0.45,
+                decode_spec=decode_spec,
             )
 
 
 # ---------------------------------------------------------------------------
-# _postprocess_prenms
+# yolox_detection_decode — top-level YOLOX dispatch
 # ---------------------------------------------------------------------------
 
 
-class TestPostprocessPrenms:
-    def test_returns_empty_when_no_scores_pass_threshold(self):
-        boxes = np.zeros((1, 5, 4), dtype=np.float32)
-        scores = np.full((1, 5), 0.1, dtype=np.float32)
-        result_boxes, result_scores = _postprocess_prenms(
-            boxes=boxes, scores=scores, ratio=1.0, score_thr=0.7, nms_thr=0.45
-        )
-        assert len(result_boxes) == 0
-        assert len(result_scores) == 0
+class TestYoloxDetectionDecodeDispatch:
+    def test_raises_on_unexpected_output_shape(self):
+        bad = np.zeros((1, 10, 7), dtype=np.float32)
+        with pytest.raises(RuntimeError, match="Unexpected YOLOX output shape"):
+            yolox_detection_decode(
+                raw=[bad],
+                ratio=1.0,
+                model_input_size=(640, 640),
+                score_threshold=0.7,
+                nms_threshold=0.45,
+                decode_spec=_DEFAULT_DECODE_SPEC,
+            )
 
-    def test_returns_boxes_above_threshold(self):
-        boxes = np.array([[[10.0, 10.0, 50.0, 50.0]]], dtype=np.float32)
-        scores = np.array([[0.9]], dtype=np.float32)
-        result_boxes, result_scores = _postprocess_prenms(
-            boxes=boxes, scores=scores, ratio=1.0, score_thr=0.7, nms_thr=0.45
+    def test_dispatches_baked_nms_shape_to_generic_decode(self):
+        boxes = np.array([[10.0, 10.0, 50.0, 50.0]])
+        scores = np.array([0.95])
+        out = np.zeros((1, 1, 5), dtype=np.float32)
+        out[0, :, :4] = boxes
+        out[0, :, 4] = scores
+        result_boxes, result_scores = yolox_detection_decode(
+            raw=[out],
+            ratio=1.0,
+            model_input_size=(640, 640),
+            score_threshold=0.7,
+            nms_threshold=0.45,
+            decode_spec=_DEFAULT_DECODE_SPEC,
         )
         assert len(result_boxes) == 1
+        assert result_scores[0] == pytest.approx(0.95)
 
-    def test_scales_by_inverse_ratio(self):
-        boxes = np.array([[[100.0, 200.0, 300.0, 400.0]]], dtype=np.float32)
-        scores = np.array([[0.95]], dtype=np.float32)
-        result_boxes, _ = _postprocess_prenms(
-            boxes=boxes, scores=scores, ratio=2.0, score_thr=0.7, nms_thr=0.45
+    def test_dispatches_two_output_shape_to_prenms_decode(self):
+        boxes = np.array([[[10.0, 10.0, 50.0, 50.0]]], dtype=np.float32)
+        scores = np.array([[0.9]], dtype=np.float32)
+        result_boxes, result_scores = yolox_detection_decode(
+            raw=[boxes, scores],
+            ratio=1.0,
+            model_input_size=(640, 640),
+            score_threshold=0.7,
+            nms_threshold=0.45,
+            decode_spec=_DEFAULT_DECODE_SPEC,
         )
-        assert result_boxes[0, 0] == pytest.approx(50.0)  # 100 / 2.0
+        assert len(result_boxes) == 1
 
 
 # ---------------------------------------------------------------------------

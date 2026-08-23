@@ -1,80 +1,28 @@
-"""Glue between a validated `SidecarModel` and the existing detector/session
-machinery (`ObjectDetector`/`KeypointDetector`/`OnnxSession`).
+"""Glue between a validated `SidecarModel` and the existing session machinery
+(`OnnxSession`).
 
 Free functions only — sidecar-driven detectors (e.g. `YoloxPersonDetector`,
-the RTMW wholebody detector) call into these from their `preprocess`/
-`postprocess`/`model_spec` methods rather than sidecars getting their own
-detector base classes. This keeps the existing `ObjectDetector`/
-`KeypointDetector` ABCs and `OBJECT_DETECTOR_REGISTRY`/
-`KEYPOINT_DETECTOR_REGISTRY` as the only plug-in point.
+the RTMW wholebody detector) call `sidecar_model_spec` from their
+`model_spec` classmethod rather than sidecars getting their own detector base
+classes. This keeps the existing `ObjectDetector`/`KeypointDetector` ABCs and
+`OBJECT_DETECTOR_REGISTRY`/`KEYPOINT_DETECTOR_REGISTRY` as the only plug-in
+point.
+
+Image preprocessing and detection decode also read sidecar-described specs
+(`InputSpec`, `DetectionDecodeSpec`) but aren't sidecar *parsing* concerns —
+see `skellytracker/core/detectors/image_preprocessing.py` and
+`skellytracker/core/detectors/object_detection_decode.py`.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 from beartype.typing import Callable
-from numpy.typing import NDArray
 
 from skellytracker.core.sessions.model_registry import ModelSource
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec
-from skellytracker.core.sidecar.model import (
-    CustomNormalization,
-    InputSpec,
-    Precision,
-    SidecarModel,
-)
-
-_IMAGENET_MEAN: tuple[float, float, float] = (123.675, 116.28, 103.53)
-_IMAGENET_STD: tuple[float, float, float] = (58.395, 57.12, 57.375)
-
-
-def resolve_normalization_mode(
-    input_spec: InputSpec, precision: Precision
-) -> str | CustomNormalization:
-    """Resolve the effective normalization mode for `precision`.
-
-    Resolution order (see specs/sidecar-spec.md, "Normalization modes"):
-    `normalization_by_precision[precision]` -> top-level `normalization` -> default `imagenet_bgr`.
-    """
-    by_precision = input_spec.normalization_by_precision or {}
-    if precision in by_precision:
-        return by_precision[precision]
-    return input_spec.normalization
-
-
-def build_normalization_fn(
-    input_spec: InputSpec, precision: Precision
-) -> Callable[[NDArray[np.uint8]], NDArray[np.float32]]:
-    """Return a function mapping a letterboxed/cropped uint8 HWC image to a
-    normalized float32 HWC tensor, per the resolved normalization mode.
-    """
-    mode = resolve_normalization_mode(input_spec, precision)
-
-    if mode == "none":
-        return lambda img: img.astype(np.float32)
-
-    if mode == "unit_float":
-        return lambda img: (img.astype(np.float32) / 255.0)
-
-    if mode == "imagenet_bgr":
-        mean = np.array(_IMAGENET_MEAN, dtype=np.float32)
-        std = np.array(_IMAGENET_STD, dtype=np.float32)
-        return lambda img: (img.astype(np.float32) - mean) / std
-
-    if mode == "imagenet_rgb":
-        mean = np.array(_IMAGENET_MEAN, dtype=np.float32)
-        std = np.array(_IMAGENET_STD, dtype=np.float32)
-        return lambda img: (img.astype(np.float32) - mean) / std
-
-    if isinstance(mode, CustomNormalization):
-        scale = mode.scale
-        mean = np.array(mode.mean or [0.0, 0.0, 0.0], dtype=np.float32)
-        std = np.array(mode.std or [1.0, 1.0, 1.0], dtype=np.float32)
-        return lambda img: (img.astype(np.float32) * scale - mean) / std
-
-    raise ValueError(f"Unsupported normalization mode: {mode!r}")
+from skellytracker.core.sidecar.model import Precision, SidecarModel
 
 
 def sidecar_model_spec(
