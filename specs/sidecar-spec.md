@@ -8,7 +8,7 @@ Sidecars support two model **roles**:
 
 | Role | Purpose |
 |------|---------|
-| `detector` | Object detection (e.g. YOLO26) — emits boxes, scores, and class IDs. |
+| `object_detector` | Object detection (e.g. YOLO26) — emits boxes, scores, and class IDs. |
 | `pose_estimator` | Pose estimation (e.g. RTMW, RTMPose) — emits keypoint coordinates. |
 
 A sidecar may declare **both** roles — e.g. a one-stage model such as RTMO that emits boxes and keypoints in the same pass. In that case `role` lists both values, and `outputs` mixes `detections` and pose tensors.
@@ -28,7 +28,7 @@ A sidecar may declare **both** roles — e.g. a one-stage model such as RTMO tha
 | [Format](#format) | File naming, style conventions, storage layout, and file-pairing rules. |
 | [File composition](#file-composition-ref-includes-and-base-inheritance) | `$ref` includes and `base` inheritance for reuse. |
 | [Common fields](#common-fields) | Shared identity, input, batching, and output fields for every sidecar. |
-| [Detection fields](#detection-fields-detector-role) | Output fields and detection `decode` for the `detector` role. |
+| [Detection fields](#detection-fields-object_detector-role) | Output fields and detection `decode` for the `object_detector` role. |
 | [Pose-estimation fields](#pose-estimation-fields-pose_estimator-role) | Keypoints, skeletons, canonical mapping, and `decode` for the `pose_estimator` role. |
 | [Model sizes within a family](#model-sizes-within-a-family) | How multiple sizes share one output contract. |
 | [Normalization modes](#normalization-modes) | Pixel normalization options. |
@@ -67,7 +67,7 @@ Sidecars and their ONNX files live under a model cache directory (`{cache_dir}`)
   detectors/
     calibration_detectors/          # calibration targets (e.g. Charuco boards) — hard-coded, not sidecar-defined
     object_detectors/
-      {family}/                     # role: detector
+      {family}/                     # role: object_detector
         {model_id}.yaml
         {model_id}-{size}_{batch}_{precision}.onnx
     keypoint_detectors/
@@ -90,7 +90,7 @@ Sidecars and their ONNX files live under a model cache directory (`{cache_dir}`)
 | Branch | Role | Contents |
 |--------|------|----------|
 | `detectors/calibration_detectors/` | calibration | Calibration detectors (e.g. Charuco boards). Hard-coded in skellytracker — **not** specified via sidecars. |
-| `detectors/object_detectors/{family}/` | `detector` | One sidecar per family, e.g. `yolo26/`. |
+| `detectors/object_detectors/{family}/` | `object_detector` | One sidecar per family, e.g. `yolo26/`. |
 | `detectors/keypoint_detectors/{family}/{part}/` | `pose_estimator` | Keypoint models per body region — `hand`, `face`, `body`, `wholebody`. |
 | `detectors/shared/` | — | Shared `$ref` fragments. Optional; carry no `schema_version`. |
 
@@ -248,7 +248,7 @@ Fields shared by every sidecar regardless of `role`.
 | `schema_version` | string | yes | skellytracker release version the sidecar was authored against (see [Schema versioning](#schema-versioning)). Pattern: `vYYYY.0M.BUILD[-TAG]`. |
 | `model_id` | string | yes | Model identifier; matches the sidecar basename. For object detectors it is the family (e.g. `yolo26`); for keypoint detectors it is `{family}-{part}` (e.g. `rtmw-wholebody`). |
 | `display_name` | string | yes | Human-readable name. |
-| `role` | array[enum] | yes | One or both of `detector` / `pose_estimator`, e.g. `[detector]`, `[pose_estimator]`, or `[detector, pose_estimator]` for a one-stage model such as RTMO. |
+| `role` | array[enum] | yes | One or both of `object_detector` / `pose_estimator`, e.g. `[object_detector]`, `[pose_estimator]`, or `[object_detector, pose_estimator]` for a one-stage model such as RTMO. |
 | `sizes` | object | yes | Map of size name → size definition (see [Sizes](#sizes)). At least one size. |
 
 ### `sizes.<size>.onnx.batch_artifacts`
@@ -296,7 +296,7 @@ Rules:
 
 `shape` is **not** a top-level field — the input image shape is declared per size as `sizes.<size>.input.shape` (see [Sizes](#sizes)). Its batch axis is always `-1`: the concrete native batch size lives in the `batch_artifacts` keys, never in the shape. The channels and spatial dims are concrete, except that the spatial dims are `-1` when [`input.resize.supports_dynamic_size`](#inputresize) is `true`.
 
-`input` is required for `detector` and `pose_estimator` sidecars. This spec models **single-input** models only — `input` describes exactly one input tensor; multi-input models are out of scope.
+`input` is required for `object_detector` and `pose_estimator` sidecars. This spec models **single-input** models only — `input` describes exactly one input tensor; multi-input models are out of scope.
 
 Decoded box and keypoint coordinates are always in a **top-left origin** — `x` grows right, `y` grows down — in the model's input image; the host unprojects them to the source image. There is no per-sidecar origin override.
 
@@ -304,7 +304,7 @@ Decoded box and keypoint coordinates are always in a **top-left origin** — `x`
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `method` | enum | yes | `letterbox` (detector default), `affine_person_crop` (top-down pose), or `none` (pass the source image unchanged — no resize). |
+| `method` | enum | yes | `letterbox` (object detector default), `affine_person_crop` (top-down pose), or `none` (pass the source image unchanged — no resize). |
 | `target_size` | array[2] | conditional | `[height, width]` the input is resized to. Declared in `sizes.<size>.input.resize.target_size`. Required when `resize` is present and `method` is `letterbox` or `affine_person_crop`, unless `supports_dynamic_size: true`. Omitted when `method: none`. |
 | `supports_dynamic_size` | bool | no | Model accepts any input spatial size; `target_size` is omitted. Default `false`. |
 | `preserve_aspect_ratio` | bool | no | Letterbox only; default `true`. |
@@ -352,7 +352,7 @@ When `target_size` is declared, the size's `input.shape` spatial dimensions must
 | Contract part | Where it lives |
 |---------------|----------------|
 | `role`, `outputs`, `input` (except `shape` / `resize.target_size`), `batching` | shared at top level |
-| `decode` | top level, when `role` includes `detector` |
+| `decode` | top level, when `role` includes `object_detector` |
 | `pose`, `overlay` | top level, when `role` includes `pose_estimator` |
 | `input.shape`, `input.resize.target_size` (unless `supports_dynamic_size`), `onnx.batch_artifacts` | per size (`sizes.<size>`) |
 
@@ -367,7 +367,7 @@ When `target_size` is declared, the size's `input.shape` spatial dimensions must
 
 ### `outputs` (common)
 
-Each entry describes one ONNX output tensor. `outputs` is required for every sidecar. The fields below are common to every role; role-specific fields are described in the [detection](#detection-fields-detector-role) and [pose-estimation](#pose-estimation-fields-pose_estimator-role) sections.
+Each entry describes one ONNX output tensor. `outputs` is required for every sidecar. The fields below are common to every role; role-specific fields are described in the [object-detection](#detection-fields-object_detector-role) and [pose-estimation](#pose-estimation-fields-pose_estimator-role) sections.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -379,10 +379,10 @@ Each entry describes one ONNX output tensor. `outputs` is required for every sid
 
 All sizes in a sidecar share one output contract: each output tensor has the same semantics and keypoint count across sizes. Fixed-shape outputs (e.g. `detections`) differ only in the batch dimension; spatial-dependent pose outputs (SIMCC bins, heatmap H×W) may scale their spatial dims with the input size. Per-batch shapes are declared via `batch_artifacts.<N>.output_shapes`.
 
-A sidecar with both roles lists every tensor in one `outputs` array. Each tensor's `semantic` routes it to its decoder: `detections` → `decode` (detection); pose semantics → `pose.decode`. Semantics map to roles as follows: `detections` requires `role` to include `detector` (a both-role model such as RTMO emits it as well); `simcc_x`/`simcc_y`/`simcc_z`/`heatmap`/`keypoints`/`poses` require `role` to include `pose_estimator`.
+A sidecar with both roles lists every tensor in one `outputs` array. Each tensor's `semantic` routes it to its decoder: `detections` → `decode` (detection); pose semantics → `pose.decode`. Semantics map to roles as follows: `detections` requires `role` to include `object_detector` (a both-role model such as RTMO emits it as well); `simcc_x`/`simcc_y`/`simcc_z`/`heatmap`/`keypoints`/`poses` require `role` to include `pose_estimator`.
 
 ```yaml
-# One-stage detector + pose model (role: [detector, pose_estimator])
+# One-stage detector + pose model (role: [object_detector, pose_estimator])
 outputs:
   - name: out_det
     dtype:
@@ -406,19 +406,19 @@ decode:                # detection decode — applies to the `detections` tensor
 
 pose:                  # pose decode — applies to the `poses` tensor
   estimator_type: bottom_up
-  requires_detector: false
+  requires_object_detector: false
   # ... tracked_points / connections ...
   decode:
     method: coordinate
 ```
 
-## Detection fields (`detector` role)
+## Detection fields (`object_detector` role)
 
-Fields that apply when `role` includes `detector`.
+Fields that apply when `role` includes `object_detector`.
 
 ### `outputs` (detection)
 
-Additional fields on `detector` output tensors — the raw tensor schema:
+Additional fields on `object_detector` output tensors — the raw tensor schema:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -426,7 +426,7 @@ Additional fields on `detector` output tensors — the raw tensor schema:
 
 ### `decode` (detection)
 
-Required when `role` includes `detector`. How the host interprets the output whose `semantic` is `detections` — box format, score/class fields, and post-processing defaults. Box coordinates are expressed in the model's input image (post-resize) scale; the host unprojects them to the source image:
+Required when `role` includes `object_detector`. How the host interprets the output whose `semantic` is `detections` — box format, score/class fields, and post-processing defaults. Box coordinates are expressed in the model's input image (post-resize) scale; the host unprojects them to the source image:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
@@ -462,7 +462,7 @@ The pose output contract declares the keypoints a model produces, the skeleton(s
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `pose.estimator_type` | enum | yes | `top_down_single_person`, `top_down_multi_person`, or `bottom_up`. Top-down models see one person per crop (single-person outputs); bottom-up models (e.g. RTMO) emit all persons in one pass. |
-| `pose.requires_detector` | bool | yes | `true` when the model consumes a person crop produced by an upstream detector (top-down models — the host warps each detection box via `affine_person_crop`); `false` when the model consumes the full image (bottom-up models such as RTMO). Must be consistent with `estimator_type`. |
+| `pose.requires_object_detector` | bool | yes | `true` when the model consumes a person crop produced by an upstream detector (top-down models — the host warps each detection box via `affine_person_crop`); `false` when the model consumes the full image (bottom-up models such as RTMO). Must be consistent with `estimator_type`. |
 | `pose.landmark_schema` | string | no | Keypoint convention the model uses (e.g. `COCO_WholeBody`, `COCO17`, `MediaPipe_Hand`, `MediaPipe_Pose`, `LaPa_106`). |
 | `pose.tracked_points` | array[string] or `$ref` | yes | Ordered list of keypoint names the model outputs. The i-th name is the i-th model output index. |
 | `pose.connections` | array[Skeleton] or `$ref` | yes | Named skeletons; each joins `tracked_points` into a different skeleton. |
@@ -473,7 +473,7 @@ The pose output contract declares the keypoints a model produces, the skeleton(s
 ```yaml
 pose:
   estimator_type: top_down_single_person
-  requires_detector: true
+  requires_object_detector: true
   tracked_points:
     - nose
     - left_shoulder
@@ -757,13 +757,13 @@ A sidecar is valid when all of the following hold:
 - [ ] `schema_version` is a string matching the skellytracker version pattern (no pre-release tag).
 - [ ] `schema_version` is supported by the installed skellytracker release (`installed >= schema_version`).
 - [ ] `model_id` matches the sidecar basename (`{model_id}.yaml`).
-- [ ] `role` is a non-empty subset of `detector`/`pose_estimator`.
+- [ ] `role` is a non-empty subset of `object_detector`/`pose_estimator`.
 - [ ] `display_name`, `input` (with `name`), and a non-empty `outputs` array (each with `name`) are present.
-- [ ] A sidecar whose `role` includes `detector` declares `decode`.
-- [ ] A sidecar whose `role` includes `pose_estimator` declares `pose` (with `estimator_type` and `requires_detector`), `pose.decode`, `pose.tracked_points`, and `pose.connections`.
-- [ ] `pose.requires_detector` is a boolean and consistent with `pose.estimator_type`: `true` for `top_down_single_person`/`top_down_multi_person`, `false` for `bottom_up`.
+- [ ] A sidecar whose `role` includes `object_detector` declares `decode`.
+- [ ] A sidecar whose `role` includes `pose_estimator` declares `pose` (with `estimator_type` and `requires_object_detector`), `pose.decode`, `pose.tracked_points`, and `pose.connections`.
+- [ ] `pose.requires_object_detector` is a boolean and consistent with `pose.estimator_type`: `true` for `top_down_single_person`/`top_down_multi_person`, `false` for `bottom_up`.
 - [ ] `pose.estimator_type` is one of `top_down_single_person`, `top_down_multi_person`, `bottom_up`; `pose.decode.method` is one of `simcc`, `heatmap`, `coordinate`.
-- [ ] A sidecar with `pose.requires_detector: true` declares `input.resize.method: affine_person_crop`.
+- [ ] A sidecar with `pose.requires_object_detector: true` declares `input.resize.method: affine_person_crop`.
 - [ ] `pose.tracked_points` names are unique.
 - [ ] Every `pose.connections[].edges` endpoint appears in `pose.tracked_points` or `pose.derived_points`.
 - [ ] `pose.connections[].name` values are unique.
@@ -792,9 +792,9 @@ A sidecar is valid when all of the following hold:
 - [ ] When a size has `len(batch_artifacts) > 1`, each group declares `output_shapes`, whose length equals `len(outputs)` (parallel to `outputs` order) and whose entries are arrays.
 - [ ] All sizes share the same output semantics and keypoint count (spatial-dependent dims may scale with input size).
 - [ ] `keypoint_count` (when authored on a pose output) equals `len(pose.tracked_points)`.
-- [ ] Each output's `semantic` is one of `detections`, `simcc_x`, `simcc_y`, `simcc_z`, `heatmap`, `keypoints`, `poses`. `detections` requires `role` to include `detector`; every pose semantic requires `role` to include `pose_estimator`.
-- [ ] A sidecar whose `role` includes `detector` declares exactly one output with `semantic: detections`, and that output declares `fields`.
-- [ ] A `detector`'s `decode.score_field`/`decode.class_field` (when authored) appear in the `detections` output's `fields`; `decode.box_format` (when present) is `xyxy`, `xywh`, or `cxcywh`.
+- [ ] Each output's `semantic` is one of `detections`, `simcc_x`, `simcc_y`, `simcc_z`, `heatmap`, `keypoints`, `poses`. `detections` requires `role` to include `object_detector`; every pose semantic requires `role` to include `pose_estimator`.
+- [ ] A sidecar whose `role` includes `object_detector` declares exactly one output with `semantic: detections`, and that output declares `fields`.
+- [ ] An `object_detector`'s `decode.score_field`/`decode.class_field` (when authored) appear in the `detections` output's `fields`; `decode.box_format` (when present) is `xyxy`, `xywh`, or `cxcywh`.
 - [ ] A `simcc` decoder declares exactly one `simcc_x` and one `simcc_y` output, plus one `simcc_z` output iff `is_3d: true`; `heatmap` declares exactly one output with `semantic: heatmap`; `coordinate` declares exactly one `keypoints` output (single-person), or one `detections` + one `poses` output (`bottom_up`).
 - [ ] A `poses` output declares `keypoint_axis: 2`.
 - [ ] `pose.decode.is_3d` (when present) is a boolean; when `true`, `pose.decode.depth_unit` is present and one of `m`, `mm`, `pixel`; `depth_unit` and `depth_range` are present only when `is_3d: true`.
@@ -806,7 +806,7 @@ A sidecar is valid when all of the following hold:
 - [ ] `overlay.groups.<name>.connection_thickness` (when present) is a positive integer.
 - [ ] Every edge in a group's `connections` is a member of the selected skeleton's edge set (the named `pose.connections[]` entry, or the inline `overlay.skeleton` edge list).
 - [ ] `overlay.keypoint_color`, `overlay.groups.<name>.connection_color`, and `overlay.groups.<name>.keypoint_color` (when present) are length-3 arrays.
-- [ ] A sidecar whose `role` includes `detector`: `decode.person_class_id` >= `decode.class_id_base`; `decode.confidence_threshold_default` (when present) is in `[0, 1]`; `decode.max_detections` (when present) is a positive integer; `decode.class_id_base` and `decode.person_class_id` are non-negative integers.
+- [ ] A sidecar whose `role` includes `object_detector`: `decode.person_class_id` >= `decode.class_id_base`; `decode.confidence_threshold_default` (when present) is in `[0, 1]`; `decode.max_detections` (when present) is a positive integer; `decode.class_id_base` and `decode.person_class_id` are non-negative integers.
 
 Every future contract change must bump `schema_version` to the skellytracker release that ships it and add a changelog row below.
 
@@ -814,7 +814,7 @@ Every future contract change must bump `schema_version` to the skellytracker rel
 
 | `schema_version` | Changes |
 |------------------|---------|
-| `v2024.09.1019` | Initial YAML sidecar spec: one `{model_id}.yaml` per family with a `sizes` map (size × batch × precision via `sizes.<size>.onnx.batch_artifacts`, incl. `dynamic` batch); `role` arrays (`detector` / `pose_estimator`, both for one-stage models); `input.normalization` modes (`none`, `unit_float`, `imagenet_bgr`, `imagenet_rgb`, `custom`) with per-precision overrides; `input.resize` (`letterbox` + `affine_person_crop` with `crop_policy`, `none`, interpolation); file composition (`$ref` includes + `base` inheritance with `null`-delete); `schema_version` as skellytracker version string; pose output contract (`tracked_points`, named `connections`, `derived_points`, `canonical_mapping` with `prefixes`, `overlay.groups`, `requires_detector`, and `decode` incl. `simcc`/`heatmap`/`coordinate` with 3D via `is_3d`/`depth_unit`/`depth_range`); VRM 1.0 canonical skeleton with current→VRM name-migration note; `detectors/` storage layout; per-precision `url` with mandatory `url_sha256`. |
+| `v2024.09.1019` | Initial YAML sidecar spec: one `{model_id}.yaml` per family with a `sizes` map (size × batch × precision via `sizes.<size>.onnx.batch_artifacts`, incl. `dynamic` batch); `role` arrays (`object_detector` / `pose_estimator`, both for one-stage models); `input.normalization` modes (`none`, `unit_float`, `imagenet_bgr`, `imagenet_rgb`, `custom`) with per-precision overrides; `input.resize` (`letterbox` + `affine_person_crop` with `crop_policy`, `none`, interpolation); file composition (`$ref` includes + `base` inheritance with `null`-delete); `schema_version` as skellytracker version string; pose output contract (`tracked_points`, named `connections`, `derived_points`, `canonical_mapping` with `prefixes`, `overlay.groups`, `requires_object_detector`, and `decode` incl. `simcc`/`heatmap`/`coordinate` with 3D via `is_3d`/`depth_unit`/`depth_range`); VRM 1.0 canonical skeleton with current→VRM name-migration note; `detectors/` storage layout; per-precision `url` with mandatory `url_sha256`. |
 
 ## Reference examples
 
@@ -827,7 +827,7 @@ A family sidecar with one `nano` size, three precisions, and per-precision check
 schema_version: "v2024.09.1019"
 model_id: yolo26
 display_name: YOLO26
-role: [detector]
+role: [object_detector]
 
 input:
   name: images
@@ -958,7 +958,7 @@ outputs:
 
 pose:
   estimator_type: top_down_single_person
-  requires_detector: true
+  requires_object_detector: true
   landmark_schema: COCO_WholeBody
   tracked_points: {$ref: ../../../shared/skeletons/coco133_tracked_points.yaml}
   connections: {$ref: ../../../shared/skeletons/coco133_skeletons.yaml}
