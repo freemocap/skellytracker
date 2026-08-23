@@ -107,6 +107,15 @@ cervicothoracic_junction:
   offset: {up: 0.369, anterior: -0.109}
   reference_length: shoulder_width
 
+craniocervical_junction:
+  form: anatomical_offset
+  origin: ["left_shoulder", "right_shoulder"]
+  frame:
+    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
+    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
+  offset: {up: 0.769, anterior: -0.109}
+  reference_length: shoulder_width
+
 thoracolumbar_junction:
   form: anatomical_offset
   origin: ["left_shoulder", "right_shoulder"]
