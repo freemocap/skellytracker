@@ -105,7 +105,7 @@ class YoloxPersonDetector(ObjectDetector):
         tensor, ratio = preprocess_image(
             image, self.config.input_size, _SIDECAR.input, precision="fp32"
         )
-        return tensor, YoloxMetadata(ratio=ratio, original_size=image.shape[:2])
+        return tensor, YoloxMetadata(ratio=ratio)
 
     def postprocess(self, raw: Any, metadata: YoloxMetadata) -> list[BoundingBox]:
         """Decode per-image raw ORT outputs into BoundingBox list.
