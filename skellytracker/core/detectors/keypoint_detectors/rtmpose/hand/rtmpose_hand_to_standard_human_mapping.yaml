@@ -7,9 +7,13 @@
 # Keys are the standard human SIDED hand landmark names (left_*/right_*); values are the
 # RTMPose hand keypoints. The wrist is NOT mapped here: it is hydrated by the body mapping
 # (left_wrist/right_wrist), the shared arm<->hand joint (its landmark is carpal_origin).
-# The derived carpal bones (scaphoid, lunate, triquetrum, pisiform, trapezoid, capitate,
-# hamate, trapezium) and the finger CMC joints ride the hand rigid solve and are not
-# mapped; only thumb_cmc has a tracker keypoint (thumb1).
+# The finger CMC joints (index/middle/ring/pinky metacarpal bases) have no tracker
+# keypoint, so they are DERIVED below: each knuckle (MCP) is walked back along its own
+# finger direction by the metacarpal's authored length (hand.yaml: index 65, middle 68,
+# ring 60, pinky 50 mm) expressed as a ratio of the observed proximal-phalanx length
+# (MCP->PIP). The carpal bones (scaphoid, lunate, triquetrum, pisiform, trapezoid,
+# capitate, hamate, trapezium) still ride the carpals rigid solve once the CMC joints
+# and carpal_origin are observed; thumb_cmc has a tracker keypoint (thumb1).
 
 left_thumb_cmc: "left_hand_thumb1"
 left_thumb_mcp: "left_hand_thumb2"
@@ -51,3 +55,73 @@ right_pinky_mcp: "right_hand_pinky_finger1"
 right_pinky_pip: "right_hand_pinky_finger2"
 right_pinky_dip: "right_hand_pinky_finger3"
 right_pinky_tip: "right_hand_pinky_finger4"
+
+# ---- Derived: finger CMC joints (palm end of each metacarpal) --------------------
+# Walk each knuckle back along the finger's own proximal-phalanx direction (MCP->PIP)
+# by the metacarpal's authored length, as a ratio of the observed phalanx length:
+#   index 65/40, middle 68/45, ring 60/40, pinky 50/30 mm.
+# The `radial` axis (thumb->pinky) only orients the frame; the offset uses `distal`.
+left_index_cmc:
+  form: anatomical_offset
+  origin: ["left_index_mcp"]
+  frame:
+    distal: {from: left_index_mcp, to: left_index_pip, kind: exact}
+    radial: {from: left_thumb_mcp, to: left_pinky_mcp, kind: approximate}
+  offset: {distal: -1.625}
+  reference_length: {from: left_index_mcp, to: left_index_pip}
+left_middle_cmc:
+  form: anatomical_offset
+  origin: ["left_middle_mcp"]
+  frame:
+    distal: {from: left_middle_mcp, to: left_middle_pip, kind: exact}
+    radial: {from: left_thumb_mcp, to: left_pinky_mcp, kind: approximate}
+  offset: {distal: -1.511111111}
+  reference_length: {from: left_middle_mcp, to: left_middle_pip}
+left_ring_cmc:
+  form: anatomical_offset
+  origin: ["left_ring_mcp"]
+  frame:
+    distal: {from: left_ring_mcp, to: left_ring_pip, kind: exact}
+    radial: {from: left_thumb_mcp, to: left_pinky_mcp, kind: approximate}
+  offset: {distal: -1.5}
+  reference_length: {from: left_ring_mcp, to: left_ring_pip}
+left_pinky_cmc:
+  form: anatomical_offset
+  origin: ["left_pinky_mcp"]
+  frame:
+    distal: {from: left_pinky_mcp, to: left_pinky_pip, kind: exact}
+    radial: {from: left_thumb_mcp, to: left_pinky_mcp, kind: approximate}
+  offset: {distal: -1.666666667}
+  reference_length: {from: left_pinky_mcp, to: left_pinky_pip}
+right_index_cmc:
+  form: anatomical_offset
+  origin: ["right_index_mcp"]
+  frame:
+    distal: {from: right_index_mcp, to: right_index_pip, kind: exact}
+    radial: {from: right_thumb_mcp, to: right_pinky_mcp, kind: approximate}
+  offset: {distal: -1.625}
+  reference_length: {from: right_index_mcp, to: right_index_pip}
+right_middle_cmc:
+  form: anatomical_offset
+  origin: ["right_middle_mcp"]
+  frame:
+    distal: {from: right_middle_mcp, to: right_middle_pip, kind: exact}
+    radial: {from: right_thumb_mcp, to: right_pinky_mcp, kind: approximate}
+  offset: {distal: -1.511111111}
+  reference_length: {from: right_middle_mcp, to: right_middle_pip}
+right_ring_cmc:
+  form: anatomical_offset
+  origin: ["right_ring_mcp"]
+  frame:
+    distal: {from: right_ring_mcp, to: right_ring_pip, kind: exact}
+    radial: {from: right_thumb_mcp, to: right_pinky_mcp, kind: approximate}
+  offset: {distal: -1.5}
+  reference_length: {from: right_ring_mcp, to: right_ring_pip}
+right_pinky_cmc:
+  form: anatomical_offset
+  origin: ["right_pinky_mcp"]
+  frame:
+    distal: {from: right_pinky_mcp, to: right_pinky_pip, kind: exact}
+    radial: {from: right_thumb_mcp, to: right_pinky_mcp, kind: approximate}
+  offset: {distal: -1.666666667}
+  reference_length: {from: right_pinky_mcp, to: right_pinky_pip}
