@@ -399,12 +399,9 @@ class DetectionStage:
         -------
         (per-camera StageObservation dict, per-camera updated StageState dict)
         """
-        # Lazy import to avoid requiring onnxruntime in non-GPU environments
-        try:
-            from skellytracker.core.sessions.onnx_session import OnnxSession as _OnnxSession
-        except ImportError:
-            _OnnxSession = None  # type: ignore[assignment,misc]
-
+        # The session's `kind` identifies an ONNX session without importing the
+        # OnnxSession class, whose module-level onnxruntime import would break
+        # MediaPipe/OpenCV-only installations.
         frame_number = context.frame_number if context is not None else 0
         dt = _dt_from_context(context)
         cam_ids = list(images.keys())
@@ -421,8 +418,7 @@ class DetectionStage:
         onnx_object_detector = (
             self.object_detector
             if self.object_detector is not None
-            and _OnnxSession is not None
-            and isinstance(self.object_detector.session, _OnnxSession)
+            and self.object_detector.session.kind == "onnx"
             else None
         )
         any_needs_redetect = onnx_object_detector is not None and any(
@@ -556,7 +552,7 @@ class DetectionStage:
         for i, detector in enumerate(self.keypoint_detectors):
             detector_results: dict[str, tuple[Keypoints, KeypointSmoothingState]] = {}
 
-            if _OnnxSession is not None and isinstance(detector.session, _OnnxSession):
+            if detector.session.kind == "onnx":
                 # Batched ONNX path — preprocess all cameras in parallel (cv2/numpy release the GIL)
                 tensors = {}
                 metas = {}

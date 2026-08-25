@@ -13,6 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from skellytracker.core.detectors.keypoint_detectors._schema_loader import (
     load_point_names,
@@ -35,18 +36,35 @@ def _known_keypoints(mapping: TrackerMapping, mapping_path: str) -> set[str]:
     return raw | set(mapping.landmark_names)
 
 
-def _rest_pose_keypoints() -> dict[str, np.ndarray]:
-    """The tracker keypoints at the SkellyForge rest (T) pose, Blender world axes."""
+def _tpose_tracker_head() -> dict[str, np.ndarray]:
+    """Tracker keypoints standing in at the authored T-pose.
+
+    Derived from SkellyForge's rest pose itself rather than hand-copied
+    coordinates - hand-copied numbers drift silently when the model moves on.
+    The head-frame offsets consume the ears/eyes/nose plus the shoulders and
+    hips that anchor the trunk frame, mirroring the table in skellyforge's
+    ``test_tracker_mapping_offset_round_trip.py``.
+    """
+    pytest.importorskip("skellyforge", reason="skellyforge is a dev dependency")
+    from skellyforge.core.skeleton.pose.rest_pose import RestPose
+    from skellyforge.core.skeleton.skeleton_definition import SkeletonDefinition
+
+    skeleton = SkeletonDefinition.from_default_yaml()
+    landmark_positions = RestPose.from_default_yaml(skeleton=skeleton).landmark_positions
+    standins = {
+        "nose": "nose",
+        "left_eye": "left_eye",
+        "right_eye": "right_eye",
+        "left_ear": "left_ear",
+        "right_ear": "right_ear",
+        "left_shoulder": "left_acromion",
+        "right_shoulder": "right_acromion",
+        "left_hip": "left_hip_socket",
+        "right_hip": "right_hip_socket",
+    }
     return {
-        "nose": np.array([0.0, 65.0, 716.0]),
-        "left_eye": np.array([-32.0, 30.0, 756.0]),
-        "right_eye": np.array([32.0, 30.0, 756.0]),
-        "left_ear": np.array([-70.0, -45.0, 711.0]),
-        "right_ear": np.array([70.0, -45.0, 711.0]),
-        "left_shoulder": np.array([-160.0, 0.0, 470.0]),
-        "right_shoulder": np.array([160.0, 0.0, 470.0]),
-        "left_hip": np.array([-88.0, 0.0, 0.0]),
-        "right_hip": np.array([88.0, 0.0, 0.0]),
+        tracker_name: landmark_positions[landmark_name].array
+        for tracker_name, landmark_name in standins.items()
     }
 
 
@@ -60,17 +78,40 @@ def test_both_body_mappings_load_with_known_tracker_keypoints():
 
 
 def test_head_landmarks_land_on_rest_positions():
+    pytest.importorskip("skellyforge", reason="skellyforge is a dev dependency")
+    from skellyforge.core.skeleton.pose.rest_pose import RestPose
+    from skellyforge.core.skeleton.skeleton_definition import SkeletonDefinition
+
+    skeleton = SkeletonDefinition.from_default_yaml()
+    landmark_positions = RestPose.from_default_yaml(skeleton=skeleton).landmark_positions
+    tracker_body = _tpose_tracker_head()
+
+    _tolerance_mm = 2.0
     for mapping_path in (MEDIAPIPE_BODY_MAPPING, RTMPOSE_BODY_MAPPING):
         mapping = TrackerMapping.from_yaml(Path(mapping_path))
-        result = mapping.apply(_rest_pose_keypoints())
+        result = mapping.apply(tracker_positions=tracker_body)
 
-        # head_center is the ear midpoint (the tracker's head-center approximation,
-        # ~11 mm posterior-inferior of the SkellyForge skull origin).
-        assert np.allclose(result["head_center"], [0.0, -45.0, 711.0], atol=0.1)
-        # head_vertex sits ~130 mm above head_center along the head vertical.
-        assert np.allclose(result["head_vertex"] - result["head_center"], [0.0, 0.0, 130.0], atol=7.0)
-        # chin and canine tips are derived from the (directly tracked) nose, so they
-        # land near the SkellyForge skull rest positions.
-        assert np.allclose(result["chin"], [0.0, 60.0, 621.0], atol=5.0)
-        assert np.allclose(result["left_canine_tooth_tip"], [-20.0, 25.0, 666.0], atol=5.0)
-        assert np.allclose(result["right_canine_tooth_tip"], [20.0, 25.0, 666.0], atol=5.0)
+        # head_center is the ear midpoint (the tracker's head-center approximation).
+        assert np.allclose(
+            result["head_center"],
+            (
+                np.asarray(landmark_positions["left_ear"].array)
+                + np.asarray(landmark_positions["right_ear"].array)
+            )
+            / 2.0,
+            atol=0.1,
+        )
+        # Everything else is derived in the head frame, so it must land on the
+        # authored skull rest positions.
+        for landmark_name in ("head_vertex", "chin", "left_canine_tooth_tip", "right_canine_tooth_tip"):
+            error_mm = float(
+                np.linalg.norm(
+                    np.asarray(result[landmark_name])
+                    - np.asarray(landmark_positions[landmark_name].array)
+                )
+            )
+            assert error_mm <= _tolerance_mm, (
+                f"{mapping_path.name}: {landmark_name}: {error_mm:.2f} mm from its "
+                f"authored rest position (allowed {_tolerance_mm} mm) - "
+                "regenerate the mapping ratios"
+            )

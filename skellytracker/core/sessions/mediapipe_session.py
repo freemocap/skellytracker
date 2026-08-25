@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from skellytracker.core.config.session_config import SessionConfig
 from skellytracker.core.sessions.session import Session
@@ -36,6 +36,8 @@ class MediaPipeSession(Session):
     environment variable before any landmarkers are created. Each detector then
     creates and owns its own landmarker using this device context.
     """
+
+    kind: ClassVar[str] = "mediapipe"
 
     running_mode: Literal["video", "image"]
 

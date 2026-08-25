@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from typing import ClassVar
 
 from skellytracker.core.config.session_config import SessionConfig
 
@@ -12,7 +13,13 @@ class Session(ABC):
 
     One Session per backend per Tracker. Created once, shared across all
     detectors that use that backend. Detectors do not own resource lifecycle.
+
+    `kind` identifies the session's backend WITHOUT importing the concrete
+    class, so code that only needs to ask "is this an ONNX session?" never
+    pays for onnxruntime's module-level import.
     """
+
+    kind: ClassVar[str]
 
     @classmethod
     @abstractmethod

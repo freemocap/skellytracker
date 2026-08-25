@@ -28,6 +28,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import ClassVar
 
 
 import numpy as np
@@ -65,6 +66,8 @@ class OnnxSession(Session):
     ``ort.InferenceSession``. This avoids redundant CUDA-context creation when
     multiple detectors share the same GPU.
     """
+
+    kind: ClassVar[str] = "onnx"
 
     _sessions: dict[str, ort.InferenceSession] = field(default_factory=dict)
     execution_provider: ExecutionProviderName = "cpu"
