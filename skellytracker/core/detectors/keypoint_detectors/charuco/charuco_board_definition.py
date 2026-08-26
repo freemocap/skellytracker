@@ -5,6 +5,18 @@ from pydantic import BaseModel, ConfigDict, computed_field, model_validator
 
 CORNERS_PER_ARUCO_MARKER: int = 4
 
+# What this board's points and edges ARE, for whoever builds its skeleton. Tags, not
+# colours: skellyforge's `definitions/color_palette.yaml` turns a tag into a colour, and a
+# user recolours by editing that one mapping. Ordered most-specific-first, because a
+# palette resolves the first tag it knows.
+#
+# They are named here, next to the geometry they describe, so the board has one place that
+# says what its parts are. They are plain strings, so this file gains no dependency on the
+# package that draws them.
+CHARUCO_CORNER_TAGS: tuple[str, ...] = ("charuco_corner",)
+CHARUCO_GRID_TAGS: tuple[str, ...] = ("charuco_grid", "charuco_corner")
+ARUCO_MARKER_TAGS: tuple[str, ...] = ("aruco_marker",)
+
 
 class CharucoBoardDefinition(BaseModel):
     """Known charuco board geometry — fixed, never optimized.
