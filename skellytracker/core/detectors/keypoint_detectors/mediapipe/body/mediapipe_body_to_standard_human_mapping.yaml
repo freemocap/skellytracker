@@ -102,7 +102,7 @@ xiphoid_process:
   offset: {up: -0.508274, anterior: 0.358977}
   reference_length: shoulder_width
 
-cervicothoracic_junction:
+neck_center:
   form: anatomical_offset
   origin: ["left_shoulder", "right_shoulder"]
   frame:
@@ -116,7 +116,7 @@ cervicothoracic_junction:
 # actual head instead of the trunk frame.
 craniocervical_junction: ["left_ear", "right_ear"]
 
-thoracolumbar_junction:
+chest_center:
   form: anatomical_offset
   origin: ["left_shoulder", "right_shoulder"]
   frame:
