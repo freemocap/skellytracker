@@ -165,6 +165,26 @@ class TrackerMapping:
                     "never produces: " + ", ".join(offenders)
                 )
 
+    @property
+    def directly_measured_landmark_names(self) -> frozenset[str]:
+        """The landmarks this mapping MEASURES, as opposed to constructs.
+
+        Every non-offset form — a passthrough, a mean of keypoints, a weighted sum — is an
+        affine combination of measured keypoints with constant coefficients, so it carries
+        the subject's real geometry: the distance between two of them is a distance on the
+        subject.  An ``anatomical_offset`` is not.  It places a landmark at
+        ``ratio x reference_length`` along an authored direction, so the distance between
+        two of them is an authored ratio times a span already measured elsewhere — the
+        template quoting itself back.
+
+        The distinction matters to anything inferring the subject's SIZE from the mapped
+        landmarks (SkellyForge's body-scale fit): constructed landmarks are near
+        noise-free, so a consistency-weighted estimator would rank them as its best
+        evidence, which is exactly backwards.  They are perfectly good POSITIONS; they are
+        not independent evidence about scale.
+        """
+        return frozenset(self._entries)
+
     def _referenced_tracker_names(self) -> set[str]:
         """Every tracker-side name referenced by this mapping (prefix applied).
 
