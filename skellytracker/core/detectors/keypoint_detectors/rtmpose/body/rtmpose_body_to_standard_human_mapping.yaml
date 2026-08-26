@@ -1,181 +1,254 @@
-# RTMPose body → standard-human landmark hydration.
-#
-# Keys are the standard human's (SkellyForge) landmark names; values are the RTMPose
-# COCO-WholeBody body keypoints that hydrate each landmark. Four hydration forms:
-#
-#   string  →  1:1 passthrough  (landmark = tracker keypoint at that name)
-#   list    →  unweighted mean   (landmark = mean of listed tracker keypoints)
-#   dict    →  weighted sum      (landmark = weighted sum of name:weight keypoints)
-#   dict    →  anatomical_offset (off-surface point via a local anatomical frame)
-#
-# A landmark whose tracker source is missing is omitted; a mean/weighted form requires
-# ALL its inputs (a partial mean would silently relabel a different point).
-
-# ---- Direct 1:1 mappings ----
-# The tracker's "shoulder" is the acromion (surface). SkellyForge models the glenohumeral
-# joint AT the acromion (left_shoulder == left_acromion), so both landmarks take the same
-# keypoint. The same is true of the hip (hip_joint == hip_socket), the ankle
-# (ankle == ankle_origin) and the wrist (wrist == carpal_origin): shared joints.
-nose: "nose"
-left_eye: "left_eye"
-right_eye: "right_eye"
-left_ear: "left_ear"
-right_ear: "right_ear"
-left_acromion: "left_shoulder"
-right_acromion: "right_shoulder"
-left_shoulder: "left_shoulder"
-right_shoulder: "right_shoulder"
-left_elbow: "left_elbow"
-right_elbow: "right_elbow"
-left_wrist: "left_wrist"
-right_wrist: "right_wrist"
-left_carpal_origin: "left_wrist"
-right_carpal_origin: "right_wrist"
-left_hip_joint: "left_hip"
-right_hip_joint: "right_hip"
-left_hip_socket: "left_hip"
-right_hip_socket: "right_hip"
-left_knee: "left_knee"
-right_knee: "right_knee"
-left_ankle: "left_ankle"
-right_ankle: "right_ankle"
-left_ankle_origin: "left_ankle"
-right_ankle_origin: "right_ankle"
-left_calcaneus: "left_heel"
-right_calcaneus: "right_heel"
-left_toe_tip: "left_big_toe"
-right_toe_tip: "right_big_toe"
-
-# ---- Computed keypoints (mean of tracker keypoints) ----
-head_center: ["left_ear", "right_ear"]
-pelvis_origin: ["left_hip", "right_hip"]
-
-# ---- Off-surface points (anatomical_offset) ----
-#
-# Ratios are recomputed from SkellyForge's rest positions (Blender: +x right, +y forward,
-# +z up) so that identity == T-pose holds - regenerated 2026-08-24 by skellyforge's
-# scripts/generate_tracker_mapping_ratios.py, guarded by
-# skellyforge/tests/test_tracker_mapping_offset_round_trip.py. The frame is built from two axes:
-#   up      (exact)   hip midpoint -> shoulder midpoint   (the trunk vertical)
-#   lateral (approx)  left_shoulder -> right_shoulder      (the biacromial axis)
-# the implicit third axis (cross product) is "anterior" (+y, forward).
-
+nose: nose
+left_eye: left_eye
+right_eye: right_eye
+left_ear: left_ear
+right_ear: right_ear
+left_acromion: left_shoulder
+right_acromion: right_shoulder
+left_shoulder: left_shoulder
+right_shoulder: right_shoulder
+left_elbow: left_elbow
+right_elbow: right_elbow
+left_wrist: left_wrist
+right_wrist: right_wrist
+left_carpal_origin: left_wrist
+right_carpal_origin: right_wrist
+left_hip_joint: left_hip
+right_hip_joint: right_hip
+left_hip_socket: left_hip
+right_hip_socket: right_hip
+left_knee: left_knee
+right_knee: right_knee
+left_ankle: left_ankle
+right_ankle: right_ankle
+left_ankle_origin: left_ankle
+right_ankle_origin: right_ankle
+left_calcaneus: left_heel
+right_calcaneus: right_heel
+left_toe_tip: left_big_toe
+right_toe_tip: right_big_toe
+head_center:
+- left_ear
+- right_ear
+pelvis_origin:
+- left_hip
+- right_hip
 left_sternoclavicular:
   form: anatomical_offset
-  origin: ["left_shoulder", "right_shoulder"]
+  origin:
+  - left_shoulder
+  - right_shoulder
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
-  offset: {lateral: -0.063, anterior: 0.234}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    lateral: -0.0625
+    anterior: 0.234362
   reference_length: shoulder_width
-
 right_sternoclavicular:
   form: anatomical_offset
-  origin: ["left_shoulder", "right_shoulder"]
+  origin:
+  - left_shoulder
+  - right_shoulder
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
-  offset: {lateral: 0.063, anterior: 0.234}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    lateral: 0.0625
+    anterior: 0.234362
   reference_length: shoulder_width
-
 sternoclavicular_notch:
   form: anatomical_offset
-  origin: ["left_shoulder", "right_shoulder"]
+  origin:
+  - left_shoulder
+  - right_shoulder
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
-  offset: {anterior: 0.234}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    anterior: 0.234362
   reference_length: shoulder_width
-
-# The xiphoid process is the inferior end of the sternum: below and anterior of the
-# acromion line.
 xiphoid_process:
   form: anatomical_offset
-  origin: ["left_shoulder", "right_shoulder"]
+  origin:
+  - left_shoulder
+  - right_shoulder
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
-  offset: {up: -0.508274, anterior: 0.358977}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    up: -0.480192
+    anterior: 0.395755
   reference_length: shoulder_width
-
-# Spine landmarks (cervicothoracic = C7/T1, thoracolumbar = T12/L1) sit close to the
-# midline at fixed fractions of the trunk height.
 neck_center:
   form: anatomical_offset
-  origin: ["left_shoulder", "right_shoulder"]
+  origin:
+  - left_shoulder
+  - right_shoulder
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
-  offset: {up: 0.368996, anterior: 0.007897}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    up: -0.000166
+    anterior: -0.015624
   reference_length: shoulder_width
-
-# The craniocervical junction (C1/skull) authors at exactly the ear midpoint in the rest
-# pose, so it hydrates straight from the tracked ears - the cervical segment follows the
-# actual head instead of the trunk frame.
-craniocervical_junction: ["left_ear", "right_ear"]
-
+craniocervical_junction:
+- left_ear
+- right_ear
 chest_center:
   form: anatomical_offset
-  origin: ["left_shoulder", "right_shoulder"]
+  origin:
+  - left_shoulder
+  - right_shoulder
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_shoulder, to: right_shoulder, kind: approximate}
-  offset: {up: -0.653921, anterior: -0.057396}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_shoulder
+      to: right_shoulder
+      kind: approximate
+  offset:
+    up: -0.656378
+    anterior: -0.008643
   reference_length: shoulder_width
-
-# ---- Derived: the top of the head ----
-#
-# head_vertex = head_center + the head's vertical. The head vertical is shoulder-midpoint
-# -> head_center (it tilts with the head, unlike the trunk vertical).
 head_vertex:
   form: anatomical_offset
-  origin: ["head_center"]
+  origin:
+  - head_center
   frame:
-    up:      {from: [left_shoulder, right_shoulder], to: head_center, kind: exact}
-    lateral: {from: left_eye, to: right_eye, kind: approximate}
-  offset: {up: 0.406166, anterior: 0.008255}
+    up:
+      from:
+      - left_shoulder
+      - right_shoulder
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: 0.40594
+    anterior: 0.015857
   reference_length: shoulder_width
-
-# ---- Derived: the chin ----
-#
-# chin = nose + down 1.482 x eye_width + posterior 0.108 x eye_width, in the head frame.
 chin:
   form: anatomical_offset
-  origin: ["nose"]
+  origin:
+  - nose
   frame:
-    up:      {from: [left_shoulder, right_shoulder], to: head_center, kind: exact}
-    lateral: {from: left_eye, to: right_eye, kind: approximate}
-  offset: {up: -1.482481, anterior: -0.108272}
+    up:
+      from:
+      - left_shoulder
+      - right_shoulder
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: -1.480194
+    anterior: -0.136003
   reference_length: eye_width
-
-# ---- Derived: the canine tooth tips ----
-#
-# The canine tooth tips are the mouth-region points of the new skull, medial and deep to
-# the mouth corners. Derived from the nose in the head frame.
 left_canine_tooth_tip:
   form: anatomical_offset
-  origin: ["nose"]
+  origin:
+  - nose
   frame:
-    up:      {from: [left_shoulder, right_shoulder], to: head_center, kind: exact}
-    lateral: {from: left_eye, to: right_eye, kind: approximate}
-  offset: {up: -0.768388, lateral: -0.3125, anterior: -0.640746}
+    up:
+      from:
+      - left_shoulder
+      - right_shoulder
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: -0.75626
+    lateral: -0.3125
+    anterior: -0.655017
   reference_length: eye_width
-
 right_canine_tooth_tip:
   form: anatomical_offset
-  origin: ["nose"]
+  origin:
+  - nose
   frame:
-    up:      {from: [left_shoulder, right_shoulder], to: head_center, kind: exact}
-    lateral: {from: left_eye, to: right_eye, kind: approximate}
-  offset: {up: -0.768388, lateral: 0.3125, anterior: -0.640746}
+    up:
+      from:
+      - left_shoulder
+      - right_shoulder
+      to: head_center
+      kind: exact
+    lateral:
+      from: left_eye
+      to: right_eye
+      kind: approximate
+  offset:
+    up: -0.75626
+    lateral: 0.3125
+    anterior: -0.655017
   reference_length: eye_width
-
-# ---- Derived: the ball of the foot ----
-#
-# ball sits ~0.785 of the way ankle->toe, at the metatarsophalangeal joint.
 left_ball:
   form: anatomical_offset
-  origin: ["left_ankle"]
+  origin:
+  - left_ankle
   frame:
     forward:
       from: left_ankle
@@ -185,12 +258,16 @@ left_ball:
       from: left_knee
       to: left_ankle
       kind: approximate
-  offset: {forward: 0.785162, shin: 0.079625}
-  reference_length: {from: left_ankle, to: left_toe_tip}
-
+  offset:
+    forward: 0.785162
+    shin: 0.079625
+  reference_length:
+    from: left_ankle
+    to: left_toe_tip
 right_ball:
   form: anatomical_offset
-  origin: ["right_ankle"]
+  origin:
+  - right_ankle
   frame:
     forward:
       from: right_ankle
@@ -200,46 +277,95 @@ right_ball:
       from: right_knee
       to: right_ankle
       kind: approximate
-  offset: {forward: 0.785162, shin: 0.079625}
-  reference_length: {from: right_ankle, to: right_toe_tip}
-
-# ---- Pelvis interior (anatomical_offset) ----
-#
-# Only the two hips are directly tracked and they are COLLINEAR with their midpoint, so
-# the pelvis Kabsch fit is degenerate. Hydrating the sacral top, the iliac crests and the
-# pubic symphysis from the hip line + trunk vertical gives a non-degenerate cloud.
+  offset:
+    forward: 0.785162
+    shin: 0.079625
+  reference_length:
+    from: right_ankle
+    to: right_toe_tip
 sacrum_top:
   form: anatomical_offset
-  origin: ["left_hip", "right_hip"]
+  origin:
+  - left_hip
+  - right_hip
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_hip, to: right_hip, kind: approximate}
-  offset: {up: 0.551344, anterior: -0.164076}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_hip
+      to: right_hip
+      kind: approximate
+  offset:
+    up: 0.537627
+    anterior: -0.204594
   reference_length: hip_width
-
 left_iliac_crest:
   form: anatomical_offset
-  origin: ["left_hip"]
+  origin:
+  - left_hip
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_hip, to: right_hip, kind: approximate}
-  offset: {up: 0.568, lateral: -0.324}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_hip
+      to: right_hip
+      kind: approximate
+  offset:
+    up: 0.56815
+    lateral: -0.323864
   reference_length: hip_width
-
 right_iliac_crest:
   form: anatomical_offset
-  origin: ["right_hip"]
+  origin:
+  - right_hip
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_hip, to: right_hip, kind: approximate}
-  offset: {up: 0.568, lateral: 0.324}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_hip
+      to: right_hip
+      kind: approximate
+  offset:
+    up: 0.56815
+    lateral: 0.323864
   reference_length: hip_width
-
 pubic_symphysis:
   form: anatomical_offset
-  origin: ["left_hip", "right_hip"]
+  origin:
+  - left_hip
+  - right_hip
   frame:
-    up:      {from: [left_hip, right_hip], to: [left_shoulder, right_shoulder], kind: exact}
-    lateral: {from: left_hip, to: right_hip, kind: approximate}
-  offset: {up: -0.078419, anterior: 0.336597}
+    up:
+      from:
+      - left_hip
+      - right_hip
+      to:
+      - left_shoulder
+      - right_shoulder
+      kind: exact
+    lateral:
+      from: left_hip
+      to: right_hip
+      kind: approximate
+  offset:
+    up: -0.053189
+    anterior: 0.341494
   reference_length: hip_width
