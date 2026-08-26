@@ -1,0 +1,15 @@
+# The whole mapping for a charuco board.
+#
+# A board has no anatomy to map onto: corner 7 is corner 7. Authoring one line per marker
+# would be duplication with a chance of typos, and it would have to be regenerated every
+# time a board size changed — a 5x3 board has 36 points, a 7x5 has 92, and any board a
+# user prints has its own count.
+#
+# So the mapping declares the only rule that applies: every tracked keypoint IS a landmark
+# of the same name. The board's GEOMETRY (where those landmarks sit, which of them connect,
+# what colour to draw them) lives in CharucoBoardDefinition, which derives it from the same
+# cv2 board the detector uses.
+#
+# This is the reusable answer for any simple tracked object whose markers are its
+# landmarks. See skellyforge's `build_rigid_marker_skeleton`.
+passthrough_keypoints_as_landmarks: true

@@ -123,6 +123,29 @@ and smoothing (`bbox_policy.py`, `bbox_smoothing.py`), keypoint filtering
 (`__main__.py:cli_main`) runs the webcam demos (`--tracker`, `--camera`,
 `--rotate`, `--list`).
 
+### Mappings (keypoints → landmarks)
+
+`core/io/tracker_mapping.py` + the `*_mapping.yaml` files are the ONE seam between
+keypoints and skellyforge's landmarks. Forms: passthrough string / list (mean) / dict
+(weighted sum) / `anatomical_offset` (`ratio x reference_length` along an authored
+direction) / **`passthrough_keypoints_as_landmarks: true`**.
+
+- **Measured vs. constructed** — every non-offset form is an affine combination of measured
+  keypoints, so it carries the subject's real geometry; an `anatomical_offset` restates the
+  template. `directly_measured_landmark_names` draws that line, and downstream only measured
+  landmarks are allowed to set a model's fitted scale. Do not blur it.
+- **Pass-through** is the whole file for an object whose markers ARE its landmarks (a
+  charuco board). It needs `known_tracker_keypoints` so it can say what it produces UP
+  FRONT rather than at apply time.
+
+### Board geometry
+
+`CharucoBoardDefinition` is the single source for a board's cv2 board, its point NAMES, its
+normalized positions (`1.0` = one square, the board's reference unit) and its grid / marker
+connections. The detector reads its names from there rather than rebuilding f-strings, and
+`corner_positions_board_frame` is derived from the same cv2 board — do not add a second copy
+of any of it.
+
 ### Tests
 
 Tests use `pytest` under `skellytracker/tests/`. `conftest.py` provides shared

@@ -65,6 +65,15 @@ import yaml
 
 MappingEntry = str | list[str] | dict[str, float] | dict[str, Any]
 
+PASSTHROUGH_KEY = "passthrough_keypoints_as_landmarks"
+"""The whole file, for an object whose markers ARE its landmarks.
+
+A charuco board has no anatomy to map onto: corner 7 is corner 7. Authoring a line per
+marker would be duplication with a chance of typos, and it would have to be regenerated
+every time a board size changed. The flag says "every keypoint is a landmark of the same
+name" once, and is the reusable answer for any simple tracked object.
+"""
+
 
 # ---------------------------------------------------------------------------
 # anatomical_offset internal types
@@ -124,10 +133,31 @@ class TrackerMapping:
         entries: dict[str, MappingEntry],
         prefix: str | None = None,
         known_tracker_keypoints: set[str] | None = None,
+        passthrough_keypoints_as_landmarks: bool = False,
     ) -> None:
         self._entries: dict[str, MappingEntry] = {}
         self._anatomical_offsets: dict[str, _AnatomicalOffsetDef] = {}
         self._prefix = prefix or ""
+        self._passthrough = passthrough_keypoints_as_landmarks
+
+        if self._passthrough:
+            if entries:
+                raise ValueError(
+                    "a pass-through mapping declares that every keypoint IS a landmark, so "
+                    "it cannot also list entries - got "
+                    f"{sorted(entries)[:8]}. Drop either the flag or the entries."
+                )
+            if not known_tracker_keypoints:
+                raise ValueError(
+                    "a pass-through mapping produces exactly the keypoints its tracker "
+                    "emits, so it needs `known_tracker_keypoints` to be able to say what "
+                    "it produces. Without them it could only answer at apply time, and "
+                    "callers that must decide up front (which landmarks are measured, "
+                    "which segments may set the model scale) would have nothing to read."
+                )
+            self._passthrough_landmark_names = frozenset(
+                self._strip_prefix(name) for name in known_tracker_keypoints
+            )
 
         for landmark_name, entry in entries.items():
             if isinstance(entry, str):
@@ -165,6 +195,17 @@ class TrackerMapping:
                     "never produces: " + ", ".join(offenders)
                 )
 
+    def _strip_prefix(self, name: str) -> str:
+        """A tracker-side name with this mapping's prefix removed, if it carries one."""
+        if self._prefix and name.startswith(self._prefix):
+            return name[len(self._prefix):]
+        return name
+
+    @property
+    def is_passthrough(self) -> bool:
+        """Whether every tracked keypoint is a landmark of the same name."""
+        return self._passthrough
+
     @property
     def directly_measured_landmark_names(self) -> frozenset[str]:
         """The landmarks this mapping MEASURES, as opposed to constructs.
@@ -182,7 +223,12 @@ class TrackerMapping:
         noise-free, so a consistency-weighted estimator would rank them as its best
         evidence, which is exactly backwards.  They are perfectly good POSITIONS; they are
         not independent evidence about scale.
+
+        A pass-through mapping measures everything: its landmarks ARE its keypoints, so
+        there is nothing constructed to exclude.
         """
+        if self._passthrough:
+            return self._passthrough_landmark_names
         return frozenset(self._entries)
 
     def _referenced_tracker_names(self) -> set[str]:
@@ -235,10 +281,13 @@ class TrackerMapping:
                 f"Mapping YAML must be a dict at top level, "
                 f"got {type(data).__name__}"
             )
+        entries = dict(data)
+        passthrough = bool(entries.pop(PASSTHROUGH_KEY, False))
         return cls(
-            entries=data,
+            entries=entries,
             prefix=prefix,
             known_tracker_keypoints=known_tracker_keypoints,
+            passthrough_keypoints_as_landmarks=passthrough,
         )
 
     # ------------------------------------------------------------------
@@ -262,6 +311,16 @@ class TrackerMapping:
             Positions keyed by standard-human landmark name.  Landmarks whose
             tracker source is missing are silently omitted.
         """
+        if self._passthrough:
+            # Every keypoint is a landmark of the same name. Restricted to the declared
+            # set so an unexpected name is dropped here rather than becoming a landmark
+            # nothing downstream has ever heard of.
+            return {
+                self._strip_prefix(name): np.asarray(position, dtype=np.float64)
+                for name, position in tracker_positions.items()
+                if self._strip_prefix(name) in self._passthrough_landmark_names
+            }
+
         result: dict[str, np.ndarray] = {}
         prefix = self._prefix
 

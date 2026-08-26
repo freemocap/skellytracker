@@ -162,21 +162,14 @@ class CharucoDetector(KeypointDetector):
             raise TypeError(f"Expected CpuSession, got {type(session)}")
 
         board_def: CharucoBoardDefinition = config.board
-        board = cv2.aruco.CharucoBoard(
-            size=(board_def.squares_x, board_def.squares_y),
-            squareLength=board_def.square_length_mm,
-            markerLength=board_def.aruco_marker_length_mm,
-            dictionary=board_def.aruco_dictionary,
-        )
+        # The board definition owns the cv2 board AND the point names, so the detector
+        # cannot end up emitting one name while the model expects another.
+        board = board_def.cv2_board
         cv2_detector = cv2.aruco.CharucoDetector(board)
 
-        charuco_names = tuple(f"CharucoCorner-{i}" for i in range(board_def.n_corners))
-        aruco_ids = tuple(int(i) for i in board.getIds())
-        aruco_names = tuple(
-            f"ArucoMarkerCorner-{marker_id}-{j}"
-            for marker_id in aruco_ids
-            for j in range(4)
-        )
+        charuco_names = board_def.charuco_corner_names
+        aruco_ids = board_def.aruco_marker_ids
+        aruco_names = board_def.aruco_corner_names
 
         return cls(
             config=config,

@@ -21,10 +21,12 @@ RTMPOSE_BODY_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_de
 RTMPOSE_HAND_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "rtmpose" / "hand" / "rtmpose_hand_to_standard_human_mapping.yaml"
 MEDIAPIPE_BODY_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "mediapipe" / "body" / "mediapipe_body_to_standard_human_mapping.yaml"
 MEDIAPIPE_HAND_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "mediapipe" / "hands" / "mediapipe_hand_to_standard_human_mapping.yaml"
+CHARUCO_BOARD_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "charuco" / "charuco_board_to_landmark_mapping.yaml"
 
 __all__ = [
     "RTMPOSE_BODY_MAPPING",
     "RTMPOSE_HAND_MAPPING",
     "MEDIAPIPE_BODY_MAPPING",
     "MEDIAPIPE_HAND_MAPPING",
+    "CHARUCO_BOARD_MAPPING",
 ]
