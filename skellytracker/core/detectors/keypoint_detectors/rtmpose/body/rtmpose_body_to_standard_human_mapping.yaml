@@ -167,25 +167,7 @@ chest_center:
     up: -0.656378
     anterior: -0.008643
   reference_length: shoulder_width
-head_vertex:
-  form: anatomical_offset
-  origin:
-  - head_center
-  frame:
-    up:
-      from:
-      - left_shoulder
-      - right_shoulder
-      to: head_center
-      kind: exact
-    lateral:
-      from: left_eye
-      to: right_eye
-      kind: approximate
-  offset:
-    up: 0.40594
-    anterior: 0.015857
-  reference_length: shoulder_width
+
 chin:
   form: anatomical_offset
   origin:
