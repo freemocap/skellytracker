@@ -2,7 +2,7 @@
 from a resolved sidecar artifact.
 
 Normalization dispatch (`build_normalization_fn`/`resolve_normalization_mode`)
-moved to `skellytracker.core.detectors.image_preprocessing` — see
+moved to `skellytracker.core.detectors.processing.image_preprocessing` — see
 `tests/test_image_preprocessing.py`.
 """
 

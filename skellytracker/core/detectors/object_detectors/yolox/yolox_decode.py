@@ -3,8 +3,8 @@
 Vendored from rtmlib (``tools/pose_estimation/rtmo.py``). Image preprocessing
 (letterbox/normalize) and the decode strategies that don't need YOLOX-specific
 math (NMS, box-format conversion, pre-NMS/baked-NMS decode) live in
-`skellytracker/core/detectors/image_preprocessing.py` and
-`skellytracker/core/detectors/object_detection_decode.py` — this file only
+`skellytracker/core/detectors/processing/image_preprocessing.py` and
+`skellytracker/core/detectors/processing/object_detection_decode.py` — this file only
 keeps the YOLOX anchor-grid decode (stride-based grid reconstruction unique
 to YOLOX's head) and the top-level dispatcher that picks between all of them
 based on what a given YOLOX ONNX export actually emits.
@@ -15,7 +15,7 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from skellytracker.core.detectors.object_detection_decode import (
+from skellytracker.core.detectors.processing.object_detection_decode import (
     decode_nms_baked_in,
     decode_prenms,
     multiclass_nms,

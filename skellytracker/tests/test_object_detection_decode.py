@@ -7,7 +7,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from skellytracker.core.detectors.object_detection_decode import (
+from skellytracker.core.detectors.processing.object_detection_decode import (
     boxes_to_xyxy,
     decode_nms_baked_in,
     decode_prenms,

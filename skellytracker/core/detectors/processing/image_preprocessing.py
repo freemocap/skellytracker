@@ -18,7 +18,16 @@ import numpy as np
 from beartype.typing import Callable
 from numpy.typing import NDArray
 
-from skellytracker.core.sidecar.model import CustomNormalization, InputSpec, Precision
+from skellytracker.core.detectors.processing.affine_crop import (
+    bbox_xyxy2cs,
+    top_down_affine,
+)
+from skellytracker.core.sidecar.model import (
+    CropPolicySpec,
+    CustomNormalization,
+    InputSpec,
+    Precision,
+)
 
 _CV2_INTERPOLATION: dict[str, int] = {
     "linear": cv2.INTER_LINEAR,
@@ -116,19 +125,35 @@ def preprocess_image(
     target_size: tuple[int, int],
     input_spec: InputSpec,
     precision: Precision = "fp32",
-) -> tuple[NDArray[np.float32], float]:
+    bbox_xyxy: NDArray[np.floating] | None = None,
+) -> tuple[
+    NDArray[np.float32], float | tuple[NDArray[np.float64], NDArray[np.float64]]
+]:
     """Resize and normalize `image` per `input_spec`.
 
     Dispatches on `input_spec.resize.method` and the resize sub-options the
     spec allows. New model families fail loudly (`NotImplementedError`) until
     this function grows support for their resize method, rather than being
     silently mis-processed.
+
+    Returns `(tensor, resize_meta)`. `resize_meta` depends on the resize
+    method: `letterbox`/`none` produce a single scalar `ratio` (uniform
+    scale factor); `affine_person_crop` produces `(center, scale)` — two
+    `(2,)` arrays needed to unproject a top-down affine crop back to image
+    space. Callers already know which method their own sidecar declares, so
+    they unpack the shape they expect.
+
+    `bbox_xyxy` is only used by `affine_person_crop`; `None` crops the full
+    image (today's only usage — no upstream-detector bbox is wired through
+    yet).
     """
     resize = input_spec.resize
     if resize is None:
         raise NotImplementedError(
             "preprocess_image requires input.resize to be declared"
         )
+
+    resize_meta: float | tuple[NDArray[np.float64], NDArray[np.float64]]
 
     if resize.method == "letterbox":
         if resize.preserve_aspect_ratio is False:
@@ -140,13 +165,26 @@ def preprocess_image(
             )
         pad_value = 114 if resize.pad_value is None else resize.pad_value
         interpolation = _CV2_INTERPOLATION[resize.interpolation]
-        padded, ratio = letterbox_preprocess(
+        padded, resize_meta = letterbox_preprocess(
             image, target_size, pad_value=pad_value, interpolation=interpolation
         )
     elif resize.method == "affine_person_crop":
-        raise NotImplementedError(
-            "resize.method='affine_person_crop' is not yet implemented"
+        crop_policy = resize.crop_policy or CropPolicySpec()
+        if not crop_policy.maintain_aspect_ratio:
+            raise NotImplementedError(
+                "resize.crop_policy.maintain_aspect_ratio=false is not yet "
+                "implemented"
+            )
+        h, w = image.shape[:2]
+        bbox = (
+            bbox_xyxy
+            if bbox_xyxy is not None
+            else np.array([0.0, 0.0, float(w), float(h)], dtype=np.float64)
         )
+        center, scale = bbox_xyxy2cs(bbox, padding=crop_policy.expand_ratio)
+        target_h, target_w = target_size
+        padded, scale = top_down_affine((target_w, target_h), scale, center, image)
+        resize_meta = (center, scale)
     elif resize.method == "none":
         raise NotImplementedError("resize.method='none' is not yet implemented")
     else:
@@ -157,4 +195,4 @@ def preprocess_image(
     tensor = (
         normalized if input_spec.layout == "NHWC" else normalized.transpose(2, 0, 1)
     )
-    return np.ascontiguousarray(tensor.astype(np.float32)), ratio
+    return np.ascontiguousarray(tensor.astype(np.float32)), resize_meta

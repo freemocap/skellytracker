@@ -30,7 +30,7 @@ from skellytracker.core.detectors.detector_base_classes import (
     OBJECT_DETECTOR_REGISTRY,
     ObjectDetector,
 )
-from skellytracker.core.detectors.image_preprocessing import preprocess_image
+from skellytracker.core.detectors.processing.image_preprocessing import preprocess_image
 from skellytracker.core.detectors.metadata import YoloxMetadata
 from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import (
     prepare_yolox_onnx,

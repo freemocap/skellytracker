@@ -10,8 +10,8 @@ point.
 
 Image preprocessing and detection decode also read sidecar-described specs
 (`InputSpec`, `DetectionDecodeSpec`) but aren't sidecar *parsing* concerns —
-see `skellytracker/core/detectors/image_preprocessing.py` and
-`skellytracker/core/detectors/object_detection_decode.py`.
+see `skellytracker/core/detectors/processing/image_preprocessing.py` and
+`skellytracker/core/detectors/processing/object_detection_decode.py`.
 """
 
 from __future__ import annotations

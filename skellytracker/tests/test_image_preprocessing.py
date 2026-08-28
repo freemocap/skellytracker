@@ -5,10 +5,15 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from skellytracker.core.detectors.image_preprocessing import (
+from skellytracker.core.detectors.processing.image_preprocessing import (
     build_normalization_fn,
     letterbox_preprocess,
+    preprocess_image,
     resolve_normalization_mode,
+)
+from skellytracker.core.detectors.processing.affine_crop import (
+    bbox_xyxy2cs,
+    top_down_affine,
 )
 from skellytracker.core.sidecar.model import InputSpec
 
@@ -113,3 +118,81 @@ class TestNormalizationDispatch:
         )
         assert resolve_normalization_mode(spec, "int8") == "none"
         assert resolve_normalization_mode(spec, "fp32") == "imagenet_bgr"
+
+
+# ---------------------------------------------------------------------------
+# preprocess_image — affine_person_crop
+# ---------------------------------------------------------------------------
+
+
+def _affine_input_spec() -> InputSpec:
+    return InputSpec.model_validate(
+        {
+            "name": "input",
+            "dtype": {"fp32": "float32"},
+            "normalization": "imagenet_bgr",
+            "resize": {
+                "method": "affine_person_crop",
+                "crop_policy": {"expand_ratio": 1.25, "maintain_aspect_ratio": True},
+            },
+        }
+    )
+
+
+class TestPreprocessImageAffinePersonCrop:
+    def test_output_tensor_shape(self):
+        img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        tensor, _ = preprocess_image(img, (256, 192), _affine_input_spec())
+        assert tensor.shape == (3, 256, 192)
+        assert tensor.dtype == np.float32
+
+    def test_resize_meta_shapes(self):
+        img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        _, (center, scale) = preprocess_image(img, (256, 192), _affine_input_spec())
+        assert center.shape == (2,)
+        assert scale.shape == (2,)
+
+    def test_full_image_bbox_matches_manual_affine_crop(self):
+        img = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+        target_size = (256, 192)  # (H, W)
+
+        tensor, (center, scale) = preprocess_image(
+            img, target_size, _affine_input_spec()
+        )
+
+        h, w = img.shape[:2]
+        expected_bbox = np.array([0.0, 0.0, float(w), float(h)], dtype=np.float64)
+        expected_center, expected_scale_pre = bbox_xyxy2cs(expected_bbox, padding=1.25)
+        target_h, target_w = target_size
+        expected_warped, expected_scale = top_down_affine(
+            (target_w, target_h), expected_scale_pre, expected_center, img
+        )
+
+        np.testing.assert_allclose(center, expected_center)
+        np.testing.assert_allclose(scale, expected_scale)
+
+        mean = np.array([123.675, 116.28, 103.53], dtype=np.float32)
+        std = np.array([58.395, 57.12, 57.375], dtype=np.float32)
+        expected_normalized = (expected_warped.astype(np.float32) - mean) / std
+        expected_tensor = np.ascontiguousarray(
+            expected_normalized.transpose(2, 0, 1).astype(np.float32)
+        )
+        np.testing.assert_allclose(tensor, expected_tensor, rtol=1e-5, atol=1e-5)
+
+    def test_maintain_aspect_ratio_false_raises(self):
+        spec = InputSpec.model_validate(
+            {
+                "name": "input",
+                "dtype": {"fp32": "float32"},
+                "resize": {
+                    "method": "affine_person_crop",
+                    "crop_policy": {
+                        "expand_ratio": 1.25,
+                        "maintain_aspect_ratio": False,
+                    },
+                },
+            }
+        )
+        img = np.zeros((100, 100, 3), dtype=np.uint8)
+        with pytest.raises(NotImplementedError):
+            preprocess_image(img, (256, 192), spec)
