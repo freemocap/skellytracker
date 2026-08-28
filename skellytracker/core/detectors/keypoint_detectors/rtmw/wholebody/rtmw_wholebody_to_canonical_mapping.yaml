@@ -1,0 +1,38 @@
+# RTMW wholebody → canonical landmark mapping.
+#
+# Composes the existing body mapping (base:) with a hand-authored,
+# prefix-expanded hand mapping (both hands share the same 20 name pairs as
+# rtmpose_hand_to_canonical_mapping.yaml, but that file's entries are
+# unprefixed and designed for TrackerMapping's runtime prefix-stripping, not
+# the sidecar's declarative [prefix] expansion — so they're hand-ported here
+# rather than $ref'd directly). No wholebody canonical mapping existed prior
+# to this migration.
+#
+# Note: `[prefix]X` keys must be YAML-quoted — an unquoted leading `[` opens
+# a flow sequence, which is a parse error in a block mapping key.
+
+base: ../../rtmpose/body/rtmpose_body_to_canonical_mapping.yaml
+
+prefixes: [right_hand_, left_hand_]
+
+"[prefix]wrist": "root"
+"[prefix]thumb_cmc": "thumb1"
+"[prefix]thumb_mcp": "thumb2"
+"[prefix]thumb_ip": "thumb3"
+"[prefix]thumb_tip": "thumb4"
+"[prefix]index_finger_mcp": "forefinger1"
+"[prefix]index_finger_pip": "forefinger2"
+"[prefix]index_finger_dip": "forefinger3"
+"[prefix]index_finger_tip": "forefinger4"
+"[prefix]middle_finger_mcp": "middle_finger1"
+"[prefix]middle_finger_pip": "middle_finger2"
+"[prefix]middle_finger_dip": "middle_finger3"
+"[prefix]middle_finger_tip": "middle_finger4"
+"[prefix]ring_finger_mcp": "ring_finger1"
+"[prefix]ring_finger_pip": "ring_finger2"
+"[prefix]ring_finger_dip": "ring_finger3"
+"[prefix]ring_finger_tip": "ring_finger4"
+"[prefix]pinky_mcp": "pinky_finger1"
+"[prefix]pinky_pip": "pinky_finger2"
+"[prefix]pinky_dip": "pinky_finger3"
+"[prefix]pinky_tip": "pinky_finger4"

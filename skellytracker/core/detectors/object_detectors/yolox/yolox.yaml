@@ -1,0 +1,62 @@
+---
+schema_version: "v2024.09.1019"
+model_id: yolox
+display_name: YOLOX Person Detector
+role: [object_detector]
+
+input:
+  name: images
+  dtype:
+    fp32: float32
+  layout: NCHW
+  normalization: none
+  resize:
+    method: letterbox
+    preserve_aspect_ratio: true
+    pad_value: 114
+    interpolation: linear
+
+batching:
+  batch_axis: 0
+
+outputs:
+  - name: detections
+    dtype:
+      fp32: float32
+    semantic: detections
+    fields: [x1, y1, x2, y2, score]
+
+decode:
+  box_format: xyxy
+  score_field: score
+  person_class_id: 0
+  requires_nms: false
+  confidence_threshold_default: 0.7
+
+sizes:
+  yolox-tiny:
+    input:
+      shape: [-1, 3, 416, 416]
+      resize:
+        target_size: [416, 416]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: yolox-tiny_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_tiny_8xb8-300e_humanart-6f3252f9.zip
+              url_sha256: "36e09ca555916253fa1b5d51bec01e48e98e1f0af966c51ce3e844d8c8fc4cfc"
+  yolox-m:
+    input:
+      shape: [-1, 3, 640, 640]
+      resize:
+        target_size: [640, 640]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: yolox-m_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/yolox_m_8xb8-300e_humanart-c2c7a14a.zip
+              url_sha256: "a000224fd8ba283202bc62d4a5fcdfe353adb9f468777dbac1ea2ada2093adde"
