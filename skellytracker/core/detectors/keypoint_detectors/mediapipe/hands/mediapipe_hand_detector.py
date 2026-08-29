@@ -30,6 +30,25 @@ _LEFT_NAMES: tuple[str, ...] = tuple(f"left_hand_{n}" for n in _HAND_POINT_NAMES
 _BOTH_HAND_NAMES: tuple[str, ...] = _RIGHT_NAMES + _LEFT_NAMES
 
 
+def crop_hand_roi(image: NDArray[np.uint8], wrist_px: NDArray[np.float64], elbow_px: NDArray[np.float64], margin: float = 1.5) -> tuple[NDArray[np.uint8], tuple[int, int, int, int]]:
+    """
+    Derives a square crop around the hand using wrist and elbow landmarks to estimate scale/orientation.
+    """
+    h, w = image.shape[:2]
+    # Estimate hand length based on forearm proportion (~60-70% of forearm length)
+    forearm_len = np.linalg.norm(wrist_px - elbow_px)
+    box_size = int(forearm_len * margin)
+    
+    # Create bounding box centered around the wrist extending outward
+    x_min = max(0, int(wrist_px[0] - box_size // 2))
+    y_min = max(0, int(wrist_px[1] - box_size // 2))
+    x_max = min(w, int(wrist_px[0] + box_size // 2))
+    y_max = min(h, int(wrist_px[1] + box_size // 2))
+    
+    crop = image[y_min:y_max, x_min:x_max]
+    return crop, (x_min, y_min, x_max - x_min, y_max - y_min)
+
+
 class MediapipeHandDetectorConfig(KeypointDetectorConfig):
     detector_type: Literal["mediapipe_hand"] = "mediapipe_hand"
     session_backend: Literal["mediapipe"] = "mediapipe"
@@ -106,44 +125,70 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
     ) -> Keypoints:
-        h, w = image.shape[:2]
-        rgb = _to_rgb(image)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
-        if self.session.running_mode == "video":
-            ts = (
-                context.timestamp_ms
-                if (context is not None and context.timestamp_ms is not None)
-                else int(time.monotonic() * 1000)
-            )
-            result = self.landmarker.detect_for_video(mp_image, ts)
-        else:
-            result = self.landmarker.detect(mp_image)
-
         right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
         left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
 
-        for i, hand_landmarks in enumerate(result.hand_landmarks):
-            handedness = result.handedness[i]
-            label = handedness[0].category_name  # "Left" or "Right"
+        if context is not None and getattr(context, "parent_keypoints", None) is not None and context.parent_keypoints.n_valid > 0:
+            parent_kpts = context.parent_keypoints
+            # Process each hand independently.
+            for side, wrist_name, elbow_name in (
+                ("left", "left_wrist", "left_elbow"),
+                ("right", "right_wrist", "right_elbow"),
+            ):
+                if not (parent_kpts.has_name(wrist_name) and parent_kpts.has_name(elbow_name)):
+                    continue
+                wrist_xyz = parent_kpts.xyz_by_name(wrist_name)
+                elbow_xyz = parent_kpts.xyz_by_name(elbow_name)
+                if np.isnan(wrist_xyz[0]) or np.isnan(elbow_xyz[0]):
+                    continue
 
-            xyz = np.array(
-                [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
-                dtype=np.float64,
-            )
-            vis = np.array(
-                [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
-                dtype=np.float64,
-            )
+                crop, origin = crop_hand_roi(image, wrist_xyz[:2], elbow_xyz[:2], margin=2.5)
+                crop_h, crop_w = crop.shape[:2]
+                if crop_h <= 0 or crop_w <= 0:
+                    continue
 
-            if label == "Right":
-                right_xyz = xyz
-                right_vis = vis
-            elif label == "Left":
-                left_xyz = xyz
-                left_vis = vis
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=_to_rgb(crop))
+                result = self.landmarker.detect(mp_image)
+                if not result.hand_landmarks:
+                    continue
+                # Take the single best-scored hand found in this ROI and assign it
+                # to the side we seeded, regardless of MediaPipe's handedness label
+                # (which is unreliable on a tight single-hand crop).
+                hand_landmarks = max(
+                    result.hand_landmarks,
+                    key=lambda lm_list: float(
+                        np.mean([lm.presence if lm.presence is not None else 1.0 for lm in lm_list])
+                    ),
+                )
+                ox, oy = int(origin[0]), int(origin[1])
+                xyz = np.array(
+                    [(lm.x * crop_w + ox, lm.y * crop_h + oy, lm.z * crop_w) for lm in hand_landmarks],
+                    dtype=np.float64,
+                )
+                vis = np.array(
+                    [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
+                    dtype=np.float64,
+                )
+                if side == "right":
+                    right_xyz, right_vis = xyz, vis
+                else:
+                    left_xyz, left_vis = xyz, vis
+        else:
+            # Fallback to full image
+            h, w = image.shape[:2]
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=_to_rgb(image))
+            result = self.landmarker.detect(mp_image)
+            for i, hand_landmarks in enumerate(result.hand_landmarks):
+                handedness = result.handedness[i]
+                label = handedness[0].category_name
+                xyz = np.array([(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks], dtype=np.float64)
+                vis = np.array([lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks], dtype=np.float64)
+                if label == "Right":
+                    right_xyz, right_vis = xyz, vis
+                elif label == "Left":
+                    left_xyz, left_vis = xyz, vis
 
         xyz = np.concatenate([right_xyz, left_xyz], axis=0)
         visibility = np.concatenate([right_vis, left_vis], axis=0)
@@ -182,7 +227,7 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         from mediapipe.tasks.python import BaseOptions
         from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
 
-        mp_running_mode = RunningMode.VIDEO if session.running_mode == "video" else RunningMode.IMAGE
+        mp_running_mode = RunningMode.IMAGE
         hand_path = get_hand_model_path()
         opts = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(hand_path)),
