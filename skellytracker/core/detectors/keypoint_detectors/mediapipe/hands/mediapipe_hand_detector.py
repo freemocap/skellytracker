@@ -109,17 +109,17 @@ def _crop_hand_roi_palm(
     wrist_px: NDArray[np.float64],
     index_mcp_px: NDArray[np.float64],
     pinky_mcp_px: NDArray[np.float64],
-    margin: float = 2.0,
+    margin: float = 1.5,
 ) -> tuple[NDArray[np.uint8], NDArray[np.float64]]:
     """Derive a palm-aligned, hand-span-sized crop around a hand.
 
     Mirrors MediaPipe Holistic's hand ROI (``GetHandRectFromPoseLandmarks``):
-    the box is centered on the wrist, oriented to the palm direction (wrist →
-    midpoint of the index & pinky MCPs), and sized from the hand's own span
-    (wrist → index/pinky MCP) rather than from the forearm. The forearm-based
-    size collapses when the arm points toward the camera (2D wrist→elbow length
-    foreshortens), which is why the previous axis-aligned forearm box missed
-    exactly those frames.
+    the box is centered on the palm (midpoint of the index & pinky MCPs),
+    oriented to the palm direction (wrist → that midpoint), and sized from the
+    hand's own span (wrist → index/pinky MCP) rather than from the forearm.
+    Centering on the palm (rather than the wrist) shifts the box forward over
+    the fingers, so a small margin still covers the fingertips while the box
+    stays small enough not to swallow a nearby other hand.
 
     Returns:
         (crop, inverse_affine): the rotated crop and a (2, 3) affine matrix
@@ -129,17 +129,25 @@ def _crop_hand_roi_palm(
     import math
 
     h, w = image.shape[:2]
-    cx, cy = float(wrist_px[0]), float(wrist_px[1])
+    wx, wy = float(wrist_px[0]), float(wrist_px[1])
 
-    # Palm forward direction (toward the fingers).
-    fx = (float(index_mcp_px[0]) + float(pinky_mcp_px[0])) / 2.0 - cx
-    fy = (float(index_mcp_px[1]) + float(pinky_mcp_px[1])) / 2.0 - cy
+    # Palm center: midpoint of the index & pinky MCPs (the geometric center of
+    # the palm). Centering here (rather than on the wrist) shifts the box
+    # forward over the fingers, so a much smaller margin still covers the
+    # fingertips while the box stays small enough not to swallow a nearby hand.
+    cx, cy = (
+        (float(index_mcp_px[0]) + float(pinky_mcp_px[0])) / 2.0,
+        (float(index_mcp_px[1]) + float(pinky_mcp_px[1])) / 2.0,
+    )
+
+    # Palm forward direction (toward the fingers), wrist -> palm center.
+    fx, fy = cx - wx, cy - wy
     rotation = math.atan2(fy, fx)
 
     # Hand span: wrist -> MCP distance (use the larger of index/pinky for safety).
     span = max(
-        math.hypot(float(index_mcp_px[0]) - cx, float(index_mcp_px[1]) - cy),
-        math.hypot(float(pinky_mcp_px[0]) - cx, float(pinky_mcp_px[1]) - cy),
+        math.hypot(float(index_mcp_px[0]) - wx, float(index_mcp_px[1]) - wy),
+        math.hypot(float(pinky_mcp_px[0]) - wx, float(pinky_mcp_px[1]) - wy),
     )
     box_size = max(int(span * 2.0 * margin), 16)
 
@@ -151,7 +159,7 @@ def _crop_hand_roi_palm(
         image, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE
     )
 
-    # Axis-aligned box around the wrist in the rotated image.
+    # Axis-aligned box around the palm center in the rotated image.
     x_min = max(0, int(cx - box_size // 2))
     y_min = max(0, int(cy - box_size // 2))
     x_max = min(w, x_min + box_size)
