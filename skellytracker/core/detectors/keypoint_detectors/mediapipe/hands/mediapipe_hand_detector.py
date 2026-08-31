@@ -25,86 +25,12 @@ from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
 _HAND_POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_hand.yaml")
 _NUM_HAND_LANDMARKS = len(_HAND_POINT_NAMES)
 
-# TEMPORARY DEBUG: print crop-box vertices (original-image coords) for the first
-# N frames so boxes can be drawn on frames for inspection. Set to None to disable.
-_CROP_DEBUG_MAX_FRAMES: int | None = 1000
-
-# Selects which crop strategy is used when parent (body) keypoints are available:
-#   - "palm":       palm-aligned, hand-span-sized rotated crop (current behavior)
-#   - "elbow_wrist": axis-aligned square crop centered on the wrist, sized from the
-#                   forearm length (previous behavior)
-# Flip this to switch between the two methods; both print the same debug box
-# vertices (see _CROP_DEBUG_MAX_FRAMES).
-_CROP_METHOD: Literal["elbow_wrist", "palm"] = "palm"
-
 _RIGHT_NAMES: tuple[str, ...] = tuple(f"right_hand_{n}" for n in _HAND_POINT_NAMES)
 _LEFT_NAMES: tuple[str, ...] = tuple(f"left_hand_{n}" for n in _HAND_POINT_NAMES)
 _BOTH_HAND_NAMES: tuple[str, ...] = _RIGHT_NAMES + _LEFT_NAMES
 
 
 def crop_hand_roi(
-    image: NDArray[np.uint8],
-    wrist_px: NDArray[np.float64],
-    index_mcp_px: NDArray[np.float64] | None = None,
-    pinky_mcp_px: NDArray[np.float64] | None = None,
-    elbow_px: NDArray[np.float64] | None = None,
-    margin: float = 2.0,
-) -> tuple[NDArray[np.uint8], NDArray[np.float64]]:
-    """Dispatch to the active crop strategy selected by ``_CROP_METHOD``.
-
-    Both strategies return ``(crop, inverse_affine)`` where ``inverse_affine`` is a
-    (2, 3) affine matrix mapping crop-local pixel coordinates back to original-image
-    coordinates, so downstream code (landmark mapping and debug box vertices) is
-    identical regardless of which method is active.
-
-    - ``_CROP_METHOD == "elbow_wrist"`` uses ``elbow_px`` (axis-aligned forearm box).
-    - ``_CROP_METHOD == "palm"`` uses ``index_mcp_px``/``pinky_mcp_px``.
-    """
-    if _CROP_METHOD == "elbow_wrist":
-        if elbow_px is None:
-            raise ValueError("elbow_wrist crop method requires elbow_px")
-        return _crop_hand_roi_elbow_wrist(image, wrist_px, elbow_px, margin=margin)
-    if index_mcp_px is None or pinky_mcp_px is None:
-        raise ValueError("palm crop method requires index_mcp_px and pinky_mcp_px")
-    return _crop_hand_roi_palm(
-        image, wrist_px, index_mcp_px, pinky_mcp_px, margin=margin
-    )
-
-
-def _crop_hand_roi_elbow_wrist(
-    image: NDArray[np.uint8],
-    wrist_px: NDArray[np.float64],
-    elbow_px: NDArray[np.float64],
-    margin: float = 1.5,
-) -> tuple[NDArray[np.uint8], NDArray[np.float64]]:
-    """Derive an axis-aligned square crop around the hand from wrist and elbow.
-
-    Sizes the box from the 2D forearm length (wrist→elbow). This collapses when the
-    arm points toward the camera (forearm foreshortens), which is exactly the failure
-    mode the palm-based strategy was designed to fix.
-
-    Returns:
-        (crop, inverse_affine): the axis-aligned crop and a (2, 3) affine matrix
-        mapping crop-local pixel coordinates back to original-image coordinates.
-    """
-    h, w = image.shape[:2]
-    forearm_len = np.linalg.norm(wrist_px - elbow_px)
-    box_size = int(forearm_len * margin)
-
-    x_min = max(0, int(wrist_px[0] - box_size // 2))
-    y_min = max(0, int(wrist_px[1] - box_size // 2))
-    x_max = min(w, int(wrist_px[0] + box_size // 2))
-    y_max = min(h, int(wrist_px[1] + box_size // 2))
-
-    crop = image[y_min:y_max, x_min:x_max]
-    inv_affine = np.array(
-        [[1.0, 0.0, float(x_min)], [0.0, 1.0, float(y_min)]],
-        dtype=np.float64,
-    )
-    return crop, inv_affine
-
-
-def _crop_hand_roi_palm(
     image: NDArray[np.uint8],
     wrist_px: NDArray[np.float64],
     index_mcp_px: NDArray[np.float64],
@@ -262,66 +188,32 @@ class MediapipeHandKeypointDetector(KeypointDetector):
 
         if context is not None and getattr(context, "parent_keypoints", None) is not None and context.parent_keypoints.n_valid > 0:
             parent_kpts = context.parent_keypoints
-            # Process each hand independently using the landmarks the active crop
-            # method needs: elbow for "elbow_wrist", index+pinky MCP for "palm".
-            if _CROP_METHOD == "elbow_wrist":
-                hand_specs = (
-                    ("left", "left_wrist", "left_elbow", None, None),
-                    ("right", "right_wrist", "right_elbow", None, None),
-                )
-            else:
-                hand_specs = (
-                    ("left", "left_wrist", None, "left_index", "left_pinky"),
-                    ("right", "right_wrist", None, "right_index", "right_pinky"),
-                )
-            for side, wrist_name, elbow_name, index_name, pinky_name in hand_specs:
-                required = [wrist_name]
-                if _CROP_METHOD == "elbow_wrist":
-                    required.append(elbow_name)
-                else:
-                    required.extend([index_name, pinky_name])
-                if not all(parent_kpts.has_name(name) for name in required):
+            # Process each hand independently from its wrist + index/pinky MCPs.
+            for side, wrist_name, index_name, pinky_name in (
+                ("left", "left_wrist", "left_index", "left_pinky"),
+                ("right", "right_wrist", "right_index", "right_pinky"),
+            ):
+                if not all(
+                    parent_kpts.has_name(name)
+                    for name in (wrist_name, index_name, pinky_name)
+                ):
                     continue
                 wrist_xyz = parent_kpts.xyz_by_name(wrist_name)
-                if np.isnan(wrist_xyz[0]):
+                index_xyz = parent_kpts.xyz_by_name(index_name)
+                pinky_xyz = parent_kpts.xyz_by_name(pinky_name)
+                if (
+                    np.isnan(wrist_xyz[0])
+                    or np.isnan(index_xyz[0])
+                    or np.isnan(pinky_xyz[0])
+                ):
                     continue
 
-                if _CROP_METHOD == "elbow_wrist":
-                    elbow_xyz = parent_kpts.xyz_by_name(elbow_name)
-                    if np.isnan(elbow_xyz[0]):
-                        continue
-                    crop, inv_affine = crop_hand_roi(
-                        image, wrist_xyz[:2], elbow_px=elbow_xyz[:2], margin=2.5
-                    )
-                else:
-                    index_xyz = parent_kpts.xyz_by_name(index_name)
-                    pinky_xyz = parent_kpts.xyz_by_name(pinky_name)
-                    if np.isnan(index_xyz[0]) or np.isnan(pinky_xyz[0]):
-                        continue
-                    crop, inv_affine = crop_hand_roi(
-                        image, wrist_xyz[:2], index_xyz[:2], pinky_xyz[:2], margin=3.0
-                    )
+                crop, inv_affine = crop_hand_roi(
+                    image, wrist_xyz[:2], index_xyz[:2], pinky_xyz[:2], margin=3.0
+                )
                 crop_h, crop_w = crop.shape[:2]
                 if crop_h <= 0 or crop_w <= 0:
                     continue
-
-                # TEMPORARY DEBUG: print crop-box vertices (original-image coords)
-                # for the first N frames so the box can be drawn for inspection.
-                if _CROP_DEBUG_MAX_FRAMES is not None:
-                    frame_num = context.frame_number if context is not None else -1
-                    if frame_num < _CROP_DEBUG_MAX_FRAMES:
-                        corners_local = np.array(
-                            [[0.0, 0.0], [crop_w, 0.0], [crop_w, crop_h], [0.0, crop_h]],
-                            dtype=np.float64,
-                        )
-                        corners_img = corners_local @ inv_affine[:, :2].T + inv_affine[:, 2]
-                        print(
-                            f"[CROP-DEBUG] frame={frame_num} side={side} "
-                            f"wrist=({wrist_xyz[0]:.1f},{wrist_xyz[1]:.1f}) "
-                            f"crop={crop_w}x{crop_h} "
-                            f"box_vertices_img={[tuple(round(v, 1) for v in c) for c in corners_img]}",
-                            flush=True,
-                        )
 
                 mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=_to_rgb(crop))
                 result = self.landmarker.detect(mp_image)
