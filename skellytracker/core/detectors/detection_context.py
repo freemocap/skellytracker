@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from skellytracker.core.io.processing_timer import ProcessingTimer
 
@@ -25,3 +26,4 @@ class DetectionContext:
     frame_number: int = 0
     timestamp_ms: int | None = None
     timings: ProcessingTimer | None = field(default=None, repr=False)
+    parent_keypoints: Any | None = None

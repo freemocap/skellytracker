@@ -107,6 +107,9 @@ class DetectionStage:
         Returns:
             (StageObservation, updated StageState)
         """
+        if context is not None and parent_keypoints is not None:
+            import dataclasses
+            context = dataclasses.replace(context, parent_keypoints=parent_keypoints)
         frame_number = context.frame_number if context is not None else 0
         dt = _dt_from_context(context)
 
@@ -376,6 +379,7 @@ class DetectionStage:
         images: dict[str, NDArray[np.uint8]],
         states: dict[str, StageState],
         context: DetectionContext | None = None,
+        parent_keypoints_per_cam: dict[str, Keypoints | None] | None = None,
     ) -> tuple[dict[str, StageObservation], dict[str, StageState]]:
         """Run this stage on N cameras simultaneously.
 
@@ -596,7 +600,9 @@ class DetectionStage:
                     if cam_id not in cam_detectors:
                         cam_detectors[cam_id] = type(detector).create(detector.config, detector.session)
                     cam_detector = cam_detectors[cam_id]
-                    kpts = cam_detector.detect(crops[cam_id], context)
+                    import dataclasses
+                    cam_context = dataclasses.replace(context, parent_keypoints=parent_keypoints_per_cam[cam_id]) if context and parent_keypoints_per_cam and parent_keypoints_per_cam.get(cam_id) else context
+                    kpts = cam_detector.detect(crops[cam_id], cam_context)
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)
@@ -658,7 +664,7 @@ class DetectionStage:
                 cam_id: states.get(cam_id, StageState()).child_states.get(child.name, StageState())
                 for cam_id in cam_ids
             }
-            child_obs_batch, child_states_batch = child.run_batch(crops, child_stage_states, context)
+            child_obs_batch, child_states_batch = child.run_batch(crops, child_stage_states, context, parent_keypoints_per_cam=merged_per_cam)
             for cam_id in cam_ids:
                 child_obs_per_cam[cam_id][child.name] = child_obs_batch[cam_id]
                 child_states_per_cam[cam_id][child.name] = child_states_batch[cam_id]

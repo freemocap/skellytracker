@@ -30,6 +30,81 @@ _LEFT_NAMES: tuple[str, ...] = tuple(f"left_hand_{n}" for n in _HAND_POINT_NAMES
 _BOTH_HAND_NAMES: tuple[str, ...] = _RIGHT_NAMES + _LEFT_NAMES
 
 
+def crop_hand_roi(
+    image: NDArray[np.uint8],
+    wrist_px: NDArray[np.float64],
+    index_mcp_px: NDArray[np.float64],
+    pinky_mcp_px: NDArray[np.float64],
+    margin: float = 1.5,
+) -> tuple[NDArray[np.uint8], NDArray[np.float64]]:
+    """Derive a palm-aligned, hand-span-sized crop around a hand.
+
+    Mirrors MediaPipe Holistic's hand ROI (``GetHandRectFromPoseLandmarks``):
+    the box is centered on the palm (midpoint of the index & pinky MCPs),
+    oriented to the palm direction (wrist → that midpoint), and sized from the
+    hand's own span (wrist → index/pinky MCP) rather than from the forearm.
+    Centering on the palm (rather than the wrist) shifts the box forward over
+    the fingers, so a small margin still covers the fingertips while the box
+    stays small enough not to swallow a nearby other hand.
+
+    Returns:
+        (crop, inverse_affine): the rotated crop and a (2, 3) affine matrix
+        mapping crop-local pixel coordinates back to original-image coordinates.
+    """
+    import cv2
+    import math
+
+    h, w = image.shape[:2]
+    wx, wy = float(wrist_px[0]), float(wrist_px[1])
+
+    # Palm center: midpoint of the index & pinky MCPs (the geometric center of
+    # the palm). Centering here (rather than on the wrist) shifts the box
+    # forward over the fingers, so a much smaller margin still covers the
+    # fingertips while the box stays small enough not to swallow a nearby hand.
+    cx, cy = (
+        (float(index_mcp_px[0]) + float(pinky_mcp_px[0])) / 2.0,
+        (float(index_mcp_px[1]) + float(pinky_mcp_px[1])) / 2.0,
+    )
+
+    # Palm forward direction (toward the fingers), wrist -> palm center.
+    fx, fy = cx - wx, cy - wy
+    rotation = math.atan2(fy, fx)
+
+    # Hand span: wrist -> MCP distance (use the larger of index/pinky for safety).
+    span = max(
+        math.hypot(float(index_mcp_px[0]) - wx, float(index_mcp_px[1]) - wy),
+        math.hypot(float(pinky_mcp_px[0]) - wx, float(pinky_mcp_px[1]) - wy),
+    )
+    box_size = max(int(span * 2.0 * margin), 16)
+
+    # Rotate the image so the palm direction becomes horizontal (+x). cv2's
+    # rotation angle is counter-clockwise in image coordinates, so negate the
+    # measured palm angle.
+    M = cv2.getRotationMatrix2D((cx, cy), -math.degrees(rotation), 1.0)
+    rotated = cv2.warpAffine(
+        image, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_REPLICATE
+    )
+
+    # Axis-aligned box around the palm center in the rotated image.
+    x_min = max(0, int(cx - box_size // 2))
+    y_min = max(0, int(cy - box_size // 2))
+    x_max = min(w, x_min + box_size)
+    y_max = min(h, y_min + box_size)
+    crop = rotated[y_min:y_max, x_min:x_max]
+    if crop.size == 0:
+        return crop, np.eye(2, 3, dtype=np.float64)
+
+    # Inverse affine: crop-local -> original image.
+    # forward:  p_rot = M_lin @ p_img + M_t ; p_crop = p_rot - (x_min, y_min)
+    # inverse:  p_img = M_lin^-1 @ p_crop + M_lin^-1 @ ((x_min,y_min) - M_t)
+    invM = cv2.invertAffineTransform(M)  # M_lin^-1, and invM_t = -M_lin^-1 @ M_t
+    off = np.array([float(x_min), float(y_min)])
+    inv_affine = np.zeros((2, 3), dtype=np.float64)
+    inv_affine[:, :2] = invM[:, :2]
+    inv_affine[:, 2] = invM[:, :2] @ off + invM[:, 2]
+    return crop, inv_affine
+
+
 class MediapipeHandDetectorConfig(KeypointDetectorConfig):
     detector_type: Literal["mediapipe_hand"] = "mediapipe_hand"
     session_backend: Literal["mediapipe"] = "mediapipe"
@@ -106,44 +181,84 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
     ) -> Keypoints:
-        h, w = image.shape[:2]
-        rgb = _to_rgb(image)
-        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
-
-        if self.session.running_mode == "video":
-            ts = (
-                context.timestamp_ms
-                if (context is not None and context.timestamp_ms is not None)
-                else int(time.monotonic() * 1000)
-            )
-            result = self.landmarker.detect_for_video(mp_image, ts)
-        else:
-            result = self.landmarker.detect(mp_image)
-
         right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
         left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
 
-        for i, hand_landmarks in enumerate(result.hand_landmarks):
-            handedness = result.handedness[i]
-            label = handedness[0].category_name  # "Left" or "Right"
+        if context is not None and getattr(context, "parent_keypoints", None) is not None and context.parent_keypoints.n_valid > 0:
+            parent_kpts = context.parent_keypoints
+            # Process each hand independently from its wrist + index/pinky MCPs.
+            for side, wrist_name, index_name, pinky_name in (
+                ("left", "left_wrist", "left_index", "left_pinky"),
+                ("right", "right_wrist", "right_index", "right_pinky"),
+            ):
+                if not all(
+                    parent_kpts.has_name(name)
+                    for name in (wrist_name, index_name, pinky_name)
+                ):
+                    continue
+                wrist_xyz = parent_kpts.xyz_by_name(wrist_name)
+                index_xyz = parent_kpts.xyz_by_name(index_name)
+                pinky_xyz = parent_kpts.xyz_by_name(pinky_name)
+                if (
+                    np.isnan(wrist_xyz[0])
+                    or np.isnan(index_xyz[0])
+                    or np.isnan(pinky_xyz[0])
+                ):
+                    continue
 
-            xyz = np.array(
-                [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
-                dtype=np.float64,
-            )
-            vis = np.array(
-                [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
-                dtype=np.float64,
-            )
+                crop, inv_affine = crop_hand_roi(
+                    image, wrist_xyz[:2], index_xyz[:2], pinky_xyz[:2], margin=3.0
+                )
+                crop_h, crop_w = crop.shape[:2]
+                if crop_h <= 0 or crop_w <= 0:
+                    continue
 
-            if label == "Right":
-                right_xyz = xyz
-                right_vis = vis
-            elif label == "Left":
-                left_xyz = xyz
-                left_vis = vis
+                mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=_to_rgb(crop))
+                result = self.landmarker.detect(mp_image)
+                if not result.hand_landmarks:
+                    continue
+                # Take the single best-scored hand found in this ROI and assign it
+                # to the side we seeded, regardless of MediaPipe's handedness label
+                # (which is unreliable on a tight single-hand crop).
+                hand_landmarks = max(
+                    result.hand_landmarks,
+                    key=lambda lm_list: float(
+                        np.mean([lm.presence if lm.presence is not None else 1.0 for lm in lm_list])
+                    ),
+                )
+                # Map crop-local pixel coordinates back to full-frame image
+                # coordinates through the inverse affine of the rotated crop.
+                crop_pts = np.array(
+                    [[lm.x * crop_w, lm.y * crop_h] for lm in hand_landmarks],
+                    dtype=np.float64,
+                )
+                full_pts = crop_pts @ inv_affine[:, :2].T + inv_affine[:, 2]
+                z = np.array([lm.z * crop_w for lm in hand_landmarks], dtype=np.float64)
+                xyz = np.column_stack([full_pts, z])
+                vis = np.array(
+                    [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
+                    dtype=np.float64,
+                )
+                if side == "right":
+                    right_xyz, right_vis = xyz, vis
+                else:
+                    left_xyz, left_vis = xyz, vis
+        else:
+            # Fallback to full image
+            h, w = image.shape[:2]
+            mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=_to_rgb(image))
+            result = self.landmarker.detect(mp_image)
+            for i, hand_landmarks in enumerate(result.hand_landmarks):
+                handedness = result.handedness[i]
+                label = handedness[0].category_name
+                xyz = np.array([(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks], dtype=np.float64)
+                vis = np.array([lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks], dtype=np.float64)
+                if label == "Right":
+                    right_xyz, right_vis = xyz, vis
+                elif label == "Left":
+                    left_xyz, left_vis = xyz, vis
 
         xyz = np.concatenate([right_xyz, left_xyz], axis=0)
         visibility = np.concatenate([right_vis, left_vis], axis=0)
@@ -182,7 +297,7 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         from mediapipe.tasks.python import BaseOptions
         from mediapipe.tasks.python.vision import HandLandmarker, HandLandmarkerOptions, RunningMode
 
-        mp_running_mode = RunningMode.VIDEO if session.running_mode == "video" else RunningMode.IMAGE
+        mp_running_mode = RunningMode.IMAGE
         hand_path = get_hand_model_path()
         opts = HandLandmarkerOptions(
             base_options=BaseOptions(model_asset_path=str(hand_path)),
