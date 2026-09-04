@@ -33,6 +33,10 @@ head_center:
 pelvis_origin:
 - left_hip
 - right_hip
+neck_center:
+- left_shoulder
+- right_shoulder
+
 left_sternoclavicular:
   form: anatomical_offset
   origin:
@@ -54,7 +58,9 @@ left_sternoclavicular:
   offset:
     lateral: -0.0625
     anterior: 0.1
-  reference_length: shoulder_width
+  reference_length:
+    from: left_shoulder
+    to: right_shoulder
 right_sternoclavicular:
   form: anatomical_offset
   origin:
@@ -76,7 +82,9 @@ right_sternoclavicular:
   offset:
     lateral: 0.0625
     anterior: 0.1
-  reference_length: shoulder_width
+  reference_length:
+    from: left_shoulder
+    to: right_shoulder
 sternoclavicular_notch:
   form: anatomical_offset
   origin:
@@ -97,7 +105,9 @@ sternoclavicular_notch:
       kind: approximate
   offset:
     anterior: 0.1
-  reference_length: shoulder_width
+  reference_length:
+    from: left_shoulder
+    to: right_shoulder
 xiphoid_process:
   form: anatomical_offset
   origin:
@@ -119,29 +129,10 @@ xiphoid_process:
   offset:
     up: -0.480192
     anterior: 0.395755
-  reference_length: shoulder_width
-neck_center:
-  form: anatomical_offset
-  origin:
-  - left_shoulder
-  - right_shoulder
-  frame:
-    up:
-      from:
-      - left_hip
-      - right_hip
-      to:
-      - left_shoulder
-      - right_shoulder
-      kind: exact
-    lateral:
-      from: left_shoulder
-      to: right_shoulder
-      kind: approximate
-  offset:
-    up: -0.000166
-    anterior: -0.015624
-  reference_length: shoulder_width
+  reference_length:
+    from: left_shoulder
+    to: right_shoulder
+
 craniocervical_junction:
 - left_ear
 - right_ear
@@ -166,7 +157,9 @@ chest_center:
   offset:
     up: -0.656378
     anterior: -0.008643
-  reference_length: shoulder_width
+  reference_length:
+    from: left_shoulder
+    to: right_shoulder
 
 chin:
   form: anatomical_offset
@@ -186,7 +179,9 @@ chin:
   offset:
     up: -1.480194
     anterior: -0.136003
-  reference_length: eye_width
+  reference_length:
+    from: left_eye
+    to: right_eye
 left_canine_tooth_tip:
   form: anatomical_offset
   origin:
@@ -206,7 +201,9 @@ left_canine_tooth_tip:
     up: -0.75626
     lateral: -0.3125
     anterior: -0.655017
-  reference_length: eye_width
+  reference_length:
+    from: left_eye
+    to: right_eye
 right_canine_tooth_tip:
   form: anatomical_offset
   origin:
@@ -226,7 +223,9 @@ right_canine_tooth_tip:
     up: -0.75626
     lateral: 0.3125
     anterior: -0.655017
-  reference_length: eye_width
+  reference_length:
+    from: left_eye
+    to: right_eye
 left_ball:
   form: anatomical_offset
   origin:
@@ -286,7 +285,9 @@ sacrum_top:
   offset:
     up: 0.537627
     anterior: -0.204594
-  reference_length: hip_width
+  reference_length:
+    from: left_hip
+    to: right_hip
 left_iliac_crest:
   form: anatomical_offset
   origin:
@@ -307,7 +308,9 @@ left_iliac_crest:
   offset:
     up: 0.56815
     lateral: -0.323864
-  reference_length: hip_width
+  reference_length:
+    from: left_hip
+    to: right_hip
 right_iliac_crest:
   form: anatomical_offset
   origin:
@@ -328,7 +331,9 @@ right_iliac_crest:
   offset:
     up: 0.56815
     lateral: 0.323864
-  reference_length: hip_width
+  reference_length:
+    from: left_hip
+    to: right_hip
 pubic_symphysis:
   form: anatomical_offset
   origin:
@@ -350,4 +355,6 @@ pubic_symphysis:
   offset:
     up: -0.053189
     anterior: 0.341494
-  reference_length: hip_width
+  reference_length:
+    from: left_hip
+    to: right_hip

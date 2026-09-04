@@ -41,7 +41,9 @@ It is a dict with these keys::
       <axis_name>:
         ...
     offset: { <axis_name>: ratio, ... }  # ratios of reference_length
-    reference_length: <named_length>     # or {from: ..., to: ...}
+    reference_length:                    # a span measured on the frame's own keypoints
+      from: keypoint | [keypoint, ...]
+      to:   keypoint | [keypoint, ...]
 
 Exactly TWO frame axes must be defined: one ``exact`` and one
 ``approximate``.  The third axis is computed via right-handed cross
@@ -99,7 +101,7 @@ class _AnatomicalOffsetDef:
     axes: list[_FrameAxisDef]  # exactly 2: one exact, one approximate
     offset_ratios: dict[str, float]  # axis_name → ratio
     reference_length_from: list[str]
-    reference_length_to: list[str]  # may be empty (named reference)
+    reference_length_to: list[str]
 
 
 # ---------------------------------------------------------------------------
@@ -234,8 +236,9 @@ class TrackerMapping:
     def _referenced_tracker_names(self) -> set[str]:
         """Every tracker-side name referenced by this mapping (prefix applied).
 
-        Named reference lengths like ``shoulder_width`` are NOT tracker names
-        (they resolve to keypoint pairs at apply time) and are excluded.
+        Includes the ``reference_length`` from/to keypoints of every
+        ``anatomical_offset`` — those are ordinary tracker keypoints and are
+        checked against ``known_tracker_keypoints`` like any other.
         """
         names: set[str] = set()
         prefix = self._prefix
@@ -490,22 +493,16 @@ def _parse_anatomical_offset(
         offset_ratios[axis_name] = float(ratio)
 
     ref_len = entry.get("reference_length")
-    ref_from: list[str]
-    ref_to: list[str]
-    if isinstance(ref_len, str):
-        ref_from, ref_to = _resolve_named_length(ref_len)
-    elif isinstance(ref_len, dict):
-        ref_from = _normalize_keypoint_list(ref_len.get("from"))
-        ref_to = _normalize_keypoint_list(ref_len.get("to"))
-        if not ref_from or not ref_to:
-            raise _err(
-                "reference_length dict must have 'from' and 'to' "
-                "keypoint lists"
-            )
-    else:
+    if not isinstance(ref_len, dict):
         raise _err(
-            f"'reference_length' must be a string or dict, "
-            f"got {type(ref_len).__name__}"
+            "'reference_length' must be a mapping with 'from' and 'to' keypoint "
+            f"lists (the span it scales by), got {type(ref_len).__name__}"
+        )
+    ref_from = _normalize_keypoint_list(ref_len.get("from"))
+    ref_to = _normalize_keypoint_list(ref_len.get("to"))
+    if not ref_from or not ref_to:
+        raise _err(
+            "'reference_length' must have non-empty 'from' and 'to' keypoint lists"
         )
 
     return _AnatomicalOffsetDef(
@@ -690,32 +687,6 @@ def _compute_distance(
     if frm is None or to is None:
         return None
     return float(np.linalg.norm(to - frm))
-
-
-def _resolve_named_length(
-    name: str,
-) -> tuple[list[str], list[str]]:
-    """Resolve a named reference length to from/to keypoint pairs."""
-    _NAMED_LENGTHS: dict[str, tuple[list[str], list[str]]] = {
-        "shoulder_width": (
-            ["left_shoulder"],
-            ["right_shoulder"],
-        ),
-        "hip_width": (
-            ["left_hip"],
-            ["right_hip"],
-        ),
-        "eye_width": (
-            ["left_eye"],
-            ["right_eye"],
-        ),
-    }
-    if name not in _NAMED_LENGTHS:
-        raise ValueError(
-            f"Unknown named reference_length {name!r}. "
-            f"Known: {sorted(_NAMED_LENGTHS.keys())}"
-        )
-    return _NAMED_LENGTHS[name]
 
 
 def _normalize_keypoint_list(value: Any) -> list[str]:
