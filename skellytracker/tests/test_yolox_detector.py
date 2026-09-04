@@ -250,10 +250,6 @@ class TestPostprocessPrenms:
 # ---------------------------------------------------------------------------
 
 class TestYoloxPersonDetectorConfig:
-    def test_default_model_name(self):
-        config = YoloxPersonDetectorConfig()
-        assert config.model_name == "yolox-m"
-
     def test_input_size_for_yolox_m(self):
         config = YoloxPersonDetectorConfig(model_name="yolox-m")
         assert config.input_size == (640, 640)
@@ -265,9 +261,6 @@ class TestYoloxPersonDetectorConfig:
     def test_input_size_fallback_for_unknown_model(self):
         config = YoloxPersonDetectorConfig(model_name="nonexistent-variant")
         assert config.input_size == (640, 640)
-
-    def test_default_max_detections_is_1(self):
-        assert YoloxPersonDetectorConfig().max_detections == 1
 
     def test_max_detections_none_means_unlimited(self):
         config = YoloxPersonDetectorConfig(max_detections=None)

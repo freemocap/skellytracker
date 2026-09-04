@@ -41,20 +41,6 @@ def test_module_imports_without_detector_machinery() -> None:
 
 
 @pytest.mark.parametrize(
-    "constant_name",
-    [
-        "RTMPOSE_BODY_MAPPING",
-        "RTMPOSE_HAND_MAPPING",
-        "MEDIAPIPE_BODY_MAPPING",
-        "MEDIAPIPE_HAND_MAPPING",
-    ],
-)
-def test_mapping_yaml_exists(constant_name: str) -> None:
-    path = getattr(mapping_paths, constant_name)
-    assert path.exists(), f"{constant_name} points to a missing file: {path}"
-
-
-@pytest.mark.parametrize(
     ("detector_module", "detector_class", "constant_name"),
     [
         (

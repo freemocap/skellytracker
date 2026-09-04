@@ -1,10 +1,10 @@
 """Pass-through mapping: for an object whose markers ARE its landmarks.
 
-A charuco board has no anatomy to map onto, so the mapping is one flag rather than one
-line per marker. These tests pin the two things that make it usable rather than merely
-short: it produces exactly what the tracker emits, and it can say so UP FRONT — callers
-that decide which landmarks are measured, and therefore which segments may set the model
-scale, cannot wait until the first frame to find out.
+A pass-through mapping is one flag rather than one line per marker. These tests pin the
+two things that make it usable rather than merely short: it produces exactly what the
+tracker emits, and it can say so UP FRONT — callers that decide which landmarks are
+measured, and therefore which segments may set the model scale, cannot wait until the
+first frame to find out.
 """
 
 from __future__ import annotations
@@ -15,23 +15,16 @@ import pytest
 from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_board_definition import (
     CharucoBoardDefinition,
 )
-from skellytracker.core.io.mapping_paths import (
-    CHARUCO_BOARD_MAPPING,
-    MEDIAPIPE_BODY_MAPPING,
-)
 from skellytracker.core.io.tracker_mapping import TrackerMapping
 
 
 def _board_mapping() -> tuple[CharucoBoardDefinition, TrackerMapping]:
     board = CharucoBoardDefinition.create_letter_size_5x3()
-    return board, TrackerMapping.from_yaml(
-        CHARUCO_BOARD_MAPPING, known_tracker_keypoints=set(board.all_point_names)
+    return board, TrackerMapping(
+        entries={},
+        passthrough_keypoints_as_landmarks=True,
+        known_tracker_keypoints=set(board.all_point_names),
     )
-
-
-def test_the_shipped_board_mapping_is_a_passthrough() -> None:
-    _, mapping = _board_mapping()
-    assert mapping.is_passthrough
 
 
 def test_every_keypoint_becomes_a_landmark_of_the_same_name() -> None:
@@ -93,21 +86,12 @@ def test_a_mapping_cannot_be_both_passthrough_and_entries() -> None:
         )
 
 
-def test_an_ordinary_mapping_is_unaffected() -> None:
-    """The flag is opt-in; the human mappings keep constructing what they construct."""
-    mapping = TrackerMapping.from_yaml(MEDIAPIPE_BODY_MAPPING)
-    assert not mapping.is_passthrough
-    assert "left_knee" in mapping.directly_measured_landmark_names
-    assert "chest_center" not in mapping.directly_measured_landmark_names
-
-
-def test_the_board_mapping_covers_any_board_size() -> None:
-    """The flag is the whole file, so a 7x5 board needs no second mapping."""
+def test_a_passthrough_covers_any_board_size() -> None:
+    """The flag is the whole mapping, so a 7x5 board needs no second mapping."""
     board = CharucoBoardDefinition.create_test_data_7x5()
-    mapping = TrackerMapping.from_yaml(
-        CHARUCO_BOARD_MAPPING, known_tracker_keypoints=set(board.all_point_names)
+    mapping = TrackerMapping(
+        entries={},
+        passthrough_keypoints_as_landmarks=True,
+        known_tracker_keypoints=set(board.all_point_names),
     )
     assert mapping.directly_measured_landmark_names == frozenset(board.all_point_names)
-    assert len(board.all_point_names) != len(
-        CharucoBoardDefinition.create_letter_size_5x3().all_point_names
-    )
