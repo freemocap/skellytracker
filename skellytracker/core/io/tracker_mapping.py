@@ -54,6 +54,7 @@ keypoints, so it scales with the subject).
 
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -66,6 +67,19 @@ import yaml
 # ---------------------------------------------------------------------------
 
 MappingEntry = str | list[str] | dict[str, float] | dict[str, Any]
+
+
+@dataclass(frozen=True, slots=True)
+class TrackerMappingSnapshot:
+    entries: dict[str, MappingEntry]
+    prefix: str | None
+    known_tracker_keypoints: tuple[str, ...] | None
+    passthrough: bool
+
+    def restore(self) -> TrackerMapping:
+        return TrackerMapping(entries=deepcopy(self.entries), prefix=self.prefix,
+            known_tracker_keypoints=set(self.known_tracker_keypoints) if self.known_tracker_keypoints is not None else None,
+            passthrough_keypoints_as_landmarks=self.passthrough)
 
 PASSTHROUGH_KEY = "passthrough_keypoints_as_landmarks"
 """The whole file, for an object whose markers ARE its landmarks.
@@ -197,6 +211,14 @@ class TrackerMapping:
                     "never produces: " + ", ".join(offenders)
                 )
 
+        self._snapshot = TrackerMappingSnapshot(entries=deepcopy(entries), prefix=prefix,
+            known_tracker_keypoints=tuple(sorted(known_tracker_keypoints)) if known_tracker_keypoints is not None else None,
+            passthrough=passthrough_keypoints_as_landmarks)
+
+    def mapping_snapshots(self) -> tuple[TrackerMappingSnapshot, ...]:
+        """Validated authored inputs, independent of files and evaluation caches."""
+        return (deepcopy(self._snapshot),)
+
     def _strip_prefix(self, name: str) -> str:
         """A tracker-side name with this mapping's prefix removed, if it carries one."""
         if self._prefix and name.startswith(self._prefix):
@@ -245,9 +267,7 @@ class TrackerMapping:
         for entry in self._entries.values():
             if isinstance(entry, str):
                 names.add(prefix + entry)
-            elif isinstance(entry, tuple):
-                names.update(prefix + n for n in entry)
-            elif isinstance(entry, dict):
+            elif isinstance(entry, (tuple, dict)):
                 names.update(prefix + n for n in entry)
         for offset_def in self._anatomical_offsets.values():
             names.update(
@@ -275,7 +295,7 @@ class TrackerMapping:
         *,
         prefix: str | None = None,
         known_tracker_keypoints: set[str] | None = None,
-    ) -> "TrackerMapping":
+    ) -> TrackerMapping:
         """Load a mapping from a YAML file."""
         with open(yaml_path, "r") as fh:
             data = yaml.safe_load(fh)
@@ -401,9 +421,7 @@ class TrackerMapping:
         for entry in self._entries.values():
             if isinstance(entry, str):
                 names.append(prefix + entry)
-            elif isinstance(entry, tuple):
-                names.extend(prefix + n for n in entry)
-            elif isinstance(entry, dict):
+            elif isinstance(entry, (tuple, dict)):
                 names.extend(prefix + n for n in entry)
         for offset_def in self._anatomical_offsets.values():
             names.extend(
