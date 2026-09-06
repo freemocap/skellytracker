@@ -1,3 +1,8 @@
+from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_board_selection import (
+    CharucoBoardSelectionError,
+    CharucoBoardSelector,
+    StandardCharucoBoard,
+)
 from skellytracker.core.detectors.keypoint_detectors.charuco.anipose_export import (
     to_anipose_camera_row,
 )
@@ -23,6 +28,9 @@ from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_observation
 )
 
 __all__ = [
+    "CharucoBoardSelectionError",
+    "CharucoBoardSelector",
+    "StandardCharucoBoard",
     "CharucoBoardDefinition",
     "CharucoDetector",
     "CharucoDetectorConfig",
