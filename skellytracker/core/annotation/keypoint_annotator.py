@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Protocol, runtime_checkable
 
 import cv2
 import numpy as np
@@ -9,6 +10,13 @@ from numpy.typing import NDArray
 from skellytracker.core.annotation.annotator import Annotator
 from skellytracker.core.data_primitives import BoundingBox, Keypoints
 from skellytracker.core.data_primitives.observation import Observation, StageObservation
+
+
+@runtime_checkable
+class StageKeypointAnnotator(Protocol):
+    """Draw one stage's keypoints while preserving the supplied base image."""
+
+    def annotate(self, image: NDArray[np.uint8], keypoints: Keypoints) -> NDArray[np.uint8]: ...
 
 
 @dataclass
@@ -52,9 +60,12 @@ class KeypointAnnotator(Annotator):
     Works with any Observation; no tracker-specific knowledge required.
     Per-stage visual schemas (colors, connections) are supplied at construction.
     Stages without a schema still have their keypoints drawn using defaults.
+    Specialized stage annotators receive the accumulated image in stage traversal
+    order. Their output becomes the base for subsequent stages and children.
     """
 
     config: KeypointAnnotatorConfig
+    stage_annotators: dict[str, StageKeypointAnnotator] = field(default_factory=dict)
 
     def annotate(
         self,
@@ -62,22 +73,29 @@ class KeypointAnnotator(Annotator):
         observation: Observation,
     ) -> NDArray[np.uint8]:
         out = image.copy()
-        self._annotate_stages(out, observation.stages)
-        return out
+        return self._annotate_stages(out, observation.stages)
 
     def _annotate_stages(
         self,
         image: NDArray[np.uint8],
         stages: dict[str, StageObservation],
-    ) -> None:
+    ) -> NDArray[np.uint8]:
         for stage_obs in stages.values():
             schema = self.config.stage_schemas.get(stage_obs.name)
             if schema is not None and schema.draw_boxes and stage_obs.bounding_boxes:
                 self._draw_boxes(image, stage_obs.bounding_boxes, schema, stage_obs.detector_ran)
             if stage_obs.keypoints is not None:
-                self._draw_stage(image, stage_obs.keypoints, schema)
+                stage_annotator = self.stage_annotators.get(stage_obs.name)
+                if stage_annotator is None:
+                    self._draw_stage(image, stage_obs.keypoints, schema)
+                else:
+                    rendered = stage_annotator.annotate(image=image, keypoints=stage_obs.keypoints)
+                    if rendered.shape != image.shape or rendered.dtype != image.dtype:
+                        raise ValueError(f"Annotator for {stage_obs.name} changed image shape or dtype")
+                    image = rendered
             if stage_obs.children:
-                self._annotate_stages(image, stage_obs.children)
+                image = self._annotate_stages(image, stage_obs.children)
+        return image
 
     def _draw_stage(
         self,
