@@ -20,7 +20,8 @@ class Tracker:
 
     Takes images, runs all DetectionStages in order, and returns a structured
     Observation plus updated TrackerState. Stateless between calls — all
-    temporal data lives in TrackerState.
+    explicit temporal data lives in TrackerState. Detector instances can also
+    retain backend tracking state and must not be shared across independent streams.
     """
 
     stages: list[DetectionStage]
@@ -154,3 +155,20 @@ class Tracker:
         """Build a Tracker from config and pre-created sessions."""
         stages = [DetectionStage.create(stage_cfg, sessions) for stage_cfg in config.stages]
         return cls(stages=stages, sessions=sessions)
+
+    @classmethod
+    def create_with_shared_sessions(cls, *, config: TrackerConfig, sessions: dict[str, Session]) -> Tracker:
+        """Create independent detectors borrowing externally owned sessions.
+
+        The owner must keep the sessions alive until this tracker is closed.
+        Closing this tracker releases its detectors, never the borrowed sessions.
+        """
+        stages: list[DetectionStage] = []
+        try:
+            for stage_config in config.stages:
+                stages.append(DetectionStage.create(config=stage_config, sessions=sessions))
+        except BaseException:
+            for stage in stages:
+                stage.close()
+            raise
+        return cls(stages=stages)
