@@ -70,6 +70,25 @@ MappingEntry = str | list[str] | dict[str, float] | dict[str, Any]
 
 
 @dataclass(frozen=True, slots=True)
+class MappedLandmarkEvidence:
+    """Mapped positions and their weakest contributing source quality.
+
+    Quality is a conservative evidence score, not a calibrated probability or a
+    measurement of the anatomical model's accuracy.
+    """
+
+    positions: dict[str, np.ndarray]
+    quality: dict[str, float]
+
+    def __post_init__(self) -> None:
+        if self.positions.keys() != self.quality.keys():
+            raise ValueError("Mapped positions and quality must have identical landmark names")
+        for name, score in self.quality.items():
+            if not np.isfinite(score) or not 0.0 <= score <= 1.0:
+                raise ValueError(f"Invalid mapped quality for {name}: {score}")
+
+
+@dataclass(frozen=True, slots=True)
 class TrackerMappingSnapshot:
     entries: dict[str, MappingEntry]
     prefix: str | None
@@ -401,6 +420,48 @@ class TrackerMapping:
                 result[landmark_name] = pos
 
         return result
+
+    def apply_with_quality(
+        self, *, tracker_positions: dict[str, np.ndarray], tracker_quality: dict[str, float],
+    ) -> MappedLandmarkEvidence:
+        """Map geometry once and propagate quality through the same source dependencies.
+
+        Missing source measurements remain absent. Each present measurement must have
+        a finite score in [0,1]. An anatomical offset inherits the weakest origin,
+        frame-axis and reference-length source, including mapped pass-one landmarks.
+        """
+        if tracker_positions.keys() != tracker_quality.keys():
+            raise ValueError("Every input position requires a matching quality score")
+        for name, score in tracker_quality.items():
+            if not np.isfinite(score) or not 0.0 <= score <= 1.0:
+                raise ValueError(f"Invalid source quality for {name}: {score}")
+            position = np.asarray(tracker_positions[name])
+            if position.shape != (3,) or not np.isfinite(position).all():
+                raise ValueError(f"Source position {name} must contain three finite coordinates")
+        positions = self.apply(tracker_positions)
+        if self._passthrough:
+            quality = {
+                self._strip_prefix(name): score for name, score in tracker_quality.items()
+                if self._strip_prefix(name) in positions
+            }
+            return MappedLandmarkEvidence(positions=positions, quality=quality)
+        quality: dict[str, float] = {}
+        for name, entry in self._entries.items():
+            if name not in positions:
+                continue
+            sources = (entry,) if isinstance(entry, str) else tuple(entry)
+            quality[name] = min(tracker_quality[self._prefix + source] for source in sources)
+        combined_quality = {**tracker_quality, **quality}
+        for name, definition in self._anatomical_offsets.items():
+            if name not in positions:
+                continue
+            sources = [*definition.origin_keypoints, *definition.reference_length_from,
+                       *definition.reference_length_to]
+            for axis in definition.axes:
+                sources.extend(axis.from_keypoints)
+                sources.extend(axis.to_keypoints)
+            quality[name] = min(combined_quality[self._prefix + source] for source in sources)
+        return MappedLandmarkEvidence(positions=positions, quality=quality)
 
     # ------------------------------------------------------------------
     # Introspection

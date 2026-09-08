@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from skellytracker.core.io.tracker_mapping import TrackerMapping, TrackerMappingSnapshot
+from skellytracker.core.io.tracker_mapping import MappedLandmarkEvidence, TrackerMapping, TrackerMappingSnapshot
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +32,22 @@ class CompositeTrackerMapping:
             for mapping in self.mappings
             for name in mapping.directly_measured_landmark_names
         )
+
+    def apply_with_quality(
+        self, *, tracker_positions: dict[str, np.ndarray], tracker_quality: dict[str, float],
+    ) -> MappedLandmarkEvidence:
+        positions: dict[str, np.ndarray] = {}
+        quality: dict[str, float] = {}
+        for mapping in self.mappings:
+            evidence = mapping.apply_with_quality(
+                tracker_positions=tracker_positions, tracker_quality=tracker_quality,
+            )
+            duplicates = positions.keys() & evidence.positions.keys()
+            if duplicates:
+                raise ValueError(f"Composite mappings produced duplicate landmarks: {sorted(duplicates)}")
+            positions.update(evidence.positions)
+            quality.update(evidence.quality)
+        return MappedLandmarkEvidence(positions=positions, quality=quality)
 
     def mapping_snapshots(self) -> tuple[TrackerMappingSnapshot, ...]:
         return tuple(
