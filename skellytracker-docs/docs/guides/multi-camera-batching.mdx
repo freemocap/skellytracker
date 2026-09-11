@@ -1,0 +1,48 @@
+---
+title: Multi-Camera Batching
+sidebar_position: 4
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Multi-Camera Batching
+
+A single `Tracker` can run across N cameras in **one batched GPU call per model**
+rather than N sequential calls. This is ideal for synchronized multi-camera
+recordings where every camera covers the same time range.
+
+## Per-frame API
+
+```python
+# images and states are dicts keyed by camera id
+observations, states = tracker.process_batch(images, frame_number, states)
+# -> per-camera Observation dict, per-camera updated TrackerState dict
+```
+
+For ONNX-backed detectors the cameras are inferred in a single batched ORT call;
+for non-ONNX detectors a thread pool is used. Child stage hierarchies are preserved.
+
+## Offline helpers
+
+For video files, the [`process_video_list` / `process_folder`](../getting-started/processing-videos.mdx)
+helpers drive `process_batch` for you.
+
+:::tip Match batch size to camera count
+Create the `OnnxSession` with `batch_size` equal to the number of cameras so all
+cameras are inferred in one call.
+:::
+
+{/* TODO(prose):
+    - process_batch full signature & semantics (SOURCE: core/tracker/tracker.py — validated).
+    - DetectionStage.run_batch preprocess/infer/postprocess split; OnnxSession.run_batched
+      (SOURCE: core/tracker/detection_stage.py, core/sessions/onnx_session.py).
+    - Note: this is single-Tracker batched inference across cameras; cross-camera
+      correspondence/triangulation is out of scope (lives in freemocap).
+    SOURCE: rearchitecture-docs/skellytracker-architecture/10-multi-camera-batching.md. */}
+
+## See also
+
+- [Processing Videos](../getting-started/processing-videos.mdx)
+- [Trackers & Sessions](../core-concepts/trackers-and-sessions.mdx)

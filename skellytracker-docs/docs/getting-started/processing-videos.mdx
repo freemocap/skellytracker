@@ -1,0 +1,87 @@
+---
+title: Processing Videos
+sidebar_position: 4
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Processing Videos
+
+For offline work, `skellytracker.core` provides helpers that run a `Tracker`
+over video files and write the results to disk. They live in
+`skellytracker.core.io` and are re-exported from `skellytracker.core`.
+
+## A single video
+
+`process_video` runs the tracker on every frame of one file and returns a
+`DataStore` of the collected observations:
+
+```python
+from pathlib import Path
+from skellytracker.core import process_video
+
+datastore = process_video(
+    tracker,                 # a configured Tracker
+    annotator,               # an Annotator, or None
+    input_path=Path("recording.mp4"),
+    output_dir=Path("output/"),
+    annotated_video_path=Path("output/recording_annotated.mp4"),  # optional
+    fmt="npy",               # "npy" or "json"
+)
+```
+
+Results are written to `output_dir/<input_stem>.<fmt>`. If `annotated_video_path`
+is set, an annotated video is written too (an `annotator` is required in that case).
+
+## Multiple synchronized videos (batched)
+
+`process_video_list` and `process_folder` are built for **synchronized
+multi-camera recordings** — for example FreeMoCap captures where every video
+covers the same time range. They open all N videos at once and call
+`tracker.process_batch()` once per frame, so ONNX-backed detectors make a single
+GPU call per model per frame instead of N sequential calls.
+
+```python
+from pathlib import Path
+from skellytracker.core import process_folder, process_video_list
+
+# Explicit list of camera videos
+results = process_video_list(
+    tracker,
+    annotator,
+    video_paths=[Path("cam0.mp4"), Path("cam1.mp4"), Path("cam2.mp4")],
+    output_dir=Path("output/"),
+)
+
+# Or every video in a directory
+results = process_folder(
+    tracker,
+    annotator,
+    video_dir=Path("recordings/"),
+    output_dir=Path("output/"),
+)
+
+# results maps each video name -> its DataStore
+```
+
+:::tip GPU utilization
+For best throughput, create the `OnnxSession` with `batch_size` equal to the
+number of camera videos, so all cameras are inferred in one batched call.
+:::
+
+## Runnable examples
+
+The repository ships end-to-end scripts under `skellytracker/examples/`:
+
+- `run_mediapipe_on_folder.py`, `run_rtmpose_on_folder.py`, `run_charuco_on_folder.py`
+- `demo_bbox_policy.py`
+
+{/* TODO(prose): describe DataStore output structure (npy/json layout) and how to
+    load it back; cross-link Observations & Keypoints. Cover ProcessingTimer/profile=True. */}
+
+## Next steps
+
+- [Multi-Camera Batching](../guides/multi-camera-batching.mdx) — how batched inference works
+- [Observations & Keypoints](../core-concepts/observations-and-keypoints.mdx) — the result data model

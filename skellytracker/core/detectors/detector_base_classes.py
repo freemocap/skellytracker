@@ -33,6 +33,7 @@ class ObjectDetector(ABC):
         self,
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
+        parent_keypoints: Keypoints | None = None,
     ) -> list[BoundingBox]:
         """Run detection on an image and return zero or more bounding boxes."""
         ...
@@ -146,6 +147,19 @@ class KeypointDetector(ABC):
     def connections(cls) -> tuple[tuple[str, str], ...]:
         """Return skeleton connection pairs as (name_a, name_b) tuples for annotation."""
         return ()
+
+    @property
+    def point_names(self) -> tuple[str, ...]:
+        """Named points this detector produces, in order.
+
+        Every concrete detector already sets a private `_point_names` field
+        (from its YAML schema) to build its own Keypoints results — this just
+        exposes it uniformly so DetectionStage can construct a schema-correct
+        Keypoints.empty(...) without running inference, e.g. when a
+        keypoint-derived child crop (wrist → hand) lands fully outside the
+        frame and the crop is empty.
+        """
+        return getattr(self, "_point_names", ())
 
 
 OBJECT_DETECTOR_REGISTRY: dict[str, type[ObjectDetector]] = {}

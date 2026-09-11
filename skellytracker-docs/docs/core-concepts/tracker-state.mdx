@@ -1,0 +1,42 @@
+---
+title: Tracker State
+sidebar_position: 6
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Tracker State
+
+`TrackerState` holds the temporal data that must persist across frames for
+smoothing to work: per-stage bounding-box positions, filter coefficients, and any
+per-point state needed by keypoint filters. It is passed into
+`Tracker.process_image()` and returned updated — the `Tracker` never mutates it
+in place.
+
+```python
+state = TrackerState()                                   # empty initial state
+observation, state = tracker.process_image(image, 0, state)
+observation, state = tracker.process_image(image, 1, state)   # thread state through
+```
+
+Because state is external, it is inspectable, serializable, and testable
+independently of the tracker.
+
+## What it contains
+
+- `stage_states` — per-stage `StageState`
+- bounding-box smoothing state (`BBoxSmoothingState`)
+- keypoint smoothing state (`KeypointSmoothingState`)
+
+{/* TODO(prose): document TrackerState / StageState / BBoxSmoothingState /
+    KeypointSmoothingState fields (SOURCE: core/tracker/tracker_state.py; arch 06).
+    Cross-link temporal-smoothing guide. */}
+
+## See also
+
+- [Temporal Smoothing](../guides/temporal-smoothing.mdx)
+- [Trackers & Sessions](./trackers-and-sessions.mdx)
+
+{/* SOURCE: rearchitecture-docs/skellytracker-architecture/06-tracker-state.md */}

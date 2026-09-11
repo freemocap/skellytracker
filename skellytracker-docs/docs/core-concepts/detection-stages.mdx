@@ -1,0 +1,45 @@
+---
+title: Detection Stages
+sidebar_position: 4
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Detection Stages
+
+A `DetectionStage` is the compositional unit of the pipeline. It binds one
+optional `ObjectDetector` and one or more `KeypointDetector`s into a single step,
+and can carry **child stages** that operate on its output. The stage tree is what
+gives the `Tracker` its hierarchical structure.
+
+## Composing stages
+
+```python
+config = TrackerConfig(stages=[
+    DetectionStageConfig(
+        name="body",
+        object_detector=YoloxPersonDetectorConfig(),
+        keypoint_detectors=[RTMPoseDetectorConfig()],
+    ),
+])
+```
+
+## Hierarchical nesting
+
+Child stages receive the parent's cropped image and keypoint context, so
+face/hand specialization is a structural property of the stage tree rather than
+ad-hoc logic inside a detector (e.g. a `body` stage whose crop feeds child
+`hands` and `face` stages).
+
+{/* TODO(prose):
+    - DetectionStageConfig fields incl. child/nested stages (SOURCE: core/config/detection_stage_config.py).
+    - DetectionStage.run vs run_batch; how child crops are derived (SOURCE: core/tracker/detection_stage.py, arch 03). */}
+
+## See also
+
+- [Detectors](./detectors.mdx)
+- [Observations & Keypoints](./observations-and-keypoints.mdx)
+
+{/* SOURCE: rearchitecture-docs/skellytracker-architecture/03-detection-stage.md */}

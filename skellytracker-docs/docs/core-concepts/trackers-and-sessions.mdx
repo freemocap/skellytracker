@@ -1,0 +1,55 @@
+---
+title: Trackers & Sessions
+sidebar_position: 2
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Trackers & Sessions
+
+The `Tracker` is the only public entry point for running pose estimation. A
+`Session` manages the computational resources (GPU memory, loaded weights,
+backend handles) that its detectors share.
+
+## Building and running a Tracker
+
+```python
+# Build sessions first, then the tracker from a TrackerConfig
+tracker = Tracker.create(config, sessions={"onnx": session})
+state = TrackerState()
+
+# Per frame:
+observation, state = tracker.process_image(image, frame_number, state)
+
+# Or N cameras at once (batched):
+observations, states = tracker.process_batch(images, frame_number, states)
+
+tracker.close()
+```
+
+The `Tracker` is stateless between calls — all temporal data lives in
+`TrackerState`, which is passed in and returned updated.
+
+## Sessions are per-backend
+
+One `Session` is created per backend and shared across every detector in the
+tracker that uses it (for example, one `OnnxSession` for RTMPose + YOLOX, or one
+`MediaPipeSession` for the MediaPipe detectors). Detectors do not own resource
+lifecycle — the `Session` does.
+
+{/* TODO(prose):
+    - Tracker.create / process_image / process_batch / close / reset_temporal_state signatures & args
+      (SOURCE: core/tracker/tracker.py — validated).
+    - Session base class + OnnxSession / MediaPipeSession / CpuSession; OnnxSessionConfig(batch_size, models),
+      model_spec, model_registry (SOURCE: core/sessions/, arch 05-session.md).
+    - When timestamp_ms is required (VIDEO-mode backends). */}
+
+## See also
+
+- [Detection Stages](./detection-stages.mdx)
+- [Tracker State](./tracker-state.mdx)
+- [Multi-Camera Batching](../guides/multi-camera-batching.mdx)
+
+{/* SOURCE: rearchitecture-docs/skellytracker-architecture/01-tracker.md, 05-session.md */}

@@ -1,0 +1,94 @@
+---
+title: Quick Start
+sidebar_position: 2
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Quick Start
+
+Every tracker follows the same shape: build a `Session` for the backend, build a
+`Tracker` from a `TrackerConfig`, then call `process_image(image, frame_number, state)`
+per frame. Each call returns an `Observation` and an updated `TrackerState`.
+
+## MediaPipe (pose, hands, face)
+
+```python
+import cv2
+from skellytracker.core import Tracker, TrackerConfig, DetectionStageConfig, TrackerState
+from skellytracker.core.detectors.keypoint_detectors.mediapipe import (
+    MediaPipeSession, MediaPipeSessionConfig,
+    MediapipePoseDetectorConfig,
+    MediapipeHandDetectorConfig,
+    MediapipeFaceDetectorConfig,
+)
+
+session = MediaPipeSession.create(MediaPipeSessionConfig())
+config = TrackerConfig(stages=[
+    DetectionStageConfig(name="body",  keypoint_detectors=[MediapipePoseDetectorConfig()]),
+    DetectionStageConfig(name="hands", keypoint_detectors=[MediapipeHandDetectorConfig()]),
+    DetectionStageConfig(name="face",  keypoint_detectors=[MediapipeFaceDetectorConfig()]),
+])
+tracker = Tracker.create(config, sessions={"mediapipe": session})
+state = TrackerState()
+
+image = cv2.imread("image.jpg")
+observation, state = tracker.process_image(image, frame_number=0, state=state)
+
+body_keypoints = observation.stages["body"].keypoints   # Keypoints with .xyz (N,3), .names, .visibility
+tracker.close()
+```
+
+## RTMPose + YOLOX (ONNX-based)
+
+```python
+import cv2
+from skellytracker.core import Tracker, TrackerConfig, DetectionStageConfig, TrackerState
+from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetectorConfig
+from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseDetectorConfig
+from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetector
+from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseKeypointDetector
+
+session = OnnxSession.create(OnnxSessionConfig(
+    batch_size=1,
+    models=[
+        YoloxPersonDetector.model_spec("yolox-m"),
+        RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192"),
+    ],
+))
+config = TrackerConfig(stages=[
+    DetectionStageConfig(
+        name="body",
+        object_detector=YoloxPersonDetectorConfig(),
+        keypoint_detectors=[RTMPoseDetectorConfig()],
+    )
+])
+tracker = Tracker.create(config, sessions={"onnx": session})
+state = TrackerState()
+
+image = cv2.imread("image.jpg")
+observation, state = tracker.process_image(image, frame_number=0, state=state)
+
+keypoints = observation.stages["body"].keypoints  # 133 whole-body keypoints
+tracker.close()
+```
+
+## What you get back
+
+`process_image` returns an `(Observation, TrackerState)` tuple:
+
+- **`Observation`** — the per-frame result. `observation.stages["name"].keypoints`
+  is a `Keypoints` object with `.xyz` `(N, 3)`, `.names`, and `.visibility` arrays.
+- **`TrackerState`** — temporal state (bounding-box history, smoothing buffers).
+  Pass the returned state into the next `process_image` call.
+
+Always call `tracker.close()` when you're done to release model and session resources.
+
+## Next steps
+
+- [Running Demos](./running-demos.mdx) — see it live on a webcam
+- [Processing Videos](./processing-videos.mdx) — run over image folders and video files
+- [Pipeline Overview](../core-concepts/pipeline-overview.mdx) — understand the Tracker → Stage → Detector model

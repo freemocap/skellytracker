@@ -127,6 +127,50 @@ class TestHandDetector:
         assert np.all(np.isnan(kpts.xyz))
         assert np.all(kpts.visibility == 0.0)
 
+    def test_assumed_handedness_left_returns_only_left_names(self, test_image, full_session):
+        # Regardless of which hand MediaPipe's own classifier thinks it saw,
+        # assumed_handedness forces the detected hand onto that side — the
+        # label is unreliable on a tight single-hand crop (see PR #85). Since
+        # this detector will only ever report that one side, it returns just
+        # that side's 21 names rather than 42 with a dead right-hand half.
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="left"), full_session
+        )
+        kpts = detector.detect(test_image)
+        assert kpts.xyz.shape == (21, 3)
+        assert len(kpts.names) == 21
+        assert all(n.startswith("left_hand_") for n in kpts.names)
+        assert kpts.n_valid > 0, "Expected at least one detected hand on test image"
+
+    def test_assumed_handedness_right_returns_only_right_names(self, test_image, full_session):
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="right"), full_session
+        )
+        kpts = detector.detect(test_image)
+        assert kpts.xyz.shape == (21, 3)
+        assert len(kpts.names) == 21
+        assert all(n.startswith("right_hand_") for n in kpts.names)
+        assert kpts.n_valid > 0, "Expected at least one detected hand on test image"
+
+    def test_assumed_handedness_undetected_hand_is_nan_with_correct_shape(self, full_session):
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="right"), full_session
+        )
+        kpts = detector.detect(blank)
+        assert kpts.xyz.shape == (21, 3)
+        assert np.all(np.isnan(kpts.xyz))
+        assert np.all(kpts.visibility == 0.0)
+
+    def test_assumed_handedness_none_keeps_default_label_behavior(self, full_session):
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(assumed_handedness=None), full_session
+        )
+        kpts = detector.detect(blank)
+        assert np.all(np.isnan(kpts.xyz))
+        assert np.all(kpts.visibility == 0.0)
+
 
 class TestFaceDetector:
     def test_detect_returns_correct_shape(self, test_image, full_session):

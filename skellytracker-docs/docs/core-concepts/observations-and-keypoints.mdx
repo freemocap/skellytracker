@@ -1,0 +1,47 @@
+---
+title: Observations & Keypoints
+sidebar_position: 5
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Observations & Keypoints
+
+An `Observation` is the per-frame output of the `Tracker` and the contract
+between the pipeline and everything downstream (annotators, data stores,
+triangulation). Nothing downstream needs to know which detectors produced the data.
+
+## Structure
+
+```python
+observation, state = tracker.process_image(image, frame_number, state)
+
+stage_obs = observation.stages["body"]   # a StageObservation
+keypoints = stage_obs.keypoints          # a Keypoints object
+keypoints.xyz                            # (N, 3) array
+keypoints.names                          # tuple[str, ...] — i-th name ↔ i-th row
+keypoints.visibility                     # (N,) array
+```
+
+`Keypoints` and `BoundingBox` are the two low-level data primitives everything
+else is built on; callers generally work with `Observation` and its
+`StageObservation`s.
+
+## Persisting results
+
+A `DataStore` collects observations across frames and can serialize them (used by
+[`process_video`](../getting-started/processing-videos.mdx) and friends).
+
+{/* TODO(prose):
+    - Observation / StageObservation / MultiPersonObservation fields (SOURCE: core/data_primitives/observation.py).
+    - Keypoints & BoundingBox full API (SOURCE: core/data_primitives/keypoints.py, bounding_box.py; arch 00, 04).
+    - DataStore npy/json layout (SOURCE: core/data_primitives/data_store.py). */}
+
+## See also
+
+- [Data Primitives reference](../technical/data-primitives.mdx)
+- [Tracker State](./tracker-state.mdx)
+
+{/* SOURCE: rearchitecture-docs/skellytracker-architecture/04-observation.md, 00-data-primitives.md */}

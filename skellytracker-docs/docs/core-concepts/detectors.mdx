@@ -1,0 +1,56 @@
+---
+title: Detectors
+sidebar_position: 3
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Detectors
+
+skellytracker keeps two primitive detection units separate because they answer
+different questions:
+
+- **`ObjectDetector`** — *where is the subject?* Produces bounding boxes used to
+  crop a region of interest.
+- **`KeypointDetector`** — *what is the subject doing?* Estimates named keypoints
+  within an image (or a crop).
+
+Splitting them means you can swap a person detector without touching keypoint
+estimation, and vice versa.
+
+## Available backends
+
+| Kind | Backend | Location |
+|------|---------|----------|
+| Object detector | YOLOX (person) | `core/detectors/object_detectors/yolox` |
+| Object detector | Precomputed (supply your own boxes) | `core/detectors/object_detectors/precomputed` |
+| Keypoint detector | MediaPipe — pose / hands / face | `core/detectors/keypoint_detectors/mediapipe` |
+| Keypoint detector | RTMPose — body / face / hand / wholebody | `core/detectors/keypoint_detectors/rtmpose` |
+| Keypoint detector | Aruco markers | `core/detectors/keypoint_detectors/aruco` |
+| Keypoint detector | Charuco board | `core/detectors/keypoint_detectors/charuco` |
+
+{/* TODO(prose): confirm this table against core/detectors/ before finalizing; note
+    which need which install extras; link each backend's config class. */}
+
+## Registries
+
+Detectors are registered so they can be built from config by name:
+
+```python
+from skellytracker.core import (
+    KEYPOINT_DETECTOR_REGISTRY, OBJECT_DETECTOR_REGISTRY,
+    build_keypoint_detector, build_object_detector,
+)
+```
+
+{/* TODO(prose): document the registry key strings and the build_* signatures
+    (SOURCE: core/detectors/__init__.py, detector_base_classes.py). */}
+
+## See also
+
+- [Detection Stages](./detection-stages.mdx) — how detectors are composed into a pipeline
+- [Extending skellytracker](../guides/extending-skellytracker.mdx) — add your own detector
+
+{/* SOURCE: rearchitecture-docs/skellytracker-architecture/02-detectors.md */}

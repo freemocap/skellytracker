@@ -1,0 +1,38 @@
+---
+title: GPU Setup
+sidebar_position: 2
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# GPU Setup
+
+The ONNX-based trackers (RTMPose, YOLOX) run through ONNX Runtime, and the
+execution provider is selected per session.
+
+## Execution providers
+
+| Provider | Hardware | Extra |
+|----------|----------|-------|
+| `cuda` | NVIDIA GPU (CUDA 12 + cuDNN 9) | `onnx-cuda` |
+| `trt` | NVIDIA GPU (CUDA 12 + TensorRT) — fastest | `onnx-trt` |
+| `directml` | Any GPU on Windows (AMD/Intel/NVIDIA) | `onnx-directml` |
+| CoreML | Apple Silicon (macOS) | `onnx-cpu` |
+| `cpu` | Any platform (fallback) | `onnx-cpu` |
+
+On Windows, skellytracker bundles the NVIDIA runtime DLLs as pip packages and
+preloads them, so a separate CUDA Toolkit / cuDNN system install is not required.
+The first TensorRT run compiles engines (1–5 min) and caches them afterward.
+
+{/* TODO(prose):
+    - Port the repo's GPU_SETUP_GUIDE.md (skellytracker/GPU_SETUP_GUIDE.md).
+    - Show how the provider is chosen (OnnxSessionConfig / RTMPoseDetectorConfig.resolved_provider /
+      ExecutionProviderName; SOURCE: core/sessions/execution_provider_name.py).
+    - Confirm the provider/extra mapping against pyproject.toml + code. */}
+
+## See also
+
+- [Installation](../getting-started/installation.mdx)
+- [ONNX Batching & CoreML](../technical/onnx-batching-and-coreml.mdx)

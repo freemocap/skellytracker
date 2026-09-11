@@ -1,0 +1,56 @@
+---
+title: Architecture
+sidebar_position: 1
+---
+
+import { AiGeneratedBanner } from '@freemocap/skellydocs';
+
+<AiGeneratedBanner />
+
+# Architecture
+
+An image flows through a `Tracker`, which runs one or more `DetectionStage`s
+(each an optional `ObjectDetector` crop followed by one or more
+`KeypointDetector`s) and produces a structured `Observation`. Stages nest
+hierarchically, a `Session` owns each backend's resources, and per-frame
+`TrackerState` carries the temporal data used for smoothing.
+
+## Single-camera flow
+
+```mermaid
+flowchart LR
+    IN["image + TrackerState"] --> TR
+    subgraph TR["Tracker"]
+      direction TB
+      S1["DetectionStage (body)"]
+      S1 --> OD["ObjectDetector → bbox crop"]
+      OD --> KD["KeypointDetector(s) → keypoints"]
+      KD --> CH["child stages (face, hands)<br/>receive the body crop"]
+    end
+    TR --> OUT["Observation + updated TrackerState"]
+```
+
+## Multi-camera flow (batched)
+
+```mermaid
+flowchart TB
+    IMGS["{cam0: image, cam1: image, ...}<br/>{cam0: state, cam1: state, ...}"] --> PB
+    subgraph PB["Tracker.process_batch → DetectionStage.run_batch"]
+      direction TB
+      PRE["preprocess (per camera, vectorized)"] --> INF["Session.run_batched (one GPU call)"]
+      INF --> POST["postprocess (per camera)"]
+      POST --> TEMP["temporal processing (per camera)"]
+    end
+    PB --> OUTS["{cam0: obs, cam1: obs, ...}<br/>{cam0: state, cam1: state, ...}"]
+```
+
+{/* TODO(prose): expand system overview from
+    rearchitecture-docs/skellytracker-architecture/README.md (Data Flow section).
+    Present-tense description of the current system only — do NOT port the
+    "Comparison with Current Architecture" table. */}
+
+## See also
+
+- [Pipeline Overview](../core-concepts/pipeline-overview.mdx)
+- [Multi-Camera Batching](../guides/multi-camera-batching.mdx)
+- [ONNX Batching & CoreML](./onnx-batching-and-coreml.mdx)

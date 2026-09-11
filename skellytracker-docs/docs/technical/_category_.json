@@ -1,0 +1,12 @@
+{
+  "label": "Technical",
+  "position": 5,
+  "collapsible": true,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Technical Reference",
+    "description": "Architecture, data-model reference, and the public API surface for developers.",
+    "slug": "technical"
+  }
+}

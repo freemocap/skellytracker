@@ -1,0 +1,12 @@
+{
+  "label": "Guides",
+  "position": 4,
+  "collapsible": true,
+  "collapsed": true,
+  "link": {
+    "type": "generated-index",
+    "title": "Guides",
+    "description": "Task-oriented how-tos for configuring hardware, tuning tracking quality, running multi-camera batches, and extending skellytracker.",
+    "slug": "guides"
+  }
+}
