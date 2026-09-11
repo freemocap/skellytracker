@@ -562,13 +562,13 @@ def build_tuned_ort_session(
 
     provider_names = [p if isinstance(p, str) else p[0] for p in providers]
     logger.info(
-        "Building ORT session: label=%r  provider=%r  device_id=%d  providers=%s",
+        "Building ORT session: label=%r  requested provider=%r  device_id=%d  providers=%s",
         log_label, provider, device_id, provider_names,
     )
 
     if provider == "trt":
         logger.info(
-            "  [%s] TRT session on device_id=%d (engine cache: %s) -- "
+            "  [%s] requesting TRT on device_id=%d (engine cache: %s) -- "
             "first-run compilation can take 1-5 minutes; subsequent runs load from cache instantly.",
             log_label, device_id, engine_cache_dir,
         )
@@ -586,7 +586,29 @@ def build_tuned_ort_session(
         "  [%s] session ready in %.1fs  device_id=%d  active providers: %s",
         log_label, elapsed_s, device_id, actual_string,
     )
-    if provider == "trt" and elapsed_s > 30:
+
+    # ORT silently drops an EP whose shared library fails to load: it keeps
+    # listing the EP in `get_available_providers()` (that list is baked in at
+    # build time, not probed), accepts it in the `providers=` argument, then
+    # constructs the session on the next provider in the list. Nothing above
+    # this point can detect that -- every log line so far reports what we
+    # *asked* for. Compare against what we actually got and say so loudly.
+    requested_ep = _PROVIDER_EP_NAME.get(provider)
+    if requested_ep is not None and requested_ep not in actual:
+        hint = ""
+        if provider == "trt":
+            hint = (
+                " TensorRT libraries are most likely missing from the DLL search path "
+                "(onnxruntime_providers_tensorrt.dll needs nvinfer_10.dll and "
+                "nvonnxparser_10.dll) -- install the `onnx-trt` extra."
+            )
+        logger.warning(
+            "  [%s] EXECUTION PROVIDER FELL BACK: requested %r (%s) but the session is "
+            "running on [%s]. Inference will still work, but every %r-specific option "
+            "passed here (fp16=%s, engine cache, batch profile) is being ignored.%s",
+            log_label, provider, requested_ep, actual_string, provider, fp16, hint,
+        )
+    elif provider == "trt" and elapsed_s > 30:
         logger.info(
             "  [%s] TRT engine compiled and cached to %s -- next run will load in seconds.",
             log_label, engine_cache_dir,

@@ -321,6 +321,14 @@ def _load_nvidia_dlls_on_windows() -> None:
             f"subdirectories inside it."
         )
 
+    # The pip TensorRT wheels put their DLLs in a top-level `tensorrt_libs/`
+    # package, not under `nvidia/*/bin`, so the glob above misses them. Without
+    # this, onnxruntime_providers_tensorrt.dll fails to load on nvinfer_10.dll
+    # and ORT quietly runs the session on CUDA instead.
+    trt_spec = importlib.util.find_spec("tensorrt_libs")
+    if trt_spec is not None and trt_spec.submodule_search_locations:
+        bin_dirs.append(Path(trt_spec.submodule_search_locations[0]))
+
     bin_dir_strs = [str(d) for d in bin_dirs]
     os.environ["PATH"] = os.pathsep.join([*bin_dir_strs, os.environ.get("PATH", "")])
 
