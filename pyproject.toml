@@ -76,6 +76,16 @@ dynamic = ["version", "description"]
 
 mediapipe = ["mediapipe==0.10.33"]
 
+# DeepLabCut-Live keypoint detector, PyTorch inference engine only.
+# KNOWN BLOCKER: every usable deeplabcut-live release (1.0.x, 1.1.0) requires
+# numpy<2, but skellytracker pins numpy==2.4.6 above, so `uv sync --extra
+# deeplabcut-live` currently cannot resolve a real deeplabcut-live install —
+# it silently backtracks to the ancient, non-functional 0.0 release instead
+# (no "pytorch" extra, pre-PyTorch-engine). Unblock by either relaxing the
+# numpy pin above (needs a full test-suite pass) or waiting for upstream to
+# drop the numpy<2 constraint.
+deeplabcut-live = ["deeplabcut-live[pytorch]"]
+
 # RTMPose + YOLOX detectors (vendored, see skellytracker/core/detectors) need
 # the onnx package for graph surgery. Requires one of the onnx-* session extras.
 onnx = ["onnx"]
@@ -128,6 +138,9 @@ onnx-directml = ["onnxruntime-directml; sys_platform == 'win32'"]
 # ── Convenience bundles ───────────────────────────────────────────────────────
 # mediapipe + onnx + the matching ONNX session backend.
 
+# deeplabcut-live is intentionally NOT folded in here — see the numpy<2
+# conflict noted above. Install it explicitly and separately if you accept
+# that tradeoff: `uv sync --extra all-cpu --extra deeplabcut-live`.
 all-cpu      = ["skellytracker[mediapipe,onnx,onnx-cpu]"]
 all-cuda     = ["skellytracker[mediapipe,onnx,onnx-cuda]"]
 all-trt      = ["skellytracker[mediapipe,onnx,onnx-trt]"]
