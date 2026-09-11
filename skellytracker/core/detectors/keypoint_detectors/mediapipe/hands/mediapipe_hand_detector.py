@@ -50,11 +50,17 @@ class MediapipeHandDetectorConfig(KeypointDetectorConfig):
 
 @dataclass
 class MediapipeHandKeypointDetector(KeypointDetector):
-    """Detects hand landmarks for both hands using MediaPipe HandLandmarker.
+    """Detects hand landmarks using MediaPipe HandLandmarker.
 
-    Returns 42 named keypoints: 21 right-hand points (prefixed right_hand_)
-    followed by 21 left-hand points (prefixed left_hand_). Points for an
-    undetected hand have NaN coordinates and 0.0 visibility.
+    With `config.assumed_handedness` unset (the default, full-frame/both-hands
+    use), returns 42 named keypoints: 21 right-hand points (prefixed
+    right_hand_) followed by 21 left-hand points (prefixed left_hand_).
+    Points for an undetected hand have NaN coordinates and 0.0 visibility.
+
+    With `config.assumed_handedness` set (a wrist-derived, single-hand crop),
+    this detector only ever reports that one side, so it returns just that
+    side's 21 named keypoints instead — there's no dead all-NaN half for a
+    side this detector will never populate.
     """
 
     config: MediapipeHandDetectorConfig
@@ -113,40 +119,43 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         h: int,
         w: int,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Sort detected hands into right/left xyz+visibility arrays.
+        """Build this detector's xyz+visibility arrays from detected hands.
 
         With `assumed_handedness` set, MediaPipe's own per-hand label is
         ignored — the caller already knows which side this crop was for
         (e.g. a wrist-derived hand-stage crop, where that label is known to
-        be unreliable), so the single best-scored hand found is assigned to
-        that side outright rather than trusting the label.
+        be unreliable) — so only the single best-scored hand found is used,
+        assigned to that side outright. This detector's `_point_names` is
+        that one side's 21 names (set in `create()`), so the result is
+        already the right shape without needing to pad out a dead other-side
+        half.
         """
+        if self.config.assumed_handedness is not None:
+            if not hand_landmarks_list:
+                return (
+                    np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64),
+                    np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64),
+                )
+            best = max(
+                hand_landmarks_list,
+                key=lambda lm_list: float(
+                    np.mean([lm.presence if lm.presence is not None else 1.0 for lm in lm_list])
+                ),
+            )
+            return _hand_xyz_vis(best, h, w)
+
         right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
         left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
 
-        if self.config.assumed_handedness is not None:
-            if hand_landmarks_list:
-                best = max(
-                    hand_landmarks_list,
-                    key=lambda lm_list: float(
-                        np.mean([lm.presence if lm.presence is not None else 1.0 for lm in lm_list])
-                    ),
-                )
-                xyz, vis = _hand_xyz_vis(best, h, w)
-                if self.config.assumed_handedness == "right":
-                    right_xyz, right_vis = xyz, vis
-                else:
-                    left_xyz, left_vis = xyz, vis
-        else:
-            for i, hand_landmarks in enumerate(hand_landmarks_list):
-                label = handedness_list[i][0].category_name  # "Left" or "Right"
-                xyz, vis = _hand_xyz_vis(hand_landmarks, h, w)
-                if label == "Right":
-                    right_xyz, right_vis = xyz, vis
-                elif label == "Left":
-                    left_xyz, left_vis = xyz, vis
+        for i, hand_landmarks in enumerate(hand_landmarks_list):
+            label = handedness_list[i][0].category_name  # "Left" or "Right"
+            xyz, vis = _hand_xyz_vis(hand_landmarks, h, w)
+            if label == "Right":
+                right_xyz, right_vis = xyz, vis
+            elif label == "Left":
+                left_xyz, left_vis = xyz, vis
 
         xyz = np.concatenate([right_xyz, left_xyz], axis=0)
         visibility = np.concatenate([right_vis, left_vis], axis=0)
@@ -196,7 +205,12 @@ class MediapipeHandKeypointDetector(KeypointDetector):
             min_tracking_confidence=config.min_hand_tracking_confidence,
         )
         landmarker = HandLandmarker.create_from_options(opts)
-        return cls(config=config, session=session, landmarker=landmarker)
+        detector = cls(config=config, session=session, landmarker=landmarker)
+        if config.assumed_handedness == "right":
+            detector._point_names = _RIGHT_NAMES
+        elif config.assumed_handedness == "left":
+            detector._point_names = _LEFT_NAMES
+        return detector
 
 
 KEYPOINT_DETECTOR_REGISTRY["mediapipe_hand"] = MediapipeHandKeypointDetector
