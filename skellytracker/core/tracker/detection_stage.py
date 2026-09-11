@@ -114,8 +114,12 @@ class DetectionStage:
         bbox_state = state.bbox_state
         detector_ran = False
         if self.object_detector is not None:
-            if self.bbox_policy.should_redetect(frame_number, state):
-                bboxes = self.object_detector.detect(image, context)
+            if image.size == 0:
+                # Degenerate parent crop (e.g. an ancestor's keypoint-derived
+                # box landed fully outside the frame) — nothing to detect.
+                bboxes = []
+            elif self.bbox_policy.should_redetect(frame_number, state):
+                bboxes = self.object_detector.detect(image, context, parent_keypoints)
                 bbox_state = type(bbox_state)(
                     smooth_bbox=bbox_state.smooth_bbox,
                     last_detection_frame=frame_number,
@@ -214,10 +218,19 @@ class DetectionStage:
         crop_bbox: BoundingBox | None,
         context: DetectionContext | None,
     ) -> list[Keypoints]:
-        """Run all keypoint_detectors on `crop` and translate to full-frame coords."""
+        """Run all keypoint_detectors on `crop` and translate to full-frame coords.
+
+        A degenerate (zero-area) crop — e.g. a keypoint-derived child crop
+        (wrist → hand) whose box landed fully outside the frame — is treated
+        as "nothing detected" rather than handed to a detector, which would
+        crash on an empty image.
+        """
         raw_keypoints: list[Keypoints] = []
         for detector in self.keypoint_detectors:
-            kpts = detector.detect(crop, context)
+            if crop.size == 0:
+                kpts = Keypoints.empty(detector.point_names)
+            else:
+                kpts = detector.detect(crop, context)
             if crop_bbox is not None:
                 kpts = kpts.translated(crop_bbox.x1, crop_bbox.y1)
             raw_keypoints.append(kpts)
@@ -376,6 +389,7 @@ class DetectionStage:
         images: dict[str, NDArray[np.uint8]],
         states: dict[str, StageState],
         context: DetectionContext | None = None,
+        parent_keypoints_per_cam: dict[str, Keypoints | None] | None = None,
     ) -> tuple[dict[str, StageObservation], dict[str, StageState]]:
         """Run this stage on N cameras simultaneously.
 
@@ -394,6 +408,10 @@ class DetectionStage:
             of images.keys() — missing cameras get a fresh StageState.
         context:
             Shared detection context (frame number, timestamp).
+        parent_keypoints_per_cam:
+            Per-camera Keypoints from the parent stage, available for
+            computing crop regions (e.g. wrist → hand crop). None (or a
+            missing/None entry) for a top-level stage with no parent.
 
         Returns
         -------
@@ -449,8 +467,18 @@ class DetectionStage:
                         bboxes_per_cam[cam_id] = [predicted] if predicted is not None else []
                         bbox_states_per_cam[cam_id] = bbox_state
                         detector_ran_per_cam[cam_id] = False
+                elif images[cam_id].size == 0:
+                    # Degenerate parent crop for this camera — nothing to detect.
+                    bboxes_per_cam[cam_id] = []
+                    bbox_states_per_cam[cam_id] = bbox_state
+                    detector_ran_per_cam[cam_id] = False
                 elif self.bbox_policy.should_redetect(frame_number, state):
-                    bboxes_per_cam[cam_id] = self.object_detector.detect(images[cam_id], context)
+                    parent_kpts = (
+                        parent_keypoints_per_cam.get(cam_id) if parent_keypoints_per_cam else None
+                    )
+                    bboxes_per_cam[cam_id] = self.object_detector.detect(
+                        images[cam_id], context, parent_kpts
+                    )
                     bbox_states_per_cam[cam_id] = type(bbox_state)(
                         smooth_bbox=bbox_state.smooth_bbox,
                         last_detection_frame=frame_number,
@@ -470,7 +498,14 @@ class DetectionStage:
 
         # Batched ONNX object detection for cameras needing redetect
         if onnx_object_detector is not None:
-            cams_needing_detect = [c for c in cam_ids if bboxes_per_cam[c] is None]
+            cams_needing_detect = [
+                c for c in cam_ids if bboxes_per_cam[c] is None and images[c].size > 0
+            ]
+            for cam_id in cam_ids:
+                # Degenerate parent crop — exclude from the batch entirely,
+                # nothing to detect.
+                if bboxes_per_cam[cam_id] is None and images[cam_id].size == 0:
+                    bboxes_per_cam[cam_id] = []
             if cams_needing_detect:
                 tensors = {}
                 metas = {}
@@ -557,23 +592,31 @@ class DetectionStage:
             detector_results: dict[str, tuple[Keypoints, KeypointSmoothingState]] = {}
 
             if _OnnxSession is not None and isinstance(detector.session, _OnnxSession):
-                # Batched ONNX path — preprocess all cameras in parallel (cv2/numpy release the GIL)
+                # Batched ONNX path — preprocess all cameras in parallel (cv2/numpy release the GIL).
+                # Cameras with a degenerate (zero-area) crop — e.g. a
+                # keypoint-derived child crop that landed outside the frame —
+                # are excluded from the batch entirely; preprocessing an empty
+                # image would crash, so they get an empty result directly.
+                batch_cam_ids = [c for c in cam_ids if crops[c].size > 0]
                 tensors = {}
                 metas = {}
                 _t = time.perf_counter()
                 pool = self._get_executor(len(cam_ids))
-                fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in cam_ids}
+                fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in batch_cam_ids}
                 for cam_id, fut in fut_map.items():
                     tensors[cam_id], metas[cam_id] = fut.result()
                 if context is not None and context.timings is not None:
                     context.timings.stop(f"{self.name}.kp_preprocess", _t)
                 model_name = detector.config.model_name
                 _t = time.perf_counter()
-                raw_batch = detector.session.run_batched(model_name, tensors)
+                raw_batch = detector.session.run_batched(model_name, tensors) if batch_cam_ids else {}
                 if context is not None and context.timings is not None:
                     context.timings.stop(f"{self.name}.kp_infer", _t)
                 for cam_id in cam_ids:
-                    kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
+                    if cam_id in batch_cam_ids:
+                        kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
+                    else:
+                        kpts = Keypoints.empty(detector.point_names)
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)
@@ -596,7 +639,10 @@ class DetectionStage:
                     if cam_id not in cam_detectors:
                         cam_detectors[cam_id] = type(detector).create(detector.config, detector.session)
                     cam_detector = cam_detectors[cam_id]
-                    kpts = cam_detector.detect(crops[cam_id], context)
+                    if crops[cam_id].size == 0:
+                        kpts = Keypoints.empty(cam_detector.point_names)
+                    else:
+                        kpts = cam_detector.detect(crops[cam_id], context)
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)
@@ -658,7 +704,9 @@ class DetectionStage:
                 cam_id: states.get(cam_id, StageState()).child_states.get(child.name, StageState())
                 for cam_id in cam_ids
             }
-            child_obs_batch, child_states_batch = child.run_batch(crops, child_stage_states, context)
+            child_obs_batch, child_states_batch = child.run_batch(
+                crops, child_stage_states, context, parent_keypoints_per_cam=merged_per_cam
+            )
             for cam_id in cam_ids:
                 child_obs_per_cam[cam_id][child.name] = child_obs_batch[cam_id]
                 child_states_per_cam[cam_id][child.name] = child_states_batch[cam_id]

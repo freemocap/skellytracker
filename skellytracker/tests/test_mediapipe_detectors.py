@@ -127,6 +127,42 @@ class TestHandDetector:
         assert np.all(np.isnan(kpts.xyz))
         assert np.all(kpts.visibility == 0.0)
 
+    def test_assumed_handedness_overrides_mediapipe_label(self, test_image, full_session):
+        # Regardless of which hand MediaPipe's own classifier thinks it saw,
+        # assumed_handedness forces the detected hand onto that side — the
+        # label is unreliable on a tight single-hand crop (see PR #85).
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="left"), full_session
+        )
+        kpts = detector.detect(test_image)
+        assert kpts.n_valid > 0, "Expected at least one detected hand on test image"
+
+        left_names = tuple(n for n in kpts.names if n.startswith("left_hand_"))
+        right_names = tuple(n for n in kpts.names if n.startswith("right_hand_"))
+        assert kpts.slice_by_names(left_names).n_valid == kpts.n_valid
+        assert kpts.slice_by_names(right_names).n_valid == 0
+
+    def test_assumed_handedness_right_side(self, test_image, full_session):
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="right"), full_session
+        )
+        kpts = detector.detect(test_image)
+        assert kpts.n_valid > 0, "Expected at least one detected hand on test image"
+
+        left_names = tuple(n for n in kpts.names if n.startswith("left_hand_"))
+        right_names = tuple(n for n in kpts.names if n.startswith("right_hand_"))
+        assert kpts.slice_by_names(right_names).n_valid == kpts.n_valid
+        assert kpts.slice_by_names(left_names).n_valid == 0
+
+    def test_assumed_handedness_none_keeps_default_label_behavior(self, full_session):
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        detector = MediapipeHandKeypointDetector.create(
+            MediapipeHandDetectorConfig(assumed_handedness=None), full_session
+        )
+        kpts = detector.detect(blank)
+        assert np.all(np.isnan(kpts.xyz))
+        assert np.all(kpts.visibility == 0.0)
+
 
 class TestFaceDetector:
     def test_detect_returns_correct_shape(self, test_image, full_session):

@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import ObjectDetectorConfig
 from skellytracker.core.data_primitives.bounding_box import BoundingBox
+from skellytracker.core.data_primitives.keypoints import Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import ObjectDetector
 from skellytracker.core.detectors.metadata import EmptyMetadata
@@ -50,6 +51,7 @@ class PrecomputedObjectDetector(ObjectDetector):
         self,
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
+        parent_keypoints: Keypoints | None = None,
     ) -> list[BoundingBox]:
         if context is not None and context.frame_number in self.bboxes_by_frame:
             return self.bboxes_by_frame[context.frame_number]
