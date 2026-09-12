@@ -80,7 +80,26 @@ class RTMPoseDetectorConfig(KeypointDetectorConfig):
     detector_type: Literal["rtmpose"] = "rtmpose"
     session_backend: Literal["onnx"] = "onnx"
     model_name: str = "rtmw-x-l_256x192"
-    confidence_threshold: float = 0.004
+    # Raw SIMCC peak response, clipped to [0, 1] — see get_simcc_maximum.
+    #
+    # Measured on rtmw-x-l_256x192 against real recordings, the response falls
+    # into three bands:
+    #   <= 0.33  person-free crops (floor, ceiling, wall, furniture)
+    #   <= 0.36  synthetic blank / uniform-noise images
+    #   0.42-0.57  heavily occluded joints, inferred from surrounding context
+    #   0.62-1.00  clearly visible joints (per-group p10)
+    #
+    # 0.4 is the first value clear of the no-person band, so "no person" decodes
+    # to no keypoints, while still keeping >=96% of visible keypoints in every
+    # group. Note this is above mmpose/rtmlib's kpt_thr=0.3 convention, which
+    # for this model sits *inside* the noise band and lets blank frames through.
+    #
+    # Deliberately no stricter than that: this NaNs coordinates outright, and
+    # multi-view triangulation rejects bad points by reprojection error far
+    # better than one view's confidence can. Raise toward 0.5 for aggressive 2D
+    # gating — on an occluded-legs A/B, 0.4 separates occluded from visible by
+    # 28pp and 0.5 by 62pp, at the cost of dropping more genuine detections.
+    confidence_threshold: float = 0.4
 
     @property
     def input_size(self) -> tuple[int, int]:

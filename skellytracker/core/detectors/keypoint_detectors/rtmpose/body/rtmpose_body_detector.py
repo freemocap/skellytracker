@@ -64,7 +64,9 @@ class RTMPoseBodyDetectorConfig(KeypointDetectorConfig):
     detector_type: Literal["rtmpose_body"] = "rtmpose_body"
     session_backend: Literal["onnx"] = "onnx"
     model_name: str = "rtmpose-m_256x192"
-    confidence_threshold: float = 0.004
+    # Raw SIMCC peak response — see get_simcc_maximum and the note on
+    # RTMPoseDetectorConfig.confidence_threshold in wholebody/.
+    confidence_threshold: float = 0.4
 
     @property
     def input_size(self) -> tuple[int, int]:

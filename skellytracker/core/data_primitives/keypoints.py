@@ -12,6 +12,13 @@ class Keypoints:
 
     Structural invariant: names, xyz rows, and visibility entries are always
     the same length. Undetected points have NaN coordinates and 0.0 visibility.
+
+    Visibility is a backend-agnostic confidence in [0.0, 1.0] — one threshold has
+    to mean the same thing whether the points came from MediaPipe or RTMPose, so
+    a backend whose native score is unbounded (RTMPose's raw SIMCC peak) clips
+    into this range at its own boundary rather than widening the contract here.
+    Treat it as an ordered gate, not a calibrated probability: it is compared
+    against thresholds, never used as a weight.
     """
 
     names: tuple[str, ...]

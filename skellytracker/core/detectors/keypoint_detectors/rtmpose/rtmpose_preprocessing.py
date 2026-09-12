@@ -17,48 +17,54 @@ from numpy.typing import NDArray
 # ==========================================================================
 
 
-def _stable_softmax(x: NDArray) -> NDArray:
-    x_max = np.max(x, axis=-1, keepdims=True)
-    e_x = np.exp(x - x_max)
-    return e_x / np.sum(e_x, axis=-1, keepdims=True)
-
-
 def get_simcc_maximum(
     simcc_x: NDArray,
     simcc_y: NDArray,
 ) -> tuple[NDArray, NDArray]:
     """Decode SIMCC heatmaps to (x, y) coordinates with confidence scores.
 
-    Applies softmax to raw logits, then returns the peak probability as
-    confidence.  Value is in [0, 1]: higher = more mass concentrated in
-    the winning bin.  A uniform distribution over N bins gives ~1/N.
+    Confidence is the *raw* SIMCC peak response averaged across the two axes,
+    matching mmpose and rtmlib.  RTMPose is trained with a Gaussian-target KL
+    loss, so a well-localised keypoint drives its winning bin to ~1.0 while an
+    occluded one leaves a low, flat response — the peak height itself is the
+    confidence signal.
+
+    Do NOT softmax the bins first.  Softmax normalises each keypoint's response
+    to sum to 1 over its bins, which discards peak height entirely: every
+    keypoint then scores within a hair of the uniform floor (~1/Wx, ~1/Wy) and
+    confident points stop separating from occluded ones.  Coordinates survive
+    that mistake because argmax is monotone under softmax, so it goes unnoticed
+    unless the confidences are inspected directly.
+
+    Values are unbounded above (peaks above 1.0 are routine); the [0, 1] clip
+    that ``Keypoints.visibility`` requires happens in
+    ``rtmpose_letterbox_postprocess``, which is where skellytracker's contract
+    starts.  This function stays byte-comparable with upstream mmpose/rtmlib.
 
     Parameters
     ----------
-    simcc_x : np.ndarray  shape (N, K, Wx) — raw SIMCC logits for x-axis.
-    simcc_y : np.ndarray  shape (N, K, Wy) — raw SIMCC logits for y-axis.
+    simcc_x : np.ndarray  shape (N, K, Wx) — SIMCC responses for the x-axis.
+    simcc_y : np.ndarray  shape (N, K, Wy) — SIMCC responses for the y-axis.
 
     Returns
     -------
-    locs : np.ndarray  shape (N, K, 2)  x/y keypoint coordinates.
-    vals : np.ndarray  shape (N, K)     confidence = average peak softmax
-                                        probability across x and y axes.
+    locs : np.ndarray  shape (N, K, 2)  x/y keypoint coordinates (bin indices).
+    vals : np.ndarray  shape (N, K)     confidence = mean of the x and y peak
+                                        responses.  Unbounded above; <= 0.0
+                                        marks a non-detection (locs set to -1).
     """
     N, K, Wx = simcc_x.shape
     simcc_x = simcc_x.reshape(N * K, -1)
     simcc_y = simcc_y.reshape(N * K, -1)
 
-    px = _stable_softmax(simcc_x)
-    py = _stable_softmax(simcc_y)
-
-    x_locs = np.argmax(px, axis=1)
-    y_locs = np.argmax(py, axis=1)
+    x_locs = np.argmax(simcc_x, axis=1)
+    y_locs = np.argmax(simcc_y, axis=1)
     locs = np.stack((x_locs, y_locs), axis=-1).astype(np.float32)
 
-    max_px = np.amax(px, axis=1)
-    max_py = np.amax(py, axis=1)
+    max_val_x = np.amax(simcc_x, axis=1)
+    max_val_y = np.amax(simcc_y, axis=1)
 
-    vals = 0.5 * (max_px + max_py)
+    vals = 0.5 * (max_val_x + max_val_y)
     locs[vals <= 0.0] = -1
 
     locs = locs.reshape(N, K, 2)
@@ -225,10 +231,20 @@ def rtmpose_letterbox_postprocess(
     Returns
     -------
     keypoints : (1, K, 2) float64  image-coordinate keypoints.
-    scores : (1, K) float32
+    scores : (1, K) float32  confidence in [0, 1].
+
+    Notes
+    -----
+    Raw SIMCC peaks are unbounded above, so they are clipped into [0, 1] here to
+    satisfy ``Keypoints.visibility``.  That contract is shared with the MediaPipe
+    detectors, so one threshold has to mean the same thing across backends.  The
+    clip costs nothing: it only touches peaks already above 1.0, which clear
+    every threshold <= 1.0 either way, and no consumer uses visibility as a
+    weight — only as a threshold.
     """
     locs, scores = get_simcc_maximum(simcc_x, simcc_y)
     keypoints = locs / simcc_split_ratio
     keypoints = keypoints / np.asarray(model_input_size) * scale
     keypoints = keypoints + center - scale / 2
+    scores = np.clip(scores, 0.0, 1.0)
     return keypoints.astype(np.float64), scores.astype(np.float32)

@@ -113,13 +113,19 @@ onnx-cuda = [
 # float to TensorRT 11.x (released 2026 Q2) installs nvinfer_11.dll instead, so
 # the EP fails to load with "nvinfer_10.dll is missing" and silently falls back
 # to CUDA/CPU.
+# It must also be the *cu12* distribution, not the `tensorrt` meta-package: that
+# meta-package now resolves to the CUDA 13 build (tensorrt-cu13), whose
+# nvinfer_10.dll links cudart64_13/cublas64_13 while everything else in this
+# extra is CUDA 12. The version pin alone looks satisfied, then nvinfer_10.dll
+# fails to load for a *different* missing DLL and you get the same silent
+# fallback the pin above exists to prevent.
 onnx-trt = [
     "onnxruntime-gpu<1.27; sys_platform != 'darwin'",
     "nvidia-cuda-runtime-cu12; sys_platform != 'darwin'",
     "nvidia-cublas-cu12; sys_platform != 'darwin'",
     "nvidia-cufft-cu12; sys_platform != 'darwin'",
     "nvidia-cudnn-cu12; sys_platform != 'darwin'",
-    "tensorrt>=10,<11; sys_platform != 'darwin'",
+    "tensorrt-cu12>=10,<11; sys_platform != 'darwin'",
 ]
 
 # Any GPU on Windows via DirectML (AMD, Intel, NVIDIA, Qualcomm). No CUDA needed.
