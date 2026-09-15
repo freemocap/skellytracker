@@ -37,15 +37,30 @@ class MediapipeHandDetectorConfig(KeypointDetectorConfig):
     min_hand_detection_confidence: float = 0.5
     min_hand_presence_confidence: float = 0.5
     min_hand_tracking_confidence: float = 0.5
+    # When set, every detected hand is assigned to this side outright,
+    # ignoring MediaPipe's own per-hand "Left"/"Right" classification.
+    # MediaPipe's handedness label is derived from visual cues in the crop
+    # it's given and is known to be unreliable on a tight single-hand crop
+    # (e.g. a wrist-derived hand-stage crop) — where the caller already
+    # knows which side it cropped, trusting that is more reliable than
+    # MediaPipe's own guess. Leave unset for a full-frame, both-hands crop
+    # where MediaPipe's label is the only side information available.
+    assumed_handedness: Literal["left", "right"] | None = None
 
 
 @dataclass
 class MediapipeHandKeypointDetector(KeypointDetector):
-    """Detects hand landmarks for both hands using MediaPipe HandLandmarker.
+    """Detects hand landmarks using MediaPipe HandLandmarker.
 
-    Returns 42 named keypoints: 21 right-hand points (prefixed right_hand_)
-    followed by 21 left-hand points (prefixed left_hand_). Points for an
-    undetected hand have NaN coordinates and 0.0 visibility.
+    With `config.assumed_handedness` unset (the default, full-frame/both-hands
+    use), returns 42 named keypoints: 21 right-hand points (prefixed
+    right_hand_) followed by 21 left-hand points (prefixed left_hand_).
+    Points for an undetected hand have NaN coordinates and 0.0 visibility.
+
+    With `config.assumed_handedness` set (a wrist-derived, single-hand crop),
+    this detector only ever reports that one side, so it returns just that
+    side's 21 named keypoints instead — there's no dead all-NaN half for a
+    side this detector will never populate.
     """
 
     config: MediapipeHandDetectorConfig
@@ -72,33 +87,7 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         else:
             return Keypoints.empty(self._point_names)
 
-        right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
-        left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
-        right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
-        left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
-
-        for i, hand_landmarks in enumerate(result.hand_landmarks):
-            handedness = result.handedness[i]
-            label = handedness[0].category_name
-
-            xyz = np.array(
-                [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
-                dtype=np.float64,
-            )
-            vis = np.array(
-                [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
-                dtype=np.float64,
-            )
-
-            if label == "Right":
-                right_xyz = xyz
-                right_vis = vis
-            elif label == "Left":
-                left_xyz = xyz
-                left_vis = vis
-
-        xyz = np.concatenate([right_xyz, left_xyz], axis=0)
-        visibility = np.concatenate([right_vis, left_vis], axis=0)
+        xyz, visibility = self._assign_hands(result.hand_landmarks, result.handedness, h, w)
         return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
 
     def detect(
@@ -120,34 +109,57 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         else:
             result = self.landmarker.detect(mp_image)
 
+        xyz, visibility = self._assign_hands(result.hand_landmarks, result.handedness, h, w)
+        return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
+
+    def _assign_hands(
+        self,
+        hand_landmarks_list: list,
+        handedness_list: list,
+        h: int,
+        w: int,
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Build this detector's xyz+visibility arrays from detected hands.
+
+        With `assumed_handedness` set, MediaPipe's own per-hand label is
+        ignored — the caller already knows which side this crop was for
+        (e.g. a wrist-derived hand-stage crop, where that label is known to
+        be unreliable) — so only the single best-scored hand found is used,
+        assigned to that side outright. This detector's `_point_names` is
+        that one side's 21 names (set in `create()`), so the result is
+        already the right shape without needing to pad out a dead other-side
+        half.
+        """
+        if self.config.assumed_handedness is not None:
+            if not hand_landmarks_list:
+                return (
+                    np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64),
+                    np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64),
+                )
+            best = max(
+                hand_landmarks_list,
+                key=lambda lm_list: float(
+                    np.mean([lm.presence if lm.presence is not None else 1.0 for lm in lm_list])
+                ),
+            )
+            return _hand_xyz_vis(best, h, w)
+
         right_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         left_xyz = np.full((_NUM_HAND_LANDMARKS, 3), np.nan, dtype=np.float64)
         right_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
         left_vis = np.zeros(_NUM_HAND_LANDMARKS, dtype=np.float64)
 
-        for i, hand_landmarks in enumerate(result.hand_landmarks):
-            handedness = result.handedness[i]
-            label = handedness[0].category_name  # "Left" or "Right"
-
-            xyz = np.array(
-                [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
-                dtype=np.float64,
-            )
-            vis = np.array(
-                [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
-                dtype=np.float64,
-            )
-
+        for i, hand_landmarks in enumerate(hand_landmarks_list):
+            label = handedness_list[i][0].category_name  # "Left" or "Right"
+            xyz, vis = _hand_xyz_vis(hand_landmarks, h, w)
             if label == "Right":
-                right_xyz = xyz
-                right_vis = vis
+                right_xyz, right_vis = xyz, vis
             elif label == "Left":
-                left_xyz = xyz
-                left_vis = vis
+                left_xyz, left_vis = xyz, vis
 
         xyz = np.concatenate([right_xyz, left_xyz], axis=0)
         visibility = np.concatenate([right_vis, left_vis], axis=0)
-        return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
+        return xyz, visibility
 
     def close(self) -> None:
         self.landmarker.close()
@@ -193,10 +205,27 @@ class MediapipeHandKeypointDetector(KeypointDetector):
             min_tracking_confidence=config.min_hand_tracking_confidence,
         )
         landmarker = HandLandmarker.create_from_options(opts)
-        return cls(config=config, session=session, landmarker=landmarker)
+        detector = cls(config=config, session=session, landmarker=landmarker)
+        if config.assumed_handedness == "right":
+            detector._point_names = _RIGHT_NAMES
+        elif config.assumed_handedness == "left":
+            detector._point_names = _LEFT_NAMES
+        return detector
 
 
 KEYPOINT_DETECTOR_REGISTRY["mediapipe_hand"] = MediapipeHandKeypointDetector
+
+
+def _hand_xyz_vis(hand_landmarks, h: int, w: int) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    xyz = np.array(
+        [(lm.x * w, lm.y * h, lm.z * w) for lm in hand_landmarks],
+        dtype=np.float64,
+    )
+    vis = np.array(
+        [lm.presence if lm.presence is not None else 1.0 for lm in hand_landmarks],
+        dtype=np.float64,
+    )
+    return xyz, vis
 
 
 def _to_rgb(image: NDArray[np.uint8]) -> NDArray[np.uint8]:

@@ -10,6 +10,10 @@ from skellytracker.core.detectors.object_detectors.precomputed import (
     PrecomputedObjectDetector,
     PrecomputedObjectDetectorConfig,
 )
+from skellytracker.core.detectors.object_detectors.keypoint_bbox import (
+    KeypointBoundingBoxDetector,
+    KeypointBoundingBoxDetectorConfig,
+)
 
 # Register concrete detector implementations here:
 #
@@ -28,4 +32,6 @@ __all__ = [
     "OBJECT_DETECTOR_REGISTRY",
     "PrecomputedObjectDetector",
     "PrecomputedObjectDetectorConfig",
+    "KeypointBoundingBoxDetector",
+    "KeypointBoundingBoxDetectorConfig",
 ]
