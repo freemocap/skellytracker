@@ -22,7 +22,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import ObjectDetectorConfig
-from skellytracker.core.data_primitives import BoundingBox
+from skellytracker.core.data_primitives import BoundingBox, Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     OBJECT_DETECTOR_REGISTRY,
@@ -149,6 +149,7 @@ class YoloxPersonDetector(ObjectDetector):
         self,
         image: NDArray[np.uint8],
         context: DetectionContext | None = None,
+        parent_keypoints: Keypoints | None = None,
     ) -> list[BoundingBox]:
         boxes, scores = _detect_yolox(
             image=image,
