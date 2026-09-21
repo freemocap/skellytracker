@@ -7,6 +7,7 @@ and caching if necessary.
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import os
 import shutil
@@ -25,6 +26,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "skellytracker" / "models"
 
 
+class ModelIntegrityError(Exception):
+    """Raised when a downloaded model's bytes do not match its expected SHA-256."""
+
+
 class ModelSource(BaseModel):
     """Where to get a model file.  Set exactly one of the optional fields."""
 
@@ -39,8 +44,18 @@ class ModelSource(BaseModel):
 def resolve_model_path(
     source: ModelSource,
     cache_dir: Path | str | None = None,
+    expected_filename: str | None = None,
+    expected_sha256: str | None = None,
 ) -> Path:
-    """Return the local filesystem path to a model, downloading if necessary."""
+    """Return the local filesystem path to a model, downloading if necessary.
+
+    `expected_filename`/`expected_sha256` let a sidecar-driven caller pin the
+    cached file's name (rather than deriving it from the URL tail) and verify
+    its integrity against the sidecar's declared `url_sha256` — see
+    specs/sidecar-spec.md, "sizes.<size>.onnx.batch_artifacts". Both are
+    ignored for `local_path` sources (already-resolved local files are not
+    re-verified).
+    """
     if source.local_path:
         path = Path(source.local_path)
         if not path.is_absolute():
@@ -53,7 +68,9 @@ def resolve_model_path(
         return _resolve_from_huggingface(source, cache_dir)
 
     if source.url is not None:
-        return _resolve_from_url(source.url, cache_dir)
+        return _resolve_from_url(
+            source.url, cache_dir, expected_filename=expected_filename, expected_sha256=expected_sha256
+        )
 
     raise ValueError("ModelSource must specify one of: local_path, hf_repo, url")
 
@@ -88,43 +105,71 @@ def _resolve_from_huggingface(
     return Path(path)
 
 
+def _download_to_temp(url: str, *, suffix: str, expected_sha256: str | None, filename_for_progress: str) -> str:
+    """Download `url` to a temp file, verify its bytes against `expected_sha256` if given.
+
+    Returns the temp file path. Caller owns cleanup of the returned path.
+    """
+    response = requests.get(url, stream=True, timeout=300)
+    response.raise_for_status()
+    total_size = int(response.headers.get("content-length", 0))
+
+    hasher = hashlib.sha256() if expected_sha256 else None
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=suffix)
+    try:
+        with tqdm(
+            total=total_size, unit="B", unit_scale=True, unit_divisor=1024,
+            desc=filename_for_progress, miniters=1,
+        ) as pbar:
+            for chunk in response.iter_content(chunk_size=8192):
+                tmp.write(chunk)
+                if hasher is not None:
+                    hasher.update(chunk)
+                pbar.update(len(chunk))
+        tmp.close()
+    except Exception:
+        os.unlink(tmp.name)
+        raise
+
+    if expected_sha256 is not None:
+        actual = hasher.hexdigest()
+        if actual.lower() != expected_sha256.lower():
+            os.unlink(tmp.name)
+            raise ModelIntegrityError(
+                f"SHA-256 mismatch for {url}: expected {expected_sha256.lower()}, got {actual}"
+            )
+
+    return tmp.name
+
+
 def _resolve_from_url(
     url: str,
     cache_dir: Path | str | None = None,
+    expected_filename: str | None = None,
+    expected_sha256: str | None = None,
 ) -> Path:
     cache = Path(cache_dir) if cache_dir else _default_cache()
     filename = url.rsplit("/", 1)[-1]
 
     if filename.endswith(".onnx"):
-        cached_onnx = cache / filename
+        cached_onnx = cache / (expected_filename or filename)
         if cached_onnx.exists():
             logger.info(f"Using cached model: {cached_onnx}")
             return cached_onnx
 
         logger.info(f"Downloading model from {url} ...")
-        response = requests.get(url, stream=True, timeout=300)
-        response.raise_for_status()
-        total_size = int(response.headers.get("content-length", 0))
-
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
+        tmp_path = _download_to_temp(url, suffix=".tmp", expected_sha256=expected_sha256, filename_for_progress=filename)
         try:
-            with tqdm(
-                total=total_size, unit="B", unit_scale=True, unit_divisor=1024,
-                desc=filename, miniters=1,
-            ) as pbar:
-                for chunk in response.iter_content(chunk_size=8192):
-                    tmp.write(chunk)
-                    pbar.update(len(chunk))
-            tmp.close()
-            shutil.move(tmp.name, str(cached_onnx))
+            cache.mkdir(parents=True, exist_ok=True)
+            shutil.move(tmp_path, str(cached_onnx))
         finally:
-            if os.path.exists(tmp.name):
-                os.unlink(tmp.name)
+            if os.path.exists(tmp_path):
+                os.unlink(tmp_path)
 
         logger.info(f"Model cached: {cached_onnx}")
         return cached_onnx
 
-    onnx_name = filename.replace(".zip", ".onnx")
+    onnx_name = expected_filename or filename.replace(".zip", ".onnx")
     cached_onnx = cache / onnx_name
 
     if cached_onnx.exists():
@@ -132,29 +177,18 @@ def _resolve_from_url(
         return cached_onnx
 
     logger.info(f"Downloading model from {url} ...")
-    response = requests.get(url, stream=True, timeout=300)
-    response.raise_for_status()
-    total_size = int(response.headers.get("content-length", 0))
-
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
+    tmp_path = _download_to_temp(url, suffix=".zip", expected_sha256=expected_sha256, filename_for_progress=filename)
     try:
-        with tqdm(
-            total=total_size, unit="B", unit_scale=True, unit_divisor=1024,
-            desc=filename, miniters=1,
-        ) as pbar:
-            for chunk in response.iter_content(chunk_size=8192):
-                tmp.write(chunk)
-                pbar.update(len(chunk))
-        tmp.close()
-
-        with zipfile.ZipFile(tmp.name, "r") as zf:
+        cache.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(tmp_path, "r") as zf:
             onnx_names = [n for n in zf.namelist() if n.endswith(".onnx")]
             if not onnx_names:
                 raise RuntimeError(f"No .onnx found in zip: {url}")
             with zf.open(onnx_names[0]) as src:
                 cached_onnx.write_bytes(src.read())
     finally:
-        os.unlink(tmp.name)
+        if os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
     logger.info(f"Model cached: {cached_onnx}")
     return cached_onnx

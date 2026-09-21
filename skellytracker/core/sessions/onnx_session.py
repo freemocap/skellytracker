@@ -18,6 +18,7 @@ Usage::
     )
     session = OnnxSession.create(session_config)
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -30,18 +31,15 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from beartype.typing import Callable
-
 import numpy as np
-from numpy.typing import NDArray
 import onnxruntime as ort
+from beartype.typing import Callable
+from numpy.typing import NDArray
 from pydantic import ConfigDict, field_validator
 
 from skellytracker.core.config.session_config import SessionConfig
-from skellytracker.core.sessions.session import Session
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 from skellytracker.core.sessions.model_registry import ModelSource, resolve_model_path
-from skellytracker.core.sessions.session_errors import SessionCreationError
 from skellytracker.core.sessions.ort_session_utils import (
     auto_detect_provider,
     build_tuned_ort_session,
@@ -49,6 +47,8 @@ from skellytracker.core.sessions.ort_session_utils import (
     require_provider,
     select_best_cuda_device,
 )
+from skellytracker.core.sessions.session import Session
+from skellytracker.core.sessions.session_errors import SessionCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -78,6 +78,14 @@ class OnnxModelSpec:
         ``MLComputeUnits`` override, letting ORT/CoreML pick the best path).
         Set to ``{"MLComputeUnits": "CPUAndGPU"}`` for models whose Neural
         Engine compilation fails with error -5.
+    expected_filename:
+        Optional filename override passed to ``resolve_model_path`` — caches
+        (or extracts an archive's ``.onnx`` file as) this name instead of one
+        derived from the source URL. ``None`` = use the URL-derived name.
+    expected_sha256:
+        Optional SHA-256 (lowercase hex) of the bytes at ``source.url``,
+        verified by ``resolve_model_path`` on a fresh download. ``None`` =
+        no integrity check.
     """
 
     name: str
@@ -85,6 +93,8 @@ class OnnxModelSpec:
     input_size: tuple[int, int]
     prepare: Callable[[Path], Path] | None = None
     coreml_options: dict | None = None
+    expected_filename: str | None = None
+    expected_sha256: str | None = None
 
 
 class OnnxSessionConfig(SessionConfig):
@@ -153,7 +163,9 @@ class OnnxSession(Session):
         if config.execution_provider is None:
             active_provider = auto_detect_provider()
         else:
-            require_provider(config.execution_provider)  # raises SessionCreationError if unavailable
+            require_provider(
+                config.execution_provider
+            )  # raises SessionCreationError if unavailable
             active_provider = config.execution_provider
 
         if active_provider in ("cuda", "trt") and sys.platform == "win32":
@@ -181,7 +193,11 @@ class OnnxSession(Session):
 
         sessions: dict[str, ort.InferenceSession] = {}
         for spec in config.models:
-            model_path = resolve_model_path(spec.source)
+            model_path = resolve_model_path(
+                spec.source,
+                expected_filename=spec.expected_filename,
+                expected_sha256=spec.expected_sha256,
+            )
             if spec.prepare is not None:
                 model_path = spec.prepare(model_path)
 
@@ -201,7 +217,12 @@ class OnnxSession(Session):
                     f"Failed to load model {spec.name!r} with provider={active_provider!r}: {exc}"
                 ) from exc
             sessions[spec.name] = ort_session
-            logger.info("OnnxSession: loaded model %r (provider=%r, device=%d)", spec.name, active_provider, device_id)
+            logger.info(
+                "OnnxSession: loaded model %r (provider=%r, device=%d)",
+                spec.name,
+                active_provider,
+                device_id,
+            )
 
         onnx_session = cls(
             _sessions=sessions,
@@ -209,7 +230,9 @@ class OnnxSession(Session):
             device_id=device_id,
             batch_size=config.batch_size,
         )
-        _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size)
+        _warmup(
+            onnx_session, config.models, active_provider, batch_size=config.batch_size
+        )
         return onnx_session
 
     def get_session(self, model_name: str) -> ort.InferenceSession:
@@ -264,7 +287,10 @@ class OnnxSession(Session):
             ) from exc
         except Exception as exc:
             msg = str(exc).lower()
-            if any(tok in msg for tok in ("out of memory", "cudamalloc", "alloc failed", " oom")):
+            if any(
+                tok in msg
+                for tok in ("out of memory", "cudamalloc", "alloc failed", " oom")
+            ):
                 raise VRAMExhaustionError(
                     f"Out of GPU memory running model {model_name!r} "
                     f"(provider={self.execution_provider!r}, device={self.device_id}): {exc}"
@@ -273,7 +299,6 @@ class OnnxSession(Session):
                 f"ONNX Runtime error running model {model_name!r} "
                 f"(provider={self.execution_provider!r}): {exc}"
             ) from exc
-
 
     def run_batched(
         self,
@@ -303,14 +328,19 @@ class OnnxSession(Session):
             logger.warning(
                 "run_batched called with %d cameras but OnnxSessionConfig.batch_size=%d; "
                 "consider recreating the session with batch_size=%d for optimal performance",
-                len(tensors), self.batch_size, len(tensors),
+                len(tensors),
+                self.batch_size,
+                len(tensors),
             )
         ordered_keys = list(tensors.keys())
         stacked = np.stack([tensors[k] for k in ordered_keys])  # (N, 3, H, W)
         input_name = self.get_session(model_name).get_inputs()[0].name
         raw_outputs = self.run(model_name, {input_name: stacked})
         # raw_outputs is a list of arrays, each (N, ...) — split per camera.
-        return {k: [out[i:i+1] for out in raw_outputs] for i, k in enumerate(ordered_keys)}
+        return {
+            k: [out[i : i + 1] for out in raw_outputs]
+            for i, k in enumerate(ordered_keys)
+        }
 
     def close(self) -> None:
         """Explicitly tear down ORT sessions rather than relying on GC.
@@ -326,7 +356,13 @@ class OnnxSession(Session):
         gc.collect()
 
 
-def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, batch_size: int = 1) -> None:
+def _warmup(
+    session: OnnxSession,
+    specs: list[OnnxModelSpec],
+    provider: str,
+    *,
+    batch_size: int = 1,
+) -> None:
     """Run a dummy inference through each model to trigger JIT compilation.
 
     CoreML (macOS) and TRT compile kernels lazily on the first session.run()
@@ -339,10 +375,13 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
     — rather than several seconds later inside the inference loop.
     """
     import time
+
     logger.info(
         "OnnxSession: warming up %d model(s) on provider=%r at batch_size=%d "
         "(first run may take 5–30 s on CoreML/TRT) ...",
-        len(specs), provider, batch_size,
+        len(specs),
+        provider,
+        batch_size,
     )
     for spec in specs:
         ort_session = session.get_session(spec.name)
@@ -374,7 +413,9 @@ def _verify_ort_install() -> None:
             "`pip install --force-reinstall onnxruntime-gpu`."
         ) from e
     if not providers:
-        raise RuntimeError("ONNX Runtime reports no execution providers. The install is broken.")
+        raise RuntimeError(
+            "ONNX Runtime reports no execution providers. The install is broken."
+        )
 
 
 def _load_nvidia_dlls_on_windows() -> None:

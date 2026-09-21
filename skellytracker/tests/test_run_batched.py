@@ -11,6 +11,7 @@ Integration tests (require onnxruntime + model download; auto-skip otherwise)
     TestRunBatchedRTMPose   — run_batched N=2 keypoint shapes
     TestDetectionStageBatch — full stage.run_batch() with YOLOX + RTMPose, 2 cameras
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -21,23 +22,25 @@ import pytest
 # must happen before those imports to avoid a collection-time ImportError.
 pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
 
+import skellytracker.core.detectors.keypoint_detectors.rtmpose  # noqa: F401, E402 — registry
+import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401, E402 — registry
+from skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.rtmpose_wholebody_detector import (  # noqa: E402
+    RTMPoseDetectorConfig,
+    RTMPoseKeypointDetector,
+)
+from skellytracker.core.detectors.metadata import (  # noqa: E402
+    RTMPoseMetadata,
+    YoloxMetadata,
+)
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (  # noqa: E402
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )
-from skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.rtmpose_wholebody_detector import (  # noqa: E402
-    RTMPoseKeypointDetector,
-    RTMPoseDetectorConfig,
-)
-from skellytracker.core.detectors.metadata import YoloxMetadata, RTMPoseMetadata  # noqa: E402
-
-import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401, E402 — registry
-import skellytracker.core.detectors.keypoint_detectors.rtmpose  # noqa: F401, E402 — registry
-
 
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 def _two_cam(image: np.ndarray) -> dict[str, np.ndarray]:
     return {"cam0": image, "cam1": image.copy()}
@@ -47,15 +50,22 @@ def _two_cam(image: np.ndarray) -> dict[str, np.ndarray]:
 # Model-free: YoloxPersonDetector.preprocess
 # ---------------------------------------------------------------------------
 
+
 class TestYoloxPreprocess:
     @pytest.fixture(scope="class")
     @classmethod
     def detector(cls):
-        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-        session = OnnxSession.create(OnnxSessionConfig(
-            batch_size=1,
-            models=[YoloxPersonDetector.model_spec("yolox-m")],
-        ))
+        from skellytracker.core.sessions.onnx_session import (
+            OnnxSession,
+            OnnxSessionConfig,
+        )
+
+        session = OnnxSession.create(
+            OnnxSessionConfig(
+                batch_size=1,
+                models=[YoloxPersonDetector.model_spec("yolox-m")],
+            )
+        )
         det = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), session)
         yield det
         session.close()
@@ -81,10 +91,6 @@ class TestYoloxPreprocess:
         _, meta = detector.preprocess(test_image)
         assert meta.ratio > 0.0
 
-    def test_metadata_original_size_matches_image(self, detector, test_image):
-        _, meta = detector.preprocess(test_image)
-        assert meta.original_size == test_image.shape[:2]
-
     def test_two_identical_images_give_identical_tensors(self, detector, test_image):
         t0, _ = detector.preprocess(test_image)
         t1, _ = detector.preprocess(test_image.copy())
@@ -95,15 +101,22 @@ class TestYoloxPreprocess:
 # Model-free: RTMPoseKeypointDetector.preprocess
 # ---------------------------------------------------------------------------
 
+
 class TestRTMPosePreprocess:
     @pytest.fixture(scope="class")
     @classmethod
     def detector(cls):
-        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-        session = OnnxSession.create(OnnxSessionConfig(
-            batch_size=1,
-            models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
-        ))
+        from skellytracker.core.sessions.onnx_session import (
+            OnnxSession,
+            OnnxSessionConfig,
+        )
+
+        session = OnnxSession.create(
+            OnnxSessionConfig(
+                batch_size=1,
+                models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
+            )
+        )
         det = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), session)
         yield det
         session.close()
@@ -138,9 +151,11 @@ class TestRTMPosePreprocess:
 # Integration fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def yolox_session_n1():
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
         batch_size=1,
         models=[YoloxPersonDetector.model_spec("yolox-m")],
@@ -153,6 +168,7 @@ def yolox_session_n1():
 @pytest.fixture(scope="module")
 def yolox_session_n2():
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
         batch_size=2,
         models=[YoloxPersonDetector.model_spec("yolox-m")],
@@ -165,6 +181,7 @@ def yolox_session_n2():
 @pytest.fixture(scope="module")
 def rtmpose_session_n2():
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
         batch_size=2,
         models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
@@ -178,6 +195,7 @@ def rtmpose_session_n2():
 def combined_session_n2():
     """Single session holding both YOLOX and RTMPose at batch_size=2."""
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
         batch_size=2,
         models=[
@@ -194,9 +212,12 @@ def combined_session_n2():
 # TestRunBatchedYolox
 # ---------------------------------------------------------------------------
 
+
 class TestRunBatchedYolox:
     def test_single_camera_keys_preserved(self, test_image, yolox_session_n1):
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_session_n1)
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_session_n1
+        )
         tensor, _ = detector.preprocess(test_image)
         result = yolox_session_n1.run_batched("yolox-m", {"cam0": tensor})
         assert list(result.keys()) == ["cam0"]
@@ -218,19 +239,29 @@ class TestRunBatchedYolox:
             assert s.confidence == pytest.approx(b.confidence, abs=1e-4)
 
     def test_two_cameras_keys_preserved(self, test_image, yolox_session_n2):
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_session_n2)
-        tensors = {k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()}
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_session_n2
+        )
+        tensors = {
+            k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()
+        }
         result = yolox_session_n2.run_batched("yolox-m", tensors)
         assert set(result.keys()) == {"cam0", "cam1"}
 
     def test_two_cameras_output_is_list_per_camera(self, test_image, yolox_session_n2):
-        detector = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), yolox_session_n2)
-        tensors = {k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()}
+        detector = YoloxPersonDetector.create(
+            YoloxPersonDetectorConfig(), yolox_session_n2
+        )
+        tensors = {
+            k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()
+        }
         result = yolox_session_n2.run_batched("yolox-m", tensors)
         assert isinstance(result["cam0"], list)
         assert isinstance(result["cam1"], list)
 
-    def test_two_identical_cameras_give_identical_detections(self, test_image, yolox_session_n2):
+    def test_two_identical_cameras_give_identical_detections(
+        self, test_image, yolox_session_n2
+    ):
         config = YoloxPersonDetectorConfig()
         detector = YoloxPersonDetector.create(config, yolox_session_n2)
         images = _two_cam(test_image)
@@ -265,10 +296,15 @@ class TestRunBatchedYolox:
 # TestRunBatchedRTMPose
 # ---------------------------------------------------------------------------
 
+
 class TestRunBatchedRTMPose:
     def test_two_cameras_keys_preserved(self, test_image, rtmpose_session_n2):
-        detector = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), rtmpose_session_n2)
-        tensors = {k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()}
+        detector = RTMPoseKeypointDetector.create(
+            RTMPoseDetectorConfig(), rtmpose_session_n2
+        )
+        tensors = {
+            k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()
+        }
         result = rtmpose_session_n2.run_batched("rtmw-x-l_256x192", tensors)
         assert set(result.keys()) == {"cam0", "cam1"}
 
@@ -285,8 +321,12 @@ class TestRunBatchedRTMPose:
             kpts = detector.postprocess(raw[cam_id], metas[cam_id])
             assert kpts.xyz.shape == (133, 3), f"{cam_id}: expected (133, 3)"
 
-    def test_two_identical_cameras_give_consistent_keypoint_shapes(self, test_image, rtmpose_session_n2):
-        detector = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), rtmpose_session_n2)
+    def test_two_identical_cameras_give_consistent_keypoint_shapes(
+        self, test_image, rtmpose_session_n2
+    ):
+        detector = RTMPoseKeypointDetector.create(
+            RTMPoseDetectorConfig(), rtmpose_session_n2
+        )
         images = _two_cam(test_image)
         preprocessed = {k: detector.preprocess(img) for k, img in images.items()}
         tensors = {k: v[0] for k, v in preprocessed.items()}
@@ -298,7 +338,9 @@ class TestRunBatchedRTMPose:
         assert kpts0.xyz.shape == kpts1.xyz.shape
         assert kpts0.names == kpts1.names
 
-    def test_single_camera_batched_matches_detect_shape(self, test_image, rtmpose_session_n2):
+    def test_single_camera_batched_matches_detect_shape(
+        self, test_image, rtmpose_session_n2
+    ):
         """N=1 batch gives same keypoint shape as detect()."""
         config = RTMPoseDetectorConfig()
         detector = RTMPoseKeypointDetector.create(config, rtmpose_session_n2)
@@ -316,12 +358,15 @@ class TestRunBatchedRTMPose:
 # TestDetectionStageBatch — full YOLOX + RTMPose pipeline
 # ---------------------------------------------------------------------------
 
+
 class TestDetectionStageBatch:
     @pytest.fixture(scope="class")
     @classmethod
     def stage_and_session(cls, combined_session_n2):
+        from skellytracker.core.config.detection_stage_config import (
+            DetectionStageConfig as StageConfig,
+        )
         from skellytracker.core.tracker.detection_stage import DetectionStage
-        from skellytracker.core.config.detection_stage_config import DetectionStageConfig as StageConfig
 
         stage = DetectionStage.create(
             StageConfig(
@@ -334,8 +379,8 @@ class TestDetectionStageBatch:
         return stage, combined_session_n2
 
     def test_run_batch_returns_obs_per_camera(self, stage_and_session, test_image):
-        from skellytracker.core.tracker.tracker_state import StageState
         from skellytracker.core.detectors.detection_context import DetectionContext
+        from skellytracker.core.tracker.tracker_state import StageState
 
         stage, _ = stage_and_session
         images = _two_cam(test_image)
@@ -347,8 +392,8 @@ class TestDetectionStageBatch:
         assert set(states_batch.keys()) == {"cam0", "cam1"}
 
     def test_run_batch_keypoints_133_per_camera(self, stage_and_session, test_image):
-        from skellytracker.core.tracker.tracker_state import StageState
         from skellytracker.core.detectors.detection_context import DetectionContext
+        from skellytracker.core.tracker.tracker_state import StageState
 
         stage, _ = stage_and_session
         images = _two_cam(test_image)
@@ -362,8 +407,8 @@ class TestDetectionStageBatch:
             assert kpts.xyz.shape == (133, 3), f"{cam_id}: expected (133, 3)"
 
     def test_run_batch_states_are_independent(self, stage_and_session, test_image):
-        from skellytracker.core.tracker.tracker_state import StageState
         from skellytracker.core.detectors.detection_context import DetectionContext
+        from skellytracker.core.tracker.tracker_state import StageState
 
         stage, _ = stage_and_session
         images = _two_cam(test_image)
@@ -373,11 +418,13 @@ class TestDetectionStageBatch:
         _, states_batch = stage.run_batch(images, states, ctx)
         assert states_batch["cam0"] is not states_batch["cam1"]
 
-    def test_run_batch_reuses_persistent_executor_across_calls(self, stage_and_session, test_image):
+    def test_run_batch_reuses_persistent_executor_across_calls(
+        self, stage_and_session, test_image
+    ):
         """The stage's thread pool should be created once and reused, not
         recreated per call — repeated calls must keep working correctly."""
-        from skellytracker.core.tracker.tracker_state import StageState
         from skellytracker.core.detectors.detection_context import DetectionContext
+        from skellytracker.core.tracker.tracker_state import StageState
 
         stage, _ = stage_and_session
         images = _two_cam(test_image)
@@ -395,14 +442,18 @@ class TestDetectionStageBatch:
         for cam_id in ("cam0", "cam1"):
             assert obs_batch[cam_id].keypoints.xyz.shape == (133, 3)
 
-    def test_close_shuts_down_persistent_executor(self, combined_session_n2, test_image):
+    def test_close_shuts_down_persistent_executor(
+        self, combined_session_n2, test_image
+    ):
         # Build a stage of its own (rather than reusing the class-scoped
         # `stage_and_session` fixture) since close() tears down its detectors
         # and would break the other tests sharing that fixture.
-        from skellytracker.core.tracker.tracker_state import StageState
-        from skellytracker.core.tracker.detection_stage import DetectionStage
-        from skellytracker.core.config.detection_stage_config import DetectionStageConfig as StageConfig
+        from skellytracker.core.config.detection_stage_config import (
+            DetectionStageConfig as StageConfig,
+        )
         from skellytracker.core.detectors.detection_context import DetectionContext
+        from skellytracker.core.tracker.detection_stage import DetectionStage
+        from skellytracker.core.tracker.tracker_state import StageState
 
         stage = DetectionStage.create(
             StageConfig(

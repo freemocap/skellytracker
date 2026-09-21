@@ -1,0 +1,35 @@
+---
+# Named skeleton for the single-hand 21-point schema. Edges are name-based,
+# so they carry over unchanged regardless of tracked_points array order.
+# Ported verbatim from rtmpose/hand/rtmpose_hand.yaml (M4b migration).
+- name: rtmpose_hand_skeleton
+  edges:
+    # thumb chain
+    - [root, thumb1]
+    - [thumb1, thumb2]
+    - [thumb2, thumb3]
+    - [thumb3, thumb4]
+    # forefinger chain
+    - [root, forefinger1]
+    - [forefinger1, forefinger2]
+    - [forefinger2, forefinger3]
+    - [forefinger3, forefinger4]
+    # middle finger chain
+    - [root, middle_finger1]
+    - [middle_finger1, middle_finger2]
+    - [middle_finger2, middle_finger3]
+    - [middle_finger3, middle_finger4]
+    # ring finger chain
+    - [root, ring_finger1]
+    - [ring_finger1, ring_finger2]
+    - [ring_finger2, ring_finger3]
+    - [ring_finger3, ring_finger4]
+    # pinky chain
+    - [root, pinky_finger1]
+    - [pinky_finger1, pinky_finger2]
+    - [pinky_finger2, pinky_finger3]
+    - [pinky_finger3, pinky_finger4]
+    # knuckle crossbar
+    - [forefinger1, middle_finger1]
+    - [middle_finger1, ring_finger1]
+    - [ring_finger1, pinky_finger1]

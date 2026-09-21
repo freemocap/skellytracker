@@ -1,11 +1,4 @@
-"""RTMPose single-hand keypoint detector (21 keypoints).
-
-Detects keypoints for a single hand crop. The caller is responsible for
-providing a tight hand bounding box (e.g. derived from wrist position of an
-upstream body detector) and for tracking which hand (left/right) the crop
-belongs to. Point names have no left/right prefix — add them at the stage
-level when composing with a body detector.
-"""
+"""RTMW whole-body keypoint detector (133 keypoints: body + hands + face)."""
 
 from __future__ import annotations
 
@@ -25,8 +18,9 @@ from skellytracker.core.detectors.detector_base_classes import (
     KeypointDetector,
 )
 from skellytracker.core.detectors.processing.image_preprocessing import preprocess_image
-from skellytracker.core.detectors.processing.simcc_decode import simcc_pose_decode
 from skellytracker.core.detectors.metadata import RTMPoseMetadata
+from skellytracker.core.detectors.overlay_groups import resolve_overlay_groups
+from skellytracker.core.detectors.processing.simcc_decode import simcc_pose_decode
 from skellytracker.core.sessions.onnx_session import OnnxModelSpec, OnnxSession
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.sidecar.loader import load_sidecar
@@ -34,36 +28,36 @@ from skellytracker.core.sidecar.runtime import sidecar_model_spec
 
 logger = logging.getLogger(__name__)
 
-_SIDECAR_PATH = Path(__file__).parent / "rtmpose-hand.yaml"
+_SIDECAR_PATH = Path(__file__).parent / "rtmw-wholebody.yaml"
 _SIDECAR = load_sidecar(_SIDECAR_PATH)
 
 _POINT_NAMES: tuple[str, ...] = tuple(_SIDECAR.pose.tracked_points)
-_NUM_KEYPOINTS = len(_POINT_NAMES)  # 21
+_NUM_KEYPOINTS = len(_POINT_NAMES)  # 133
 _CONNECTIONS: tuple[tuple[str, str], ...] = tuple(
     tuple(edge) for edge in _SIDECAR.pose.connections[0].edges
 )
 
 
-class RTMPoseHandDetectorConfig(KeypointDetectorConfig):
-    detector_type: Literal["rtmpose_hand"] = "rtmpose_hand"
+class RTMWWholebodyDetectorConfig(KeypointDetectorConfig):
+    detector_type: Literal["rtmpose"] = "rtmpose"
     session_backend: Literal["onnx"] = "onnx"
-    model_name: str = "rtmpose-m_256x256"
+    model_name: str = "rtmw-x-l_256x192"
     confidence_threshold: float = 0.004
 
     @property
     def input_size(self) -> tuple[int, int]:
         if self.model_name not in _SIDECAR.sizes:
-            return (256, 256)
+            return (256, 192)
         resolved = _SIDECAR.resolved_size(self.model_name)
         target_size = resolved.input.resize.target_size
         return (target_size[0], target_size[1])
 
 
 @dataclass
-class RTMPoseHandDetector(KeypointDetector):
-    """RTMPose hand SIMCC detector — 21 keypoints for a single hand crop."""
+class RTMWWholebodyDetector(KeypointDetector):
+    """RTMW whole-body SIMCC detector — 133 keypoints (body + hands + face)."""
 
-    config: RTMPoseHandDetectorConfig
+    config: RTMWWholebodyDetectorConfig
     session: OnnxSession
     _point_names: tuple[str, ...] = field(
         default_factory=lambda: _POINT_NAMES, init=False, repr=False
@@ -72,7 +66,7 @@ class RTMPoseHandDetector(KeypointDetector):
     def preprocess(
         self, image: NDArray[np.uint8]
     ) -> tuple[NDArray[np.float32], RTMPoseMetadata]:
-        """Affine-crop and normalize image for RTMPose inference.
+        """Affine-crop and normalize image for RTMW inference.
 
         Returns (tensor, metadata) where tensor has shape (3, H, W) and dtype
         float32. metadata carries center/scale needed by postprocess to
@@ -130,22 +124,28 @@ class RTMPoseHandDetector(KeypointDetector):
         return _CONNECTIONS
 
     @classmethod
+    def connection_groups(cls) -> dict[str, tuple[tuple[str, str], ...]]:
+        """Partition wholebody connections by region (body / right_hand / left_hand / face)."""
+        return resolve_overlay_groups(_SIDECAR.overlay, _CONNECTIONS)
+
+    @classmethod
     def create(
         cls, config: KeypointDetectorConfig, session: Session
-    ) -> RTMPoseHandDetector:
+    ) -> RTMWWholebodyDetector:
         if not isinstance(session, OnnxSession):
             raise TypeError(f"Expected OnnxSession, got {type(session).__name__}")
-        if not isinstance(config, RTMPoseHandDetectorConfig):
+        if not isinstance(config, RTMWWholebodyDetectorConfig):
             raise TypeError(
-                f"Expected RTMPoseHandDetectorConfig, got {type(config).__name__}"
+                f"Expected RTMWWholebodyDetectorConfig, got {type(config).__name__}"
             )
         return cls(config=config, session=session)
 
     @classmethod
-    def model_spec(cls, model_name: str = "rtmpose-m_256x256") -> OnnxModelSpec:
+    def model_spec(cls, model_name: str = "rtmw-x-l_256x192") -> OnnxModelSpec:
         if model_name not in _SIDECAR.sizes:
             raise ValueError(
-                f"Unknown RTMPose hand model {model_name!r}. Available: {list(_SIDECAR.sizes)}"
+                f"Unknown RTMW wholebody model {model_name!r}. "
+                f"Available: {list(_SIDECAR.sizes)}"
             )
         return sidecar_model_spec(
             _SIDECAR,
@@ -159,8 +159,8 @@ class RTMPoseHandDetector(KeypointDetector):
         )
 
 
-KEYPOINT_DETECTOR_REGISTRY["rtmpose_hand"] = RTMPoseHandDetector
+KEYPOINT_DETECTOR_REGISTRY["rtmpose"] = RTMWWholebodyDetector
 
-RTMPOSE_HAND_MODEL_SPECS: dict[str, OnnxModelSpec] = {
-    name: RTMPoseHandDetector.model_spec(name) for name in _SIDECAR.sizes
+RTMW_WHOLEBODY_MODEL_SPECS: dict[str, OnnxModelSpec] = {
+    name: RTMWWholebodyDetector.model_spec(name) for name in _SIDECAR.sizes
 }

@@ -25,6 +25,8 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import yaml
 
+from skellytracker.core.io.canonical_mapping_expansion import expand_prefixed_mapping
+
 # ---------------------------------------------------------------------------
 # Mapping forms
 # ---------------------------------------------------------------------------
@@ -112,6 +114,10 @@ class TrackerMapping:
             raise TypeError(
                 f"Mapping YAML must be a dict at top level, got {type(data).__name__}"
             )
+        # Expand any `prefixes` + `[prefix]X: ...` authoring shorthand (see
+        # specs/sidecar-spec.md, "pose.canonical_mapping") before entries are
+        # parsed — this is a no-op when the file uses no `prefixes` key.
+        data = expand_prefixed_mapping(data)
         return cls(entries=data, prefix=prefix)
 
     # ------------------------------------------------------------------
