@@ -40,6 +40,10 @@ pelvis_origin:
 neck_center:
 - left_shoulder
 - right_shoulder
+# SC offsets share one symmetric reference geometry across body trackers.
+# Ratios are projections of (SC - shoulder midpoint) onto lateral/anterior/up,
+# divided by shoulder width, using the standard-human reference pose.
+# The small up component belongs to the SC attachment, not the spine midpoint.
 left_sternoclavicular:
   form: anatomical_offset
   origin:
@@ -59,8 +63,9 @@ left_sternoclavicular:
       to: right_shoulder
       kind: approximate
   offset:
-    lateral: -0.0625
-    anterior: 0.15
+    lateral: -0.062498631
+    anterior: 0.234362559
+    up: 0.002493029
   reference_length:
     from: left_shoulder
     to: right_shoulder
@@ -83,8 +88,9 @@ right_sternoclavicular:
       to: right_shoulder
       kind: approximate
   offset:
-    lateral: 0.0625
-    anterior: 0.234362
+    lateral: 0.062498631
+    anterior: 0.234362559
+    up: 0.002493029
   reference_length:
     from: left_shoulder
     to: right_shoulder
@@ -107,7 +113,8 @@ sternoclavicular_notch:
       to: right_shoulder
       kind: approximate
   offset:
-    anterior: 0.234362
+    anterior: 0.234362559
+    up: 0.002493029
   reference_length:
     from: left_shoulder
     to: right_shoulder
