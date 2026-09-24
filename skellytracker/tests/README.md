@@ -1,5 +1,29 @@
 # Tests
 
+## Spine mapping regression (2026-09-24)
+
+`test_spine_midpoint_mapping.py` loads the shipped RTMPose and MediaPipe mappings.
+The intended spine chain is hip midpoint -> mean of both hips and shoulders ->
+shoulder midpoint -> ear midpoint, with no anatomical offsets on those endpoints.
+Previously RTMPose mapped chest_center to the shoulder midpoint (collapsing the
+thoracic endpoints); MediaPipe used an anatomical offset instead. Both are fixed.
+Clavicular offsets remain separate. Tests cover the midpoint values, transformed
+poses, measured/constructed classification, and missing source measurements.
+
+Focused validation: 24 mapping tests passed, plus Ruff. For mapping-only tests use
+`--noconftest` to avoid this repository's session-wide image/video downloads.
+
+Separate Forge follow-up, not fixed here: a read-only synthetic diagnostic with
+straight vertical spine endpoints and the existing constructed thoracic landmarks
+produced a thoracic rigid-fit tilt of 8.77 degrees and moved its origin about 16 mm.
+Lumbar and cervical axes stayed vertical in that diagnostic. Forge currently fits
+the thoracic pose to its off-axis landmarks as well as the spine endpoints; the
+constructed landmarks can therefore alter the declared primary direction. Add a
+Forge regression and preserve the intended spine endpoints/direction before
+claiming the real-time spine issue is resolved. This is synthetic evidence, not a
+measurement of the user's live scene. Existing prepared Parquet is unchanged and
+contains the old mapping/fit; its previous hierarchy report is not a post-fix result.
+
 ## Running
 
 ```bash

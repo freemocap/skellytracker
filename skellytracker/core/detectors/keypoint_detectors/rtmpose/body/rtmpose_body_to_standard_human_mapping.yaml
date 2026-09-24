@@ -137,6 +137,9 @@ craniocervical_junction:
 - left_ear
 - right_ear
 chest_center:
+# Mid-torso on the hip-center/shoulder-center line, without anatomical offsets.
+- left_hip
+- right_hip
 - left_shoulder
 - right_shoulder
 
