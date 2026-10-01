@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
+import tempfile
 from enum import Enum
 from pathlib import Path
 
 import requests
+from filelock import FileLock
 
 logger = logging.getLogger(__name__)
 
@@ -35,19 +38,29 @@ def _download_model(url: str, target_path: Path) -> None:
     response = requests.get(url=url, stream=True, timeout=120)
     response.raise_for_status()
 
-    tmp_path = target_path.with_suffix(".tmp")
-    try:
-        with open(tmp_path, "wb") as f:
+    with tempfile.NamedTemporaryFile(
+        delete=False,
+        suffix=".tmp",
+        dir=target_path.parent,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+
+        try:
             for chunk in response.iter_content(chunk_size=8192):
-                f.write(chunk)
-        tmp_path.rename(target_path)
-    except Exception:
+                tmp.write(chunk)
+        except Exception:
+            tmp.close()
+            if tmp_path.exists():
+                tmp_path.unlink()
+            raise
+
+    try:
+        os.replace(tmp_path, target_path)
+    finally:
         if tmp_path.exists():
             tmp_path.unlink()
-        raise
 
     logger.info(f"Model downloaded successfully: {target_path}")
-
 
 def _filename_from_url(url: str) -> str:
     url_hash = hashlib.sha256(url.encode()).hexdigest()[:8]
@@ -59,8 +72,16 @@ def get_model_path(url: str) -> Path:
     """Return local path for a model, downloading it if not already cached."""
     filename = _filename_from_url(url)
     local_path = CACHE_DIR / filename
-    if not local_path.exists():
+
+    if local_path.exists():
+        return local_path
+
+    with FileLock(f"{local_path}.lock", timeout=300):
+        if local_path.exists():
+            return local_path
+
         _download_model(url=url, target_path=local_path)
+
     return local_path
 
 

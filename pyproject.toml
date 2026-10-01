@@ -62,6 +62,7 @@ dependencies = [
     "pyyaml>=6.0",
     "polars",
     "scipy",
+    "filelock>=4.0.8",
 ]
 requires-python = ">=3.11,<3.13"
 

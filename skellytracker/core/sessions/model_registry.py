@@ -14,8 +14,7 @@ import tempfile
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
-import contextlib
-import time
+from filelock import FileLock
 
 import requests
 from pydantic import BaseModel, ConfigDict
@@ -26,29 +25,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "skellytracker" / "models"
 
-
-@contextlib.contextmanager
-def _model_cache_lock(target_path: Path, timeout_seconds: float = 300.0):
-    lock_path = target_path.with_suffix(target_path.suffix + ".lock")
-    start_time = time.monotonic()
-
-    while True:
-        try:
-            fd = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-            os.close(fd)
-            break
-        except FileExistsError:
-            if time.monotonic() - start_time > timeout_seconds:
-                raise TimeoutError(f"Timed out waiting for model cache lock: {lock_path}")
-            time.sleep(0.1)
-
-    try:
-        yield
-    finally:
-        try:
-            lock_path.unlink()
-        except FileNotFoundError:
-            pass
 
 
 class ModelSource(BaseModel):
@@ -129,7 +105,7 @@ def _resolve_from_url(
             logger.info(f"Using cached model: {cached_onnx}")
             return cached_onnx
 
-        with _model_cache_lock(cached_onnx):
+        with FileLock(f"{cached_onnx}.lock", timeout=300):
             if cached_onnx.exists():
                 logger.info(f"Using cached model: {cached_onnx}")
                 return cached_onnx
@@ -179,7 +155,7 @@ def _resolve_from_url(
         logger.info(f"Using cached model: {cached_onnx}")
         return cached_onnx
 
-    with _model_cache_lock(cached_onnx):
+    with FileLock(f"{cached_onnx}.lock", timeout=300):
         if cached_onnx.exists():
             logger.info(f"Using cached model: {cached_onnx}")
             return cached_onnx

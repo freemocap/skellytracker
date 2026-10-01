@@ -30,12 +30,14 @@ NMS bypass via extracted subgraph:
   execution provider.
 """
 import logging
+import os
+import tempfile
 from pathlib import Path
 
 import numpy as np
 import onnx
+from filelock import FileLock
 from onnx import TensorProto, helper, numpy_helper
-
 logger = logging.getLogger(__name__)
 
 _BATCH_PARAM = "N"
@@ -54,11 +56,33 @@ def ensure_dynamic_batch(src_path: str | Path) -> Path:
     """
     src = Path(src_path)
     dst = src.parent / (src.name + _DYNBATCH_SUFFIX)
+
     if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
         logger.debug(f"Dynamic-batch ONNX cache hit: {dst}")
         return dst
-    logger.info(f"Rewriting YOLOX ONNX for dynamic batch: {src} -> {dst}")
-    return make_dynamic_batch_onnx(src, dst)
+
+    with FileLock(f"{dst}.lock", timeout=300):
+        if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
+            logger.debug(f"Dynamic-batch ONNX cache hit: {dst}")
+            return dst
+
+        logger.info(f"Rewriting YOLOX ONNX for dynamic batch: {src} -> {dst}")
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".onnx.tmp",
+            dir=dst.parent,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+
+        try:
+            make_dynamic_batch_onnx(src, tmp_path)
+            os.replace(tmp_path, dst)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+    return dst
 
 
 def ensure_prenms_model(dynbatch_path: str | Path) -> Path | None:
@@ -67,14 +91,6 @@ def ensure_prenms_model(dynbatch_path: str | Path) -> Path | None:
     Idempotent: produces (or reuses) a sibling `<name>.prenms.onnx` file.
     Returns None when the checkpoint has no baked-in NMS, so there is nothing to
     strip and the dynbatch model is already batch-safe.
-
-    Raises
-    ------
-    RuntimeError
-        If the graph contains a NonMaxSuppression subgraph but the pre-NMS
-        bypass outputs are missing. The NMS subgraph carries a
-        ``Squeeze(axis=0)`` that only accepts batch=1, so returning the
-        unstripped model here would blow up at inference time instead.
     """
     import onnx.utils
 
@@ -88,34 +104,55 @@ def ensure_prenms_model(dynbatch_path: str | Path) -> Path | None:
         logger.debug(f"Pre-NMS ONNX cache hit: {dst}")
         return dst
 
-    model = onnx.load(str(src))
-    output_names = {o.name for o in model.graph.output}
-    if PRENMS_BBOX_OUTPUT not in output_names or PRENMS_CONF_OUTPUT not in output_names:
-        if any(node.op_type == "NonMaxSuppression" for node in model.graph.node):
-            raise RuntimeError(
-                f"{src} contains a NonMaxSuppression subgraph but is missing the "
-                f"pre-NMS bypass outputs ({PRENMS_BBOX_OUTPUT!r}, {PRENMS_CONF_OUTPUT!r}), "
-                f"so the batch=1-only Squeeze inside NMS cannot be stripped. "
-                f"This usually means the cached dynamic-batch ONNX was written by an "
-                f"older version of this module — delete {src} to regenerate it."
-            )
-        logger.debug(
-            "Dynbatch ONNX has no pre-NMS Identity outputs and no NonMaxSuppression "
-            "node; nothing to strip — skipping prenms extraction."
-        )
-        return None
+    with FileLock(f"{dst}.lock", timeout=300):
+        if dst.exists() and dst.stat().st_mtime >= src.stat().st_mtime:
+            logger.debug(f"Pre-NMS ONNX cache hit: {dst}")
+            return dst
 
-    input_names = [inp.name for inp in model.graph.input]
-    logger.info(f"Extracting pre-NMS ONNX backbone subgraph: {src} -> {dst}")
-    onnx.utils.extract_model(
-        str(src),
-        str(dst),
-        input_names,
-        [PRENMS_BBOX_OUTPUT, PRENMS_CONF_OUTPUT],
-        check_model=False,
-    )
-    logger.info(f"Wrote pre-NMS ONNX: {dst}")
-    return dst
+        model = onnx.load(str(src))
+        output_names = {o.name for o in model.graph.output}
+
+        if PRENMS_BBOX_OUTPUT not in output_names or PRENMS_CONF_OUTPUT not in output_names:
+            if any(node.op_type == "NonMaxSuppression" for node in model.graph.node):
+                raise RuntimeError(
+                    f"{src} contains a NonMaxSuppression subgraph but is missing the "
+                    f"pre-NMS bypass outputs ({PRENMS_BBOX_OUTPUT!r}, {PRENMS_CONF_OUTPUT!r}), "
+                    f"so the batch=1-only Squeeze inside NMS cannot be stripped. "
+                    f"This usually means the cached dynamic-batch ONNX was written by an "
+                    f"older version of this module — delete {src} to regenerate it."
+                )
+
+            logger.debug(
+                "Dynbatch ONNX has no pre-NMS Identity outputs and no NonMaxSuppression "
+                "node; nothing to strip — skipping prenms extraction."
+            )
+            return None
+
+        input_names = [inp.name for inp in model.graph.input]
+        logger.info(f"Extracting pre-NMS ONNX backbone subgraph: {src} -> {dst}")
+
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".onnx.tmp",
+            dir=dst.parent,
+        ) as tmp:
+            tmp_path = Path(tmp.name)
+
+        try:
+            onnx.utils.extract_model(
+                str(src),
+                str(tmp_path),
+                input_names,
+                [PRENMS_BBOX_OUTPUT, PRENMS_CONF_OUTPUT],
+                check_model=False,
+            )
+            os.replace(tmp_path, dst)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+        logger.info(f"Wrote pre-NMS ONNX: {dst}")
+        return dst
 
 
 def make_dynamic_batch_onnx(src_path: str | Path, dst_path: str | Path) -> Path:
