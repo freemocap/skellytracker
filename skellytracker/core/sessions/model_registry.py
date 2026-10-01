@@ -14,6 +14,7 @@ import tempfile
 import zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
+from filelock import FileLock
 
 import requests
 from pydantic import BaseModel, ConfigDict
@@ -23,6 +24,7 @@ from tqdm import tqdm
 logger = logging.getLogger(__name__)
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "skellytracker" / "models"
+
 
 
 class ModelSource(BaseModel):
@@ -93,6 +95,8 @@ def _resolve_from_url(
     cache_dir: Path | str | None = None,
 ) -> Path:
     cache = Path(cache_dir) if cache_dir else _default_cache()
+    cache.mkdir(parents=True, exist_ok=True)
+    
     filename = url.rsplit("/", 1)[-1]
 
     if filename.endswith(".onnx"):
@@ -101,27 +105,47 @@ def _resolve_from_url(
             logger.info(f"Using cached model: {cached_onnx}")
             return cached_onnx
 
-        logger.info(f"Downloading model from {url} ...")
-        response = requests.get(url, stream=True, timeout=300)
-        response.raise_for_status()
-        total_size = int(response.headers.get("content-length", 0))
+        with FileLock(f"{cached_onnx}.lock", timeout=300):
+            if cached_onnx.exists():
+                logger.info(f"Using cached model: {cached_onnx}")
+                return cached_onnx
 
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".tmp")
-        try:
-            with tqdm(
-                total=total_size, unit="B", unit_scale=True, unit_divisor=1024,
-                desc=filename, miniters=1,
-            ) as pbar:
-                for chunk in response.iter_content(chunk_size=8192):
-                    tmp.write(chunk)
-                    pbar.update(len(chunk))
-            tmp.close()
-            shutil.move(tmp.name, str(cached_onnx))
-        finally:
-            if os.path.exists(tmp.name):
-                os.unlink(tmp.name)
+            logger.info(f"Downloading model from {url} ...")
+            response = requests.get(url, stream=True, timeout=300)
+            response.raise_for_status()
+            total_size = int(response.headers.get("content-length", 0))
 
-        logger.info(f"Model cached: {cached_onnx}")
+            tmp = tempfile.NamedTemporaryFile(
+                delete=False,
+                suffix=".tmp",
+                dir=cache,
+            )
+
+            try:
+                with tqdm(
+                    total=total_size,
+                    unit="B",
+                    unit_scale=True,
+                    unit_divisor=1024,
+                    desc=filename,
+                    miniters=1,
+                ) as pbar:
+                    for chunk in response.iter_content(chunk_size=8192):
+                        tmp.write(chunk)
+                        pbar.update(len(chunk))
+
+                tmp.close()
+                os.replace(tmp.name, cached_onnx)
+
+            finally:
+                if not tmp.closed:
+                    tmp.close()
+
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+
+            logger.info(f"Model cached: {cached_onnx}")
+
         return cached_onnx
 
     onnx_name = filename.replace(".zip", ".onnx")
@@ -131,32 +155,69 @@ def _resolve_from_url(
         logger.info(f"Using cached model: {cached_onnx}")
         return cached_onnx
 
-    logger.info(f"Downloading model from {url} ...")
-    response = requests.get(url, stream=True, timeout=300)
-    response.raise_for_status()
-    total_size = int(response.headers.get("content-length", 0))
+    with FileLock(f"{cached_onnx}.lock", timeout=300):
+        if cached_onnx.exists():
+            logger.info(f"Using cached model: {cached_onnx}")
+            return cached_onnx
 
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".zip")
-    try:
-        with tqdm(
-            total=total_size, unit="B", unit_scale=True, unit_divisor=1024,
-            desc=filename, miniters=1,
-        ) as pbar:
-            for chunk in response.iter_content(chunk_size=8192):
-                tmp.write(chunk)
-                pbar.update(len(chunk))
-        tmp.close()
+        logger.info(f"Downloading model from {url} ...")
+        response = requests.get(url, stream=True, timeout=300)
+        response.raise_for_status()
+        total_size = int(response.headers.get("content-length", 0))
 
-        with zipfile.ZipFile(tmp.name, "r") as zf:
-            onnx_names = [n for n in zf.namelist() if n.endswith(".onnx")]
-            if not onnx_names:
-                raise RuntimeError(f"No .onnx found in zip: {url}")
-            with zf.open(onnx_names[0]) as src:
-                cached_onnx.write_bytes(src.read())
-    finally:
-        os.unlink(tmp.name)
+        tmp_zip = tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=".zip",
+            dir=cache,
+        )
+        tmp_onnx = None
 
-    logger.info(f"Model cached: {cached_onnx}")
+        try:
+            with tqdm(
+                total=total_size,
+                unit="B",
+                unit_scale=True,
+                unit_divisor=1024,
+                desc=filename,
+                miniters=1,
+            ) as pbar:
+                for chunk in response.iter_content(chunk_size=8192):
+                    tmp_zip.write(chunk)
+                    pbar.update(len(chunk))
+
+            tmp_zip.close()
+
+            with zipfile.ZipFile(tmp_zip.name, "r") as zf:
+                onnx_names = [n for n in zf.namelist() if n.endswith(".onnx")]
+                if not onnx_names:
+                    raise RuntimeError(f"No .onnx found in zip: {url}")
+
+                tmp_onnx = tempfile.NamedTemporaryFile(
+                    delete=False,
+                    suffix=".onnx.tmp",
+                    dir=cache,
+                )
+
+                with zf.open(onnx_names[0]) as src:
+                    shutil.copyfileobj(src, tmp_onnx)
+
+                tmp_onnx.close()
+                os.replace(tmp_onnx.name, cached_onnx)
+
+        finally:
+            if not tmp_zip.closed:
+                tmp_zip.close()
+            if os.path.exists(tmp_zip.name):
+                os.unlink(tmp_zip.name)
+
+            if tmp_onnx is not None:
+                if not tmp_onnx.closed:
+                    tmp_onnx.close()
+                if os.path.exists(tmp_onnx.name):
+                    os.unlink(tmp_onnx.name)
+
+        logger.info(f"Model cached: {cached_onnx}")
+
     return cached_onnx
 
 
