@@ -25,6 +25,7 @@ from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector i
 from skellytracker.core.tracker.tracker_factory import (
     _collect_required_sessions,
     build_multi_person_tracker,
+    build_sessions,
     build_tracker,
 )
 from skellytracker.core.tracker.tracker_state import TrackerState
@@ -85,6 +86,28 @@ class TestCollectRequiredSessions:
                 _collect_required_sessions([root])
         finally:
             del OBJECT_DETECTOR_REGISTRY["fake_onnx_no_model_spec"]
+
+
+class TestBuildSessionsOnnxOverrides:
+    def test_batch_size_override_does_not_raise_duplicate_kwarg(self, monkeypatch):
+        from skellytracker.core.sessions.cpu_session import CpuSession
+        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
+        captured: dict[str, OnnxSessionConfig] = {}
+
+        def _fake_create(cls, config):
+            captured["config"] = config
+            return CpuSession()
+
+        monkeypatch.setattr(OnnxSession, "create", classmethod(_fake_create))
+
+        config = TrackerConfig(
+            stages=[DetectionStageConfig(name="body", object_detector=YoloxPersonDetectorConfig())]
+        )
+        sessions = build_sessions(config, onnx_overrides={"batch_size": 4})
+
+        assert captured["config"].batch_size == 4
+        assert sessions["onnx"] is not None
 
 
 class TestBuildTracker:

@@ -134,12 +134,12 @@ def build_sessions(
     if required.onnx_model_specs:
         from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
 
-        onnx_config = OnnxSessionConfig(
-            batch_size=1,
-            models=list(required.onnx_model_specs.values()),
+        onnx_kwargs: dict[str, Any] = {
+            "batch_size": 1,
+            "models": list(required.onnx_model_specs.values()),
             **(onnx_overrides or {}),
-        )
-        sessions["onnx"] = OnnxSession.create(onnx_config)
+        }
+        sessions["onnx"] = OnnxSession.create(OnnxSessionConfig(**onnx_kwargs))
     return sessions
 
 
