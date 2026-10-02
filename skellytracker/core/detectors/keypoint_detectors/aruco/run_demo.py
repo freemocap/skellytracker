@@ -24,8 +24,7 @@ from skellytracker.core.detectors.keypoint_detectors.aruco.aruco_observation_ann
     ArucoObservationAnnotator,
     _ArucoObservationAnnotatorConfig,
 )
-from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
-from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.tracker_factory import build_tracker
 
 _STAGE_NAME = "aruco"
 
@@ -35,9 +34,6 @@ def build_aruco_demo(
     aruco_dictionary_enum: int = cv2.aruco.DICT_4X4_50,
     camera_index: int = 0,
 ) -> DemoManager:
-    session = CpuSession.create(CpuSessionConfig())
-    sessions = {"cpu": session}
-
     detector_config = ArucoDetectorConfig(
         aruco_ids=aruco_ids,
         aruco_dictionary_enum=aruco_dictionary_enum,
@@ -46,7 +42,7 @@ def build_aruco_demo(
         name=_STAGE_NAME,
         keypoint_detectors=[detector_config],
     )
-    tracker = Tracker.create(TrackerConfig(stages=[stage]), sessions)
+    tracker = build_tracker(TrackerConfig(stages=[stage]))
 
     annotator = ArucoObservationAnnotator.create(
         _ArucoObservationAnnotatorConfig(

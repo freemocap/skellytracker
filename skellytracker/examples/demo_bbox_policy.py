@@ -29,16 +29,14 @@ from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_keypoint_de
     RTMPoseKeypointDetector,
 )
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
-    YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )
-from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
 from skellytracker.core.temporal_processing.temporal_processing_config import (
     BBoxPolicyConfig,
     BBoxSmoothingConfig,
     KeypointsWithinBBoxRatioConfig,
 )
-from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.tracker_factory import build_tracker
 
 # Webcams in this demo run close enough to 30fps that a frame-count interval
 # approximates old's wall-clock ``min_detection_interval_seconds``. The core
@@ -57,9 +55,6 @@ def build_demo(
     min_detected_bbox_ratio: float | None = 0.5,
     min_bbox_size_px: float = 80.0,
 ) -> DemoManager:
-    models = [YoloxPersonDetector.model_spec("yolox-m"), RTMPoseKeypointDetector.model_spec(model_name)]
-    session = OnnxSession.create(OnnxSessionConfig(batch_size=1, models=models))
-
     redetect_interval = max(1, round(redetect_seconds * _ASSUMED_FPS))
 
     stage = DetectionStageConfig(
@@ -77,7 +72,7 @@ def build_demo(
         bbox_smoothing=BBoxSmoothingConfig(alpha=bbox_smoothing_alpha),
     )
 
-    tracker = Tracker.create(TrackerConfig(stages=[stage]), sessions={"onnx": session})
+    tracker = build_tracker(TrackerConfig(stages=[stage]))
 
     groups = RTMPoseKeypointDetector.connection_groups()
     annotator = KeypointAnnotator.create(
