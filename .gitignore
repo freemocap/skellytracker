@@ -176,3 +176,6 @@ recorded_objects.npy
 # Docs site (Docusaurus)
 node_modules/
 .docusaurus/
+
+# Local validation output
+/.test-artifacts/
