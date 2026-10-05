@@ -29,11 +29,9 @@ from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_keypoint_de
     RTMPoseKeypointDetector,
 )
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
-    YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )
-from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.tracker_factory import build_tracker
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 
 
@@ -61,17 +59,6 @@ def build_rtmpose_demo(
     camera_index:
         OpenCV camera index (passed to DemoManager, unused here).
     """
-    models = [RTMPoseKeypointDetector.model_spec(model_name)]
-    if use_person_detector:
-        models.insert(0, YoloxPersonDetector.model_spec("yolox-m"))
-
-    session_config = OnnxSessionConfig(
-        batch_size=1,
-        models=models,
-        execution_provider=provider,
-    )
-    session = OnnxSession.create(session_config)
-
     object_detector_config = YoloxPersonDetectorConfig() if use_person_detector else None
     stage = DetectionStageConfig(
         name="wholebody",
@@ -79,9 +66,9 @@ def build_rtmpose_demo(
         keypoint_detectors=[RTMPoseDetectorConfig(model_name=model_name)],
     )
 
-    tracker = Tracker.create(
+    tracker = build_tracker(
         TrackerConfig(stages=[stage]),
-        sessions={"onnx": session},
+        onnx_overrides={"execution_provider": provider},
     )
 
     groups = RTMPoseKeypointDetector.connection_groups()

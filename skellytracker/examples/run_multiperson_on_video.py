@@ -23,11 +23,10 @@ import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.data_primitives import MultiPersonDataStore
-from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseDetectorConfig, RTMPoseKeypointDetector
-from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetector, YoloxPersonDetectorConfig
-from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+from skellytracker.core.detectors.keypoint_detectors.rtmpose import RTMPoseDetectorConfig
+from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetectorConfig
 from skellytracker.core.temporal_processing.multi_person_config import MultiPersonTrackingConfig
-from skellytracker.core.tracker.multi_person_tracker import MultiPersonTracker
+from skellytracker.core.tracker.tracker_factory import build_multi_person_tracker
 from skellytracker.core.tracker.person_track import PersonTrackState
 
 _TRACK_COLORS = [
@@ -48,14 +47,6 @@ def run_multiperson_on_video(
     max_persons: int = 6,
     annotated_video_path: Path | None = None,
 ) -> MultiPersonDataStore:
-    session = OnnxSession.create(OnnxSessionConfig(
-        batch_size=1,
-        models=[
-            YoloxPersonDetector.model_spec(yolox_model),
-            RTMPoseKeypointDetector.model_spec(rtmpose_model),
-        ],
-    ))
-
     config = TrackerConfig(
         stages=[
             DetectionStageConfig(
@@ -63,13 +54,15 @@ def run_multiperson_on_video(
                 # max_detections=None keeps every person YOLOX finds each frame
                 # (Tracker's single-person configs cap this at 1) — the object
                 # detector runs every frame here, so no bbox_policy is set.
-                object_detector=YoloxPersonDetectorConfig(max_detections=max_persons),
-                keypoint_detectors=[RTMPoseDetectorConfig()],
+                object_detector=YoloxPersonDetectorConfig(
+                    model_name=yolox_model, max_detections=max_persons
+                ),
+                keypoint_detectors=[RTMPoseDetectorConfig(model_name=rtmpose_model)],
             )
         ]
     )
-    tracker = MultiPersonTracker.create(
-        config, {"onnx": session}, MultiPersonTrackingConfig(min_hits=3, max_age=10)
+    tracker = build_multi_person_tracker(
+        config, MultiPersonTrackingConfig(min_hits=3, max_age=10)
     )
 
     video_path = Path(video_path)
