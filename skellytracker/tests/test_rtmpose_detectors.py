@@ -8,6 +8,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from skellytracker.tests.onnx_provider_checks import requested_providers, verify_session_provider
+
 ort = pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
 
 import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401, E402
@@ -32,9 +34,11 @@ from skellytracker.core.detectors.keypoint_detectors.rtmpose import (  # noqa: E
 from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig  # noqa: E402
 
 
-@pytest.fixture(scope="module")
-def onnx_session() -> OnnxSession:
+@pytest.fixture(scope="module", params=requested_providers(), ids=lambda p: p or "auto")
+def onnx_session(request) -> OnnxSession:
     config = OnnxSessionConfig(
+        execution_provider=request.param,
+        fp16=False,
         batch_size=1,
         models=[
             YoloxPersonDetector.model_spec("yolox-m"),
@@ -42,8 +46,11 @@ def onnx_session() -> OnnxSession:
         ],
     )
     session = OnnxSession.create(config)
-    yield session
-    session.close()
+    try:
+        verify_session_provider(session, [model.name for model in config.models], request.param)
+        yield session
+    finally:
+        session.close()
 
 
 class TestRegistry:

@@ -50,7 +50,10 @@ class ScriptedObjectDetector(ObjectDetector):
     script: dict[int, list[BoundingBox]] = field(default_factory=dict)
 
     def detect(
-        self, image: NDArray[np.uint8], context: DetectionContext | None = None
+        self,
+        image: NDArray[np.uint8],
+        context: DetectionContext | None = None,
+        parent_keypoints: Keypoints | None = None,
     ) -> list[BoundingBox]:
         frame = context.frame_number if context is not None else 0
         return list(self.script.get(frame, []))

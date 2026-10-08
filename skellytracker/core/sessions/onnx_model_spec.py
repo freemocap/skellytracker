@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Literal
 
 from beartype.typing import Callable
-from pydantic import ConfigDict, field_validator
+from pydantic import ConfigDict, Field, field_validator
 
 from skellytracker.core.config.session_config import SessionConfig
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
@@ -76,6 +76,12 @@ class OnnxSessionConfig(SessionConfig):
     gpu_mem_limit:
         CUDA arena ceiling in bytes. ``None`` = auto-size from the selected
         device's total VRAM.
+    intra_op_num_threads:
+        CPU threads per ONNX operation. ``None`` uses ORT automatic threading
+        for CPU sessions and one host thread for accelerator sessions. Zero
+        explicitly selects ORT automatic threading; a positive value limits
+        the pool when multiple tracker workers share the CPU. CPU sessions
+        disable idle worker spinning to avoid contention between model pools.
     """
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
@@ -87,6 +93,9 @@ class OnnxSessionConfig(SessionConfig):
     device_id: int | None = None
     fp16: bool = True
     gpu_mem_limit: int | None = None
+    # None: automatic CPU threading, one host thread for accelerator providers.
+    # Set a positive budget when multiple tracker workers share the CPU.
+    intra_op_num_threads: int | None = Field(default=None, ge=0)
 
     @field_validator("batch_size")
     @classmethod

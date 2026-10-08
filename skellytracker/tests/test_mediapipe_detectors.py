@@ -27,9 +27,24 @@ from skellytracker.core.detectors.keypoint_detectors.mediapipe import (
 
 @pytest.fixture(scope="module")
 def full_session() -> MediaPipeSession:
-    session = MediaPipeSession.create(MediaPipeSessionConfig())
+    # Independent images have no video timeline; rapid calls may share a clock tick.
+    session = MediaPipeSession.create(MediaPipeSessionConfig(running_mode="image"))
     yield session
     session.close()
+
+
+@pytest.fixture
+def make_detector():
+    detectors = []
+
+    def create(detector_type, config, session):
+        detector = detector_type.create(config, session)
+        detectors.append(detector)
+        return detector
+
+    yield create
+    for detector in reversed(detectors):
+        detector.close()
 
 
 class TestRegistry:
@@ -47,8 +62,8 @@ class TestRegistry:
 
 
 class TestPoseDetector:
-    def test_detect_returns_correct_shape(self, test_image, full_session):
-        detector = MediapipePoseKeypointDetector.create(
+    def test_detect_returns_correct_shape(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipePoseKeypointDetector,
             MediapipePoseDetectorConfig(model_complexity=MediapipePoseModelComplexity.LITE), full_session
         )
         kpts = detector.detect(test_image)
@@ -56,24 +71,24 @@ class TestPoseDetector:
         assert kpts.visibility.shape == (33,)
         assert len(kpts.names) == 33
 
-    def test_visibility_in_range(self, test_image, full_session):
-        detector = MediapipePoseKeypointDetector.create(
+    def test_visibility_in_range(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipePoseKeypointDetector,
             MediapipePoseDetectorConfig(model_complexity=MediapipePoseModelComplexity.LITE), full_session
         )
         kpts = detector.detect(test_image)
         assert np.all(kpts.visibility >= 0.0)
         assert np.all(kpts.visibility <= 1.0)
 
-    def test_detection_on_real_image(self, test_image, full_session):
-        detector = MediapipePoseKeypointDetector.create(
+    def test_detection_on_real_image(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipePoseKeypointDetector,
             MediapipePoseDetectorConfig(model_complexity=MediapipePoseModelComplexity.LITE), full_session
         )
         kpts = detector.detect(test_image)
         assert kpts.n_valid > 0, "Expected at least one detected landmark on test image"
 
-    def test_empty_on_blank_image(self, full_session):
+    def test_empty_on_blank_image(self, full_session, make_detector):
         blank = np.zeros((480, 640, 3), dtype=np.uint8)
-        detector = MediapipePoseKeypointDetector.create(
+        detector = make_detector(MediapipePoseKeypointDetector,
             MediapipePoseDetectorConfig(model_complexity=MediapipePoseModelComplexity.LITE), full_session
         )
         kpts = detector.detect(blank)
@@ -81,8 +96,8 @@ class TestPoseDetector:
         assert np.all(np.isnan(kpts.xyz))
         assert np.all(kpts.visibility == 0.0)
 
-    def test_point_names_include_key_landmarks(self, full_session):
-        detector = MediapipePoseKeypointDetector.create(
+    def test_point_names_include_key_landmarks(self, full_session, make_detector):
+        detector = make_detector(MediapipePoseKeypointDetector,
             MediapipePoseDetectorConfig(model_complexity=MediapipePoseModelComplexity.LITE), full_session
         )
         assert detector.detect(np.zeros((10, 10, 3), dtype=np.uint8)).has_name("nose")
@@ -90,8 +105,8 @@ class TestPoseDetector:
 
 
 class TestHandDetector:
-    def test_detect_returns_correct_shape(self, test_image, full_session):
-        detector = MediapipeHandKeypointDetector.create(
+    def test_detect_returns_correct_shape(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipeHandKeypointDetector,
             MediapipeHandDetectorConfig(), full_session
         )
         kpts = detector.detect(test_image)
@@ -99,16 +114,16 @@ class TestHandDetector:
         assert kpts.visibility.shape == (42,)
         assert len(kpts.names) == 42
 
-    def test_visibility_in_range(self, test_image, full_session):
-        detector = MediapipeHandKeypointDetector.create(
+    def test_visibility_in_range(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipeHandKeypointDetector,
             MediapipeHandDetectorConfig(), full_session
         )
         kpts = detector.detect(test_image)
         assert np.all(kpts.visibility >= 0.0)
         assert np.all(kpts.visibility <= 1.0)
 
-    def test_point_names_have_prefixes(self, full_session):
-        detector = MediapipeHandKeypointDetector.create(
+    def test_point_names_have_prefixes(self, full_session, make_detector):
+        detector = make_detector(MediapipeHandKeypointDetector,
             MediapipeHandDetectorConfig(), full_session
         )
         blank = np.zeros((10, 10, 3), dtype=np.uint8)
@@ -118,10 +133,54 @@ class TestHandDetector:
         assert kpts.has_name("right_hand_thumb_tip")
         assert kpts.has_name("left_hand_pinky_tip")
 
-    def test_undetected_hands_are_nan(self, full_session):
+    def test_undetected_hands_are_nan(self, full_session, make_detector):
         blank = np.zeros((480, 640, 3), dtype=np.uint8)
-        detector = MediapipeHandKeypointDetector.create(
+        detector = make_detector(MediapipeHandKeypointDetector,
             MediapipeHandDetectorConfig(), full_session
+        )
+        kpts = detector.detect(blank)
+        assert np.all(np.isnan(kpts.xyz))
+        assert np.all(kpts.visibility == 0.0)
+
+    def test_assumed_handedness_left_returns_only_left_names(self, test_image, full_session, make_detector):
+        # Regardless of which hand MediaPipe's own classifier thinks it saw,
+        # assumed_handedness forces the detected hand onto that side — the
+        # label is unreliable on a tight single-hand crop (see PR #85). Since
+        # this detector will only ever report that one side, it returns just
+        # that side's 21 names rather than 42 with a dead right-hand half.
+        detector = make_detector(MediapipeHandKeypointDetector,
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="left"), full_session
+        )
+        kpts = detector.detect(test_image)
+        assert kpts.xyz.shape == (21, 3)
+        assert len(kpts.names) == 21
+        assert all(n.startswith("left_hand_") for n in kpts.names)
+        assert kpts.n_valid > 0, "Expected at least one detected hand on test image"
+
+    def test_assumed_handedness_right_returns_only_right_names(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipeHandKeypointDetector,
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="right"), full_session
+        )
+        kpts = detector.detect(test_image)
+        assert kpts.xyz.shape == (21, 3)
+        assert len(kpts.names) == 21
+        assert all(n.startswith("right_hand_") for n in kpts.names)
+        assert kpts.n_valid > 0, "Expected at least one detected hand on test image"
+
+    def test_assumed_handedness_undetected_hand_is_nan_with_correct_shape(self, full_session, make_detector):
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        detector = make_detector(MediapipeHandKeypointDetector,
+            MediapipeHandDetectorConfig(num_hands=1, assumed_handedness="right"), full_session
+        )
+        kpts = detector.detect(blank)
+        assert kpts.xyz.shape == (21, 3)
+        assert np.all(np.isnan(kpts.xyz))
+        assert np.all(kpts.visibility == 0.0)
+
+    def test_assumed_handedness_none_keeps_default_label_behavior(self, full_session, make_detector):
+        blank = np.zeros((480, 640, 3), dtype=np.uint8)
+        detector = make_detector(MediapipeHandKeypointDetector,
+            MediapipeHandDetectorConfig(assumed_handedness=None), full_session
         )
         kpts = detector.detect(blank)
         assert np.all(np.isnan(kpts.xyz))
@@ -129,8 +188,8 @@ class TestHandDetector:
 
 
 class TestFaceDetector:
-    def test_detect_returns_correct_shape(self, test_image, full_session):
-        detector = MediapipeFaceKeypointDetector.create(
+    def test_detect_returns_correct_shape(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipeFaceKeypointDetector,
             MediapipeFaceDetectorConfig(), full_session
         )
         kpts = detector.detect(test_image)
@@ -138,16 +197,16 @@ class TestFaceDetector:
         assert kpts.visibility.shape == (kpts.xyz.shape[0],)
         assert len(kpts.names) == kpts.xyz.shape[0]
 
-    def test_visibility_in_range(self, test_image, full_session):
-        detector = MediapipeFaceKeypointDetector.create(
+    def test_visibility_in_range(self, test_image, full_session, make_detector):
+        detector = make_detector(MediapipeFaceKeypointDetector,
             MediapipeFaceDetectorConfig(), full_session
         )
         kpts = detector.detect(test_image)
         assert np.all(kpts.visibility >= 0.0)
         assert np.all(kpts.visibility <= 1.0)
 
-    def test_point_names_use_face_prefix(self, full_session):
-        detector = MediapipeFaceKeypointDetector.create(
+    def test_point_names_use_face_prefix(self, full_session, make_detector):
+        detector = make_detector(MediapipeFaceKeypointDetector,
             MediapipeFaceDetectorConfig(), full_session
         )
         blank = np.zeros((10, 10, 3), dtype=np.uint8)
@@ -175,13 +234,17 @@ class TestTrackerIntegration:
         )
         sessions = {"mediapipe": full_session}
         tracker = Tracker.create(config, sessions)
-        state = TrackerState()
+        try:
+            state = TrackerState()
 
-        observation, state = tracker.process_image(test_image, frame_number=0, state=state)
+            observation, state = tracker.process_image(test_image, frame_number=0, state=state)
 
-        assert "body" in observation.stages
-        assert "hands" in observation.stages
-        assert "face" in observation.stages
-        assert observation.stages["body"].keypoints.has_name("nose")
-        assert observation.stages["hands"].keypoints.has_name("right_hand_wrist")
-        assert any(n.startswith("face_") for n in observation.stages["face"].keypoints.names)
+            assert "body" in observation.stages
+            assert "hands" in observation.stages
+            assert "face" in observation.stages
+            assert observation.stages["body"].keypoints.has_name("nose")
+            assert observation.stages["hands"].keypoints.has_name("right_hand_wrist")
+            assert any(n.startswith("face_") for n in observation.stages["face"].keypoints.names)
+
+        finally:
+            tracker.close()

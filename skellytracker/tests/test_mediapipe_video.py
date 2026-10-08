@@ -33,12 +33,15 @@ pytestmark = pytest.mark.video
 _N_FRAMES = 20
 
 
-def _load_video_frames(video_path: pathlib.Path, n_frames: int) -> list[np.ndarray]:
+def _load_video_frames(video_path: pathlib.Path, n_frames: int) -> tuple[list[np.ndarray], float]:
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"Could not open: {video_path}")
     frames = []
     try:
+        fps = float(cap.get(cv2.CAP_PROP_FPS))
+        if not np.isfinite(fps) or not 0 < fps <= 1000:
+            raise ValueError(f"Invalid video frame rate for millisecond timestamps: {fps}")
         for _ in range(n_frames):
             ok, frame = cap.read()
             if not ok:
@@ -46,7 +49,7 @@ def _load_video_frames(video_path: pathlib.Path, n_frames: int) -> list[np.ndarr
             frames.append(frame)
     finally:
         cap.release()
-    return frames
+    return frames, fps
 
 
 @pytest.fixture(scope="module")
@@ -60,7 +63,7 @@ class TestMultiFrameMediapipeTracker:
     @pytest.fixture(scope="class")
     @classmethod
     def multiframe_results(cls, test_video_path, mediapipe_session):
-        frames = _load_video_frames(test_video_path, _N_FRAMES)
+        frames, fps = _load_video_frames(test_video_path, _N_FRAMES)
         if not frames:
             pytest.skip("No frames read from test video")
         config = TrackerConfig(
@@ -78,10 +81,17 @@ class TestMultiFrameMediapipeTracker:
         tracker = Tracker.create(config, {"mediapipe": mediapipe_session})
         observations = []
         states = [TrackerState()]
-        for i, frame in enumerate(frames):
-            obs, state = tracker.process_image(frame, frame_number=i, state=states[-1])
-            observations.append(obs)
-            states.append(state)
+        try:
+            for i, frame in enumerate(frames):
+                # Recorded video time, not the speed of this machine's test loop.
+                obs, state = tracker.process_image(
+                    frame, frame_number=i, state=states[-1],
+                    timestamp_ms=round(i * 1000 / fps),
+                )
+                observations.append(obs)
+                states.append(state)
+        finally:
+            tracker.close()
         return observations, states, frames
 
     def test_all_frames_produce_observation(self, multiframe_results):

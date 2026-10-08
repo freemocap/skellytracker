@@ -62,6 +62,7 @@ dependencies = [
     "pyyaml>=6.0",
     "polars",
     "scipy",
+    "filelock>=4.0.8",
 ]
 requires-python = ">=3.11,<3.13"
 
@@ -237,3 +238,5 @@ lint      = { cmd = "ruff check skellytracker/", help = "Run all ruff lint rules
 lint-fix  = { cmd = "ruff check --fix skellytracker/", help = "Auto-fix all ruff lint violations" }
 test      = { cmd = "pytest", help = "Run full test suite" }
 test-fast = { cmd = "pytest -m 'not video'", help = "Run tests excluding slow video tests" }
+test-reference = { cmd = "pytest skellytracker/tests/test_rtmpose_video.py skellytracker/tests/test_yolox_video.py skellytracker/tests/test_mediapipe_video.py skellytracker/tests/test_mediapipe_detectors.py -v --fail-on-skip -p no:cacheprovider", env = { SKELLYTRACKER_TEST_PROVIDERS = "cpu,cuda" }, help = "Validate reference data on CPU and CUDA, plus MediaPipe" }
+benchmark-reference = { cmd = "python -m skellytracker.tests.benchmark_providers", help = "Benchmark CPU and CUDA on all reference cameras; save results under .test-artifacts" }

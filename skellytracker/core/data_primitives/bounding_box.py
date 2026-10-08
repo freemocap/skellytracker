@@ -80,12 +80,22 @@ class BoundingBox:
         )
 
     def clipped(self, image_height: int, image_width: int) -> BoundingBox:
-        """Clip the box to lie within image bounds."""
+        """Clip the box to lie within image bounds.
+
+        Each coordinate is clamped independently into [0, dim] rather than
+        x1/y1 only from below and x2/y2 only from above — a box lying
+        entirely past an edge (e.g. a keypoint-derived crop centered near the
+        frame boundary) would otherwise clip to x1/y1 past x2/y2 and violate
+        the x1<=x2/y1<=y2 invariant. Clamping each coordinate independently
+        is monotonic, so x1<=x2 and y1<=y2 always still hold afterwards —
+        collapsing to a zero-size box at the boundary is the correct
+        degenerate result when the box is fully out of frame.
+        """
         return BoundingBox(
-            x1=max(0.0, self.x1),
-            y1=max(0.0, self.y1),
-            x2=min(float(image_width), self.x2),
-            y2=min(float(image_height), self.y2),
+            x1=min(max(0.0, self.x1), float(image_width)),
+            y1=min(max(0.0, self.y1), float(image_height)),
+            x2=min(max(0.0, self.x2), float(image_width)),
+            y2=min(max(0.0, self.y2), float(image_height)),
             confidence=self.confidence,
         )
 

@@ -123,6 +123,7 @@ class OnnxSession(Session):
                     gpu_mem_limit=gpu_mem_limit,
                     device_id=device_id,
                     coreml_options=spec.coreml_options,
+                    intra_op_num_threads=config.intra_op_num_threads,
                 )
             except Exception as exc:
                 raise SessionCreationError(

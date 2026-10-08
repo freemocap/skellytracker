@@ -485,6 +485,7 @@ def build_tuned_ort_session(
     gpu_mem_limit: int = 2 * 1024 * 1024 * 1024,
     device_id: int = 0,
     coreml_options: dict | None = None,
+    intra_op_num_threads: int | None = None,
 ) -> ort.InferenceSession:
     """Construct an ORT session with explicit SessionOptions + provider options.
 
@@ -501,14 +502,24 @@ def build_tuned_ort_session(
         trt_set_batch_profile: If True, set TRT dynamic-batch optimization
                                profile. Requires max_batch_size to be set.
         gpu_mem_limit: GPU memory limit in bytes for CUDA EP arena.
+        intra_op_num_threads: Explicit thread budget (0 = ORT automatic).
+            None uses automatic CPU threading or one accelerator host thread.
     """
     if engine_cache_dir is None:
         engine_cache_dir = _default_engine_cache_dir()
 
     sess_options = ort.SessionOptions()
     sess_options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
-    sess_options.intra_op_num_threads = 1
+    if intra_op_num_threads is not None and intra_op_num_threads < 0:
+        raise ValueError("intra_op_num_threads must be nonnegative")
+    sess_options.intra_op_num_threads = (
+        intra_op_num_threads if intra_op_num_threads is not None else (0 if provider == "cpu" else 1)
+    )
     sess_options.inter_op_num_threads = 1
+    if provider == "cpu":
+        # Let ORT use the available cores, but release idle workers between
+        # detector and pose inference so their separate pools do not compete.
+        sess_options.add_session_config_entry("session.intra_op.allow_spinning", "0")
 
     if trt_set_batch_profile:
         engine_cache_dir = engine_cache_dir / "dynbatch_v1"

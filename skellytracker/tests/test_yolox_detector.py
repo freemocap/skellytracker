@@ -11,6 +11,8 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from skellytracker.tests.onnx_provider_checks import requested_providers, verify_session_provider
+
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
     YoloxPersonDetector,
     YoloxPersonDetectorConfig,
@@ -322,19 +324,24 @@ class TestYoloxPersonDetectorCreate:
 # (requires onnxruntime and network; skipped automatically otherwise)
 # ---------------------------------------------------------------------------
 
-@pytest.fixture(scope="module")
-def yolox_onnx_session():
+@pytest.fixture(scope="module", params=requested_providers(), ids=lambda p: p or "auto")
+def yolox_onnx_session(request):
     pytest.importorskip("onnxruntime", reason="onnxruntime not installed")
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
     import skellytracker.core.detectors.object_detectors.yolox  # noqa: F401
 
     config = OnnxSessionConfig(
+        execution_provider=request.param,
+        fp16=False,
         batch_size=1,
         models=[YoloxPersonDetector.model_spec("yolox-m")],
     )
     session = OnnxSession.create(config)
-    yield session
-    session.close()
+    try:
+        verify_session_provider(session, [model.name for model in config.models], request.param)
+        yield session
+    finally:
+        session.close()
 
 
 class TestYoloxInference:

@@ -316,7 +316,7 @@ class TrackerMapping:
         known_tracker_keypoints: set[str] | None = None,
     ) -> TrackerMapping:
         """Load a mapping from a YAML file."""
-        with open(yaml_path, "r") as fh:
+        with open(yaml_path, "r", encoding="utf-8") as fh:
             data = yaml.safe_load(fh)
         if not isinstance(data, dict):
             raise TypeError(

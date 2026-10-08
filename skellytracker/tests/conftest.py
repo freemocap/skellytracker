@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import pathlib
 import zipfile
 
@@ -22,15 +23,6 @@ _FREEMOCAP_CANONICAL_SYNC_DIR = (
     pathlib.Path.home() / "freemocap_data" / "recordings" / "freemocap_test_data" / "synchronized_videos"
 )
 _VIDEO_CACHE_DIR = pathlib.Path.home() / ".cache" / "skellytracker" / "test_data"
-
-
-class _SessionInfo:
-    test_image: np.ndarray | None = None
-    charuco_test_image: np.ndarray | None = None
-    download_error: str | None = None
-    charuco_download_error: str | None = None
-    sync_videos_dir: pathlib.Path | None = None
-    video_error: str | None = None
 
 
 def _cache_path(url: str) -> pathlib.Path:
@@ -68,6 +60,12 @@ def _load_or_download_image(url: str) -> np.ndarray | None:
 
 
 def _get_or_download_test_recording() -> pathlib.Path | None:
+    prepared = (
+        pathlib.Path.home() / "freemocap_data/testing/prepared/freemocap_test_data/current"
+        / "recordings/freemocap_test_data/synchronized_videos"
+    )
+    if prepared.is_dir() and list(prepared.glob("*.mp4")):
+        return prepared
     if _FREEMOCAP_CANONICAL_SYNC_DIR.exists():
         mp4s = list(_FREEMOCAP_CANONICAL_SYNC_DIR.glob("*.mp4"))
         if mp4s:
@@ -120,6 +118,17 @@ def _get_or_download_test_recording() -> pathlib.Path | None:
 
 def pytest_configure(config: pytest.Config) -> None:
     np.set_printoptions(threshold=20, edgeitems=3)
+    if os.environ.get("SKELLYTRACKER_TEST_PROVIDERS") is not None:
+        from skellytracker.tests.onnx_provider_checks import requested_providers
+        try:
+            import onnxruntime as ort
+            providers = requested_providers()
+        except (ImportError, ValueError) as error:
+            raise pytest.UsageError(f"Cannot run explicit provider matrix: {error}") from error
+        names = {"cpu": "CPUExecutionProvider", "cuda": "CUDAExecutionProvider"}
+        missing = [p for p in providers if names[p] not in ort.get_available_providers()]
+        if missing:
+            raise pytest.UsageError(f"Requested execution providers are unavailable: {missing}")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
@@ -142,51 +151,44 @@ def pytest_runtest_makereport(
         report.longrepr = f"[--fail-on-skip] {report.longrepr}"
 
 
-def pytest_sessionstart(session: pytest.Session) -> None:
+@pytest.fixture(scope="session")
+def _reference_image() -> np.ndarray:
     image = _load_or_download_image(_TEST_IMAGE_URL)
     if image is None:
-        _SessionInfo.download_error = f"Could not load test image from {_TEST_IMAGE_URL} after {_MAX_RETRIES} attempts"
-        logger.warning(_SessionInfo.download_error)
-    else:
-        _SessionInfo.test_image = image
+        pytest.skip(f"Could not load test image from {_TEST_IMAGE_URL}")
+    return image
 
+
+@pytest.fixture(scope="session")
+def _reference_charuco_image() -> np.ndarray:
     charuco_image = _load_or_download_image(_CHARUCO_TEST_IMAGE_URL)
     if charuco_image is None:
-        _SessionInfo.charuco_download_error = f"Could not load charuco test image from {_CHARUCO_TEST_IMAGE_URL} after {_MAX_RETRIES} attempts"
-        logger.warning(_SessionInfo.charuco_download_error)
-    else:
-        _SessionInfo.charuco_test_image = charuco_image
-
-    result = _get_or_download_test_recording()
-    if result is None:
-        _SessionInfo.video_error = (
-            f"Could not load test recording. Checked {_FREEMOCAP_CANONICAL_SYNC_DIR} "
-            f"and tried downloading from {_TEST_RECORDING_URL}."
-        )
-        logger.warning(_SessionInfo.video_error)
-    else:
-        _SessionInfo.sync_videos_dir = result
+        pytest.skip(f"Could not load charuco test image from {_CHARUCO_TEST_IMAGE_URL}")
+    return charuco_image
 
 
 @pytest.fixture()
-def test_image() -> np.ndarray:
-    if _SessionInfo.download_error is not None:
-        pytest.skip(_SessionInfo.download_error)
-    return _SessionInfo.test_image
+def test_image(_reference_image) -> np.ndarray:
+    return _reference_image.copy()
 
 
 @pytest.fixture()
-def charuco_test_image() -> np.ndarray:
-    if _SessionInfo.charuco_download_error is not None:
-        pytest.skip(_SessionInfo.charuco_download_error)
-    return _SessionInfo.charuco_test_image
+def charuco_test_image(_reference_charuco_image) -> np.ndarray:
+    return _reference_charuco_image.copy()
 
 
 @pytest.fixture(scope="session")
 def sync_videos_dir() -> pathlib.Path:
-    if _SessionInfo.video_error is not None:
-        pytest.skip(_SessionInfo.video_error)
-    return _SessionInfo.sync_videos_dir
+    explicit = os.environ.get("SKELLYTRACKER_TEST_VIDEO_DIR")
+    if explicit:
+        directory = pathlib.Path(explicit).resolve()
+        if not directory.is_dir() or not list(directory.glob("*.mp4")):
+            pytest.fail(f"No reference MP4 videos in {directory}")
+        return directory
+    result = _get_or_download_test_recording()
+    if result is None:
+        pytest.skip("Reference recording unavailable")
+    return result
 
 
 @pytest.fixture(scope="session")

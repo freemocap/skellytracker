@@ -1,5 +1,87 @@
 # Tests
 
+## Explicit CPU and CUDA reference validation
+
+From the repository root, the normal entry points are:
+
+```powershell
+uv run --extra all-cuda poe test-reference
+uv run --extra all-cuda poe benchmark-reference
+```
+
+These find the prepared `freemocap_test_data` recording in `~/freemocap_data/testing/`
+automatically. The test command runs CPU and CUDA explicitly, plus MediaPipe checks.
+The benchmark command compares CPU and CUDA across all cameras. If the environment
+is already activated and configured with `all-cuda`, `poe test-reference` and
+`poe benchmark-reference` work directly. The `--extra all-cuda` on `uv run` preserves
+the inference dependencies when uv synchronizes the environment.
+
+The commands below describe optional overrides, not required setup.
+
+On an NVIDIA machine, `uv sync --locked --extra all-cuda` installs the GPU
+runtime, which also supports CPU execution. Do not combine `all-cpu` and
+`all-cuda` in the same environment. Installation is a separate environment step.
+
+The YOLOX and RTMPose image/video session fixtures accept a provider matrix.
+With no environment setting they retain automatic provider selection. To test
+both explicitly in PowerShell, from the repository root:
+
+```powershell
+$env:SKELLYTRACKER_TEST_PROVIDERS = "cpu,cuda"
+$env:SKELLYTRACKER_TEST_VIDEO_DIR = "C:\path\to\reference\synchronized_videos"
+.venv/Scripts/python.exe -m pytest skellytracker/tests/test_rtmpose_video.py skellytracker/tests/test_yolox_video.py -v --fail-on-skip
+```
+
+These existing video tests use the first camera alphabetically and their usual
+15/20-frame samples. They now check the requested provider is actually first in
+each loaded model session. A failed CUDA initialization cannot be counted as a
+successful CPU fallback. CUDA may still execute unsupported/shape operations on
+CPU; these checks do not profile individual graph nodes. When a provider matrix
+is explicitly requested, a missing runtime/provider fails test setup rather than
+silently skipping it. MediaPipe uses its own backend and is not a CUDA ONNX test.
+
+Reference assets are loaded only when a fixture needs them. A supplied video
+directory is read directly, without downloading another recording. Image tests
+still use the published reference images and their existing cache.
+
+For a repeatable timing comparison across **all cameras**:
+
+```powershell
+.venv/Scripts/python.exe -m skellytracker.tests.benchmark_providers $env:SKELLYTRACKER_TEST_VIDEO_DIR --providers cpu cuda --frames 30 --repeats 3
+```
+
+The benchmark uses the same decoded initial frames, FP32 models and batch size 1
+for both routes, with fresh tracking state for each camera/repetition. Setup and
+runtime warm-up are reported separately; three additional tracker warm-up frames
+are excluded from latency. Reports include per-camera/per-run mean, median, p95
+and throughput, active session providers, and CPU/CUDA coordinate agreement.
+This measures `Tracker.process_image`, including preprocessing and tracking, but
+excludes decoding, annotation, and encoding. It is not a full application FPS
+measurement, a batched multi-camera benchmark, or a ground-truth accuracy score.
+Run on an otherwise idle machine; reverse provider order for a confirmation run
+if thermal/load effects are suspected. No hardware-dependent speed threshold is
+used as a correctness assertion.
+
+This workload runs YOLOX-m and RTMW-x-l on every frame, without reusing tracked
+crops. It measures individual camera images processed sequentially, not synchronized
+three-camera frame sets. Applications that reuse crops between person detections
+have a different workload. Reports include each model's ONNX thread settings;
+CPU defaults to automatic threading with idle spinning disabled, while accelerator
+host threading remains at one. `OnnxSessionConfig.intra_op_num_threads` can set a
+smaller thread budget for applications running multiple CPU workers.
+
+JSON and first-pass keypoint arrays go to ignored `.test-artifacts/provider-benchmark/`.
+The report has `completed: true` only when all requested providers finish.
+CPU-only package installation should also be covered in a separate environment
+or CI job; CPU execution within the GPU package does not validate that packaging.
+
+After testing, clear the overrides if returning to automatic selection:
+
+```powershell
+Remove-Item Env:SKELLYTRACKER_TEST_PROVIDERS
+Remove-Item Env:SKELLYTRACKER_TEST_VIDEO_DIR
+```
+
 ## Spine mapping regression (2026-09-24)
 
 `test_spine_midpoint_mapping.py` loads the shipped RTMPose and MediaPipe mappings.
