@@ -10,6 +10,7 @@ Usage::
     uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --model rtmw-x-l_384x288
     uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --provider cpu
     uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --no-detector
+    uv run python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --redetect-frames 1
 """
 from __future__ import annotations
 
@@ -35,6 +36,7 @@ from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector i
 from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
 from skellytracker.core.tracker.tracker import Tracker
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
+from skellytracker.core.temporal_processing.temporal_processing_config import BBoxPolicyConfig
 
 
 def build_rtmpose_demo(
@@ -42,6 +44,7 @@ def build_rtmpose_demo(
     provider: ExecutionProviderName | None = None,
     use_person_detector: bool = True,
     camera_index: int = 0,
+    redetect_frames: int = 100,
 ) -> DemoManager:
     """Build a DemoManager for the RTMPose wholebody tracker.
 
@@ -60,7 +63,13 @@ def build_rtmpose_demo(
         frame — faster but less accurate when the subject is small.
     camera_index:
         OpenCV camera index (passed to DemoManager, unused here).
+    redetect_frames:
+        Maximum processed frames between person detections (default: 100).
+        Tracking loss requests detection on the next frame. Set 1 for detection
+        every frame. Ignored when use_person_detector is False.
     """
+    if redetect_frames < 1:
+        raise ValueError("redetect_frames must be at least 1")
     models = [RTMPoseKeypointDetector.model_spec(model_name)]
     if use_person_detector:
         models.insert(0, YoloxPersonDetector.model_spec("yolox-m"))
@@ -77,6 +86,10 @@ def build_rtmpose_demo(
         name="wholebody",
         object_detector=object_detector_config,
         keypoint_detectors=[RTMPoseDetectorConfig(model_name=model_name)],
+        bbox_policy=(
+            BBoxPolicyConfig(redetect_interval=redetect_frames, keypoint_bbox_expansion=0.05)
+            if use_person_detector else BBoxPolicyConfig()
+        ),
     )
 
     tracker = Tracker.create(
@@ -123,12 +136,19 @@ def main() -> None:
         action="store_true",
         help="Skip YOLOX person detection; run RTMPose on the full frame",
     )
+    parser.add_argument(
+        "--redetect-frames", type=int, default=100,
+        help="Maximum processed frames between person detections; loss triggers earlier detection (default: 100; 1 = every frame)",
+    )
     args = parser.parse_args()
+    if args.redetect_frames < 1:
+        parser.error("--redetect-frames must be at least 1")
 
     demo = build_rtmpose_demo(
         model_name=args.model,
         provider=args.provider,
         use_person_detector=not args.no_detector,
+        redetect_frames=args.redetect_frames,
     )
     demo.run_webcam(camera_index=args.camera)
 

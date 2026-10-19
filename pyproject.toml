@@ -54,7 +54,9 @@ keywords = [
 dependencies = [
     "opencv-contrib-python",
     "pydantic==2.*",
-    "numpy==2.4.6",
+    # Allow Intel consumers to use NumPy 2.2 with older native dependencies.
+    "numpy>=2.2.6,<2.5; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "numpy==2.4.6; sys_platform != 'darwin' or platform_machine != 'x86_64'",
     "tqdm==4.*",
     "numpydantic>=1.6.7",
     "requests>=2.32.3",
@@ -86,7 +88,13 @@ onnx = ["onnx"]
 # used by the RTMPose + YOLOX detectors for inference.
 
 # CPU — any platform. Also enables CoreML EP on macOS with Apple Silicon.
-onnx-cpu = ["onnxruntime"]
+# 1.23.2 provides macOS 13+ Intel wheels; newer CPU releases are ARM-only
+# on macOS. Keep other platforms on their existing unconstrained runtime.
+# https://pypi.org/project/onnxruntime/1.23.2/#files
+onnx-cpu = [
+    "onnxruntime==1.23.2; sys_platform == 'darwin' and platform_machine == 'x86_64'",
+    "onnxruntime; sys_platform != 'darwin' or platform_machine != 'x86_64'",
+]
 
 # NVIDIA GPU via CUDA 12 (Linux / Windows).
 # Bundles the CUDA 12 + cuDNN 9 runtime DLLs as pip packages so users

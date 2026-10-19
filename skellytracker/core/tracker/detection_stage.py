@@ -177,6 +177,7 @@ class DetectionStage:
             last_keypoints=merged,
             consecutive_misses=updated_misses,
             consecutive_resets=updated_resets,
+            needs_redetection=self.bbox_policy.needs_recovery(bboxes, raw_keypoints),
         )
         return obs, updated_state
 
@@ -381,6 +382,9 @@ class DetectionStage:
             last_keypoints=merged,
             consecutive_misses=updated_misses,
             consecutive_resets=updated_resets,
+            needs_redetection=self.bbox_policy.needs_recovery(
+                [raw_detection.bbox], raw_detection.keypoints
+            ),
         )
         return obs, updated_state
 
@@ -554,6 +558,7 @@ class DetectionStage:
         # Collect per-detector results: list indexed by detector index, each a
         # dict from cam_id → (Keypoints, KeypointSmoothingState)
         all_detector_results: list[dict[str, tuple[Keypoints, KeypointSmoothingState]]] = []
+        raw_keypoints_per_cam: dict[str, list[Keypoints]] = {c: [] for c in cam_ids}
         # Per-camera consecutive-miss/-reset counters, appended to in detector order
         # (index i) so misses_per_cam[cam_id][i] lines up with keypoint_detectors[i].
         misses_per_cam: dict[str, list[int]] = {cam_id: [] for cam_id in cam_ids}
@@ -616,6 +621,7 @@ class DetectionStage:
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)
+                    raw_keypoints_per_cam[cam_id].append(kpts)
                     _update_misses(cam_id, detector, kpts, i)
                     state = states.get(cam_id, StageState())
                     kp_state = (
@@ -642,6 +648,7 @@ class DetectionStage:
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)
+                    raw_keypoints_per_cam[cam_id].append(kpts)
                     _update_misses(cam_id, cam_detector, kpts, i)
                     state = states.get(cam_id, StageState())
                     kp_state = (
@@ -726,6 +733,9 @@ class DetectionStage:
                 last_keypoints=merged_per_cam[cam_id],
                 consecutive_misses=misses_per_cam[cam_id],
                 consecutive_resets=resets_per_cam[cam_id],
+                needs_redetection=self.bbox_policy.needs_recovery(
+                    bboxes_per_cam[cam_id], raw_keypoints_per_cam[cam_id]
+                ),
             )
 
         return obs_out, states_out

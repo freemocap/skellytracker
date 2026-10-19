@@ -77,6 +77,9 @@ class StageState:
     # effective miss threshold instead of re-firing at a fixed cadence forever
     # while the subject stays out of frame. Cleared back to 0 on any real detection.
     consecutive_resets: list[int] = field(default_factory=list)
+    # The latest frame had no object box or no usable raw tracking measurement.
+    # Separate from smoothed keypoints and reset counters, which can hide misses.
+    needs_redetection: bool = False
 
 
 @dataclass

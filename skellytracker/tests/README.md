@@ -1,5 +1,24 @@
 # Tests
 
+## Detection recovery
+
+`test_redetection_recovery.py` exercises real stage scheduling with deterministic
+detector outputs in single-frame, batched ONNX, and batched CPU paths. It covers
+failed object detection, missing/low-confidence/nonfinite keypoints, degenerate
+keypoint crops, repeated retries, reacquisition, periodic refresh, object-only
+stages, and camera-specific loss. Gap-filled keypoints and reset miss counters
+must not hide a failed measurement. ONNX batches preserve synchronized detection
+when any camera loses tracking.
+
+```bash
+.venv/bin/python -m pytest skellytracker/tests/test_redetection_recovery.py -q -p no:cacheprovider
+```
+
+The wholebody webcam demo configures this shared policy with a 100-processed-frame
+maximum interval and keypoint-based crop updates. `--redetect-frames 1` restores
+every-frame person detection for comparison. `test_rtmpose_demo_cli.py` checks
+option forwarding, interval validation, and the wholebody alias entry point.
+
 ## Explicit CPU and CUDA reference validation
 
 From the repository root, the normal entry points are:

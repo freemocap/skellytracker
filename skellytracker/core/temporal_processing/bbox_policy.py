@@ -150,9 +150,32 @@ class BBoxPolicy:
     min_detected_bbox_ratio: float | None = 0.5
     min_bbox_size_px: float = 80.0
 
+    def needs_recovery(self, bboxes: list[BoundingBox], raw_keypoints: list[Keypoints]) -> bool:
+        """Decide whether this frame can support crop reuse on the next frame.
+
+        Use measurements before smoothing or reset bookkeeping can hide loss.
+        Object-only stages need a box; keypoint-tracked crops additionally need
+        visible finite points spanning a nondegenerate region.
+        """
+        if not bboxes:
+            return True
+        if not raw_keypoints:
+            return False
+        points = Keypoints.concatenate(raw_keypoints)
+        mask = (
+            np.isfinite(points.xyz).all(axis=1)
+            & (points.visibility > 0)
+            & (points.visibility >= self.keypoint_bbox_min_visibility)
+        )
+        if not mask.any():
+            return True
+        if self.keypoint_bbox_expansion is not None:
+            return bool(np.any(np.ptp(points.xy[mask], axis=0) <= 0))
+        return False
+
     def should_redetect(self, frame_number: int, stage_state: StageState) -> bool:
         last = stage_state.bbox_state.last_detection_frame
-        if last is None:
+        if last is None or stage_state.needs_redetection:
             return True
         if (frame_number - last) >= self.redetect_interval:
             return True

@@ -48,6 +48,10 @@ class BBoxPolicyConfig(BaseModel):
     When the detector is skipped, the bbox for the current frame can either be
     re-derived from the previous frame's keypoints (if keypoint_bbox_expansion is
     set) or simply reused from the last detection (the default).
+
+    The interval is an upper bound: a failed object detection or unusable raw
+    keypoint measurement requests detection on the next frame, independently
+    of optional fitness checks. Temporal smoothing cannot suppress that request.
     """
 
     redetect_interval: int = 1

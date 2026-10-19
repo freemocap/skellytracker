@@ -17,7 +17,7 @@ Add extras to enable additional tracker backends. Pick the bundle that matches y
 
 | Extra | Hardware | What's included |
 |---|---|---|
-| `recommended-cpu` | Any platform (CPU / Apple Silicon) | MediaPipe + RTMPose + YOLOX on CPU; enables CoreML EP on macOS |
+| `recommended-cpu` | Windows/Linux CPU or Apple Silicon | MediaPipe + RTMPose + YOLOX on CPU; enables CoreML EP on macOS |
 | `recommended-cuda` | NVIDIA GPU (Linux / Windows) | MediaPipe + RTMPose + YOLOX with TensorRT (best performance) |
 | `all-cpu` | Same as `recommended-cpu` | — |
 | `all-cuda` | NVIDIA GPU, CUDA 12 only | MediaPipe + RTMPose + YOLOX via CUDA EP (no TensorRT) |
@@ -54,7 +54,59 @@ Available granular extras: `mediapipe`, `onnx`, `onnx-cpu`, `onnx-cuda`, `onnx-t
 
 > **Note:** `onnx-*` backend extras are mutually exclusive — install exactly one.
 
+### Experimental Intel Mac CPU support
+
+For Intel macOS, select `onnx,onnx-cpu` instead of the MediaPipe-containing
+`all-cpu` / `recommended-cpu` bundles. The CPU extra pins ONNX Runtime to 1.23.2
+on Intel macOS only; its [Intel wheels](https://pypi.org/project/onnxruntime/1.23.2/#files)
+require macOS 13 or later. Other platforms retain their existing runtime selection.
+The minimum OS version of the complete dependency set has not been validated.
+
+From this checkout, using an isolated Python 3.11 environment:
+
+```bash
+uv pip install --python .venv/bin/python ".[onnx,onnx-cpu]" "beartype>=0.22.9,<0.23" pytest
+```
+
+The explicit Beartype constraint matches FreeMoCap's existing compatibility
+constraint. This is a package-install experiment, not validation of `uv sync`:
+the repository lockfile has not been refreshed, and the default development
+group also includes SkellyForge. No sibling repositories are needed for this
+ONNX-only installation.
+
+On 2026-10-18, macOS 14.3.1 x86_64 / Python 3.11.2 passed 76 focused tests:
+10 CPU session/threading and shared-session checks, plus 66 YOLOX/RTMPose image
+and video checks. The latter used explicit `CPUExecutionProvider`, the published
+reference image, and the existing `freemocap_test_data` synchronized recording
+(15 RTMPose frames and 20 YOLOX frames from the first camera). No tests skipped.
+Installed versions included ONNX Runtime 1.23.2, ONNX 1.23.2, NumPy 2.4.6,
+OpenCV-contrib 5.0.0.93, and Beartype 0.22.9.
+
+Use `execution_provider="cpu"` in `OnnxSessionConfig` to reproduce that provider
+selection. This runtime also advertises CoreML on Intel, which automatic
+selection can prefer; CoreML was not tested. These results do not establish
+realtime throughput, MediaPipe support, or FreeMoCap installer compatibility.
+
 ## Quick start
+
+### RTMPose webcam demo
+
+From an environment with `onnx,onnx-cpu` installed:
+
+```bash
+.venv/bin/python -m skellytracker.core.detectors.keypoint_detectors.rtmpose.run_demo --provider cpu --camera 0
+```
+
+The demo runs RTMPose on every processed frame, updating its crop from keypoints.
+YOLOX person detection runs initially, at most 100 processed frames after its
+last run, or on the next frame after tracking is lost. Failed detections keep
+requesting detection until tracking recovers. This uses the shared `BBoxPolicy`;
+the webcam loop contains no separate recovery logic.
+
+Use `--redetect-frames 1` to compare with every-frame person detection, or another
+positive interval to tune the tradeoff. The interval counts processed frames,
+not camera frames or elapsed seconds. `--no-detector` still skips YOLOX entirely.
+The `rtmpose.wholebody.run_demo` entry point uses the same command-line options.
 
 ### MediaPipe (pose, hands, face)
 
