@@ -1,0 +1,25 @@
+---
+# RTMPose single-hand schema (21 landmarks). Used for both sides — the
+# wholebody composition adds side-specific prefixes (left_hand_ / right_hand_).
+# Ported verbatim from rtmpose/hand/rtmpose_hand.yaml (M4b migration).
+- root
+- thumb1
+- thumb2
+- thumb3
+- thumb4
+- forefinger1
+- forefinger2
+- forefinger3
+- forefinger4
+- middle_finger1
+- middle_finger2
+- middle_finger3
+- middle_finger4
+- ring_finger1
+- ring_finger2
+- ring_finger3
+- ring_finger4
+- pinky_finger1
+- pinky_finger2
+- pinky_finger3
+- pinky_finger4

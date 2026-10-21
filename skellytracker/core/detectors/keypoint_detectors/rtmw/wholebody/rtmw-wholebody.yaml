@@ -1,0 +1,101 @@
+---
+schema_version: "v2024.09.1019"
+model_id: rtmw-wholebody
+display_name: RTMW WholeBody
+role: [pose_estimator]
+
+input:
+  name: input
+  dtype:
+    fp32: float32
+  layout: NCHW
+  normalization: imagenet_bgr
+  resize:
+    method: affine_person_crop
+    interpolation: linear
+    crop_policy:
+      expand_ratio: 1.25
+      maintain_aspect_ratio: true
+
+batching:
+  batch_axis: 0
+
+outputs:
+  - name: simcc_x
+    dtype:
+      fp32: float32
+    semantic: simcc_x
+    keypoint_axis: 1
+    keypoint_count: 133
+  - name: simcc_y
+    dtype:
+      fp32: float32
+    semantic: simcc_y
+    keypoint_axis: 1
+    keypoint_count: 133
+
+pose:
+  estimator_type: top_down_single_person
+  requires_object_detector: true
+  landmark_schema: COCO_WholeBody
+  tracked_points: {$ref: ../../../shared/skeletons/coco133_tracked_points.yaml}
+  connections: {$ref: ../../../shared/skeletons/coco133_skeletons.yaml}
+  canonical_mapping: {$ref: rtmw_wholebody_to_canonical_mapping.yaml}
+  decode:
+    method: simcc
+
+overlay:
+  skeleton: rtmpose_skeleton
+  groups:
+    right_hand:
+      prefix: right_hand_
+      connection_color: [0, 100, 255]
+    left_hand:
+      prefix: left_hand_
+      connection_color: [255, 100, 0]
+    face:
+      prefix: face_
+      connection_color: [200, 0, 200]
+    body:
+      connection_color: [0, 200, 100]
+
+sizes:
+  rtmw-l-m_256x192:
+    input:
+      shape: [-1, 3, 256, 192]
+      resize:
+        target_size: [256, 192]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: rtmw-l-m_256x192_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmw/onnx_sdk/rtmw-dw-l-m_simcc-cocktail14_270e-256x192_20231122.zip
+              url_sha256: "a6d08a575c9d8b8da7ce6c13e1c7341047fca35594a6d35de04b739eba51139c"
+  rtmw-x-l_256x192:
+    input:
+      shape: [-1, 3, 256, 192]
+      resize:
+        target_size: [256, 192]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: rtmw-x-l_256x192_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmw/onnx_sdk/rtmw-dw-x-l_simcc-cocktail14_270e-256x192_20231122.zip
+              url_sha256: "1e3e77558dfc199129bfff1c583e51b4ee190914de6ae30688243c20163c148c"
+  rtmw-x-l_384x288:
+    input:
+      shape: [-1, 3, 384, 288]
+      resize:
+        target_size: [384, 288]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: rtmw-x-l_384x288_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmw/onnx_sdk/rtmw-dw-x-l_simcc-cocktail14_270e-384x288_20231122.zip
+              url_sha256: "a87e1af41a0a067776dba7d46e1c21c8f6e9f18e247e0e606718dd1f31e96ffd"

@@ -1,0 +1,76 @@
+---
+schema_version: "v2024.09.1019"
+model_id: rtmpose-body
+display_name: RTMPose Body
+role: [pose_estimator]
+
+input:
+  name: input
+  dtype:
+    fp32: float32
+  layout: NCHW
+  normalization: imagenet_bgr
+  resize:
+    method: affine_person_crop
+    interpolation: linear
+    crop_policy:
+      expand_ratio: 1.25
+      maintain_aspect_ratio: true
+
+batching:
+  batch_axis: 0
+
+outputs:
+  - name: simcc_x
+    dtype:
+      fp32: float32
+    semantic: simcc_x
+    keypoint_axis: 1
+    keypoint_count: 17
+  - name: simcc_y
+    dtype:
+      fp32: float32
+    semantic: simcc_y
+    keypoint_axis: 1
+    keypoint_count: 17
+
+pose:
+  estimator_type: top_down_single_person
+  requires_object_detector: true
+  landmark_schema: COCO17
+  tracked_points: {$ref: ../../../shared/skeletons/coco17_tracked_points.yaml}
+  connections: {$ref: ../../../shared/skeletons/coco17_skeletons.yaml}
+  canonical_mapping: {$ref: rtmpose_body17_to_canonical_mapping.yaml}
+  decode:
+    method: simcc
+
+overlay:
+  skeleton: rtmpose_body_skeleton
+
+sizes:
+  rtmpose-s_256x192:
+    input:
+      shape: [-1, 3, 256, 192]
+      resize:
+        target_size: [256, 192]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: rtmpose-s_256x192_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-s_simcc-body7_pt-body7_420e-256x192-acd4a1ef_20230504.zip
+              url_sha256: "7673922e531014906ca4f0f239b7e233b740146a10b632deaa2a28d45470d802"
+  rtmpose-m_256x192:
+    input:
+      shape: [-1, 3, 256, 192]
+      resize:
+        target_size: [256, 192]
+    onnx:
+      batch_artifacts:
+        "1":
+          precision_artifacts:
+            fp32:
+              filename: rtmpose-m_256x192_b1_fp32.onnx
+              url: https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip
+              url_sha256: "f7fbb6c5c11a1bb70f3d445e4ddec5d144ea89ad5649c081ef976f9b24a0b741"
