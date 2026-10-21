@@ -14,8 +14,9 @@
 | # | Area | Change | Driven by | Section |
 |---|------|--------|-----------|---------|
 | 1 | Resize | New `input.resize.method: stretch` (independent x/y resize, no pad). | RF-DETR | [`input.resize`](#inputresize) |
-| 2 | Resize | Letterbox gains **required** `pad_position` (`top_left` \| `center`) and `rounding` (`half_even` \| `half_up`), with normative centre offsets and an exact-inverse unprojection. `pad_value` accepts a scalar or a per-channel array. | YOLO26 (centre, half-even), RTMDet (top-left, half-up) | [`input.resize`](#inputresize) |
-| 3 | Resize | Normative unprojection for each method. All resizes are defined as **non-antialiased**. | all | [Unprojection](#unprojection) |
+| 2 | Resize | New `input.resize.method: fit` (full-frame affine fit with centered fractional padding and a constant border value). | RTMO Body7 | [`input.resize`](#inputresize) |
+| 3 | Resize | Letterbox gains **required** `pad_position` (`top_left` \| `center`) and `rounding` (`half_even` \| `half_up`), with normative centre offsets and an exact-inverse unprojection. `pad_value` accepts a scalar or a per-channel array. | YOLO26 (centre, half-even), RTMDet (top-left, half-up) | [`input.resize`](#inputresize) |
+| 4 | Resize | Normative unprojection for each method. All resizes are defined as **non-antialiased**. | all | [Unprojection](#unprojection) |
 | 4 | Resize | `affine_person_crop` defines `maintain_aspect_ratio` and adds `crop_policy.pad_value`. | RTMW | [`input.resize`](#inputresize) |
 | 5 | Input | New `input.color_format` (`rgb` \| `bgr`), required when normalization is channel-agnostic (`none`/`unit_float`). `none` now means "pixels unchanged in `input.dtype`" (not only uint8). The `imagenet_*` channel order is spelled out. **Behaviour change:** at `vNEXT`, `imagenet_bgr` applies BGR-ordered statistics (B mean `103.53`). Legacy sidecars keep the old meaning (the RGB-ordered tuple on BGR pixels, as rtmlib does). | YOLO26, RF-DETR, RTMDet | [`input`](#input), [Normalization modes](#normalization-modes) |
 | 6 | Outputs | New detection semantics `boxes`, `scores` and `class_logits`, with `class_axis`. Output names must be unique. | RF-DETR (`dets` + `labels` logits), RTMDet (`boxes` + `scores`) | [Detection output semantics](#detection-output-semantics) |

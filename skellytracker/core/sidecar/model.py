@@ -76,20 +76,39 @@ class CropPolicySpec(_StrictModel):
 
 
 class ResizeSpec(_StrictModel):
-    method: Literal["letterbox", "affine_person_crop", "none"]
+    method: Literal["letterbox", "stretch", "fit", "affine_person_crop", "none"]
     target_size: tuple[int, int] | None = None
     supports_dynamic_size: bool = False
     preserve_aspect_ratio: bool | None = None
-    pad_value: int | None = None
+    pad_position: Literal["top_left", "center"] | None = None
+    rounding: Literal["half_even", "half_up"] | None = None
+    pad_value: int | float | tuple[int | float, ...] | list[int | float] | None = None
     interpolation: Literal["linear", "area", "cubic", "nearest"] = "linear"
     crop_policy: CropPolicySpec | None = None
 
     @model_validator(mode="after")
     def _check_method_specific_fields(self) -> "ResizeSpec":
+        if isinstance(self.pad_value, (list, tuple)) and len(self.pad_value) != 3:
+            raise ValueError("resize.pad_value must be a scalar or a length-3 array")
+
         if self.crop_policy is not None and self.method != "affine_person_crop":
             raise ValueError("resize.crop_policy is only valid when method: affine_person_crop")
-        if (self.pad_value is not None or self.preserve_aspect_ratio is not None) and self.method != "letterbox":
-            raise ValueError("resize.pad_value/preserve_aspect_ratio are only valid when method: letterbox")
+        if self.method == "fit":
+            if self.pad_position is not None:
+                raise ValueError("resize.pad_position is invalid when method: fit")
+            if self.rounding is not None:
+                raise ValueError("resize.rounding is invalid when method: fit")
+            if self.preserve_aspect_ratio is not None:
+                raise ValueError("resize.preserve_aspect_ratio is invalid when method: fit")
+        else:
+            if (self.pad_value is not None or self.preserve_aspect_ratio is not None) and self.method not in ("letterbox",):
+                raise ValueError("resize.pad_value/preserve_aspect_ratio are only valid when method: letterbox")
+        if self.method not in ("letterbox", "fit") and self.pad_position is not None:
+            raise ValueError("resize.pad_position is only valid when method: letterbox")
+        if self.method not in ("letterbox", "fit") and self.rounding is not None:
+            raise ValueError("resize.rounding is only valid when method: letterbox")
+        if self.method not in ("letterbox", "fit") and self.pad_value is not None:
+            raise ValueError("resize.pad_value is only valid when method: letterbox or fit")
         if self.method == "none" and self.target_size is not None:
             raise ValueError("resize.target_size must be omitted when method: none")
         return self
@@ -134,7 +153,7 @@ class SizedInputSpec(InputSpec):
                     f"for layout {self.layout}"
                 )
         if self.resize is not None:
-            needs_target = self.resize.method in ("letterbox", "affine_person_crop") and not self.resize.supports_dynamic_size
+            needs_target = self.resize.method in ("letterbox", "stretch", "fit", "affine_person_crop") and not self.resize.supports_dynamic_size
             if needs_target and self.resize.target_size is None:
                 raise ValueError(
                     f"input.resize.target_size is required when method={self.resize.method!r} "

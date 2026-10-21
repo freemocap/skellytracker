@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 import pytest
 
 from skellytracker.core.detectors.processing.image_preprocessing import (
     build_normalization_fn,
+    fit_preprocess,
     letterbox_preprocess,
     preprocess_image,
     resolve_normalization_mode,
@@ -59,6 +61,26 @@ class TestLetterboxPreprocess:
         img = np.zeros((100, 100, 3), dtype=np.uint8)
         padded, _ = letterbox_preprocess(img, (416, 416))
         assert padded.dtype == np.uint8
+
+
+class TestFitPreprocess:
+    def test_fit_scales_and_centers_full_frame(self):
+        img = np.zeros((240, 320, 3), dtype=np.uint8)
+        img[20:80, 30:90] = 255
+
+        padded, (scale, left, top) = fit_preprocess(
+            img,
+            (640, 480),
+            pad_value=114,
+            interpolation=cv2.INTER_LINEAR,
+        )
+
+        assert padded.shape == (640, 480, 3)
+        assert scale == pytest.approx(1.5)
+        assert left == pytest.approx(0.0)
+        assert top == pytest.approx(140.0)
+        assert padded[0, 0, 0] == 114
+        assert padded[170, 45, 0] == 255
 
 
 # ---------------------------------------------------------------------------

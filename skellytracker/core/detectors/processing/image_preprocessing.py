@@ -120,6 +120,41 @@ def letterbox_preprocess(
     return padded_img, ratio
 
 
+def fit_preprocess(
+    img: NDArray[np.uint8],
+    target_size: tuple[int, int],
+    pad_value: int | float | tuple[float, ...] | list[float] = 0,
+    interpolation: int = cv2.INTER_LINEAR,
+) -> tuple[NDArray[np.uint8], tuple[float, float, float]]:
+    """Full-frame affine fit resize centered on the target canvas.
+
+    Returns `(padded_img, (scale, left, top))` where `scale` is the uniform
+    affine scale factor and `(left, top)` are the fractional canvas offsets
+    used by the warp matrix.
+    """
+    target_h, target_w = target_size
+    src_h, src_w = img.shape[:2]
+    scale = min(target_w / src_w, target_h / src_h)
+    left = (target_w - src_w * scale) / 2.0
+    top = (target_h - src_h * scale) / 2.0
+
+    M = np.array([[scale, 0.0, left], [0.0, scale, top]], dtype=np.float64)
+    if isinstance(pad_value, (list, tuple, np.ndarray)):
+        border_value = tuple(float(v) for v in pad_value)
+    else:
+        border_value = float(pad_value)
+
+    padded_img = cv2.warpAffine(
+        img,
+        M,
+        (target_w, target_h),
+        flags=interpolation,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=border_value,
+    )
+    return padded_img, (float(scale), float(left), float(top))
+
+
 def preprocess_image(
     image: NDArray[np.uint8],
     target_size: tuple[int, int],
@@ -153,7 +188,7 @@ def preprocess_image(
             "preprocess_image requires input.resize to be declared"
         )
 
-    resize_meta: float | tuple[NDArray[np.float64], NDArray[np.float64]]
+    resize_meta: float | tuple[float, float, float] | tuple[NDArray[np.float64], NDArray[np.float64]]
 
     if resize.method == "letterbox":
         if resize.preserve_aspect_ratio is False:
@@ -166,6 +201,17 @@ def preprocess_image(
         pad_value = 114 if resize.pad_value is None else resize.pad_value
         interpolation = _CV2_INTERPOLATION[resize.interpolation]
         padded, resize_meta = letterbox_preprocess(
+            image, target_size, pad_value=pad_value, interpolation=interpolation
+        )
+    elif resize.method == "stretch":
+        interpolation = _CV2_INTERPOLATION[resize.interpolation]
+        target_h, target_w = target_size
+        padded = cv2.resize(image, (target_w, target_h), interpolation=interpolation)
+        resize_meta = 1.0
+    elif resize.method == "fit":
+        pad_value = 0 if resize.pad_value is None else resize.pad_value
+        interpolation = _CV2_INTERPOLATION[resize.interpolation]
+        padded, resize_meta = fit_preprocess(
             image, target_size, pad_value=pad_value, interpolation=interpolation
         )
     elif resize.method == "affine_person_crop":
