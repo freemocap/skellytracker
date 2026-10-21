@@ -5,7 +5,7 @@
 > **For reviewers.** This revision extends the contract so that every model produced by
 > `Roboflow-Exporter` (RF-DETR), `OpenMMLab-Exporter` (RTMDet, RTMW) and `Ultralytics-Exporter`
 > (YOLO26 detection and pose) can be described. The evidence behind each change, and the per-repo
-> findings, are in [`sidecar-spec-exporter-coverage-plan.md`](sidecar-spec-exporter-coverage-plan.md).
+> findings, are in [`sidecar-spec-exporter-coverage-plan.md`](../plans/sidecar-spec-exporter-coverage-plan.md).
 > `vNEXT` is a placeholder: replace it with the skellytracker release that ships this revision before
 > merging. It appears in the examples, the changelog and the compatibility table.
 
@@ -18,14 +18,14 @@
 | 3 | Resize | Normative unprojection for each method. All resizes are defined as **non-antialiased**. | all | [Unprojection](#unprojection) |
 | 4 | Resize | `affine_person_crop` defines `maintain_aspect_ratio` and adds `crop_policy.pad_value`. | RTMW | [`input.resize`](#inputresize) |
 | 5 | Input | New `input.color_format` (`rgb` \| `bgr`), required when normalization is channel-agnostic (`none`/`unit_float`). `none` now means "pixels unchanged in `input.dtype`" (not only uint8). The `imagenet_*` channel order is spelled out. **Behaviour change:** at `vNEXT`, `imagenet_bgr` applies BGR-ordered statistics (B mean `103.53`). Legacy sidecars keep the old meaning (the RGB-ordered tuple on BGR pixels, as rtmlib does). | YOLO26, RF-DETR, RTMDet | [`input`](#input), [Normalization modes](#normalization-modes) |
-| 6 | Outputs | New detection semantics `boxes`, `scores`, `class_ids` and `class_logits`, with `class_axis`. Output dtypes gain `int32`, `int64` and `bool`. Output names must be unique. | RF-DETR (`dets` + `labels` logits), RTMDet (`dets` + int64 `labels`) | [Detection output semantics](#detection-output-semantics) |
-| 7 | Decode | Detection `decode` is rebuilt around a required `selection` (`none` \| `top_k` \| `nms`), output bindings (`boxes_output`, `scores_output`, `class_ids_output`, `class_logits_output`), `box_scale`, `score_activation`, `class_id_map`, `clamp_boxes` and an `nms` block (`iou_threshold`, `score_threshold`, `class_agnostic`, `post_nms_top_k`). Stage order is normative, and score thresholds are strict (`>`). | RF-DETR (query×class top-k), RTMDet (host NMS), YOLO26 (graph-final rows) | [`decode`](#decode-detection), [Selection behaviour](#selection-behaviour) |
+| 6 | Outputs | New detection semantics `boxes`, `scores` and `class_logits`, with `class_axis`. Output names must be unique. | RF-DETR (`dets` + `labels` logits), RTMDet (`boxes` + `scores`) | [Detection output semantics](#detection-output-semantics) |
+| 7 | Decode | Detection `decode` is rebuilt around a required `selection` (`none` \| `top_k` \| `nms`), output bindings (`boxes_output`, `scores_output`, `class_logits_output`), `box_scale`, `score_activation`, `class_id_map`, `clamp_boxes` and an `nms` block (`iou_threshold`, `score_threshold`, `class_agnostic`, `post_nms_top_k`). Stage order is normative, and score thresholds are strict (`>`). | RF-DETR (query×class top-k), RTMDet (host NMS), YOLO26 (graph-final rows) | [`decode`](#decode-detection), [Selection behaviour](#selection-behaviour) |
 | 8 | Decode | `max_detections` no longer defaults to `300`. It now only declares the graph's fixed final row count, and is valid only with `selection: none`. `requires_nms` becomes a legacy alias of `selection`. `may_include_non_person_classes` is replaced by `is_person_only` (the old field inverted). | all detectors | [`decode`](#decode-detection) |
 | 9 | Pose | New `packed_keypoints` on a `detections` output, for one-stage models that pack keypoints into the detection row. | YOLO26 pose (`[N,300,57]`) | [`packed_keypoints`](#packed_keypoints-bottom-up-packed-rows) |
 | 10 | Pose | Bottom-up instance count is no longer overloaded onto `max_detections`. Pose rows are row-aligned with detection rows and gathered by the surviving detection indices. | YOLO26 pose, RTMO | [Bottom-up decode](#bottom-up-decode) |
-| 11 | Sizes | **Family invariant:** a size entry may set only `input.shape`, `input.resize.target_size` and `onnx`. Sizes that differ in channel order, normalization or post-processing must be separate families. This resolves the earlier contradiction between "a size is a partial document deep-merged over the top level" and "sizes share the output contract". | RTMDet (person vs COCO vs RGB-backbone) | [`sizes`](#sizes) |
+| 11 | Sizes | **Family invariant:** a size entry may set only `input.shape`, `input.resize.target_size` and `onnx`. Sizes that differ in channel order, normalization or post-processing must be separate families. This resolves the earlier contradiction between "a size is a partial document deep-merged over the top level" and "sizes share the output contract". | RTMDet person-only vs 80-class families (different NMS contracts and class counts) | [`sizes`](#sizes) |
 | 12 | Versioning | Explicit version-aware rules so that sidecars older than `vNEXT` keep loading with their old meaning. | existing YOLOX/RTMPose sidecars | [Version-aware compatibility](#version-aware-compatibility) |
-| 13 | Examples | Reference examples replaced with real exports: YOLO26 detection, YOLO26 pose, RF-DETR, RTMDet person, RTMW. All batch keys are quoted, and the YOLO26 int8 input dtype is corrected to `float32`. | all | [Reference examples](#reference-examples) |
+| 13 | Examples | Reference examples replaced with real exports: YOLO26 detection, YOLO26 pose, RF-DETR, RTMDet person, RTMW. RTMDet uses its person-only family. All batch keys are quoted, and the YOLO26 int8 input dtype is corrected to `float32`. | all | [Reference examples](#reference-examples) |
 
 ### Considered and deliberately not added
 
@@ -37,8 +37,10 @@ Each of these can be added later as a non-breaking schema bump when a model need
 | `crop_policy.border_mode`, rotated crops | Only constant borders and zero rotation are used. |
 | `score_activation: softmax` | No model uses it, and how it behaves over gap/background slots is unresolved. |
 | `class_id_map_before_selection` | No model maps classes before top-k. "Map after selection" is normative. |
-| `nms.pre_nms_top_k`, `nms.min_bbox_size` | mmdet's `nms_pre` is per feature level, which a flat output can't express; a global top-k would describe a different algorithm. `min_bbox_size` is `0` everywhere. |
-| `graph_candidate_limit` | Informational only; the host can't act on it. The RTMDet graph caps that motivated it were an export-config bug. Detection outputs are normatively the complete candidate set. |
+| `class_logits` with `selection: nms` (each (row, class) pair above the score threshold becomes a candidate, followed by per-class NMS) | No in-scope family needs it after the COCO-80 RTMDet family was dropped. On NMS-free RTMDet-tiny it reproduced PyTorch AP (0.4114 vs 0.4112), while best-class-per-row `scores` + `class_ids` lost 0.0051 AP / 0.031 AR. Add it as a non-breaking bump if a multi-class NMS-free family appears. |
+| `nms.pre_nms_top_k` | A flat candidate list cannot express mmdet's per-level `nms_pre` cap without a `level_strides` field. It had no measured AP effect on person-medium (0.6255 with or without it) or RTMDet-tiny (0.4114 vs 0.4113); it only reduces host NMS time at near-zero score thresholds. |
+| `nms.min_bbox_size` | No in-scope model uses it; the value is `0` everywhere. |
+| `graph_candidate_limit` | Informational only; the host can't act on it. NMS-free exports have no graph-side candidate cap to describe; detection outputs are normatively the complete candidate set. |
 | `pose.decode.instance_count` | The count is derivable from the detection row axis (change 10). |
 | Soft-NMS / per-class IoU, masks, multi-input models, quantized outputs | Out of scope. No in-scope model needs them. |
 
@@ -57,7 +59,7 @@ Sidecars support two model **roles**:
 
 | Role | Purpose |
 |------|---------|
-| `object_detector` | Object detection (e.g. YOLO26, RF-DETR, RTMDet) — emits boxes, scores, and class IDs. |
+| `object_detector` | Object detection (e.g. YOLO26, RF-DETR, RTMDet) — emits boxes, scores, and class information. |
 | `pose_estimator` | Pose estimation (e.g. RTMW, RTMPose) — emits keypoint coordinates. |
 
 A sidecar may declare **both** roles — e.g. a one-stage model such as RTMO or YOLO26-pose that emits boxes and keypoints in the same pass. In that case `role` lists both values, and `outputs` mixes detection and pose tensors (or packs keypoints into the detection rows; see [`packed_keypoints`](#packed_keypoints-bottom-up-packed-rows)).
@@ -459,7 +461,7 @@ The top-level `sizes` map enumerates every scale of the model in a single sideca
 
 A size entry may contain only `input` and `onnx` (with the sub-fields above). It is deep-merged over the top level using the same merge semantics as [`base`](#base--inherit-from-another-sidecar-and-override). Any other key in a size entry — `role`, `outputs`, `batching`, `decode`, `pose`, `overlay`, `input.normalization`, `input.color_format`, `input.resize.method`, and so on — is invalid. Size names are lowercase tokens such as `nano`, `small`, `medium`; hyphens are allowed (e.g. `l-m`, `x-l`).
 
-**Family invariant.** A family has exactly one preprocessing and post-processing contract. If two sizes need a different channel order, normalization, resize method, output semantics, selection mode, NMS parameters, or class mapping, they belong to **different families** (different sidecars). For example, the RTMDet exports form three families: person-only, CSPNeXt COCO (BGR), and RGB-backbone COCO (ConvNeXt/Swin).
+**Family invariant.** A family has exactly one preprocessing and post-processing contract. If two sizes need a different channel order, normalization, resize method, output semantics, selection mode, NMS parameters, or class mapping, they belong to **different families** (different sidecars). For example, an RTMDet person-only family and an 80-class RTMDet family would be separate families because their NMS contracts and class counts differ.
 
 When `target_size` is declared, the size's `input.shape` spatial dimensions must equal it (for `NCHW`, `shape[2:4] == target_size`; for `NHWC`, `shape[1:3] == target_size`); with `supports_dynamic_size: true`, `target_size` is omitted. The first size listed is the default when no size is requested. How a host selects a size or precision at runtime is otherwise out of scope — this spec only declares what is available.
 
@@ -486,14 +488,14 @@ Each entry describes one ONNX output tensor. `outputs` is required for every sid
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | yes | ONNX output tensor name. Unique within `outputs` — one ONNX tensor is declared exactly once. |
-| `dtype` | object | yes | Map of precision → output element type, like `input.dtype` (e.g. `{fp32: float32, fp16: float32}`). May differ from the input precision. Values: `float32`, `float16`, `uint8`, `int8`, `int32`, `int64`, `bool`. |
-| `shape` | array | no | Output tensor shape; `-1` marks a dynamic dim. Omitted for pose outputs whose shape varies with the input size (e.g. SIMCC bins). |
+| `dtype` | object | yes | Map of precision → output element type, like `input.dtype` (e.g. `{fp32: float32, fp16: float32}`). May differ from the input precision. Values: `float32`, `float16`, `uint8`, `int8`. |
+| `shape` | array | no | Output tensor shape; `-1` marks a dynamic dim. Omitted for pose outputs whose shape varies with the input size (e.g. SIMCC bins). A size-dependent detection row dimension is `-1` at the family level. |
 | `rank` | int | no | Tensor rank. Omitted when `shape` is omitted. |
-| `semantic` | enum | yes | Closed set: `detections`, `boxes`, `scores`, `class_ids`, `class_logits`, `simcc_x`, `simcc_y`, `simcc_z`, `heatmap`, `keypoints`, `poses`. Links the tensor to `decode` / `pose.decode`. |
+| `semantic` | enum | yes | Closed set: `detections`, `boxes`, `scores`, `class_logits`, `simcc_x`, `simcc_y`, `simcc_z`, `heatmap`, `keypoints`, `poses`. Links the tensor to `decode` / `pose.decode`. |
 
-All sizes in a sidecar share one output contract: each output tensor has the same name, semantics, and keypoint/class count across sizes. Fixed-shape outputs differ only in the batch dimension; spatial-dependent pose outputs (SIMCC bins, heatmap H×W) may scale their spatial dims with the input size. Per-batch shapes are declared via `batch_artifacts.<N>.output_shapes`.
+All sizes in a sidecar share one output contract: each output tensor has the same name, semantics, and keypoint/class count across sizes. Fixed-shape outputs differ only in the batch dimension; spatial-dependent pose outputs (SIMCC bins, heatmap H×W) and dense per-anchor detection outputs may also vary with input size. For size-dependent detection outputs, the family-level `shape` uses `-1` for the row dimension; `batch_artifacts.<N>.output_shapes` carries each artifact group's concrete shape. Per-batch shapes are declared via `batch_artifacts.<N>.output_shapes`.
 
-A sidecar with both roles lists every tensor in one `outputs` array. Each tensor's `semantic` routes it to its decoder: `detections`, `boxes`, `scores`, `class_ids`, and `class_logits` → `decode` (detection); `simcc_x`/`simcc_y`/`simcc_z`/`heatmap`/`keypoints`/`poses` → `pose.decode`. The detection semantics require `role` to include `object_detector`; the pose semantics require `role` to include `pose_estimator`.
+A sidecar with both roles lists every tensor in one `outputs` array. Each tensor's `semantic` routes it to its decoder: `detections`, `boxes`, `scores`, and `class_logits` → `decode` (detection); `simcc_x`/`simcc_y`/`simcc_z`/`heatmap`/`keypoints`/`poses` → `pose.decode`. The detection semantics require `role` to include `object_detector`; the pose semantics require `role` to include `pose_estimator`.
 
 ```yaml
 # One-stage detector + pose model with separate tensors (role: [object_detector, pose_estimator]).
@@ -546,15 +548,13 @@ An `object_detector` sidecar declares exactly **one primary detection output** �
 | `detections` | `[B, Q, F]` | float | Packed rows. `fields` names each of the `F` columns (e.g. `x1, y1, x2, y2, score, class_id`); may also carry [`packed_keypoints`](#packed_keypoints-bottom-up-packed-rows). Primary. |
 | `boxes` | `[B, Q, 4]` | float | Box coordinates only. Scores come from a `scores` or `class_logits` companion. Primary. |
 | `scores` | `[B, Q]` | float | Per-row confidence, row-aligned with the primary output. |
-| `class_ids` | `[B, Q]` | `int32`/`int64` | Per-row model class index, row-aligned with the primary output. |
 | `class_logits` | `[B, Q, C]` | float | Per-row, per-class logits or scores; class axis last unless `class_axis` says otherwise. |
 
 `B` is the batch, `Q` the candidate/row count, `C` the model's class-slot count. Rules:
 
-- At most one each of `scores`, `class_ids`, and `class_logits`; `class_ids` and `class_logits` are mutually exclusive.
-- `scores` and `class_ids` shapes equal the primary output shape without its final dimension (for `dets: [B, Q, 5]`, `labels: [B, Q]`).
+- At most one each of `scores` and `class_logits`.
+- `scores` shape equals the primary output shape without its final dimension.
 - `class_logits` requires a `boxes` primary output and `decode.selection: top_k`; its non-class axes equal the `boxes` outer axes `[B, Q]`. `C` must be concrete.
-- `class_ids` values are model class indices, mapped to emitted ids by `decode.class_id_base` / `decode.class_id_map`.
 
 ### `outputs` (detection)
 
@@ -575,7 +575,6 @@ Required when `role` includes `object_detector`. Describes how the host turns th
 | `selection` | enum | yes | `none`, `top_k`, or `nms` — how candidate rows become final detections (see [Selection behaviour](#selection-behaviour)). |
 | `boxes_output` | string | no | Name of the primary `detections`/`boxes` output; defaults to the sidecar's single primary detection output. |
 | `scores_output` | string | no | Name of the `scores` output. Mutually exclusive with `score_field` and `class_logits_output`. |
-| `class_ids_output` | string | no | Name of the `class_ids` output. Mutually exclusive with `class_field` and `class_logits_output`. |
 | `class_logits_output` | string | conditional | Name of the `class_logits` output. Required for `selection: top_k`; invalid otherwise. |
 | `box_format` | enum | no | `xyxy` (default), `xywh` (top-left corner + size), or `cxcywh` (centre + size). Applies to `fields[0:4]` of a `detections` output, or to the four columns of a `boxes` output. |
 | `box_scale` | enum | no | `pixel` (default; model-input pixels), `normalized_01`, or `normalized_11` (see [Unprojection](#unprojection)). |
@@ -602,7 +601,7 @@ Required when `role` includes `object_detector`. Describes how the host turns th
 | `class_agnostic` | bool | no | Default `false` (per-class NMS). With no class source every candidate has one class, so both settings are equivalent. |
 | `post_nms_top_k` | int | no | Keep at most this many survivors per image, highest score first. Omit to keep all survivors. |
 
-The detection outputs are the **complete candidate set** for the declared `selection`: the host cannot recover candidates a graph dropped. A graph may pre-filter at `nms.score_threshold` without declaring it, since the result is identical.
+The detection outputs are the **complete candidate set** for the declared `selection`: the host cannot recover candidates a graph dropped.
 
 ### Selection behaviour
 
@@ -610,7 +609,7 @@ All score comparisons are strict (`>`). Ties in any score ordering are broken by
 
 **`selection: none`** — the primary output rows are already final detections (e.g. YOLO26's NMS-free head).
 
-1. Resolve each row's score (`score_field` or `scores_output`) and class index (`class_field` or `class_ids_output`; none → no class source).
+1. Resolve each row's score (`score_field` or `scores_output`) and class index (`class_field`; absent → no class source).
 2. Map class indices via `class_id_map` (drop `-1`) or `class_id_base`; apply `is_person_only`.
 3. Convert `box_format` to `xyxy`, apply `box_scale`, unproject, and clamp when `clamp_boxes`.
 4. Apply `confidence_threshold_default`. Do not run NMS; the host does not pad or truncate to `max_detections`.
@@ -629,11 +628,13 @@ All score comparisons are strict (`>`). Ties in any score ordering are broken by
 
 1. Resolve scores; drop candidates with `score <= nms.score_threshold`.
 2. Convert `box_format` to `xyxy` and apply `box_scale` (model-input pixels). Do not unproject yet.
-3. Resolve and map class ids (drop `-1`); with no class source assign `person_class_id`; apply `is_person_only`.
+3. Resolve and map class indices from `class_field`; with no class source assign `person_class_id`; apply `is_person_only`.
 4. Run hard NMS at `nms.iou_threshold` — per class unless `class_agnostic: true` — in model-input coordinates.
 5. Sort survivors by descending score; keep the first `nms.post_nms_top_k` when set.
 6. Unproject and clamp.
 7. Apply `confidence_threshold_default`.
+
+These decode steps map one-to-one onto the standard ONNX `NonMaxSuppression` operator. The operator takes scores as `[B, C, Q]`, suppresses boxes per class when IoU is greater than `iou_threshold`, and drops candidates at or below `score_threshold`. Its box-area convention does not add `1` to pixel widths or heights.
 
 For a model with both roles, every step that drops or keeps a detection row drops or keeps the corresponding pose row (see [Bottom-up decode](#bottom-up-decode)).
 
@@ -908,8 +909,8 @@ Each size entry deep-merges over the shared top-level contract and may set only 
 |------|---------------|-------------|
 | `none` | Pass pixel values (0–255) unchanged, cast to `input.dtype`. Channel order from `input.color_format`. | Graphs that normalize internally (e.g. YOLOX) |
 | `unit_float` | `pixel / 255.0` per channel → `[0, 1]`. Channel order from `input.color_format`. | YOLO26 — Ultralytics-style float input |
-| `imagenet_bgr` | `(pixel - mean) / std` on 0–255 pixels in **BGR** channel order: B uses mean `103.53` / std `57.375`, G `116.28` / `57.12`, R `123.675` / `58.395`. (Legacy sidecars use a different meaning; see [Version-aware compatibility](#version-aware-compatibility).) | RTMDet (CSPNeXt) |
-| `imagenet_rgb` | `(pixel - mean) / std` on 0–255 pixels in **RGB** channel order: R uses mean `123.675` / std `58.395`, G `116.28` / `57.12`, B `103.53` / `57.375`. | RTMW, RF-DETR, RTMDet (ConvNeXt/Swin) |
+| `imagenet_bgr` | `(pixel - mean) / std` on 0–255 pixels in **BGR** channel order: B uses mean `103.53` / std `57.375`, G `116.28` / `57.12`, R `123.675` / `58.395`. (Legacy sidecars use a different meaning; see [Version-aware compatibility](#version-aware-compatibility).) | RTMDet |
+| `imagenet_rgb` | `(pixel - mean) / std` on 0–255 pixels in **RGB** channel order: R uses mean `123.675` / std `58.395`, G `116.28` / `57.12`, B `103.53` / `57.375`. | RTMW, RF-DETR |
 | `custom` | `(pixel * scale - mean) / std` on 0–255 channel values | Rare exports that match no named mode |
 
 Both `imagenet_*` modes use the same per-colour ImageNet statistics (`0.485/0.456/0.406` and `0.229/0.224/0.225` × 255); they differ only in the channel order of the tensor. Normalization is applied after the resize (after the affine warp for `affine_person_crop`; directly on the source image for `method: none`). `none` and `unit_float` are channel-agnostic, so `input.color_format` is required with them. `custom` declares its own channel order via `color_format`; when `custom.color_format` is omitted it inherits `input.color_format`, falling back to `rgb`.
@@ -1005,7 +1006,7 @@ Validation and decode branch on the sidecar's `schema_version`. `vNEXT` requirem
 | `clamp_boxes` absent | Existing host behaviour. | Default `true`. |
 | `normalization: imagenet_bgr` | The RGB-ordered tuple — mean `(123.675, 116.28, 103.53)`, std `(58.395, 57.12, 57.375)` — applied in order to the B, G, R channels of the BGR frame (B uses `123.675`). This is the rtmlib convention used by the in-repo RTMPose and RTMW sidecars. | BGR-ordered statistics (B uses `103.53`); see [Normalization modes](#normalization-modes). To keep the legacy behaviour in a `vNEXT` sidecar, declare `normalization: {mode: custom, color_format: bgr, mean: [123.675, 116.28, 103.53], std: [58.395, 57.12, 57.375]}`. |
 | Size-level keys other than `input.shape`, `input.resize.target_size`, `onnx` | Deep-merged over the top level. | Invalid (family invariant). |
-| `boxes`/`scores`/`class_ids`/`class_logits` semantics, `packed_keypoints`, `stretch`, `class_id_map`, output dtypes `int32`/`int64`/`bool` | Not available. | Available. |
+| `boxes`/`scores`/`class_logits` semantics, `packed_keypoints`, `stretch`, `class_id_map` | Not available. | Available. |
 
 ## Validation rules
 
@@ -1050,19 +1051,19 @@ A sidecar is valid when all of the following hold. Rules marked **(vNEXT)** appl
 **Outputs (common)**
 
 - [ ] `outputs[].name` values are unique.
-- [ ] Each output's `dtype` is present; its keys are a subset of `fp32`/`fp16`/`int8` covering the precisions declared in `batch_artifacts`, and its values are `float32`, `float16`, `uint8`, `int8`, `int32`, `int64`, or `bool` (the last three **(vNEXT)**).
+- [ ] Each output's `dtype` is present; its keys are a subset of `fp32`/`fp16`/`int8` covering the precisions declared in `batch_artifacts`, and its values are `float32`, `float16`, `uint8`, or `int8`.
 - [ ] On each output, `rank` (when present) equals `len(shape)`; `rank` is omitted when `shape` is omitted.
-- [ ] Each output's `semantic` is one of `detections`, `boxes`, `scores`, `class_ids`, `class_logits`, `simcc_x`, `simcc_y`, `simcc_z`, `heatmap`, `keypoints`, `poses` (`boxes`/`scores`/`class_ids`/`class_logits` **(vNEXT)**). The detection semantics require `role` to include `object_detector`; the pose semantics require `role` to include `pose_estimator`.
+- [ ] Each output's `semantic` is one of `detections`, `boxes`, `scores`, `class_logits`, `simcc_x`, `simcc_y`, `simcc_z`, `heatmap`, `keypoints`, `poses` (`boxes`/`scores`/`class_logits` **(vNEXT)**). The detection semantics require `role` to include `object_detector`; the pose semantics require `role` to include `pose_estimator`.
 - [ ] All sizes share the same output names, semantics, and keypoint/class counts (spatial-dependent dims may scale with input size).
 
 **Detection (`object_detector`)**
 
-- [ ] The sidecar declares `decode` and exactly one primary detection output (`detections` or `boxes`); at most one each of `scores`, `class_ids`, `class_logits`; `class_ids` and `class_logits` are not both present.
+- [ ] The sidecar declares `decode` and exactly one primary detection output (`detections` or `boxes`); at most one each of `scores` and `class_logits`.
 - [ ] A `detections` output declares `fields`; `len(fields) == shape[-1]` when `shape[-1]` is concrete and `packed_keypoints` is absent, and `len(fields) == packed_keypoints.offset` otherwise. `fields` is absent on every other semantic.
-- [ ] A `boxes` output's last dimension is `4`. `scores`/`class_ids` shapes equal the primary shape without its last dimension. `class_logits` non-class axes equal the `boxes` outer axes, `class_axis` (when present) is a valid non-batch axis, and the class dimension is concrete.
-- [ ] `class_ids` output dtypes are `int32`/`int64`; `scores`, `class_logits`, `boxes`, and `detections` dtypes are float types.
-- [ ] `decode.boxes_output`, `scores_output`, `class_ids_output`, and `class_logits_output` (when present) name an output with the matching semantic; `boxes_output` names the primary output.
-- [ ] `decode.score_field` / `decode.class_field` (when present) appear in the primary `detections` output's `fields`, and are absent when the primary output is `boxes`. `score_field` and `scores_output` are not both present; `class_field`, `class_ids_output`, and `class_logits_output` are mutually exclusive.
+- [ ] A `boxes` output's last dimension is `4`. `scores` shape equals the primary shape without its last dimension. `class_logits` non-class axes equal the `boxes` outer axes, `class_axis` (when present) is a valid non-batch axis, and the class dimension is concrete.
+- [ ] `scores`, `class_logits`, `boxes`, and `detections` dtypes are float types.
+- [ ] `decode.boxes_output`, `scores_output`, and `class_logits_output` (when present) name an output with the matching semantic; `boxes_output` names the primary output.
+- [ ] `decode.score_field` / `decode.class_field` (when present) appear in the primary `detections` output's `fields`, and are absent when the primary output is `boxes`. `score_field` and `scores_output` are not both present; `class_field` and `class_logits_output` are mutually exclusive.
 - [ ] A `detections` primary output has a score source (`score_field` or `scores_output`) unless `selection: top_k`; a `boxes` primary output has `scores_output` or `class_logits_output`.
 - [ ] **(vNEXT)** `decode.selection` is present and is `none`, `top_k`, or `nms`; `requires_nms` (when present) is `true` iff `selection: nms`; `may_include_non_person_classes` is absent.
 - [ ] `selection: top_k` requires a `boxes` primary output, `class_logits_output`, and a positive integer `top_k`, and forbids `nms`, `max_detections`, `scores_output`, and `score_field`.
@@ -1107,7 +1108,7 @@ Every future contract change must bump `schema_version` to the skellytracker rel
 | `schema_version` | Changes |
 |------------------|---------|
 | `v2024.09.1019` | Initial YAML sidecar spec: one `{model_id}.yaml` per family with a `sizes` map (size × batch × precision via `sizes.<size>.onnx.batch_artifacts`, incl. `dynamic` batch); `role` arrays (`object_detector` / `pose_estimator`, both for one-stage models); `input.normalization` modes (`none`, `unit_float`, `imagenet_bgr`, `imagenet_rgb`, `custom`) with per-precision overrides; `input.resize` (`letterbox` + `affine_person_crop` with `crop_policy`, `none`, interpolation); file composition (`$ref` includes + `base` inheritance with `null`-delete); `schema_version` as skellytracker version string; pose output contract (`tracked_points`, named `connections`, `derived_points`, `canonical_mapping` with `prefixes`, `overlay.groups`, `requires_object_detector`, and `decode` incl. `simcc`/`heatmap`/`coordinate` with 3D via `is_3d`/`depth_unit`/`depth_range`); VRM 1.0 canonical skeleton with current→VRM name-migration note; `detectors/` storage layout; per-precision `url` with mandatory `url_sha256`. |
-| `vNEXT` | Added `input.resize.method: stretch`; letterbox `pad_position` and `rounding` (required), normative letterbox/centre-offset algorithm, per-method unprojection, non-antialiased resizes, scalar/array `pad_value`; `affine_person_crop` warp definition with `crop_policy.pad_value`. Added `input.color_format` (required for `none`/`unit_float`); `none` passes pixels in `input.dtype`; explicit `imagenet_*` channel order (`imagenet_bgr` now uses BGR-ordered statistics; legacy meaning retained for older sidecars). Added detection semantics `boxes`, `scores`, `class_ids`, `class_logits` (with `class_axis`) and output dtypes `int32`/`int64`/`bool`; output names must be unique. Rebuilt detection `decode` around required `selection` (`none`/`top_k`/`nms`) with output bindings, `box_scale`, `score_activation`, `class_id_map`, `top_k`, `nms` (`iou_threshold`, `score_threshold`, `class_agnostic`, `post_nms_top_k`), `clamp_boxes`, `is_person_only`; normative stage order and strict thresholds. `max_detections` has no default and only declares a graph-final row count; `requires_nms` and `may_include_non_person_classes` are legacy. Added `packed_keypoints` for bottom-up packed rows; bottom-up pose rows follow surviving detection rows. Size entries limited to `input.shape`, `input.resize.target_size`, `onnx` (family invariant). Added version-aware compatibility rules. |
+| `vNEXT` | Added `input.resize.method: stretch`; letterbox `pad_position` and `rounding` (required), normative letterbox/centre-offset algorithm, per-method unprojection, non-antialiased resizes, scalar/array `pad_value`; `affine_person_crop` warp definition with `crop_policy.pad_value`. Added `input.color_format` (required for `none`/`unit_float`); `none` passes pixels in `input.dtype`; explicit `imagenet_*` channel order (`imagenet_bgr` now uses BGR-ordered statistics; legacy meaning retained for older sidecars). Added detection semantics `boxes`, `scores` and `class_logits` (with `class_axis`); output names must be unique. Rebuilt detection `decode` around required `selection` (`none`/`top_k`/`nms`) with output bindings, `box_scale`, `score_activation`, `class_id_map`, `top_k`, `nms` (`iou_threshold`, `score_threshold`, `class_agnostic`, `post_nms_top_k`), `clamp_boxes`, `is_person_only`; normative stage order and strict thresholds. `max_detections` has no default and only declares a graph-final row count; `requires_nms` and `may_include_non_person_classes` are legacy. Added `packed_keypoints` for bottom-up packed rows; bottom-up pose rows follow surviving detection rows. Size entries limited to `input.shape`, `input.resize.target_size`, `onnx` (family invariant). Added version-aware compatibility rules. |
 
 ## Reference examples
 
@@ -1400,9 +1401,9 @@ sizes:
 - 90     # toothbrush
 ```
 
-### RTMDet person (OpenMMLab-Exporter; separate class-id tensor, host NMS)
+### RTMDet person (OpenMMLab-Exporter; NMS-free outputs, host NMS)
 
-The mmdet test pipeline letterboxes into the top-left corner with half-up rounding and pad 114, normalizing BGR pixels. The graph emits pre-NMS candidates — `dets` `[B, Q, 5]` and int64 `labels` `[B, Q]`, where `Q` varies per image — and the host runs the family's baseline NMS (`score_thr` 0.05, IoU 0.6, `max_per_img` 100). The graph reports the last two `dets` dims symbolically; the trailing `5` is `len(fields)`.
+The mmdet test pipeline letterboxes into the top-left corner with half-up rounding and pad 114, normalizing BGR pixels. The graph emits every anchor point's decoded box and sigmoid person score; the host runs the family's baseline NMS (`score_thr` 0.05, IoU 0.6, `max_per_img` 100). The row count depends on input size: 2100 at 320 and 8400 at 640.
 
 ```yaml
 ---
@@ -1422,25 +1423,23 @@ input:
 batching: {batch_axis: 0}
 
 outputs:
-  - name: dets
+  - name: boxes
     dtype: {fp32: float32, fp16: float32}
-    shape: [-1, -1, 5]
+    shape: [-1, -1, 4]
     rank: 3
-    semantic: detections
-    fields: [x1, y1, x2, y2, score]
-  - name: labels
-    dtype: {fp32: int64, fp16: int64}
+    semantic: boxes
+  - name: scores
+    dtype: {fp32: float32, fp16: float32}
     shape: [-1, -1]
     rank: 2
-    semantic: class_ids
+    semantic: scores
 
 decode:
   selection: nms
-  boxes_output: dets
+  boxes_output: boxes
+  scores_output: scores
   box_format: xyxy
   box_scale: pixel
-  score_field: score
-  class_ids_output: labels
   class_id_base: 0
   person_class_id: 0
   is_person_only: true
@@ -1465,22 +1464,15 @@ sizes:
             fp32: {filename: rtmdet-person-nano_b1_fp32.onnx}
             fp16: {filename: rtmdet-person-nano_b1_fp16.onnx}
           output_shapes:
-            - [1, -1, 5]
-            - [1, -1]
+            - [1, 2100, 4]
+            - [1, 2100]
         "2":
           precision_artifacts:
             fp32: {filename: rtmdet-person-nano_b2_fp32.onnx}
             fp16: {filename: rtmdet-person-nano_b2_fp16.onnx}
           output_shapes:
-            - [2, -1, 5]
-            - [2, -1]
-        "3":
-          precision_artifacts:
-            fp32: {filename: rtmdet-person-nano_b3_fp32.onnx}
-            fp16: {filename: rtmdet-person-nano_b3_fp16.onnx}
-          output_shapes:
-            - [3, -1, 5]
-            - [3, -1]
+            - [2, 2100, 4]
+            - [2, 2100]
   medium:
     input:
       shape: [-1, 3, 640, 640]
@@ -1493,12 +1485,12 @@ sizes:
             fp32: {filename: rtmdet-person-medium_b1_fp32.onnx}
             fp16: {filename: rtmdet-person-medium_b1_fp16.onnx}
           output_shapes:
-            - [1, -1, 5]
-            - [1, -1]
-        # "2" and "3": same pattern as nano.
+            - [1, 8400, 4]
+            - [1, 8400]
+        # "2": same pattern, with row count 8400.
 ```
 
-The CSPNeXt COCO family (`rtmdet`: tiny, small, medium, large, xlarge at 640; x-p6 at 1280) has the same shape with `is_person_only: false` and `nms: {iou_threshold: 0.65, score_threshold: 0.001, class_agnostic: false, post_nms_top_k: 300}`. The ConvNeXt/Swin COCO sizes form a third family with the same decode as `rtmdet` but `color_format: rgb` and `normalization: imagenet_rgb`.
+The graph ends before NMS. It emits every anchor point's decoded box and sigmoid person score, so the host applies the family's baseline NMS (mmpose `test_cfg`: score > 0.05, IoU 0.6, top 100). The row count is the anchor-point count for the input size (2100 at 320, 8400 at 640), so the family-level shape leaves it as `-1`. mmdet's per-level `nms_pre` cap (1000) is deliberately not expressed; dropping it has no measurable effect on AP.
 
 ### RTMW WholeBody (OpenMMLab-Exporter; top-down pose)
 
