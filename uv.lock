@@ -1027,7 +1027,7 @@ requires-dist = [
     { name = "numpy" },
     { name = "pyarrow", marker = "extra == 'recording-viewer'", specifier = ">=18" },
     { name = "pyyaml", specifier = ">=6.0" },
-    { name = "skellylogs", git = "https://github.com/freemocap/skellylogs?branch=main" },
+    { name = "skellylogs", editable = "../utils/skellylogs" },
 ]
 provides-extras = ["recording-viewer"]
 
@@ -1040,16 +1040,22 @@ dev = [
     { name = "pip-tools" },
     { name = "poethepoet" },
     { name = "pytest", specifier = ">=9.1.1" },
-    { name = "skellytracker", git = "https://github.com/freemocap/skellytracker?branch=development-streaming" },
+    { name = "skellytracker", editable = "." },
 ]
 
 [[package]]
 name = "skellylogs"
 version = "0.1.0"
-source = { git = "https://github.com/freemocap/skellylogs?branch=main#535206f8e7b7d1d73e904c340cdcbdfeeed7a26f" }
+source = { editable = "../utils/skellylogs" }
 dependencies = [
     { name = "tqdm" },
 ]
+
+[package.metadata]
+requires-dist = [{ name = "tqdm", specifier = ">=4.66" }]
+
+[package.metadata.requires-dev]
+test = [{ name = "pytest" }]
 
 [[package]]
 name = "skellytracker"
