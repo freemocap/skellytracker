@@ -208,7 +208,8 @@ skellytracker_blendshapes = "skellytracker.scripts.blendshapes_to_csv:main"
 
 [tool.uv.sources]
 skellytracker-rust = { path = "skellytracker-rust" }
-skellyforge = { git = "https://github.com/freemocap/skellyforge", branch = "development-streaming" }
+skellyforge = { path = "../skellyforge", editable = true }
+skellylogs = { path = "../utils/skellylogs", editable = true }
 
 [[tool.uv.index]]
 name = "nvidia"

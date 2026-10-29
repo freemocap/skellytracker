@@ -1013,13 +1013,34 @@ wheels = [
 
 [[package]]
 name = "skellyforge"
-version = "2024.12.1009"
-source = { git = "https://github.com/freemocap/skellyforge?branch=development-streaming#45144f04e3808f5ced03284a459f27d0bb6fcb1b" }
+source = { editable = "../skellyforge" }
 dependencies = [
     { name = "beartype" },
     { name = "numpy" },
     { name = "pyyaml" },
     { name = "skellylogs" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "beartype", specifier = ">=0.22.9" },
+    { name = "numpy" },
+    { name = "pyarrow", marker = "extra == 'recording-viewer'", specifier = ">=18" },
+    { name = "pyyaml", specifier = ">=6.0" },
+    { name = "skellylogs", git = "https://github.com/freemocap/skellylogs?branch=main" },
+]
+provides-extras = ["recording-viewer"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "black" },
+    { name = "bumpver" },
+    { name = "coverage" },
+    { name = "isort" },
+    { name = "pip-tools" },
+    { name = "poethepoet" },
+    { name = "pytest", specifier = ">=9.1.1" },
+    { name = "skellytracker", git = "https://github.com/freemocap/skellytracker?branch=development-streaming" },
 ]
 
 [[package]]
@@ -1179,7 +1200,7 @@ dev = [
     { name = "poethepoet", specifier = ">=0.32.0" },
     { name = "pytest" },
     { name = "ruff" },
-    { name = "skellyforge", git = "https://github.com/freemocap/skellyforge?branch=development-streaming" },
+    { name = "skellyforge", editable = "../skellyforge" },
 ]
 
 [[package]]
