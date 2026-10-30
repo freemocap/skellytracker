@@ -1,0 +1,400 @@
+@misc{stiPose,
+  title = {Silhouette-based 6D Object Pose Estimation},
+  author = {Cui, Xiao and Li, Nan and Zhang, Chi and Zhang, Qian and Feng, Wei and Wan, Liang},
+  url = {https://iccvm.org/2024/papers/lncs/6.pdf},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Rendering and search against silhouettes for model-based pose estimation.},
+  note = {Abstract and method excerpts inspected. Linked code repository returned 404; no execution.}
+}
+
+@misc{silhouetteHash,
+  title = {A fast monocular 6D pose estimation method for textureless objects based on perceptual hashing and template matching},
+  author = {Araya-Martinez, Jose Moises and Matthiesen, Vinicius Soares and Bøgh, Simon and Lambrecht, Jens and Pimentel de Figueiredo, Rui},
+  url = {https://pmc.ncbi.nlm.nih.gov/articles/PMC11750840/},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {CPU binary-template matching for monocular pose estimation and silhouette ambiguity.},
+  note = {Abstract, limitations and availability excerpts inspected; performance is author-reported, not replicated.}
+}
+
+@misc{cnos,
+  title = {CNOS: A Strong Baseline for CAD-based Novel Object Segmentation},
+  author = {Nguyen, Van Nguyen and Groueix, Thibault and Ponimatkin, Georgy and Lepetit, Vincent and Hodan, Tomas},
+  url = {https://github.com/nv-nguyen/cnos},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Automatic RGB segmentation and object assignment by comparison with CAD-rendered templates.},
+  note = {README and paper abstract inspected; no runtime or distribution audit.}
+}
+
+@misc{m3tReadme,
+  title = {M3T model-based tracking documentation},
+  author = {{DLR-RM}},
+  url = {https://github.com/DLR-RM/3DObjectTracking/blob/master/M3T/readme.md},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Modalities, initialization and native build dependencies.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{m3tLicense,
+  title = {3DObjectTracking license},
+  author = {{DLR-RM}},
+  url = {https://github.com/DLR-RM/3DObjectTracking/blob/master/LICENSE},
+  urldate = {2026-10-29},
+  review = {full-text},
+  claim = {MIT code license.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{m3tBody,
+  title = {M3T Body API},
+  author = {{DLR-RM}},
+  url = {https://github.com/DLR-RM/3DObjectTracking/blob/master/M3T/include/m3t/body.h},
+  urldate = {2026-10-29},
+  review = {source-code},
+  claim = {OBJ geometry, explicit units and geometry-to-body transform.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{pym3t,
+  title = {Python bindings for M3T},
+  author = {{Agimus Project}},
+  url = {https://github.com/agimus-project/pym3t},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Python wrapper, examples and mesh preparation.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{pym3tExample,
+  title = {M3T Python webcam example},
+  author = {{Agimus Project}},
+  url = {https://github.com/agimus-project/pym3t/blob/master/examples/run_webcam_example.py},
+  urldate = {2026-10-29},
+  review = {source-code},
+  claim = {Explicit initial pose and body-to-world output.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{pym3tMetadata,
+  title = {M3T Python package metadata},
+  author = {{Agimus Project}},
+  url = {https://github.com/agimus-project/pym3t/blob/master/pyproject.toml},
+  urldate = {2026-10-29},
+  review = {source-code},
+  claim = {Build tooling and NumPy example extra constraints.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{megapose,
+  title = {MegaPose inference documentation},
+  author = {{MegaPose contributors}},
+  url = {https://github.com/megapose6d/megapose6d},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Novel-object RGB pose estimation, input box, calibration, mesh formats.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{megaposeLicense,
+  title = {MegaPose license},
+  author = {{Inria and NVIDIA}},
+  url = {https://github.com/megapose6d/megapose6d/blob/master/LICENSE},
+  urldate = {2026-10-29},
+  review = {full-text},
+  claim = {Apache-2.0 code license.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{gigapose,
+  title = {GigaPose implementation},
+  author = {{Van Nguyen Nguyen and contributors}},
+  url = {https://github.com/nv-nguyen/gigapose},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {RGB template correspondence method and benchmark-oriented workflow; MIT repository license.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{foundationDemo,
+  title = {FoundationPose demo},
+  author = {{NVIDIA}},
+  url = {https://github.com/NVlabs/FoundationPose/blob/main/run_demo.py},
+  urldate = {2026-10-29},
+  review = {source-code},
+  claim = {RGB-D registration with initial mask and subsequent tracking.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{foundationLicense,
+  title = {FoundationPose research source license},
+  author = {{NVIDIA}},
+  url = {https://github.com/NVlabs/FoundationPose/blob/main/LICENSE},
+  urldate = {2026-10-29},
+  review = {full-text},
+  claim = {Research source restricts use to noncommercial research or evaluation.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{foundationRuntime,
+  title = {FoundationPose inference library},
+  author = {{NVIDIA}},
+  url = {https://github.com/nvidia-isaac/foundation-pose-inference-library},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {C ABI and Python RGB-D runtime, CUDA 13 container requirements, Apache-2.0 code and optional renderer terms.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{foundationWeights,
+  title = {FoundationPose model card},
+  author = {{NVIDIA}},
+  url = {https://huggingface.co/nvidia/foundationpose/blob/main/README.md},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Weights identify NVIDIA Open Model License separately from code licenses.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{sam6d,
+  title = {SAM-6D implementation},
+  author = {{Jiehong Lin and Lihua Liu and Dekun Lu and Kui Jia}},
+  url = {https://github.com/JiehongLin/SAM-6D},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {RGB-D segmentation and pose estimation with custom-data demo.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{visp,
+  title = {ViSP model-based tracking API},
+  author = {{ViSP contributors}},
+  url = {https://github.com/lagadic/visp/blob/master/modules/tracker/mbt/include/visp3/mbt/vpMbGenericTracker.h},
+  urldate = {2026-10-29},
+  review = {source-code},
+  claim = {CAD-based edge, texture and depth tracking.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{vispLicense,
+  title = {ViSP license},
+  author = {{ViSP contributors}},
+  url = {https://github.com/lagadic/visp/blob/master/LICENSE.txt},
+  urldate = {2026-10-29},
+  review = {full-text},
+  claim = {GPL-2.0-or-later code license.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{rbot,
+  title = {RBOT implementation},
+  author = {{Henning Tjaden}},
+  url = {https://github.com/henningtjaden/RBOT},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Historical monocular region-based tracking and native dependencies.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{stlFormat,
+  title = {STL file format family},
+  author = {{Library of Congress}},
+  url = {https://www.loc.gov/preservation/digital/formats/fdd/fdd000504.shtml},
+  urldate = {2026-10-29},
+  review = {excerpt},
+  claim = {Triangular surface geometry and lack of standard texture representation.},
+  note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
+}
+
+@misc{dlc302Dependencies,
+  title = {DeepLabCut 3.0.2 package metadata},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/pyproject.toml},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Python, NumPy, filelock, OpenCV and PyTorch dependency declarations; TensorFlow extras have separate constraints.},
+  note = {Version-tagged metadata inspected; no dependency resolution or installation performed.}
+}
+
+@misc{dlc302Utils,
+  title = {DeepLabCut 3.0.2 inference API utilities},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/apis/utils.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Pose and detector runner construction helpers and snapshot selection.},
+  note = {Selected functions reviewed; not executed.}
+}
+
+@misc{dlc302Videos,
+  title = {DeepLabCut 3.0.2 PyTorch video inference API},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/apis/videos.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Persistent runner construction and detector-first top-down frame inference.},
+  note = {Selected inference paths reviewed; not executed.}
+}
+
+@misc{dlc302Runner,
+  title = {DeepLabCut 3.0.2 PyTorch inference runners},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/runners/inference.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Persistent model loading, ndarray iterable inference, batching, mutable runner state and internal preprocessing threading.},
+  note = {Selected implementation sections inspected; no concurrency, accuracy or performance measurements.}
+}
+
+@misc{dlc302Export,
+  title = {DeepLabCut 3.0.2 PyTorch model export},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/apis/export.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Live export saves a PyTorch bundle containing configuration and weights, with optional detector weights; this API does not export ONNX.},
+  note = {Version-tagged source inspected; no artifact exported.}
+}
+
+@misc{dlcLiveApi20261030,
+  title = {DeepLabCut-live per-image inference interface},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut-live/main/dlclive/dlclive.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Exported-model input, PyTorch and TensorFlow model-type distinction, point/confidence output shapes and per-stream crop state.},
+  note = {Moving main branch inspected; behavior was not verified against an installed release or benchmark.}
+}
+
+@misc{dlcLiveDependencies20261030,
+  title = {DeepLabCut-live package metadata},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut-live/main/pyproject.toml},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Inspected main declares version 1.1.1rc1, Python below 3.13 and NumPy below 2, with optional PyTorch dependencies.},
+  note = {Moving main metadata inspected; not a claim about every released package. No installation performed.}
+}
+
+@misc{pytorchOnnx215,
+  title = {PyTorch 2.15 ONNX exporter documentation},
+  author = {{PyTorch contributors}},
+  url = {https://docs.pytorch.org/docs/2.15/onnx.html},
+  urldate = {2026-10-30},
+  review = {excerpt},
+  claim = {PyTorch supports ONNX export; this does not establish compatibility of a particular DLC model.},
+  note = {Exporter documentation reviewed; no DLC export or runtime equivalence test performed.}
+}
+
+@misc{dlcHistoricalSpeed,
+  title = {DLC Inference Speed Benchmark},
+  author = {{DeepLabCut contributors}},
+  url = {https://deeplabcut.github.io/DLC-inferencespeed-benchmark/},
+  urldate = {2026-10-30},
+  review = {excerpt},
+  claim = {Dog-video benchmark reports model- and resolution-dependent inference speed on Windows GTX 1080.},
+  note = {Selected table rows inspected; historical author-reported results, not replicated or transferable directly to current PyTorch FreeMoCap performance.}
+}
+
+@misc{dlc302PoseModel,
+  title = {DeepLabCut 3.0.2 pose model composition},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/models/model.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Inference composition is backbone, optional neck and heads; the upstream builder also constructs training losses and targets.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302Snapshot,
+  title = {DeepLabCut 3.0.2 checkpoint reader},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/runners/base.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Loads snapshot model state dictionaries; legacy metadata may contain NumPy scalar objects.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302ResnetConfig,
+  title = {DeepLabCut 3.0.2 ResNet-50 configuration},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/config/backbones/resnet_50.yaml},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Default configuration uses resnet50_gn, output stride 16 and 2048 backbone output channels.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302ResnetBackbone,
+  title = {DeepLabCut 3.0.2 ResNet backbone},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/models/backbones/resnet.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Backbone uses timm model construction with configured output stride and forward_features.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302BodypartHeadConfig,
+  title = {DeepLabCut 3.0.2 bodypart head defaults},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/config/base/head_bodyparts.yaml},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Heatmap and location-refinement branches; default score activation, clipping and refinement factor.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302SimpleHead,
+  title = {DeepLabCut 3.0.2 heatmap head implementation},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/models/heads/simple_head.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Separate transposed-convolution heatmap and location-refinement branches and layer geometry.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302SinglePredictor,
+  title = {DeepLabCut 3.0.2 single-subject heatmap decoder},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/models/predictors/single_predictor.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Spatial argmax, paired refinement offsets, half-stride coordinate shift and configured score processing.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302Transforms,
+  title = {DeepLabCut 3.0.2 image transforms},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/data/transforms.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Configured image geometry, padding and ImageNet normalization.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{dlc302Preprocessor,
+  title = {DeepLabCut 3.0.2 image preprocessing},
+  author = {{DeepLabCut contributors}},
+  url = {https://raw.githubusercontent.com/DeepLabCut/DeepLabCut/v3.0.2/deeplabcut/pose_estimation_pytorch/data/preprocessor.py},
+  urldate = {2026-10-30},
+  review = {source-code},
+  claim = {Image tensors and coordinate context; already-loaded arrays bypass file-loading color conversion.},
+  note = {Selected version-tagged source inspected; not executed. Exact compatibility with SkellyClicker's pinned 3.0.0rc13 has not been established.}
+}
+
+@misc{pytorchSerialization215,
+  title = {PyTorch 2.15 serialization semantics},
+  author = {{PyTorch contributors}},
+  url = {https://docs.pytorch.org/docs/2.15/notes/serialization.html},
+  urldate = {2026-10-30},
+  review = {excerpt},
+  claim = {State dictionaries contain model parameters and buffers; checkpoint loading and weights-only restrictions.},
+  note = {State-dictionary and serialization sections inspected; no user checkpoint loaded.}
+}
+
