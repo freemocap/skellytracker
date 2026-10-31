@@ -398,3 +398,33 @@
   note = {State-dictionary and serialization sections inspected; no user checkpoint loaded.}
 }
 
+@misc{skellytrackerSidecarImplementation,
+  title = {{SkellyTracker} sidecar implementation},
+  author = {{philipqueen}},
+  url = {https://github.com/freemocap/skellytracker/tree/069ef01ffcf754ea05596c002071cd7858f2f8e7},
+  urldate = {2026-10-31},
+  review = {source-code},
+  claim = {Implements model sidecars, artifact descriptors and generic image preparation and output decoding.},
+  note = {Foundation selectively ported while retaining current confidence, public point ordering, lazy imports and cache locking. Additional standalone detector schema migrations are excluded; see SIDECAR_CONTRACT.md.}
+}
+
+@misc{skellytrackerSidecarExtensions,
+  title = {{SkellyTracker} expanded sidecar specification},
+  author = {{Dom Scott}},
+  url = {https://github.com/freemocap/skellytracker/tree/6560685cfe9411a27f5a7ca6192f91cc4ac506c3},
+  urldate = {2026-10-31},
+  review = {source-code},
+  claim = {Proposes selection, padding and rounding extensions beyond the implemented parser and runtime.},
+  note = {Unsupported extensions are explicitly excluded from the adopted sfn26 dialect.}
+}
+
+@misc{skellytrackerFactoryIntegration,
+  title = {{SkellyTracker} registry-based tracker factory},
+  author = {{philipqueen}},
+  url = {https://github.com/freemocap/skellytracker/tree/46d3454fd17d504f7d406d04f87497a2af1bbd2a},
+  urldate = {2026-10-31},
+  review = {source-code},
+  claim = {Recursively discovers required models through detector registries to construct inference sessions from tracker configuration.},
+  note = {Adaptation targets existing sfn26 shared-session ownership and failure cleanup.}
+}
+

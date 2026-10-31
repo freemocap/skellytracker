@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
+
 from dataclasses import dataclass, field
 
 from numpy.typing import NDArray
@@ -206,9 +208,16 @@ class MultiPersonTracker:
         sessions: dict[str, Session],
         multi_person_config: MultiPersonTrackingConfig | None = None,
     ) -> MultiPersonTracker:
-        stages = [DetectionStage.create(stage_cfg, sessions) for stage_cfg in config.stages]
-        return cls(
-            stages=stages,
-            multi_person_config=multi_person_config or MultiPersonTrackingConfig(),
-            sessions=sessions,
-        )
+        with ExitStack() as cleanup:
+            stages = []
+            for stage_config in config.stages:
+                stage = DetectionStage.create(stage_config, sessions)
+                cleanup.callback(stage.close)
+                stages.append(stage)
+            tracker = cls(
+                stages=stages,
+                multi_person_config=multi_person_config or MultiPersonTrackingConfig(),
+                sessions=sessions,
+            )
+            cleanup.pop_all()
+        return tracker

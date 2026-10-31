@@ -18,6 +18,7 @@ Usage::
     )
     session = OnnxSession.create(session_config)
 """
+
 from __future__ import annotations
 
 import ctypes
@@ -81,7 +82,9 @@ class OnnxSession(Session):
         if config.execution_provider is None:
             active_provider = auto_detect_provider()
         else:
-            require_provider(config.execution_provider)  # raises SessionCreationError if unavailable
+            require_provider(
+                config.execution_provider
+            )  # raises SessionCreationError if unavailable
             active_provider = config.execution_provider
 
         if active_provider in ("cuda", "trt") and sys.platform == "win32":
@@ -109,7 +112,11 @@ class OnnxSession(Session):
 
         sessions: dict[str, ort.InferenceSession] = {}
         for spec in config.models:
-            model_path = resolve_model_path(spec.source)
+            model_path = resolve_model_path(
+                spec.source,
+                expected_filename=spec.expected_filename,
+                expected_sha256=spec.expected_sha256,
+            )
             if spec.prepare is not None:
                 model_path = spec.prepare(model_path)
 
@@ -130,7 +137,12 @@ class OnnxSession(Session):
                     f"Failed to load model {spec.name!r} with provider={active_provider!r}: {exc}"
                 ) from exc
             sessions[spec.name] = ort_session
-            logger.info("OnnxSession: loaded model %r (provider=%r, device=%d)", spec.name, active_provider, device_id)
+            logger.info(
+                "OnnxSession: loaded model %r (provider=%r, device=%d)",
+                spec.name,
+                active_provider,
+                device_id,
+            )
 
         onnx_session = cls(
             _sessions=sessions,
@@ -138,7 +150,9 @@ class OnnxSession(Session):
             device_id=device_id,
             batch_size=config.batch_size,
         )
-        _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size)
+        _warmup(
+            onnx_session, config.models, active_provider, batch_size=config.batch_size
+        )
         return onnx_session
 
     def get_session(self, model_name: str) -> ort.InferenceSession:
@@ -202,7 +216,6 @@ class OnnxSession(Session):
                 f"ONNX Runtime error running model {model_name!r} "
                 f"(provider={self.execution_provider!r}): {exc}"
             ) from exc
-
 
     def run_batched(
         self,

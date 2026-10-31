@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from contextlib import ExitStack
+
 import concurrent.futures
 import time
 from dataclasses import dataclass, field, replace
@@ -768,33 +770,43 @@ class DetectionStage:
         sessions: dict[str, Session],
     ) -> DetectionStage:
         """Build a DetectionStage and its full subtree from config."""
-        object_detector = (
-            build_object_detector(config.object_detector, sessions)
-            if config.object_detector is not None
-            else None
-        )
-        keypoint_detectors = [
-            build_keypoint_detector(kp_cfg, sessions)
-            for kp_cfg in config.keypoint_detectors
-        ]
-        children = [
-            DetectionStage.create(child_cfg, sessions)
-            for child_cfg in config.children
-        ]
-        return cls(
-            name=config.name,
-            object_detector=object_detector,
-            keypoint_detectors=keypoint_detectors,
-            children=children,
-            bbox_policy=BBoxPolicy.from_config(config.bbox_policy),
-            bbox_smoothing_alpha=config.bbox_smoothing.alpha if config.bbox_smoothing is not None else None,
-            keypoint_filter=(
-                make_keypoint_filter(config.keypoint_smoothing)
-                if config.keypoint_smoothing is not None
-                else None
-            ),
-            keypoint_reset_policy=KeypointResetPolicy.from_config(config.keypoint_reset_policy),
-        )
+        with ExitStack() as cleanup:
+            object_detector = None
+            if config.object_detector is not None:
+                object_detector = build_object_detector(
+                    config.object_detector, sessions
+                )
+                cleanup.callback(object_detector.close)
+            keypoint_detectors = []
+            for detector_config in config.keypoint_detectors:
+                detector = build_keypoint_detector(detector_config, sessions)
+                cleanup.callback(detector.close)
+                keypoint_detectors.append(detector)
+            children = []
+            for child_config in config.children:
+                child = cls.create(child_config, sessions)
+                cleanup.callback(child.close)
+                children.append(child)
+            stage = cls(
+                name=config.name,
+                object_detector=object_detector,
+                keypoint_detectors=keypoint_detectors,
+                children=children,
+                bbox_policy=BBoxPolicy.from_config(config.bbox_policy),
+                bbox_smoothing_alpha=config.bbox_smoothing.alpha
+                if config.bbox_smoothing is not None
+                else None,
+                keypoint_filter=(
+                    make_keypoint_filter(config.keypoint_smoothing)
+                    if config.keypoint_smoothing is not None
+                    else None
+                ),
+                keypoint_reset_policy=KeypointResetPolicy.from_config(
+                    config.keypoint_reset_policy
+                ),
+            )
+            cleanup.pop_all()
+        return stage
 
 
 def _dt_from_context(context: DetectionContext | None) -> float:

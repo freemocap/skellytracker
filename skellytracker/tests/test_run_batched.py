@@ -11,6 +11,7 @@ Integration tests (require onnxruntime + model download; auto-skip otherwise)
     TestRunBatchedRTMPose   — run_batched N=2 keypoint shapes
     TestDetectionStageBatch — full stage.run_batch() with YOLOX + RTMPose, 2 cameras
 """
+
 from __future__ import annotations
 
 import numpy as np
@@ -39,6 +40,7 @@ import skellytracker.core.detectors.keypoint_detectors.rtmpose  # noqa: F401, E4
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _two_cam(image: np.ndarray) -> dict[str, np.ndarray]:
     return {"cam0": image, "cam1": image.copy()}
 
@@ -47,15 +49,23 @@ def _two_cam(image: np.ndarray) -> dict[str, np.ndarray]:
 # Model-free: YoloxPersonDetector.preprocess
 # ---------------------------------------------------------------------------
 
+
 class TestYoloxPreprocess:
     @pytest.fixture(scope="class")
     @classmethod
     def detector(cls):
-        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-        session = OnnxSession.create(OnnxSessionConfig(
-            batch_size=1,
-            models=[YoloxPersonDetector.model_spec("yolox-m")],
-        ))
+        from skellytracker.core.sessions.onnx_session import (
+            OnnxSession,
+            OnnxSessionConfig,
+        )
+
+        session = OnnxSession.create(
+            OnnxSessionConfig(
+                execution_provider="cpu",
+                batch_size=1,
+                models=[YoloxPersonDetector.model_spec("yolox-m")],
+            )
+        )
         det = YoloxPersonDetector.create(YoloxPersonDetectorConfig(), session)
         yield det
         session.close()
@@ -95,15 +105,23 @@ class TestYoloxPreprocess:
 # Model-free: RTMPoseKeypointDetector.preprocess
 # ---------------------------------------------------------------------------
 
+
 class TestRTMPosePreprocess:
     @pytest.fixture(scope="class")
     @classmethod
     def detector(cls):
-        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-        session = OnnxSession.create(OnnxSessionConfig(
-            batch_size=1,
-            models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
-        ))
+        from skellytracker.core.sessions.onnx_session import (
+            OnnxSession,
+            OnnxSessionConfig,
+        )
+
+        session = OnnxSession.create(
+            OnnxSessionConfig(
+                execution_provider="cpu",
+                batch_size=1,
+                models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
+            )
+        )
         det = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), session)
         yield det
         session.close()
@@ -138,10 +156,13 @@ class TestRTMPosePreprocess:
 # Integration fixtures
 # ---------------------------------------------------------------------------
 
+
 @pytest.fixture(scope="module")
 def yolox_session_n1():
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
+        execution_provider="cpu",
         batch_size=1,
         models=[YoloxPersonDetector.model_spec("yolox-m")],
     )
@@ -153,7 +174,9 @@ def yolox_session_n1():
 @pytest.fixture(scope="module")
 def yolox_session_n2():
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
+        execution_provider="cpu",
         batch_size=2,
         models=[YoloxPersonDetector.model_spec("yolox-m")],
     )
@@ -165,7 +188,9 @@ def yolox_session_n2():
 @pytest.fixture(scope="module")
 def rtmpose_session_n2():
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
+        execution_provider="cpu",
         batch_size=2,
         models=[RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")],
     )
@@ -178,7 +203,9 @@ def rtmpose_session_n2():
 def combined_session_n2():
     """Single session holding both YOLOX and RTMPose at batch_size=2."""
     from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
     cfg = OnnxSessionConfig(
+        execution_provider="cpu",
         batch_size=2,
         models=[
             YoloxPersonDetector.model_spec("yolox-m"),
@@ -193,6 +220,7 @@ def combined_session_n2():
 # ---------------------------------------------------------------------------
 # TestRunBatchedYolox
 # ---------------------------------------------------------------------------
+
 
 class TestRunBatchedYolox:
     def test_single_camera_keys_preserved(self, test_image, yolox_session_n1):
@@ -265,6 +293,7 @@ class TestRunBatchedYolox:
 # TestRunBatchedRTMPose
 # ---------------------------------------------------------------------------
 
+
 class TestRunBatchedRTMPose:
     def test_two_cameras_keys_preserved(self, test_image, rtmpose_session_n2):
         detector = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), rtmpose_session_n2)
@@ -315,6 +344,7 @@ class TestRunBatchedRTMPose:
 # ---------------------------------------------------------------------------
 # TestDetectionStageBatch — full YOLOX + RTMPose pipeline
 # ---------------------------------------------------------------------------
+
 
 class TestDetectionStageBatch:
     @pytest.fixture(scope="class")

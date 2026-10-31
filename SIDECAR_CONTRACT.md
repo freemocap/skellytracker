@@ -1,0 +1,97 @@
+# Supported sidecar contract on sfn26
+
+This foundation selectively ports PR 84 [@skellytrackerSidecarImplementation].
+PR 81's newer specification exceeds its implementation [@skellytrackerSidecarExtensions];
+it is not a claim of supported functionality here. Accepted fields are defined
+by `core/sidecar/model.py`; unknown fields fail validation.
+
+UTF-8 YAML composition is resolved at initialization. `sidecar_model_spec` creates
+descriptors without network/file I/O; normal session creation resolves artifacts.
+Fresh remote downloads verify declared SHA-256 before atomic publication inside
+existing file locks. ZIP hashes cover downloaded archives. Already cached files
+retain the existing cache trust policy; local paths ignore URL hashes.
+
+RTMW wholebody and YOLOX consume the sidecars. RTMW native ordering is mapped to
+the established public ordering through an immutable precomputed index array.
+Confidence remains the mean of raw SIMCC peaks, clipped to [0, 1], with the 0.4
+threshold. Declared landmark counts and split-ratio/bin counts are checked.
+Normalization functions and model sizes are prepared before frame processing.
+
+## Implemented preprocessing
+
+- Nonempty uint8 BGR images; float32 model inputs; NCHW or NHWC output layout.
+- Top-left letterbox placement with configurable scalar padding/interpolation,
+  integer-truncated resized dimensions bounded to one pixel and scalar-ratio inverse.
+- Affine person crops with configurable expansion and interpolation, target aspect
+  ratio preservation, zero padding, and center/scale inverse metadata.
+- None, unit-float, ImageNet BGR/RGB and custom normalization; RGB modes reorder
+  incoming BGR channels before normalization.
+
+## Unsupported functionality
+
+The newer `decode.selection`, centered padding, rounding policies, output-binding
+extensions, stretch and fit are not accepted by this dialect. Resize `none`,
+non-aspect-preserving affine cropping, heatmap/coordinate pose decoding, 3D SIMCC
+decoding and non-float32 preprocessing raise explicit errors. Declaring artifact
+variants does not export them: no automatic static-batch converter, hardware-aware
+precision selector or generic sidecar-only detector implementation is included.
+
+The additional standalone RTMPose body/hand/face schema migrations are not included
+in this foundation port. Their existing entry points remain. The upstream body-only
+migration changes 23 declared names to 17; that requires separate model validation
+and does not change the verified 133-point RTMW application output here.
+
+## Verification
+
+`test_sidecar_compatibility.py` checks public landmark ordering, raw confidence and
+affine numerical parity. `test_sidecar_supported_contract.py` checks channel order,
+interpolation and rejection of unsupported declarations. Upstream foundation tests
+are retained. YOLOX real-model tests compare existing and new processing on the
+same backend; upstream golden files do not identify their backend/precision.
+Optional model variants without cached weights are reported as skipped.
+
+## Tracker construction
+
+`core/tracker/tracker_factory.py` adapts registry discovery from PR 90
+[@skellytrackerFactoryIntegration]. `collect_required_sessions(config)` describes
+the nested stage requirements without loading model files. `tracker_session_requests`
+returns requests for `SharedSessionPool`; `build_tracker` and
+`build_multi_person_tracker` instead allocate owned sessions and release them on
+construction failure. Callers register detector classes by importing their modules,
+as with the existing registries. Unsupported backends, missing model descriptors,
+and conflicting descriptors with the same name fail before session allocation.
+The factory is available directly from its module; Core's current factory is
+unchanged until the separate Global 2 migration.
+
+## Validation handoff — 2026-10-31
+
+The focused suite passed 241 tests; one optional YOLOX-tiny model test skipped
+because its weights were not cached. Eight bibliography-validator tests passed;
+43 references validated without errors. Existing batched detector correctness
+tests now select CPU explicitly instead of depending on installed provider order.
+The reference-frame comparison used CUDA explicitly.
+
+Test and sample recordings each supplied 12 frames, tested with one camera and
+three cameras: 96 camera-frame observations in total. Landmark ordering and NaN
+masks matched, and maximum absolute coordinate and confidence differences were
+both zero relative to Tracker b535c0f. These are short inference checks, not
+whole-recording processing or camera-to-display latency benchmarks.
+
+| Reference case | Baseline median (ms) | Integrated median (ms) |
+| --- | ---: | ---: |
+| Test, one camera | 21.817 | 21.209 |
+| Test, three cameras | 39.319 | 38.748 |
+| Sample, one camera | 20.401 | 20.466 |
+| Sample, three cameras | 37.600 | 38.801 |
+
+The small differences do not establish a speedup or regression. Each median
+excludes two initial frames. Final isolated reports and array comparisons are
+under the outer workspace's ignored `.test-artifacts/sidecar-integration/`,
+in `baseline/` and `handoff-factory/`. An earlier `verified-factory/` run overlapped
+the CPU test suite and must not be used for timing comparison.
+
+Tests cover actual mixed CPU/MediaPipe/ONNX session construction, shared-session
+reuse, and cleanup after partial detector, stage, or session construction failure.
+They do not validate the future RTMW-body/MediaPipe-hand composition or its speed.
+Synthetic decoder tests also cover raw YOLOX anchors without mutating input,
+rejection of unsplit NMS camera batches, and NHWC spatial dimensions.

@@ -12,10 +12,12 @@ by OnnxSessionConfig::
         models=[YoloxPersonDetector.model_spec("yolox-m"), ...],
     )
 """
+
 from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
@@ -31,28 +33,28 @@ from skellytracker.core.detectors.detector_base_classes import (
 from skellytracker.core.detectors.metadata import YoloxMetadata
 from skellytracker.core.detectors.object_detectors.yolox._yolox_dynamic_batch import prepare_yolox_onnx
 from skellytracker.core.detectors.object_detectors.yolox.yolox_preprocessing import multiclass_nms, yolox_letterbox_preprocess
-from skellytracker.core.sessions.model_registry import ModelSource
 from skellytracker.core.sessions.onnx_model_spec import OnnxModelSpec
 from skellytracker.core.sessions.session import Session
 
 logger = logging.getLogger(__name__)
 
-_YOLOX_MODEL_URLS: dict[str, str] = {
-    "yolox-tiny": (
-        "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
-        "yolox_tiny_8xb8-300e_humanart-6f3252f9.zip"
-    ),
-    "yolox-m": (
-        "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
-        "yolox_m_8xb8-300e_humanart-c2c7a14a.zip"
-    ),
-}
+from skellytracker.core.sidecar.loader import load_sidecar
+from skellytracker.core.sidecar.runtime import sidecar_model_spec
+from skellytracker.core.detectors.processing.image_preprocessing import (
+    preprocess_image,
+    build_normalization_fn,
+)
+from skellytracker.core.detectors.object_detectors.yolox.yolox_decode import (
+    yolox_detection_decode,
+)
 
-# Canonical input sizes per model variant (H, W).
-_YOLOX_INPUT_SIZES: dict[str, tuple[int, int]] = {
-    "yolox-m": (640, 640),
-    "yolox-tiny": (416, 416),
+_SIDECAR_PATH = Path(__file__).parent / "yolox.yaml"
+_SIDECAR = load_sidecar(_SIDECAR_PATH)
+_YOLOX_INPUT_SIZES = {
+    name: _SIDECAR.resolved_size(name).input.resize.target_size
+    for name in _SIDECAR.sizes
 }
+_NORMALIZE_IMAGE = build_normalization_fn(_SIDECAR.input, "fp32")
 
 
 class YoloxPersonDetectorConfig(ObjectDetectorConfig):
@@ -80,7 +82,7 @@ class YoloxPersonDetectorConfig(ObjectDetectorConfig):
 
     @property
     def input_size(self) -> tuple[int, int]:
-        return _YOLOX_INPUT_SIZES.get(self.model_name, (640, 640))
+        return _YOLOX_INPUT_SIZES[self.model_name]
 
 
 @dataclass
@@ -95,15 +97,16 @@ class YoloxPersonDetector(ObjectDetector):
     config: YoloxPersonDetectorConfig
     session: Session
 
-    def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], YoloxMetadata]:
-        """Letterbox-pad and transpose image for YOLOX inference.
-
-        Returns (tensor, metadata) where tensor has shape (3, H, W) and dtype
-        float32 — ready to stack into a batch. metadata.ratio is needed by
-        postprocess to scale detections back to original image space.
-        """
-        padded, ratio = yolox_letterbox_preprocess(image, self.config.input_size)
-        tensor = np.ascontiguousarray(padded.transpose(2, 0, 1).astype(np.float32))  # (3, H, W)
+    def preprocess(
+        self, image: NDArray[np.uint8]
+    ) -> tuple[NDArray[np.float32], YoloxMetadata]:
+        tensor, ratio = preprocess_image(
+            image,
+            self.config.input_size,
+            _SIDECAR.input,
+            precision="fp32",
+            normalization_fn=_NORMALIZE_IMAGE,
+        )
         return tensor, YoloxMetadata(ratio=ratio, original_size=image.shape[:2])
 
     def postprocess(self, raw: Any, metadata: YoloxMetadata) -> list[BoundingBox]:
@@ -113,36 +116,31 @@ class YoloxPersonDetector(ObjectDetector):
         (already split from a batch along axis 0). The number of outputs
         determines whether the model used pre-NMS or standard outputs.
         """
-        if len(raw) == 2:
-            # Pre-NMS model: NMS was stripped from the graph, apply it here.
-            boxes_arr, scores_arr = raw
-            boxes_nd, scores_nd = _postprocess_prenms(
-                boxes=boxes_arr,
-                scores=scores_arr,
-                ratio=metadata.ratio,
-                score_thr=self.config.score_threshold,
-                nms_thr=self.config.nms_threshold,
-            )
-        else:
-            boxes_nd, scores_nd = _postprocess_yolox(
-                outputs_one=raw[0],
-                ratio=metadata.ratio,
-                model_input_size=self.config.input_size,
-                score_thr=self.config.score_threshold,
-                nms_thr=self.config.nms_threshold,
-            )
+        boxes_nd, scores_nd = yolox_detection_decode(
+            raw,
+            ratio=metadata.ratio,
+            model_input_size=self.config.input_size,
+            score_threshold=self.config.score_threshold,
+            nms_threshold=self.config.nms_threshold,
+            decode_spec=_SIDECAR.decode,
+        )
 
         if len(boxes_nd) == 0:
             return []
 
         result = [
-            BoundingBox(x1=float(b[0]), y1=float(b[1]), x2=float(b[2]), y2=float(b[3]),
-                        confidence=float(s))
+            BoundingBox(
+                x1=float(b[0]),
+                y1=float(b[1]),
+                x2=float(b[2]),
+                y2=float(b[3]),
+                confidence=float(s),
+            )
             for b, s in zip(boxes_nd, scores_nd, strict=False)
         ]
         result.sort(key=lambda bb: bb.confidence, reverse=True)
         if self.config.max_detections is not None:
-            result = result[:self.config.max_detections]
+            result = result[: self.config.max_detections]
         return result
 
     def detect(
@@ -151,27 +149,12 @@ class YoloxPersonDetector(ObjectDetector):
         context: DetectionContext | None = None,
         parent_keypoints: Keypoints | None = None,
     ) -> list[BoundingBox]:
-        boxes, scores = _detect_yolox(
-            image=image,
-            session=self.session,
-            model_name=self.config.model_name,
-            input_size=self.config.input_size,
-            score_threshold=self.config.score_threshold,
-            nms_threshold=self.config.nms_threshold,
+        tensor, metadata = self.preprocess(image)
+        input_name = (
+            self.session.get_session(self.config.model_name).get_inputs()[0].name
         )
-        if len(boxes) == 0:
-            return []
-
-        result = [
-            BoundingBox(x1=float(b[0]), y1=float(b[1]), x2=float(b[2]), y2=float(b[3]),
-                        confidence=float(s))
-            for b, s in zip(boxes, scores, strict=False)
-        ]
-        result.sort(key=lambda bb: bb.confidence, reverse=True)
-
-        if self.config.max_detections is not None:
-            result = result[:self.config.max_detections]
-        return result
+        raw = self.session.run(self.config.model_name, {input_name: tensor[np.newaxis]})
+        return self.postprocess(raw, metadata)
 
     @classmethod
     def create(cls, config: ObjectDetectorConfig, session: Session) -> YoloxPersonDetector:
@@ -188,19 +171,15 @@ class YoloxPersonDetector(ObjectDetector):
 
     @classmethod
     def model_spec(cls, model_name: str = "yolox-m") -> OnnxModelSpec:
-        """Return the OnnxModelSpec needed to load this model into an OnnxSession."""
         if model_name not in _YOLOX_INPUT_SIZES:
-            raise ValueError(
-                f"Unknown YOLOX model {model_name!r}. "
-                f"Available: {list(_YOLOX_INPUT_SIZES)}"
-            )
-        url = _YOLOX_MODEL_URLS.get(model_name)
-        if url is None:
-            raise ValueError(f"No download URL registered for YOLOX model {model_name!r}.")
-        return OnnxModelSpec(
+            raise ValueError(f"Unknown YOLOX model {model_name!r}")
+        return sidecar_model_spec(
+            _SIDECAR,
+            size=model_name,
+            batch_key="1",
+            precision="fp32",
             name=model_name,
-            source=ModelSource(url=url),
-            input_size=_YOLOX_INPUT_SIZES[model_name],
+            sidecar_dir=_SIDECAR_PATH.parent,
             prepare=prepare_yolox_onnx,
         )
 
@@ -216,6 +195,7 @@ YOLOX_MODEL_SPECS: dict[str, OnnxModelSpec] = {
 # ---------------------------------------------------------------------------
 # Internal inference helpers
 # ---------------------------------------------------------------------------
+
 
 def _detect_yolox(
     image: NDArray[np.uint8],

@@ -8,6 +8,7 @@ and caching if necessary.
 from __future__ import annotations
 
 import logging
+import hashlib
 import os
 import shutil
 import tempfile
@@ -26,6 +27,20 @@ logger = logging.getLogger(__name__)
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "skellytracker" / "models"
 
 
+class ModelIntegrityError(ValueError):
+    """Downloaded model bytes do not match their declared digest."""
+
+
+def _verify_download(path: str, expected_sha256: str | None) -> None:
+    if expected_sha256 is None:
+        return
+    with open(path, "rb") as model_file:
+        actual = hashlib.file_digest(model_file, "sha256").hexdigest()
+    if actual != expected_sha256.lower():
+        raise ModelIntegrityError(
+            f"Model SHA-256 mismatch: expected {expected_sha256}, received {actual}"
+        )
+
 
 class ModelSource(BaseModel):
     """Where to get a model file.  Set exactly one of the optional fields."""
@@ -41,6 +56,9 @@ class ModelSource(BaseModel):
 def resolve_model_path(
     source: ModelSource,
     cache_dir: Path | str | None = None,
+    *,
+    expected_filename: str | None = None,
+    expected_sha256: str | None = None,
 ) -> Path:
     """Return the local filesystem path to a model, downloading if necessary."""
     if source.local_path:
@@ -55,7 +73,12 @@ def resolve_model_path(
         return _resolve_from_huggingface(source, cache_dir)
 
     if source.url is not None:
-        return _resolve_from_url(source.url, cache_dir)
+        return _resolve_from_url(
+            source.url,
+            cache_dir,
+            expected_filename=expected_filename,
+            expected_sha256=expected_sha256,
+        )
 
     raise ValueError("ModelSource must specify one of: local_path, hf_repo, url")
 
@@ -93,14 +116,22 @@ def _resolve_from_huggingface(
 def _resolve_from_url(
     url: str,
     cache_dir: Path | str | None = None,
+    *,
+    expected_filename: str | None = None,
+    expected_sha256: str | None = None,
 ) -> Path:
     cache = Path(cache_dir) if cache_dir else _default_cache()
     cache.mkdir(parents=True, exist_ok=True)
 
     filename = url.rsplit("/", 1)[-1]
+    if expected_filename is not None and (
+        Path(expected_filename).name != expected_filename
+        or not expected_filename.endswith(".onnx")
+    ):
+        raise ValueError("expected_filename must be a plain ONNX filename")
 
     if filename.endswith(".onnx"):
-        cached_onnx = cache / filename
+        cached_onnx = cache / (expected_filename or filename)
         if cached_onnx.exists():
             logger.info(f"Using cached model: {cached_onnx}")
             return cached_onnx
@@ -135,6 +166,7 @@ def _resolve_from_url(
                         pbar.update(len(chunk))
 
                 tmp.close()
+                _verify_download(tmp.name, expected_sha256)
                 os.replace(tmp.name, cached_onnx)
 
             finally:
@@ -148,7 +180,7 @@ def _resolve_from_url(
 
         return cached_onnx
 
-    onnx_name = filename.replace(".zip", ".onnx")
+    onnx_name = expected_filename or filename.replace(".zip", ".onnx")
     cached_onnx = cache / onnx_name
 
     if cached_onnx.exists():
@@ -186,6 +218,7 @@ def _resolve_from_url(
                     pbar.update(len(chunk))
 
             tmp_zip.close()
+            _verify_download(tmp_zip.name, expected_sha256)
 
             with zipfile.ZipFile(tmp_zip.name, "r") as zf:
                 onnx_names = [n for n in zf.namelist() if n.endswith(".onnx")]

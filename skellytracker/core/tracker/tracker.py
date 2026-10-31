@@ -153,8 +153,9 @@ class Tracker:
     @classmethod
     def create(cls, config: TrackerConfig, sessions: dict[str, Session]) -> Tracker:
         """Build a Tracker from config and pre-created sessions."""
-        stages = [DetectionStage.create(stage_cfg, sessions) for stage_cfg in config.stages]
-        return cls(stages=stages, sessions=sessions)
+        tracker = cls.create_with_shared_sessions(config=config, sessions=sessions)
+        tracker.sessions = sessions
+        return tracker
 
     @classmethod
     def create_with_shared_sessions(cls, *, config: TrackerConfig, sessions: dict[str, Session]) -> Tracker:

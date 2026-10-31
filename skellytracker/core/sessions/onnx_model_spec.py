@@ -6,6 +6,7 @@ multi-second import) at sub-process startup. OnnxSession - the class that
 actually holds an ORT session - stays in onnx_session.py, which is imported
 lazily when a session is created.
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from pydantic import ConfigDict, Field, field_validator
 from skellytracker.core.config.session_config import SessionConfig
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 from skellytracker.core.sessions.model_registry import ModelSource
+
 
 @dataclass
 class OnnxModelSpec:
@@ -49,6 +51,9 @@ class OnnxModelSpec:
     input_size: tuple[int, int]
     prepare: Callable[[Path], Path] | None = None
     coreml_options: dict | None = None
+    # SHA-256 describes the downloaded bytes (the archive for a ZIP source).
+    expected_filename: str | None = None
+    expected_sha256: str | None = None
 
 
 class OnnxSessionConfig(SessionConfig):
@@ -103,4 +108,3 @@ class OnnxSessionConfig(SessionConfig):
         if v < 1:
             raise ValueError(f"batch_size must be >= 1, got {v}")
         return v
-
