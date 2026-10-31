@@ -19,7 +19,7 @@ Core migration follows the completed Tracker integration.
 - [x] **1.1. Commit the existing SkellyTracker fixes and tests, and verify the three PR revisions and their merge order.**
 - [x] **1.2. Merge PR #84 into `sfn26`, resolve compatibility issues, validate and push the result, then pause with its PR comment.**
 - [x] **1.3. Merge PR #81 into `sfn26`, reconcile its complete sidecar contract, validate and push the result, then pause with its PR comment.**
-- [ ] **1.4. Merge PR #90 into `sfn26`, reconcile its factory with shared-session ownership, validate and push the result, then pause with its PR comment.**
+- [x] **1.4. Merge PR #90 into `sfn26`, reconcile its factory with shared-session ownership, validate and push the result, then pause with its PR comment.**
 - [ ] **1.5. Validate the combined SkellyTracker changes against reference recordings and all affected detector interfaces.**
 - [ ] **1.6. Verify the published SkellyTracker revision and prepare the FreeMoCap integration handoff.**
 
@@ -46,7 +46,18 @@ Validation: 388 tests passed without skips, eight bibliography tests passed,
 and all 96 reference camera-frame observations had zero coordinate/confidence
 differences. The full proposed vNEXT specification is retained, with implemented
 resize behavior and unimplemented exporter features clearly distinguished.
-Paused for the owner's PR 81 comment; PR 90 has not been merged.
+The owner posted the PR 81 comment and authorized proceeding to PR 90.
+
+PR 90 merged and published as `c876aba8b75cec550b363970a4c84656b9c63436`.
+Its second parent is the exact PR head, and the published branch was verified.
+Validation: 405 tests passed without skips, eight bibliography tests passed,
+and all 96 reference camera-frame observations had zero coordinate/confidence
+differences. The public factory and examples retain shared-session discovery,
+strict descriptors, batch overrides, and construction-failure cleanup. Two trackers
+shared real ONNX models successfully through independent close operations.
+The new MediaPipe construction test runs in an isolated subprocess after native
+Windows exceptions in combined runs; see `SIDECAR_CONTRACT.md` for the limitation.
+Paused for the owner's PR 90 comment; steps 1.5 and 1.6 remain pending.
 
 ## Execution and PR handoff instructions
 
