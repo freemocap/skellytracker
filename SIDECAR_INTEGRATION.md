@@ -18,7 +18,7 @@ Core migration follows the completed Tracker integration.
 
 - [x] **1.1. Commit the existing SkellyTracker fixes and tests, and verify the three PR revisions and their merge order.**
 - [x] **1.2. Merge PR #84 into `sfn26`, resolve compatibility issues, validate and push the result, then pause with its PR comment.**
-- [ ] **1.3. Merge PR #81 into `sfn26`, reconcile its complete sidecar contract, validate and push the result, then pause with its PR comment.**
+- [x] **1.3. Merge PR #81 into `sfn26`, reconcile its complete sidecar contract, validate and push the result, then pause with its PR comment.**
 - [ ] **1.4. Merge PR #90 into `sfn26`, reconcile its factory with shared-session ownership, validate and push the result, then pause with its PR comment.**
 - [ ] **1.5. Validate the combined SkellyTracker changes against reference recordings and all affected detector interfaces.**
 - [ ] **1.6. Verify the published SkellyTracker revision and prepare the FreeMoCap integration handoff.**
@@ -37,8 +37,16 @@ PR 84 merged and published as `9668a8d40881a09db083744db4b9b9f2639f7087`.
 Its second parent is the exact PR head, and the published branch was verified.
 Validation: 376 tests passed without skips, eight bibliography tests passed,
 and all 96 reference camera-frame observations had zero coordinate/confidence
-differences from the original baseline. Paused for the owner's PR comment;
-PR 81 and PR 90 have not been merged.
+differences from the original baseline. The owner posted the PR 84 comment and
+authorized proceeding to PR 81.
+
+PR 81 merged and published as `4a8b1f7fd8175c28d6815a7c42fa8deffa9f10d5`.
+Its second parent is the exact PR head, and the published branch was verified.
+Validation: 388 tests passed without skips, eight bibliography tests passed,
+and all 96 reference camera-frame observations had zero coordinate/confidence
+differences. The full proposed vNEXT specification is retained, with implemented
+resize behavior and unimplemented exporter features clearly distinguished.
+Paused for the owner's PR 81 comment; PR 90 has not been merged.
 
 ## Execution and PR handoff instructions
 
