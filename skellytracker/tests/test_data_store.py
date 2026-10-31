@@ -34,12 +34,15 @@ pytestmark = pytest.mark.video
 _N_FRAMES = 10
 
 
-def _load_video_frames(video_path: pathlib.Path, n_frames: int) -> list[np.ndarray]:
+def _load_video_frames(video_path: pathlib.Path, n_frames: int) -> tuple[list[np.ndarray], float]:
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
         raise RuntimeError(f"Could not open: {video_path}")
     frames = []
     try:
+        fps = float(cap.get(cv2.CAP_PROP_FPS))
+        if not np.isfinite(fps) or not 0 < fps <= 1000:
+            raise ValueError(f"Invalid reference video frame rate: {fps}")
         for _ in range(n_frames):
             ok, frame = cap.read()
             if not ok:
@@ -47,7 +50,7 @@ def _load_video_frames(video_path: pathlib.Path, n_frames: int) -> list[np.ndarr
             frames.append(frame)
     finally:
         cap.release()
-    return frames
+    return frames, fps
 
 
 @pytest.fixture(scope="module")
@@ -61,7 +64,7 @@ class TestDataStore:
     @pytest.fixture(scope="class")
     @classmethod
     def populated_store(cls, test_video_path, mediapipe_session):
-        frames = _load_video_frames(test_video_path, _N_FRAMES)
+        frames, fps = _load_video_frames(test_video_path, _N_FRAMES)
         if not frames:
             pytest.skip("Could not read any frames from test video")
         config = TrackerConfig(
@@ -79,9 +82,14 @@ class TestDataStore:
         tracker = Tracker.create(config, {"mediapipe": mediapipe_session})
         store = DataStore()
         state = TrackerState()
-        for i, frame in enumerate(frames):
-            obs, state = tracker.process_image(frame, frame_number=i, state=state)
-            store.add(obs)
+        try:
+            for i, frame in enumerate(frames):
+                obs, state = tracker.process_image(
+                    frame, frame_number=i, state=state, timestamp_ms=round(i * 1000 / fps),
+                )
+                store.add(obs)
+        finally:
+            tracker.close()
         return store, len(frames)
 
     def test_observation_count_matches_frames(self, populated_store):

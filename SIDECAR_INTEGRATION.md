@@ -20,7 +20,7 @@ Core migration follows the completed Tracker integration.
 - [x] **1.2. Merge PR #84 into `sfn26`, resolve compatibility issues, validate and push the result, then pause with its PR comment.**
 - [x] **1.3. Merge PR #81 into `sfn26`, reconcile its complete sidecar contract, validate and push the result, then pause with its PR comment.**
 - [x] **1.4. Merge PR #90 into `sfn26`, reconcile its factory with shared-session ownership, validate and push the result, then pause with its PR comment.**
-- [ ] **1.5. Validate the combined SkellyTracker changes against reference recordings and all affected detector interfaces.**
+- [x] **1.5. Validate the combined SkellyTracker changes against reference recordings and all affected detector interfaces.**
 - [ ] **1.6. Verify the published SkellyTracker revision and prepare the FreeMoCap integration handoff.**
 
 The previous selective-port implementation and its passing tests are preserved
@@ -57,7 +57,60 @@ strict descriptors, batch overrides, and construction-failure cleanup. Two track
 shared real ONNX models successfully through independent close operations.
 The new MediaPipe construction test runs in an isolated subprocess after native
 Windows exceptions in combined runs; see `SIDECAR_CONTRACT.md` for the limitation.
-Paused for the owner's PR 90 comment; steps 1.5 and 1.6 remain pending.
+The owner subsequently authorized steps 1.5 and 1.6, including publishing fixes
+and tests. Step 1.5 is complete: 593 Tracker tests plus four subtests, 92 reference
+video checks, all 16 Core real-time replay cases across both full recordings,
+23 Core integration tests plus two subtests, 48 session-request parity cases,
+and nine tensor/timing consumer tests passed. Default graph post-hoc processing
+passed both full recordings; the older selectable pipeline also passed test data.
+All 96 bounded camera-frame comparisons remain numerically identical to the
+original baseline. See `SIDECAR_CONTRACT.md` for fixes, commands and limitations.
+Step 1.6 remains pending publication verification and the Core handoff.
+
+## Core integration handoff for Global 2
+
+Core still runs its existing factory in
+`freemocap/core/tracking/tracker_factory.py`. The passing integration runs test
+that consumer against the merged Tracker; they do not claim Core has adopted
+the new factory yet. No package versions or lockfiles changed in Global 1.
+
+1. Replace Core's hard-coded RTMPose/YOLOX resource discovery with the public
+   `skellytracker.core.tracker.tracker_session_requests` API. Map Core's
+   `execution_provider` into `onnx_overrides` and `mediapipe_disable_gpu` into
+   `mediapipe_overrides`; preserve `batch_size`. Core's new
+   `test_sidecar_factory_contract.py` verifies exact request equality for 48
+   combinations before migration.
+2. Preserve allocation ownership. `freemocap/core/pipeline/inference_service.py`
+   owns its `SharedSessionPool` and tracker leases on one managed thread. Feed it
+   requests; do not replace pooled trackers with independently owned
+   `build_tracker` instances. Preserve per-client state, cancellation, lease
+   cleanup and session reuse. Direct construction in `build_configured_tracker`
+   and `build_skeleton_onnx_session` must retain `_onnx_session_build_lock`;
+   Tracker's standalone convenience factory does not supply that Core lock.
+3. Update canonical RTMW imports and schema access deliberately.
+   `freemocap/core/tracking/tracker_definitions.py` still reads
+   `rtmpose/wholebody/rtmpose_wholebody.yaml`. The compatibility classes/YAML
+   remain available; canonical implementation is `rtmw/wholebody/`.
+   Preserve saved model/stage names, confidence semantics, authored landmark
+   ordering and skeleton connections while changing package access. Core owns
+   bounding-box defaults, model composition and observation adaptation.
+4. Repeat the factory/inference tests, both full real-time reference replays and
+   both graph post-hoc runs after migration. Compare numerical values and source
+   timing, and verify worker/session cleanup. MediaPipe tests using pytest's
+   native file-descriptor capture need the documented `sys` capture setting.
+
+The proposed vNEXT exporter specification is not a universal custom-model
+decoder. Unsupported output bindings/exporter adapters still need model-specific
+validation in later stages. RTMW-body/MediaPipe-hand composition, DLC integration,
+provider controls and acceleration benchmarks remain Globals 3–5. Existing
+automatic-provider runs used CUDA; missing TensorRT runtime was not installed.
+
+### Proposed Global 2 checklist — awaiting approval
+
+- [ ] **2.1. Replace Core's hard-coded session discovery with Tracker's registry requests, preserving shared-session ownership and ONNX construction locking.**
+- [ ] **2.2. Update Core's RTMW imports and schema access, with tests for model names, confidence values, landmark ordering and skeleton connections.**
+- [ ] **2.3. Validate the migrated Core factory through real-time replay and post-hoc processing of both reference recordings.**
+- [ ] **2.4. Publish the tested Core integration and prepare the execution-provider controls handoff.**
 
 ## Execution and PR handoff instructions
 
@@ -70,8 +123,9 @@ Only say a PR was merged after verifying its Git ancestry; a selective
 source port must be described as a port, with omitted work stated explicitly.
 PR 81 includes PR 84's history. Merge PR 84 first, then its descendant PR 81,
 then PR 90, preserving the complete histories and resolving compatibility issues.
-Dependency installations and changes to other repositories are not authorized
-by this stage. Existing source values, confidence semantics, landmark
+Dependency installations are not authorized by this stage. The owner's latest
+approval includes Core integration tests and their publication; Core runtime
+migration remains Global 2. Existing source values, confidence semantics, landmark
 order, download locks, shared-session ownership and dense numerical storage are
 acceptance constraints.
 

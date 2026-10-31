@@ -171,3 +171,79 @@ Reports are in the outer workspace's ignored
 `.test-artifacts/sidecar-integration/merge90-reference/`; the combined pytest log is
 in Tracker's ignored `.test-artifacts/sidecar-integration/merge90-validated.log`.
 Eight bibliography-validator tests passed; 43 references have no citation errors.
+
+## Combined integration validation, step 1.5 — 2026-10-31
+
+Validation used the existing Tracker and Core environments and local editable
+sources, without dependency installation or lockfile changes. Core runtime code
+was not migrated in this step. Its reference tests now support both recordings,
+and a new 48-case test compares Core's existing session requests with Tracker's
+registry factory without allocating sessions.
+
+The expanded checks found and fixed an import-order defect: importing
+`MediaPipeSession` before the detector registry caused a circular import through
+the MediaPipe model manager. That helper is now imported inside the GPU probe.
+Four fresh-process tests verify session/factory imports in different orders,
+without importing native MediaPipe or ONNX Runtime at module import time.
+
+The native Windows exception recorded above was reproduced with pytest's `fd`
+capture during repeated mixed MediaPipe/CPU construction. The same six-cycle
+diagnostic passed with `sys` capture, which leaves native output handles alone.
+Tracker now defaults to `--capture=sys`; three repeated in-process lifecycle
+tests and the existing subprocess lifecycle test pass. This is a test-capture
+adjustment, not a production logging or inference workaround. The data-store
+video fixture also now supplies recording-derived timestamps and guarantees
+tracker cleanup after errors; its previous processing-clock timestamps could
+violate MediaPipe's monotonic timestamp requirement.
+
+Verified results:
+
+- Tracker non-video suite: 593 tests plus four subtests passed, with no skips.
+- Tracker video suite: 46 checks passed on test data and 46 on sample data,
+  including explicit CPU/CUDA cases, MediaPipe, ArUco, ChArUco and data-store
+  consumers. These detector tests use bounded frames from each recording;
+  Core's pipeline runs below process complete recordings and all three cameras.
+- Core factory/inference/cancellation/replay-driver checks: 23 tests plus two
+  subtests passed. Session-request parity: 48 cases passed. Dense tensor,
+  memory-map ownership, source timing and replay consumers: nine tests passed.
+- All 16 real-time replay cases passed across both complete recordings:
+  centralized/per-camera inference, explicit/latest calibration selection, and
+  board-only/board-plus-human tracking. Eight board cases passed in the initial
+  matrix; eight human cases passed after allowing provider-cache access.
+  Tests check frame identity, source timing, live filter updates, reconstruction,
+  shutdown and shared-memory release, while preserving source-file hashes.
+  Reference data can still produce unsolved hand segments and camera-geometry
+  warnings handled by the configured continue policy. Passing reconstruction
+  assertions do not mean every segment is solved on every frame.
+- All 96 camera-frame comparisons against Tracker `b535c0f` passed again.
+  Coordinates, confidence values and missingness masks were exactly equal;
+  authored landmark ordering matched. These are the first 12 frames of each
+  recording with one/three-camera batches, not whole-recording equivalence.
+- Bibliography validation: 43 references, no errors; eight validator tests passed.
+  Focused fatal-error lint and whitespace checks passed.
+
+The default graph post-hoc pipeline completed fresh calibration, tracking,
+triangulation, alignment, filtering, scale fitting, reconstruction and Parquet
+validation for both full reference recordings:
+
+| Recording | Frames per camera | Cameras | Parquet rows | Calibration error (px) | Worker lifecycle (s) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Test | 222 | 3 | 1,865,466 | 0.375611 | 40.790 |
+| Sample | 1,108 | 3 | 9,310,524 | 0.408939 | 153.451 |
+
+The selectable older `current` post-hoc implementation also completed the test
+recording with 222 frames and 1,865,466 rows. Its run overlapped other correctness
+tests and is not timing evidence. Graph worker-lifecycle times include setup and
+output work; they do not establish an inference speedup or live-camera frame rate.
+All processing used the explicit `numerical` output profile. Blender, GUI and
+hardware-camera acceptance were not run in this stage.
+
+JUnit and diagnostic logs are ignored under each repository's
+`.test-artifacts/sidecar-integration/stage15-*`. The final array comparison is in
+the outer workspace's `stage15-reference/` directory under that artifact root;
+its concurrent-run timings must not be used as performance comparisons.
+Prepared graph recordings and `ready.json` reports are under
+`%LOCALAPPDATA%/Temp/fc-sc15-20261031/`; the older implementation uses
+`%LOCALAPPDATA%/Temp/fc-sc15-current-20261031/`. Original recordings were not
+overwritten. Initial fixture-download and Windows sandbox cache/temp-directory
+errors were resolved before the passing reruns; failed-attempt logs are retained.

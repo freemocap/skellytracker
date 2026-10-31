@@ -1,5 +1,15 @@
 # Tests
 
+Pytest defaults to `--capture=sys` in this repository. MediaPipe 0.10.33 on Windows
+raised native exception `0xc0000008` during repeated factory lifecycles under
+pytest's file-descriptor capture (`--capture=fd`). The same six lifecycles passed
+with Python-stream capture (`--capture=sys`). This setting keeps native output
+handles stable; native library messages remain visible in the console or outer
+log. It does not change application logging or MediaPipe execution.
+
+Factory regression tests cover repeated in-process creation and shutdown, plus
+an isolated-process check that reports native crashes as test failures.
+
 ## Explicit CPU and CUDA reference validation
 
 From the repository root, the normal entry points are:

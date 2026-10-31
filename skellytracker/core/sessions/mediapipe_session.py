@@ -7,10 +7,6 @@ from typing import Any, ClassVar, Literal
 
 from skellytracker.core.config.session_config import SessionConfig
 from skellytracker.core.sessions.session import Session
-from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
-    MediapipePoseModelComplexity,
-    get_pose_model_path,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -89,6 +85,13 @@ def _probe_gpu(
     Always uses the lite pose model to keep the probe download small.
     Returns True if GPU should be disabled, False if GPU is available.
     """
+    # The detector package imports MediaPipeSession when registering detectors.
+    # Import its model helper only after this module has finished initializing.
+    from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
+        MediapipePoseModelComplexity,
+        get_pose_model_path,
+    )
+
     probe_path = get_pose_model_path(MediapipePoseModelComplexity.LITE)
     os.environ.pop("MEDIAPIPE_DISABLE_GPU", None)
     probe_opts = PoseLandmarkerOptions(

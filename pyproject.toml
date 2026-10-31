@@ -229,6 +229,9 @@ url = "https://pypi.nvidia.com"
 
 [tool.pytest.ini_options]
 testpaths = ["skellytracker/tests"]
+# Native MediaPipe on Windows can fail with 0xc0000008 when pytest swaps OS
+# stdout/stderr handles between tests. Keep native streams stable.
+addopts = "--capture=sys"
 markers = [
     "video: tests that run inference over real video frames (slow, requires test recording)",
 ]

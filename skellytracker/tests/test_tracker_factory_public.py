@@ -118,6 +118,10 @@ class TestBuildSessionsOnnxOverrides:
 
 
 class TestBuildTracker:
+    @pytest.mark.parametrize('cycle_index', range(3))
+    def test_mixed_tracker_reopens_in_process(self, cycle_index):
+        _exercise_mixed_tracker()
+
     def test_build_tracker_end_to_end_mixed_mediapipe_and_cpu(self):
         # Native MediaPipe raised Windows 0xc0000008 in the combined captured
         # suite. Exercise its complete lifecycle in a fresh process with stable
