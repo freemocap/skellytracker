@@ -16,17 +16,17 @@ Core migration follows the completed Tracker integration.
 
 ## Approved Global 1 checklist
 
-- [ ] **1.1. Commit the existing SkellyTracker fixes and tests, and verify the three PR revisions and their merge order.**
+- [x] **1.1. Commit the existing SkellyTracker fixes and tests, and verify the three PR revisions and their merge order.**
 - [ ] **1.2. Merge PR #84 into `sfn26`, resolve compatibility issues, validate and push the result, then pause with its PR comment.**
 - [ ] **1.3. Merge PR #81 into `sfn26`, reconcile its complete sidecar contract, validate and push the result, then pause with its PR comment.**
 - [ ] **1.4. Merge PR #90 into `sfn26`, reconcile its factory with shared-session ownership, validate and push the result, then pause with its PR comment.**
 - [ ] **1.5. Validate the combined SkellyTracker changes against reference recordings and all affected detector interfaces.**
 - [ ] **1.6. Verify the published SkellyTracker revision and prepare the FreeMoCap integration handoff.**
 
-The previous selective-port implementation and its passing tests remain in the
-working tree. Its completed checks are evidence to preserve, not completion of
-the newly requested full merges. `SIDECAR_CONTRACT.md` describes that pre-merge
-implementation until each full merge is reconciled and validated.
+The previous selective-port implementation and its passing tests are preserved
+in commit `d7b0b1a`. Its completed checks are evidence to preserve, not completion
+of the requested full merges. `SIDECAR_CONTRACT.md` records each integration's
+supported behavior and validation evidence.
 
 The owner explicitly clarified that this task's Git authorization supersedes the
 older workspace prohibition. Approval review accepted the resubmitted fetch.

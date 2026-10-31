@@ -1,9 +1,11 @@
 # Supported sidecar contract on sfn26
 
-This foundation selectively ports PR 84 [@skellytrackerSidecarImplementation].
-PR 81's newer specification exceeds its implementation [@skellytrackerSidecarExtensions];
-it is not a claim of supported functionality here. Accepted fields are defined
-by `core/sidecar/model.py`; unknown fields fail validation.
+PR 84 is integrated with its complete branch history [@skellytrackerSidecarImplementation],
+including standalone detector migrations, RTMW module relocation, overlay groups,
+mapping expansion, schemas, specifications, and tests. Compatibility fixes retain
+sfn26's confidence, landmark ordering, model-download and session-ownership contracts.
+PR 81's additional extensions await the next merge [@skellytrackerSidecarExtensions].
+Accepted fields are defined by `core/sidecar/model.py`; unknown fields fail validation.
 
 UTF-8 YAML composition is resolved at initialization. `sidecar_model_spec` creates
 descriptors without network/file I/O; normal session creation resolves artifacts.
@@ -36,10 +38,13 @@ decoding and non-float32 preprocessing raise explicit errors. Declaring artifact
 variants does not export them: no automatic static-batch converter, hardware-aware
 precision selector or generic sidecar-only detector implementation is included.
 
-The additional standalone RTMPose body/hand/face schema migrations are not included
-in this foundation port. Their existing entry points remain. The upstream body-only
-migration changes 23 declared names to 17; that requires separate model validation
-and does not change the verified 133-point RTMW application output here.
+Standalone RTMPose body, hand and face now use the sidecar pipeline. The body models
+actually emit 17 points, which now agree with their schema and dedicated body mapping;
+the 23-point body mapping used by wholebody composition remains separate. All these
+model variants were exercised with verified weights and compared against the original
+preprocessing and decoding on the same CPU session. RTMW's implementation now lives
+under `rtmw/wholebody`; the old Python imports re-export the same classes. The public
+wholebody schema path remains available for current Core consumers until Global 2.
 
 ## Verification
 
@@ -63,7 +68,7 @@ and conflicting descriptors with the same name fail before session allocation.
 The factory is available directly from its module; Core's current factory is
 unchanged until the separate Global 2 migration.
 
-## Validation handoff — 2026-10-31
+## Initial selective-port validation — 2026-10-31
 
 The focused suite passed 241 tests; one optional YOLOX-tiny model test skipped
 because its weights were not cached. Eight bibliography-validator tests passed;
@@ -95,3 +100,21 @@ reuse, and cleanup after partial detector, stage, or session construction failur
 They do not validate the future RTMW-body/MediaPipe-hand composition or its speed.
 Synthetic decoder tests also cover raw YOLOX anchors without mutating input,
 rejection of unsplit NMS camera batches, and NHWC spatial dimensions.
+
+## Full PR 84 merge validation — 2026-10-31
+
+The combined affected suite passed 376 tests without skips. Eight bibliography
+validator tests passed, with 43 references and no citation errors. The CUDA reference
+check again produced zero coordinate and confidence differences for all 96
+camera-frame observations; its report is in the outer workspace's ignored
+`.test-artifacts/sidecar-integration/merge84-reference/`. This is correctness evidence,
+not a full-pipeline performance measurement.
+
+Additional model weights were downloaded with declared SHA-256 verification into
+Tracker's ignored `.test-artifacts/sidecar-integration/merge84-models/`. Set
+`SKELLYTRACKER_TEST_MODEL_CACHE` to that directory and `SKELLYTRACKER_TEST_PROVIDERS=cpu`
+to repeat the expanded tests. Tests cover both body sizes, hand, face, all three RTMW
+sizes, and both YOLOX sizes. Upstream golden JSON is retained as historical evidence;
+because it lacks provider/precision provenance and includes the previous confidence
+contract, regression checks compare the original math with the new path on the same
+session, including confidence, missingness, and coordinate values.

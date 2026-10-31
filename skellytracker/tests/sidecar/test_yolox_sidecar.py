@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
+from skellytracker.tests.sidecar.model_fixtures import cached_model_spec
 
 from skellytracker.core.sidecar.loader import load_sidecar
 
@@ -63,11 +64,7 @@ class TestYoloxParityAgainstExistingProcessing:
             OnnxSessionConfig,
         )
 
-        from skellytracker.core.sessions.model_registry import DEFAULT_CACHE_DIR
-
-        spec = YoloxPersonDetector.model_spec(model_name)
-        if not (DEFAULT_CACHE_DIR / spec.expected_filename).is_file():
-            pytest.skip(f"Optional real-model fixture is not cached: {model_name}")
+        spec = cached_model_spec(YoloxPersonDetector.model_spec(model_name))
         config = OnnxSessionConfig(
             batch_size=1, models=[spec], execution_provider="cpu"
         )

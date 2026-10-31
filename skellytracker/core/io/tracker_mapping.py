@@ -62,6 +62,8 @@ from typing import Any
 import numpy as np
 import yaml
 
+from skellytracker.core.io.canonical_mapping_expansion import expand_prefixed_mapping
+
 # ---------------------------------------------------------------------------
 # Mapping forms
 # ---------------------------------------------------------------------------
@@ -323,7 +325,7 @@ class TrackerMapping:
                 f"Mapping YAML must be a dict at top level, "
                 f"got {type(data).__name__}"
             )
-        entries = dict(data)
+        entries = dict(expand_prefixed_mapping(data))
         passthrough = bool(entries.pop(PASSTHROUGH_KEY, False))
         return cls(
             entries=entries,

@@ -18,6 +18,7 @@ from __future__ import annotations
 from pathlib import Path
 
 RTMPOSE_BODY_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "rtmpose" / "body" / "rtmpose_body_to_standard_human_mapping.yaml"
+RTMPOSE_BODY17_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "rtmpose" / "body" / "rtmpose_body17_to_canonical_mapping.yaml"
 RTMPOSE_HAND_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "rtmpose" / "hand" / "rtmpose_hand_to_standard_human_mapping.yaml"
 MEDIAPIPE_BODY_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "mediapipe" / "body" / "mediapipe_body_to_standard_human_mapping.yaml"
 MEDIAPIPE_HAND_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_detectors" / "mediapipe" / "hands" / "mediapipe_hand_to_standard_human_mapping.yaml"
@@ -25,6 +26,7 @@ CHARUCO_BOARD_MAPPING = Path(__file__).parent.parent / "detectors" / "keypoint_d
 
 __all__ = [
     "RTMPOSE_BODY_MAPPING",
+    "RTMPOSE_BODY17_MAPPING",
     "RTMPOSE_HAND_MAPPING",
     "MEDIAPIPE_BODY_MAPPING",
     "MEDIAPIPE_HAND_MAPPING",

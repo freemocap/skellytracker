@@ -46,7 +46,7 @@ def test_module_imports_without_detector_machinery() -> None:
         (
             "skellytracker.core.detectors.keypoint_detectors.rtmpose.body.rtmpose_body_detector",
             "RTMPoseBodyDetector",
-            "RTMPOSE_BODY_MAPPING",
+            "RTMPOSE_BODY17_MAPPING",
         ),
         (
             "skellytracker.core.detectors.keypoint_detectors.rtmpose.hand.rtmpose_hand_detector",

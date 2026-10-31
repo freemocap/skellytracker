@@ -9,11 +9,12 @@ import pytest
 from skellytracker.core.detectors.keypoint_detectors._schema_loader import (
     load_point_names,
 )
-from skellytracker.core.detectors.keypoint_detectors.rtmpose.wholebody.rtmpose_wholebody_detector import (
-    RTMPoseDetectorConfig,
-    RTMPoseKeypointDetector,
+from skellytracker.core.detectors.keypoint_detectors.rtmw.wholebody.rtmw_wholebody_detector import (
+    RTMWWholebodyDetectorConfig as RTMPoseDetectorConfig,
+    RTMWWholebodyDetector as RTMPoseKeypointDetector,
     _SIDECAR,
     _SIDECAR_PATH,
+    _YAML,
 )
 from skellytracker.core.detectors.keypoint_detectors.rtmpose.rtmpose_preprocessing import (
     rtmpose_letterbox_preprocess,
@@ -23,7 +24,7 @@ from skellytracker.core.sessions.cpu_session import CpuSession
 
 
 def test_native_points_are_mapped_to_existing_public_order_and_raw_confidence():
-    names = load_point_names(_SIDECAR_PATH.with_name("rtmpose_wholebody.yaml"))
+    names = load_point_names(_YAML)
     count = len(names)
     simcc_x = np.zeros((1, count, 384), dtype=np.float32)
     simcc_y = np.zeros((1, count, 512), dtype=np.float32)
