@@ -24,11 +24,9 @@ from skellytracker.core.config.detection_stage_config import DetectionStageConfi
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.io.demo_manager import DemoManager
 from skellytracker.core.detectors.object_detectors.yolox.yolox_person_detector import (
-    YoloxPersonDetector,
     YoloxPersonDetectorConfig,
 )
-from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
-from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.tracker_factory import build_tracker
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 
 
@@ -52,13 +50,6 @@ def build_yolox_demo(
     max_detections:
         Maximum number of boxes to show per frame. ``None`` = show all.
     """
-    session_config = OnnxSessionConfig(
-        batch_size=1,
-        models=[YoloxPersonDetector.model_spec(model_name)],
-        execution_provider=provider,
-    )
-    session = OnnxSession.create(session_config)
-
     stage = DetectionStageConfig(
         name="person",
         object_detector=YoloxPersonDetectorConfig(
@@ -69,9 +60,9 @@ def build_yolox_demo(
         keypoint_detectors=[],
     )
 
-    tracker = Tracker.create(
+    tracker = build_tracker(
         TrackerConfig(stages=[stage]),
-        sessions={"onnx": session},
+        onnx_overrides={"execution_provider": provider},
     )
 
     annotator = KeypointAnnotator.create(

@@ -19,12 +19,24 @@ from skellytracker.core.sessions.onnx_model_spec import OnnxModelSpec
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.sessions.shared_sessions import SessionRequest
 from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.multi_person_tracker import MultiPersonTracker
+from skellytracker.core.temporal_processing.multi_person_config import (
+    MultiPersonTrackingConfig,
+)
 
 
 @dataclass
 class RequiredSessions:
     backends: set[str] = field(default_factory=set)
     onnx_model_specs: dict[str, OnnxModelSpec] = field(default_factory=dict)
+
+    @property
+    def needs_mediapipe(self) -> bool:
+        return "mediapipe" in self.backends
+
+    @property
+    def needs_cpu(self) -> bool:
+        return "cpu" in self.backends
 
 
 def collect_required_sessions(config: TrackerConfig) -> RequiredSessions:
@@ -180,15 +192,13 @@ def build_tracker(
 
 def build_multi_person_tracker(
     config: TrackerConfig,
-    multi_person_config=None,
+    multi_person_config: MultiPersonTrackingConfig | None = None,
     *,
     batch_size: int = 1,
     onnx_overrides: dict[str, Any] | None = None,
     mediapipe_overrides: dict[str, Any] | None = None,
     cpu_overrides: dict[str, Any] | None = None,
-):
-    from skellytracker.core.tracker.multi_person_tracker import MultiPersonTracker
-
+) -> MultiPersonTracker:
     sessions = build_sessions(
         config,
         batch_size=batch_size,

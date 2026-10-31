@@ -10,7 +10,14 @@ from numpy.typing import NDArray
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
 from skellytracker.core.data_primitives.keypoints import Keypoints
 from skellytracker.core.detectors.detection_context import DetectionContext
-from skellytracker.core.detectors.detector_base_classes import KeypointDetector
+from skellytracker.core.detectors.detector_base_classes import (
+    KeypointDetector,
+    build_keypoint_detector,
+    build_object_detector,
+)
+from skellytracker.core.detectors.keypoint_detectors.aruco.aruco_detector_config import (
+    ArucoDetectorConfig,
+)
 from skellytracker.core.detectors.object_detectors.keypoint_bbox import (
     KeypointBoundingBoxDetector,
     KeypointBoundingBoxDetectorConfig,
@@ -237,3 +244,14 @@ class TestDegenerateChildCropDoesNotCrash:
 
         hand_obs = obs_per_cam["cam0"].children["right_hand"]
         assert hand_obs.keypoints.n_valid == 0
+
+
+class TestBuildDetectorRaisesOnMissingSessionBackend:
+    def test_build_object_detector_raises_on_missing_backend(self):
+        config = KeypointBoundingBoxDetectorConfig(center_keypoint_names=("right_wrist",))
+        with pytest.raises(KeyError, match="cpu"):
+            build_object_detector(config, sessions={})
+
+    def test_build_keypoint_detector_raises_on_missing_backend(self):
+        with pytest.raises(KeyError, match="cpu"):
+            build_keypoint_detector(ArucoDetectorConfig(), sessions={})

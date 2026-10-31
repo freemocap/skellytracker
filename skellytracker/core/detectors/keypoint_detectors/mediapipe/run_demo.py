@@ -18,18 +18,13 @@ from skellytracker.core.annotation.keypoint_annotator import (
     KeypointAnnotatorConfig,
     StageAnnotationSchema,
 )
-from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.tracker_factory import build_tracker
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.face.mediapipe_face_detector import MediapipeFaceDetectorConfig, MediapipeFaceKeypointDetector
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import MediapipeHandDetectorConfig, MediapipeHandKeypointDetector
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.body.mediapipe_pose_detector import MediapipePoseDetectorConfig, MediapipePoseKeypointDetector
 from skellytracker.core.detectors.object_detectors.keypoint_bbox import KeypointBoundingBoxDetectorConfig
-from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
 from skellytracker.core.temporal_processing.temporal_processing_config import BBoxSmoothingConfig
-from skellytracker.core.sessions.mediapipe_session import (
-    MediaPipeSession,
-    MediaPipeSessionConfig,
-)
 
 
 def build_mediapipe_demo(
@@ -38,9 +33,6 @@ def build_mediapipe_demo(
     detect_face: bool = True,
     pose_complexity: MediapipePoseModelComplexity = MediapipePoseModelComplexity.LITE,
 ) -> DemoManager:
-    session = MediaPipeSession.create(MediaPipeSessionConfig())
-    sessions = {"mediapipe": session}
-
     keypoint_detectors: list = []
     connection_groups: list[ConnectionGroupSchema] = []
 
@@ -67,7 +59,7 @@ def build_mediapipe_demo(
         ))
 
     stage = DetectionStageConfig(name="composite", keypoint_detectors=keypoint_detectors)
-    tracker = Tracker.create(TrackerConfig(stages=[stage]), sessions)
+    tracker = build_tracker(TrackerConfig(stages=[stage]))
 
     annotator = KeypointAnnotator.create(
         KeypointAnnotatorConfig(stage_schemas={
@@ -124,18 +116,12 @@ def build_mediapipe_demo_with_cropped_hands(
     index/pinky keypoints, instead of MediaPipe HandLandmarker scanning the
     full frame — much better detection rate when hands are small in frame.
     """
-    session = MediaPipeSession.create(MediaPipeSessionConfig())
-    cpu_session = CpuSession.create(CpuSessionConfig())
-
     body_stage = DetectionStageConfig(
         name="body",
         keypoint_detectors=[MediapipePoseDetectorConfig(model_complexity=pose_complexity)],
         children=[_hand_child_stage("left"), _hand_child_stage("right")],
     )
-    tracker = Tracker.create(
-        TrackerConfig(stages=[body_stage]),
-        {"mediapipe": session, "cpu": cpu_session},
-    )
+    tracker = build_tracker(TrackerConfig(stages=[body_stage]))
 
     annotator = KeypointAnnotator.create(
         KeypointAnnotatorConfig(stage_schemas={

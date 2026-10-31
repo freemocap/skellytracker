@@ -180,7 +180,8 @@ def build_object_detector(
     session = sessions.get(config.session_backend)
     if session is None:
         raise KeyError(
-            f"Missing {config.session_backend!r} session for {config.detector_type!r}"
+            f"No session for backend {config.session_backend!r}, required by "
+            f"{config.detector_type!r} ObjectDetector. Available sessions: {list(sessions)}"
         )
     return cls.create(config, session)
 
@@ -199,6 +200,7 @@ def build_keypoint_detector(
     session = sessions.get(config.session_backend)
     if session is None:
         raise KeyError(
-            f"Missing {config.session_backend!r} session for {config.detector_type!r}"
+            f"No session for backend {config.session_backend!r}, required by "
+            f"{config.detector_type!r} KeypointDetector. Available sessions: {list(sessions)}"
         )
     return cls.create(config, session)

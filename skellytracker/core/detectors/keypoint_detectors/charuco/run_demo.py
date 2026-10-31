@@ -25,8 +25,7 @@ from skellytracker.core.detectors.keypoint_detectors.charuco.charuco_observation
     CharucoObservationAnnotator,
     _CharucoObservationAnnotatorConfig,
 )
-from skellytracker.core.sessions.cpu_session import CpuSession, CpuSessionConfig
-from skellytracker.core.tracker.tracker import Tracker
+from skellytracker.core.tracker.tracker_factory import build_tracker
 
 _STAGE_NAME = "charuco"
 
@@ -38,14 +37,11 @@ def build_charuco_demo(
     if board_def is None:
         board_def = CharucoBoardDefinition.create_letter_size_5x3()
 
-    session = CpuSession.create(CpuSessionConfig())
-    sessions = {"cpu": session}
-
     stage = DetectionStageConfig(
         name=_STAGE_NAME,
         keypoint_detectors=[CharucoDetectorConfig(board=board_def)],
     )
-    tracker = Tracker.create(TrackerConfig(stages=[stage]), sessions)
+    tracker = build_tracker(TrackerConfig(stages=[stage]))
 
     annotator = CharucoObservationAnnotator.create(
         _CharucoObservationAnnotatorConfig(

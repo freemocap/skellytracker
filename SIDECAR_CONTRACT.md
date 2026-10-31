@@ -65,7 +65,7 @@ Optional model variants without cached weights are reported as skipped.
 
 ## Tracker construction
 
-`core/tracker/tracker_factory.py` adapts registry discovery from PR 90
+`core/tracker/tracker_factory.py` integrates registry discovery from PR 90
 [@skellytrackerFactoryIntegration]. `collect_required_sessions(config)` describes
 the nested stage requirements without loading model files. `tracker_session_requests`
 returns requests for `SharedSessionPool`; `build_tracker` and
@@ -73,8 +73,13 @@ returns requests for `SharedSessionPool`; `build_tracker` and
 construction failure. Callers register detector classes by importing their modules,
 as with the existing registries. Unsupported backends, missing model descriptors,
 and conflicting descriptors with the same name fail before session allocation.
-The factory is available directly from its module; Core's current factory is
-unchanged until the separate Global 2 migration.
+The factory builders, `collect_required_sessions`, and `tracker_session_requests`
+are exported from `skellytracker.core.tracker` as well as their defining module.
+The standalone builders own their sessions; shared callers acquire tracker leases
+from `SharedSessionPool` using the same factory-generated requests. Closing a lease
+releases its detector state, while model sessions remain alive until the last lease
+closes. Batch-size and provider overrides participate in session matching.
+Core's current factory is unchanged until the separate Global 2 migration.
 
 ## Initial selective-port validation — 2026-10-31
 
@@ -140,3 +145,29 @@ The merged specification and exporter coverage plan are retained in full. A
 documented proposed exporter format is not an implemented decoder: new detection
 selection modes, output bindings, and exporter adapters still require dedicated
 implementation and model validation before their schema version can be released.
+
+## Full PR 90 merge validation — 2026-10-31
+
+The combined affected suite passed 405 tests without skips. The incoming nested
+factory tests are retained in `test_tracker_factory_public.py`, using the public
+requirement-discovery API. Existing shared-session, descriptor-conflict, batch
+override, and partial-construction cleanup checks remain intact. All seven migrated
+demo/example modules import successfully; no cameras or GUI were started.
+
+`test_factory_shared_inference.py` creates two independent trackers from the same
+factory requests, verifies a single real ONNX session allocation, closes one
+tracker, and confirms the other still produces identical coordinates and confidence.
+The models are released after the last lease closes. MediaPipe/CPU construction
+and inference are also exercised twice in a separate process. Two initial combined
+pytest runs raised Windows native exception `0xc0000008` in MediaPipe's C dispatcher.
+The focused test passed in-process; isolating its native lifecycle also made the
+combined suite pass. The native exception's underlying cause is not established;
+isolation propagates subprocess failures without terminating unrelated tests.
+No runtime workaround or dependency changes were introduced for this test issue.
+
+The CUDA reference comparison again shows zero coordinate and confidence changes
+for 96 observations across test/sample recordings and one/three-camera batches.
+Reports are in the outer workspace's ignored
+`.test-artifacts/sidecar-integration/merge90-reference/`; the combined pytest log is
+in Tracker's ignored `.test-artifacts/sidecar-integration/merge90-validated.log`.
+Eight bibliography-validator tests passed; 43 references have no citation errors.
