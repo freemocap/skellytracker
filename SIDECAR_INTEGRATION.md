@@ -9,7 +9,7 @@ Core migration follows the completed Tracker integration.
 ## Approved global checklist
 
 - [x] **Global 1. Integrate the sidecar implementation and registry-based tracker factory into SkellyTracker `sfn26`, with verified compatibility and a reviewed Git handoff.**
-- [ ] **Global 2. Migrate FreeMoCap’s model loading and tracker construction to the new SkellyTracker interfaces, then validate live and post-hoc processing against reference recordings.**
+- [x] **Global 2. Migrate FreeMoCap’s model loading and tracker construction to the new SkellyTracker interfaces, then validate live and post-hoc processing against reference recordings.**
 - [ ] **Global 3. Adapt Core PR #931’s execution-provider controls to the current API, UI, and shared inference service, then verify selection and failure behavior.**
 - [ ] **Global 4. Implement and evaluate RTMW-body/MediaPipe-hand composition, and validate the custom-ONNX loading interface needed by the DLC work.**
 - [ ] **Global 5. Benchmark supported precision, batch-size, and execution-provider combinations against the established baseline, then recommend which acceleration changes to adopt.**
@@ -73,10 +73,13 @@ Both `origin/sfn26` SHAs were verified with `git ls-remote` after pushing.
 All three exact PR heads remain ancestors of the published Tracker revision.
 No generated artifacts were staged. Tracker was clean; Core's pre-existing
 100-line `references.bib` addition was preserved unstaged. The following
-documentation checkpoint records completion and the handoff; Global 2 has not
-started.
+documentation checkpoint recorded Global 1 completion; Global 2 completion is
+recorded below.
 
-## Core integration handoff for Global 2
+## Historical handoff before Global 2
+
+The following describes the starting state and approved migration boundaries.
+Global 2 is now complete; see its published record below.
 
 Core still runs its existing factory in
 `freemocap/core/tracking/tracker_factory.py`. The passing integration runs test
@@ -116,10 +119,32 @@ automatic-provider runs used CUDA; missing TensorRT runtime was not installed.
 
 ### Proposed Global 2 checklist — awaiting approval
 
-- [ ] **2.1. Replace Core's hard-coded session discovery with Tracker's registry requests, preserving shared-session ownership and ONNX construction locking.**
-- [ ] **2.2. Update Core's RTMW imports and schema access, with tests for model names, confidence values, landmark ordering and skeleton connections.**
-- [ ] **2.3. Validate the migrated Core factory through real-time replay and post-hoc processing of both reference recordings.**
-- [ ] **2.4. Publish the tested Core integration and prepare the execution-provider controls handoff.**
+- [x] **2.1. Replace Core's hard-coded session discovery with Tracker's registry requests, preserving shared-session ownership and ONNX construction locking.**
+- [x] **2.2. Update Core's RTMW imports and schema access, with tests for model names, confidence values, landmark ordering and skeleton connections.**
+- [x] **2.3. Validate the migrated Core factory through real-time replay and post-hoc processing of both reference recordings.**
+- [x] **2.4. Publish the tested Core integration and prepare the execution-provider controls handoff.**
+
+Global 2 was approved and completed on 2026-10-31. Tracker's public RTMW schema
+accessor is published in `4118b5481458e2383719fc6535d559dc8f2a51b9`. Core's runtime
+migration is published in `38c67163c7fb0b0f15647edd92ab1006fbb49c8c`; its completed
+checklist and provider-controls handoff are in
+[TRACKER_INTEGRATION.md](https://github.com/freemocap/freemocap/blob/8e696f3ef3bf27a46de51343b5f987e6664c5ef1/TRACKER_INTEGRATION.md).
+Both repository pushes were verified against `origin/sfn26`.
+
+Validation: 98 Core tests plus seven subtests, eight Tracker schema/import tests,
+16 full real-time replay cases and nine tensor/timing consumer tests passed.
+Both full graph post-hoc recordings and the older pipeline's test-data run
+passed. All six complete saved 2D channel tensors match the prior Core outputs
+exactly; 192 controlled camera-frame comparisons also match exactly across
+old/new Core factories. Reference tests used numerical outputs and recorded
+frames, not Blender or hardware-camera/GUI acceptance.
+
+The previous standalone Tracker baseline uses OpenCV 5.0.0 while Core uses
+4.12.0; identical decoded pixels yielded different preprocessing tensors.
+Cross-environment numerical comparisons must control this difference. No
+packages or lockfiles changed. The Core research edits in `references.bib`
+remain untouched and uncommitted. Global 3 has not started; its proposed checklist
+is in Core's published handoff and awaits approval.
 
 ## Execution and PR handoff instructions
 
