@@ -8,7 +8,7 @@ Core migration follows the completed Tracker integration.
 
 ## Approved global checklist
 
-- [ ] **Global 1. Integrate the sidecar implementation and registry-based tracker factory into SkellyTracker `sfn26`, with verified compatibility and a reviewed Git handoff.**
+- [x] **Global 1. Integrate the sidecar implementation and registry-based tracker factory into SkellyTracker `sfn26`, with verified compatibility and a reviewed Git handoff.**
 - [ ] **Global 2. Migrate FreeMoCap’s model loading and tracker construction to the new SkellyTracker interfaces, then validate live and post-hoc processing against reference recordings.**
 - [ ] **Global 3. Adapt Core PR #931’s execution-provider controls to the current API, UI, and shared inference service, then verify selection and failure behavior.**
 - [ ] **Global 4. Implement and evaluate RTMW-body/MediaPipe-hand composition, and validate the custom-ONNX loading interface needed by the DLC work.**
@@ -21,7 +21,7 @@ Core migration follows the completed Tracker integration.
 - [x] **1.3. Merge PR #81 into `sfn26`, reconcile its complete sidecar contract, validate and push the result, then pause with its PR comment.**
 - [x] **1.4. Merge PR #90 into `sfn26`, reconcile its factory with shared-session ownership, validate and push the result, then pause with its PR comment.**
 - [x] **1.5. Validate the combined SkellyTracker changes against reference recordings and all affected detector interfaces.**
-- [ ] **1.6. Verify the published SkellyTracker revision and prepare the FreeMoCap integration handoff.**
+- [x] **1.6. Verify the published SkellyTracker revision and prepare the FreeMoCap integration handoff.**
 
 The previous selective-port implementation and its passing tests are preserved
 in commit `d7b0b1a`. Its completed checks are evidence to preserve, not completion
@@ -65,7 +65,16 @@ and nine tensor/timing consumer tests passed. Default graph post-hoc processing
 passed both full recordings; the older selectable pipeline also passed test data.
 All 96 bounded camera-frame comparisons remain numerically identical to the
 original baseline. See `SIDECAR_CONTRACT.md` for fixes, commands and limitations.
-Step 1.6 remains pending publication verification and the Core handoff.
+Step 1.6 is complete. Tracker fixes and validation were published as
+[`148dcee`](https://github.com/freemocap/skellytracker/commit/148dcee82c30550e740f36facc9e7cd987237ca5),
+and Core's reference-test expansion as
+[`ccfda109`](https://github.com/freemocap/freemocap/commit/ccfda109f4c1d5c0c67539a2eb2c8069990b4a5e).
+Both `origin/sfn26` SHAs were verified with `git ls-remote` after pushing.
+All three exact PR heads remain ancestors of the published Tracker revision.
+No generated artifacts were staged. Tracker was clean; Core's pre-existing
+100-line `references.bib` addition was preserved unstaged. The following
+documentation checkpoint records completion and the handoff; Global 2 has not
+started.
 
 ## Core integration handoff for Global 2
 
