@@ -147,6 +147,11 @@ class RTMWWholebodyDetector(KeypointDetector):
         return self.postprocess(raw, metadata)
 
     @classmethod
+    def keypoint_names(cls) -> tuple[str, ...]:
+        """Return emitted landmark order without constructing an inference session."""
+        return _POINT_NAMES
+
+    @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
         return load_connections(_YAML)
 

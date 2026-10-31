@@ -44,9 +44,19 @@ def test_native_points_are_mapped_to_existing_public_order_and_raw_confidence():
     missing = expected < 0.4
     expected[missing] = 0.0
     assert actual.names == names
+    assert actual.names == RTMPoseKeypointDetector.keypoint_names()
     np.testing.assert_array_equal(actual.visibility, expected.astype(np.float64))
     np.testing.assert_array_equal(np.isnan(actual.xyz).all(axis=1), missing)
     np.testing.assert_array_equal(actual.xyz[~missing, 0], permutation[~missing] / 2.0)
+
+
+def test_rtmw_schema_is_available_without_detector_construction():
+    with patch.object(RTMPoseKeypointDetector, '__init__', side_effect=AssertionError('No allocation')):
+        point_names = RTMPoseKeypointDetector.keypoint_names()
+        assert point_names == load_point_names(_YAML)
+        assert RTMPoseKeypointDetector.keypoint_names() is point_names
+        assert all(first in point_names and second in point_names
+                   for first, second in RTMPoseKeypointDetector.connections())
 
 
 def test_sidecar_preprocessing_matches_existing_rtmw_affine_and_normalization():
