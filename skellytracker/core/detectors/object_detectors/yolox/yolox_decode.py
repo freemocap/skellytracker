@@ -14,9 +14,11 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+from skellytracker.core.detectors.metadata import ImageTransform
 
 from skellytracker.core.detectors.processing.object_detection_decode import (
     decode_nms_baked_in,
+    restore_image_boxes,
     decode_prenms,
     multiclass_nms,
 )
@@ -25,7 +27,7 @@ from skellytracker.core.sidecar.model import DetectionDecodeSpec
 
 def _decode_yolox_raw_anchor_grid(
     outputs_one: NDArray,
-    ratio: float,
+    ratio: float | ImageTransform,
     model_input_size: tuple[int, int],
     score_thr: float,
     nms_thr: float,
@@ -82,7 +84,7 @@ def _decode_yolox_raw_anchor_grid(
     boxes_xyxy[:, 1] = boxes_cxcy[:, 1] - boxes_cxcy[:, 3] / 2.0
     boxes_xyxy[:, 2] = boxes_cxcy[:, 0] + boxes_cxcy[:, 2] / 2.0
     boxes_xyxy[:, 3] = boxes_cxcy[:, 1] + boxes_cxcy[:, 3] / 2.0
-    boxes_xyxy /= ratio
+    boxes_xyxy = restore_image_boxes(boxes_xyxy, ratio)
 
     dets, _ = multiclass_nms(boxes_xyxy, combined, nms_thr=nms_thr, score_thr=score_thr)
     if dets is None:
@@ -101,7 +103,7 @@ def _decode_yolox_raw_anchor_grid(
 
 def yolox_detection_decode(
     raw: list[NDArray],
-    ratio: float,
+    ratio: float | ImageTransform,
     model_input_size: tuple[int, int],
     score_threshold: float,
     nms_threshold: float,

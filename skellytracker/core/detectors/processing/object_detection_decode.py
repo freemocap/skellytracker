@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+from skellytracker.core.detectors.metadata import ImageTransform
 
 from skellytracker.core.sidecar.model import DetectionDecodeSpec
 
@@ -155,7 +156,7 @@ def boxes_to_xyxy(boxes: NDArray, box_format: str | None) -> NDArray:
 def decode_prenms(
     boxes: NDArray,
     scores: NDArray,
-    ratio: float,
+    ratio: float | ImageTransform,
     score_thr: float,
     nms_thr: float,
     decode_spec: DetectionDecodeSpec,
@@ -202,7 +203,7 @@ def decode_prenms(
             f"per camera before calling postprocess."
         )
 
-    boxes = (boxes / ratio).astype(np.float64)
+    boxes = restore_image_boxes(boxes, ratio)
     scores = scores.reshape(-1).astype(np.float64)
 
     if scores.shape[0] != boxes.shape[0]:
@@ -229,7 +230,7 @@ def decode_prenms(
 
 def decode_nms_baked_in(
     outputs_one: NDArray,
-    ratio: float,
+    ratio: float | ImageTransform,
     score_thr: float,
     decode_spec: DetectionDecodeSpec,
 ) -> tuple[NDArray, NDArray]:
@@ -244,7 +245,18 @@ def decode_nms_baked_in(
         raise ValueError(
             f"Expected one image of NMS-filtered rows (1, detections, 5), got {outputs_one.shape}"
         )
-    boxes = boxes_to_xyxy(outputs_one[0, :, :4], decode_spec.box_format) / ratio
+    boxes = restore_image_boxes(
+        boxes_to_xyxy(outputs_one[0, :, :4], decode_spec.box_format), ratio
+    )
     scores = outputs_one[0, :, 4]
     mask = scores > score_thr
     return boxes[mask].astype(np.float64), scores[mask].astype(np.float64)
+
+
+def restore_image_boxes(
+    boxes: NDArray, transform: float | ImageTransform
+) -> NDArray[np.float64]:
+    """Map dense box coordinates back to source pixels without changing input arrays."""
+    if isinstance(transform, ImageTransform):
+        return transform.restore_boxes(boxes)
+    return (boxes / transform).astype(np.float64)

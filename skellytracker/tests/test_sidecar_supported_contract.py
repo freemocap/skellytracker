@@ -43,13 +43,13 @@ def test_affine_interpolation_is_honored():
 @pytest.mark.parametrize(
     "fields",
     [
-        dict(method="fit"),
-        dict(method="stretch"),
-        dict(method="letterbox", pad_position="center"),
-        dict(method="letterbox", rounding="half_up"),
+        dict(method="fit", pad_position="center"),
+        dict(method="stretch", pad_value=114),
+        dict(method="letterbox", pad_position="undeclared"),
+        dict(method="letterbox", rounding="undeclared"),
     ],
 )
-def test_unimplemented_resize_contract_is_rejected(fields):
+def test_invalid_resize_combinations_are_rejected(fields):
     with pytest.raises(ValidationError):
         ResizeSpec.model_validate(fields)
 

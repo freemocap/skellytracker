@@ -403,7 +403,19 @@ class TestResize:
         with pytest.raises(ValidationError):
             SidecarModel.model_validate(data)
 
-    def test_pad_value_only_valid_for_letterbox(self):
+    def test_fit_method_is_valid(self):
+        data = _minimal_detector()
+        data["input"]["resize"] = {"method": "fit", "target_size": [640, 640], "pad_value": 114}
+        data["sizes"]["nano"]["input"]["resize"] = {"method": "fit", "target_size": [640, 640], "pad_value": 114}
+        SidecarModel.model_validate(data)
+
+    def test_fit_rejects_pad_position_and_rounding(self):
+        data = _minimal_detector()
+        data["input"]["resize"] = {"method": "fit", "target_size": [640, 640], "pad_position": "center", "pad_value": 114}
+        with pytest.raises(ValidationError):
+            SidecarModel.model_validate(data)
+
+    def test_pad_value_only_valid_for_letterbox_or_fit(self):
         data = _minimal_pose()
         data["input"]["resize"] = {"method": "affine_person_crop", "pad_value": 114}
         with pytest.raises(ValidationError):

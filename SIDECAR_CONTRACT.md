@@ -4,7 +4,9 @@ PR 84 is integrated with its complete branch history [@skellytrackerSidecarImple
 including standalone detector migrations, RTMW module relocation, overlay groups,
 mapping expansion, schemas, specifications, and tests. Compatibility fixes retain
 sfn26's confidence, landmark ordering, model-download and session-ownership contracts.
-PR 81's additional extensions await the next merge [@skellytrackerSidecarExtensions].
+PR 81's branch history, resize additions and proposed exporter specification are
+integrated [@skellytrackerSidecarExtensions]. The specification's `vNEXT` sections
+describe future functionality; they do not declare a released schema version.
 Accepted fields are defined by `core/sidecar/model.py`; unknown fields fail validation.
 
 UTF-8 YAML composition is resolved at initialization. `sidecar_model_spec` creates
@@ -22,8 +24,14 @@ Normalization functions and model sizes are prepared before frame processing.
 ## Implemented preprocessing
 
 - Nonempty uint8 BGR images; float32 model inputs; NCHW or NHWC output layout.
-- Top-left letterbox placement with configurable scalar padding/interpolation,
-  integer-truncated resized dimensions bounded to one pixel and scalar-ratio inverse.
+- Existing letterbox declarations retain top-left placement, integer-truncated
+  dimensions and their scalar-ratio inverse. Explicit padding/rounding settings
+  support top-left or centered placement and half-even or half-up rounding, with
+  inverse coordinates derived from the actual resized dimensions and offsets.
+- Stretch preserves independent x/y scales. Full-frame affine fit preserves its
+  uniform scale and fractional offsets. Both return `ImageTransform` metadata;
+  generic box decoders apply its vectorized inverse without modifying received arrays.
+- Letterbox and fit accept scalar or per-channel BGR padding before normalization.
 - Affine person crops with configurable expansion and interpolation, target aspect
   ratio preservation, zero padding, and center/scale inverse metadata.
 - None, unit-float, ImageNet BGR/RGB and custom normalization; RGB modes reorder
@@ -31,8 +39,8 @@ Normalization functions and model sizes are prepared before frame processing.
 
 ## Unsupported functionality
 
-The newer `decode.selection`, centered padding, rounding policies, output-binding
-extensions, stretch and fit are not accepted by this dialect. Resize `none`,
+The proposed `decode.selection`, output-binding extensions, `input.color_format`
+and other unimplemented `vNEXT` fields are rejected by the strict parser. Resize `none`,
 non-aspect-preserving affine cropping, heatmap/coordinate pose decoding, 3D SIMCC
 decoding and non-float32 preprocessing raise explicit errors. Declaring artifact
 variants does not export them: no automatic static-batch converter, hardware-aware
@@ -118,3 +126,17 @@ sizes, and both YOLOX sizes. Upstream golden JSON is retained as historical evid
 because it lacks provider/precision provenance and includes the previous confidence
 contract, regression checks compare the original math with the new path on the same
 session, including confidence, missingness, and coordinate values.
+
+## Full PR 81 merge validation — 2026-10-31
+
+The combined affected suite passed 388 tests without skips. Resize-specific checks
+cover half-even/half-up ties, centered odd remainders, scalar and per-channel padding,
+fractional fit offsets, stretch scale differences, inverse mapping through both
+generic detection decoders, input-array preservation, and existing letterbox behavior.
+The CUDA reference comparison is recorded under the outer workspace's ignored
+`.test-artifacts/sidecar-integration/merge81-reference/`.
+
+The merged specification and exporter coverage plan are retained in full. A
+documented proposed exporter format is not an implemented decoder: new detection
+selection modes, output bindings, and exporter adapters still require dedicated
+implementation and model validation before their schema version can be released.

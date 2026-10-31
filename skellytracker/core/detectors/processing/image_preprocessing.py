@@ -17,6 +17,7 @@ import cv2
 import numpy as np
 from beartype.typing import Callable
 from numpy.typing import NDArray
+from skellytracker.core.detectors.metadata import ImageTransform
 
 from skellytracker.core.detectors.processing.affine_crop import (
     bbox_xyxy2cs,
@@ -106,9 +107,12 @@ def build_normalization_fn(
 def letterbox_preprocess(
     img: NDArray[np.uint8],
     target_size: tuple[int, int],
-    pad_value: int = 114,
+    pad_value: int | float | tuple[int | float, ...] | list[int | float] = 114,
     interpolation: int = cv2.INTER_LINEAR,
-) -> tuple[NDArray, float]:
+    *,
+    pad_position: str | None = None,
+    rounding: str | None = None,
+) -> tuple[NDArray, float | ImageTransform]:
     """Resize to fit `target_size` preserving aspect ratio, pad with `pad_value`.
 
     Returns `(padded_img, ratio)` — uint8 HWC, no normalisation applied.
@@ -119,11 +123,62 @@ def letterbox_preprocess(
     padded_img = np.full((th, tw, 3), pad_value, dtype=np.uint8)
 
     ratio = min(th / img.shape[0], tw / img.shape[1])
-    nw, nh = max(1, int(img.shape[1] * ratio)), max(1, int(img.shape[0] * ratio))
+    if rounding not in (None, "half_even", "half_up"):
+        raise ValueError(f"Unknown resize rounding: {rounding}")
+    if pad_position not in (None, "top_left", "center"):
+        raise ValueError(f"Unknown padding position: {pad_position}")
+    round_size = (
+        int
+        if rounding is None
+        else round
+        if rounding == "half_even"
+        else lambda value: int(np.floor(value + 0.5))
+    )
+    nw = min(tw, max(1, round_size(img.shape[1] * ratio)))
+    nh = min(th, max(1, round_size(img.shape[0] * ratio)))
     resized = cv2.resize(img, (nw, nh), interpolation=interpolation).astype(np.uint8)
-    padded_img[:nh, :nw] = resized
-
+    left, top = ((tw - nw) // 2, (th - nh) // 2) if pad_position == "center" else (0, 0)
+    padded_img[top : top + nh, left : left + nw] = resized
+    if pad_position is not None or rounding is not None:
+        return padded_img, ImageTransform(
+            nw / img.shape[1], nh / img.shape[0], float(left), float(top)
+        )
     return padded_img, ratio
+
+
+def fit_preprocess(
+    img: NDArray[np.uint8],
+    target_size: tuple[int, int],
+    pad_value: int | float | tuple[int | float, ...] | list[int | float] = 0,
+    interpolation: int = cv2.INTER_LINEAR,
+) -> tuple[NDArray[np.uint8], tuple[float, float, float]]:
+    """Full-frame affine fit resize centered on the target canvas.
+
+    Returns `(padded_img, (scale, left, top))` where `scale` is the uniform
+    affine scale factor and `(left, top)` are the fractional canvas offsets
+    used by the warp matrix.
+    """
+    target_h, target_w = target_size
+    src_h, src_w = img.shape[:2]
+    scale = min(target_w / src_w, target_h / src_h)
+    left = (target_w - src_w * scale) / 2.0
+    top = (target_h - src_h * scale) / 2.0
+
+    M = np.array([[scale, 0.0, left], [0.0, scale, top]], dtype=np.float64)
+    if isinstance(pad_value, (list, tuple, np.ndarray)):
+        border_value = tuple(float(v) for v in pad_value)
+    else:
+        border_value = (float(pad_value),) * img.shape[2]
+
+    padded_img = cv2.warpAffine(
+        img,
+        M,
+        (target_w, target_h),
+        flags=interpolation,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=border_value,
+    )
+    return padded_img, (float(scale), float(left), float(top))
 
 
 def preprocess_image(
@@ -134,7 +189,8 @@ def preprocess_image(
     bbox_xyxy: NDArray[np.floating] | None = None,
     normalization_fn: Callable[[NDArray[np.uint8]], NDArray[np.float32]] | None = None,
 ) -> tuple[
-    NDArray[np.float32], float | tuple[NDArray[np.float64], NDArray[np.float64]]
+    NDArray[np.float32],
+    float | ImageTransform | tuple[NDArray[np.float64], NDArray[np.float64]],
 ]:
     """Resize and normalize `image` per `input_spec`.
 
@@ -143,12 +199,10 @@ def preprocess_image(
     this function grows support for their resize method, rather than being
     silently mis-processed.
 
-    Returns `(tensor, resize_meta)`. `resize_meta` depends on the resize
-    method: `letterbox`/`none` produce a single scalar `ratio` (uniform
-    scale factor); `affine_person_crop` produces `(center, scale)` — two
-    `(2,)` arrays needed to unproject a top-down affine crop back to image
-    space. Callers already know which method their own sidecar declares, so
-    they unpack the shape they expect.
+    Returns `(tensor, resize_meta)`. Existing letterbox declarations without
+    explicit padding/rounding retain their scalar ratio. Explicit letterbox,
+    stretch and fit return ImageTransform with the actual scales and offsets.
+    Affine person crops return `(center, scale)` arrays for SIMCC decoding.
 
     `bbox_xyxy` is only used by `affine_person_crop`; `None` crops the full
     image (today's only usage — no upstream-detector bbox is wired through
@@ -168,7 +222,9 @@ def preprocess_image(
             "preprocess_image requires input.resize to be declared"
         )
 
-    resize_meta: float | tuple[NDArray[np.float64], NDArray[np.float64]]
+    resize_meta: (
+        float | ImageTransform | tuple[NDArray[np.float64], NDArray[np.float64]]
+    )
 
     if resize.method == "letterbox":
         if resize.preserve_aspect_ratio is False:
@@ -181,8 +237,27 @@ def preprocess_image(
         pad_value = 114 if resize.pad_value is None else resize.pad_value
         interpolation = _CV2_INTERPOLATION[resize.interpolation]
         padded, resize_meta = letterbox_preprocess(
+            image,
+            target_size,
+            pad_value=pad_value,
+            interpolation=interpolation,
+            pad_position=resize.pad_position,
+            rounding=resize.rounding,
+        )
+    elif resize.method == "stretch":
+        interpolation = _CV2_INTERPOLATION[resize.interpolation]
+        target_h, target_w = target_size
+        padded = cv2.resize(image, (target_w, target_h), interpolation=interpolation)
+        resize_meta = ImageTransform(
+            target_w / image.shape[1], target_h / image.shape[0]
+        )
+    elif resize.method == "fit":
+        pad_value = 0 if resize.pad_value is None else resize.pad_value
+        interpolation = _CV2_INTERPOLATION[resize.interpolation]
+        padded, (fit_scale, fit_left, fit_top) = fit_preprocess(
             image, target_size, pad_value=pad_value, interpolation=interpolation
         )
+        resize_meta = ImageTransform(fit_scale, fit_scale, fit_left, fit_top)
     elif resize.method == "affine_person_crop":
         crop_policy = resize.crop_policy or CropPolicySpec()
         if not crop_policy.maintain_aspect_ratio:
