@@ -80,6 +80,7 @@ class SharedSessionTests(unittest.TestCase):
         stages = [Mock(spec=DetectionStage), Mock(spec=DetectionStage)]
         config = Mock(spec=TrackerConfig)
         config.stages = [Mock()]
+        config.keypoint_assembly = None
         with patch("skellytracker.core.tracker.tracker.DetectionStage.create", side_effect=stages):
             first = self.pool.create_tracker(config=config, requests=(self.request,))
             second = self.pool.create_tracker(config=config, requests=(self.request,))

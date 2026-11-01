@@ -42,9 +42,10 @@ class Tracker:
             image: BGR image array (H, W, 3).
             frame_number: Frame index; recorded in the Observation.
             state: Current TrackerState; returned updated.
-            timestamp_ms: Monotonically increasing wall-clock time in ms.
+            timestamp_ms: Monotonically increasing source time in ms.
                           Required by detectors in VIDEO mode. When None,
-                          detectors derive their own timestamp.
+                          detectors derive their own timestamp; temporal smoothing
+                          is bypassed until source timestamps are supplied.
 
         Returns:
             (Observation for this frame, updated TrackerState)
@@ -96,7 +97,7 @@ class Tracker:
                 Mapping from camera ID to current TrackerState. Keys may be a
                 subset of images.keys() — missing cameras start with empty state.
             timestamp_ms:
-                Monotonically increasing wall-clock time in ms. Passed to all
+                Monotonically increasing source time in ms. Passed to all
                 detectors unchanged (used by MediaPipe VIDEO mode).
 
         Returns:

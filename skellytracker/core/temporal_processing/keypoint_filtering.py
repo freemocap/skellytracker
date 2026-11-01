@@ -6,6 +6,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from skellytracker.core.data_primitives.keypoints import Keypoints
+from skellytracker.core.temporal_processing.one_euro_array import one_euro_step
 from skellytracker.core.temporal_processing.temporal_processing_config import (
     KalmanKeypointSmoothingConfig,
     KeypointSmoothingConfig,
@@ -41,8 +42,8 @@ def apply_one_euro_filter(
     position rather than returning NaN. State is frozen during the gap so the
     filter resumes cleanly when detection returns.
 
-    dt is elapsed time since the last frame (seconds when timestamp_ms is
-    available, else 1.0 frame units).
+    dt is positive elapsed source time in seconds. The stage bypasses temporal
+    filtering when source timestamps are unavailable or not increasing.
     """
     x = raw_keypoints.xyz[:, 0].copy()
     y = raw_keypoints.xyz[:, 1].copy()
@@ -92,18 +93,18 @@ def apply_one_euro_filter(
     filter_valid = detected & prev_valid
     init_valid = detected & ~prev_valid
 
-    alpha_d = 1.0 / (1.0 + 1.0 / (2.0 * np.pi * d_cutoff * dt))
-    dx = np.where(filter_valid, alpha_d * (x - x_prev) / dt + (1.0 - alpha_d) * dx_prev, dx_prev)
-    dy = np.where(filter_valid, alpha_d * (y - y_prev) / dt + (1.0 - alpha_d) * dy_prev, dy_prev)
-
-    alphas_x = 1.0 / (1.0 + 1.0 / (2.0 * np.pi * (min_cutoff + beta * np.abs(dx)) * dt))
-    alphas_y = 1.0 / (1.0 + 1.0 / (2.0 * np.pi * (min_cutoff + beta * np.abs(dy)) * dt))
+    filtered_x, derivative_x = one_euro_step(x, x_prev, dx_prev, dt=dt,
+        min_cutoff=min_cutoff, beta=beta, d_cutoff=d_cutoff)
+    filtered_y, derivative_y = one_euro_step(y, y_prev, dy_prev, dt=dt,
+        min_cutoff=min_cutoff, beta=beta, d_cutoff=d_cutoff)
+    dx = np.where(filter_valid, derivative_x, dx_prev)
+    dy = np.where(filter_valid, derivative_y, dy_prev)
 
     # 5. Output:  filtered | initialized | gap-held | NaN
-    x_hat = np.where(filter_valid, alphas_x * x + (1.0 - alphas_x) * x_prev,
+    x_hat = np.where(filter_valid, filtered_x,
              np.where(init_valid, x,
              np.where(gap_fill, x_prev, np.nan)))
-    y_hat = np.where(filter_valid, alphas_y * y + (1.0 - alphas_y) * y_prev,
+    y_hat = np.where(filter_valid, filtered_y,
              np.where(init_valid, y,
              np.where(gap_fill, y_prev, np.nan)))
 

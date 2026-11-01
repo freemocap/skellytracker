@@ -428,3 +428,63 @@
   note = {Adaptation targets existing sfn26 shared-session ownership and failure cleanup.}
 }
 
+@misc{opencvZooMediaPipeHandOnnx,
+  title = {Hand pose estimation from MediaPipe Handpose},
+  author = {{OpenCV contributors}},
+  url = {https://github.com/opencv/opencv_zoo/blob/main/models/handpose_estimation_mediapipe/README.md},
+  urldate = {2026-11-01},
+  review = {full-text},
+  claim = {Publishes a TFLite-to-ONNX hand model conversion and warns that the int8 model can lose substantial accuracy.},
+  note = {Documentation reviewed; model bytes, CUDA execution and parity with the currently installed MediaPipe task were not tested.}
+}
+
+@misc{opencvZooMediaPipeHandTransforms,
+  title = {OpenCV Zoo MediaPipe hand preprocessing and output conversion},
+  author = {{OpenCV contributors}},
+  url = {https://raw.githubusercontent.com/opencv/opencv_zoo/main/models/handpose_estimation_mediapipe/mp_handpose.py},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {The reference adapter rotates and crops using palm keypoints, supplies NHWC image tensors, and restores predicted coordinates through scale and rotation transforms.},
+  note = {Reviewed preprocessing and postprocessing source excerpts; not executed locally.}
+}
+
+@misc{opencvZooMediaPipePoseOnnx,
+  title = {Pose estimation from MediaPipe Pose},
+  author = {{OpenCV contributors}},
+  url = {https://github.com/opencv/opencv_zoo/blob/main/models/pose_estimation_mediapipe/README.md},
+  urldate = {2026-11-01},
+  review = {full-text},
+  claim = {Publishes a TFLite-to-ONNX body pose model conversion with pose keypoints and a segmentation output.},
+  note = {Does not establish equivalence to this application's lite, full or heavy task weights. No model execution was performed.}
+}
+
+@misc{mediaPipePythonDelegateOptions,
+  title = {MediaPipe Python task base options},
+  author = {{The MediaPipe Authors}},
+  url = {https://raw.githubusercontent.com/google-ai-edge/mediapipe/master/mediapipe/tasks/python/core/base_options.py},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {Defines CPU and GPU delegates, defaults an unspecified delegate to CPU in the C options conversion, and documents limited platform support for GPU.},
+  note = {Also inspected the corresponding installed file in Core's existing environment; no native GPU delegate experiment was run.}
+}
+
+@misc{mediaPipeHandTaskTracking,
+  title = {Hand landmarks detection guide for Python},
+  author = {{Google}},
+  url = {https://developers.google.com/edge/mediapipe/solutions/vision/hand_landmarker/python},
+  urldate = {2026-11-01},
+  review = {excerpt},
+  claim = {The hand task combines detection and tracking, with confidence and tracking settings affecting when detection is repeated.},
+  note = {Reviewed task construction and video-mode behavior; external landmark terminology refers to detector keypoints in this repository.}
+}
+
+@misc{ortTensorRTProfiles,
+  title = {{ONNX Runtime} TensorRT Execution Provider},
+  author = {{ONNX Runtime contributors}},
+  url = {https://onnxruntime.ai/docs/execution-providers/TensorRT-ExecutionProvider.html},
+  urldate = {2026-11-01},
+  review = {excerpt},
+  claim = {Explicit min, opt and max input shapes define a TensorRT optimization profile; shapes outside a cached profile cause engine rebuilding.},
+  note = {Reviewed engine caching and explicit shape profile sections while reproducing partial-batch inference stalls.}
+}
+

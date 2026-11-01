@@ -8,7 +8,11 @@ from skellytracker.core.data_primitives.keypoints import Keypoints
 
 @dataclass
 class StageObservation:
-    """Detection output from a single DetectionStage."""
+    """Stage output; bounding_boxes are executed pixel crops in source-image coordinates.
+
+    Assembled child stages retain crop metadata with keypoints=None so consumers
+    do not count the same numerical keypoints twice.
+    """
 
     name: str
     bounding_boxes: list[BoundingBox] = field(default_factory=list)

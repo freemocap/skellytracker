@@ -7,11 +7,15 @@ from numpy.typing import NDArray
 
 from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.data_primitives.keypoints import Keypoints
+from skellytracker.core.temporal_processing.one_euro_array import OneEuroWorkspace
 
 
 @dataclass
 class BBoxSmoothingState:
-    """EMA state for smoothing bounding box position and size across frames."""
+    """Crop filtering and detection-policy state for one camera and stage."""
+
+    corner_workspace: OneEuroWorkspace | None = None
+    raw_corners: NDArray[np.float64] | None = None
 
     smooth_bbox: BoundingBox | None = None
     last_detection_frame: int | None = None
@@ -65,6 +69,7 @@ class KeypointSmoothingState:
 class StageState:
     """Temporal state for a single DetectionStage."""
 
+    last_timestamp_ms: int | None = None
     bbox_state: BBoxSmoothingState = field(default_factory=BBoxSmoothingState)
     keypoint_states: list[KeypointSmoothingState] = field(default_factory=list)
     child_states: dict[str, StageState] = field(default_factory=dict)

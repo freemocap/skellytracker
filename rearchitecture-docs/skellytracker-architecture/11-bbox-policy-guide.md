@@ -2,7 +2,6 @@
 
 This documents the **as-built** `BBoxPolicy` / bbox-smoothing API (`skellytracker/core/temporal_processing/`, `skellytracker/core/tracker/detection_stage.py`, `skellytracker/core/tracker/tracker_state.py`), and what a caller building an RTMPose tracker — freemocap in particular — needs to configure to get correct, non-collapsing bbox tracking.
 
-> **Note:** [`09-temporal-processing.md`](./09-temporal-processing.md) is a pre-implementation design doc and is out of date on this topic (it describes a `smooth_center`/`smooth_size` EMA state and a simpler `BBoxPolicy` that no longer match the code). This doc reflects what's actually in the repo today.
 
 ## Why this exists
 
@@ -23,7 +22,10 @@ class BBoxPolicyConfig(BaseModel):
     min_bbox_size_px: float = 80.0                    # absolute floor, prevents zero-size crop
 
 class BBoxSmoothingConfig(BaseModel):
-    alpha: float = 0.5   # EMA weight on the *previous* smoothed crop; higher = more lag
+    min_cutoff: float = 3.0
+    beta: float = 0.02
+    d_cutoff: float = 1.0
+    reset_after_seconds: float = 0.5   # Reset history after this elapsed source-time gap
 ```
 
 `BBoxFitnessCheckConfig` is a discriminated union (`kind` field) of:
@@ -43,7 +45,7 @@ DetectionStageConfig(
     object_detector=YoloxPersonDetectorConfig(),
     keypoint_detectors=[RTMPoseDetectorConfig(model_name="rtmw-x-l_256x192")],
     bbox_policy=BBoxPolicyConfig(...),
-    bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
+    bbox_smoothing=BBoxSmoothingConfig(),
 )
 ```
 
@@ -51,7 +53,7 @@ DetectionStageConfig(
 
 ```python
 class BBoxSmoothingState:
-    smooth_bbox: BoundingBox | None = None          # the actual crop used this frame (post-EMA)
+    smooth_bbox: BoundingBox | None = None          # the actual crop used this frame (filtered, before pixel clipping)
     last_detection_frame: int | None = None         # frame_number of the last YOLOX run
     keypoint_tracked_bbox: BoundingBox | None = None  # tight-around-keypoints + 1 expansion, every frame
     last_detected_bbox: BoundingBox | None = None     # raw box from the last actual YOLOX run (unsmoothed)
@@ -77,7 +79,7 @@ DetectionStage.run(image, state, context):
   1. should_redetect(frame_number, state)?
        True  → run ObjectDetector(YOLOX) → raw_bbox; reset last_detection_frame
        False → predict_bbox(state) → raw_bbox (see below)
-  2. EMA-smooth raw_bbox against state.bbox_state.smooth_bbox (if bbox_smoothing set)
+  2. One Euro-filter raw_bbox corners using state.bbox_state.corner_workspace (if bbox_smoothing set)
        → smoothed_bbox becomes this frame's crop
   3. crop image to smoothed_bbox, run keypoint detector(s), translate back to full-frame coords
   4. refresh state.bbox_state.keypoint_tracked_bbox from *this frame's* keypoints
@@ -149,7 +151,7 @@ stage = DetectionStageConfig(
         min_detected_bbox_ratio=0.5,         # leave at default unless you see specific issues
         min_bbox_size_px=80.0,               # see multi-camera note below
     ),
-    bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
+    bbox_smoothing=BBoxSmoothingConfig(),
 )
 ```
 

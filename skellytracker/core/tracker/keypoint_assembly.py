@@ -48,5 +48,9 @@ class PreparedKeypointAssembly:
         target.keypoints = self.template.with_values(xyz=xyz, visibility=visibility)
         for source in self.config.sources:
             if len(source.stage_path) == 2:
-                target.children.pop(source.stage_path[1], None)
+                child = target.children.get(source.stage_path[1])
+                if child is not None:
+                    # Keep crop geometry and provenance, but publish numerical
+                    # keypoints only once through the assembled parent tensor.
+                    child.keypoints = None
         observation.stages[self.config.target_stage] = target

@@ -3,6 +3,7 @@ import numpy as np
 import pytest
 
 from skellytracker.core.data_primitives.keypoints import Keypoints
+from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.data_primitives.observation import Observation, StageObservation
 from skellytracker.core.io.mapping_paths import RTMPOSE_BODY_MAPPING, MEDIAPIPE_HAND_MAPPING
 from skellytracker.core.io.tracker_profiles import tracker_profile
@@ -11,13 +12,35 @@ from skellytracker.core.tracker.tracker_presets import combined_tracker_config
 from skellytracker.core.tracker.tracker_factory import tracker_session_requests
 
 
+@pytest.mark.parametrize("preset", ["rtmpose", "mediapipe", "rtmw_mediapipe_hands"])
+def test_serialized_recipe_preserves_concrete_detector_settings(preset):
+    from skellytracker.core.config.tracker_config import TrackerConfig
+    from skellytracker.core.tracker.tracker_presets import human_tracker_config
+    original = human_tracker_config(preset=preset, detection_confidence=0.73,
+                                    confidence_threshold=0.31)
+    restored = TrackerConfig.model_validate_json(original.model_dump_json(round_trip=True))
+    assert restored == original
+    assert type(restored.stages[0].keypoint_detectors[0]) is type(original.stages[0].keypoint_detectors[0])
+
+
+@pytest.mark.parametrize("hand_count", [1, 3, 4])
+def test_human_preset_rejects_unsupported_hand_count(hand_count):
+    from skellytracker.core.tracker.tracker_presets import mediapipe_tracker_config
+    from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
+    with pytest.raises(ValueError, match="two hands"):
+        mediapipe_tracker_config(model_complexity=MediapipePoseModelComplexity.LITE,
+            detection_confidence=0.5, presence_confidence=0.5, tracking_confidence=0.5,
+            num_hands=hand_count, num_faces=1)
+
+
 def observation_for(config, *, missing=None):
     sources = config.keypoint_assembly.sources
     stages = []
     for index, source in enumerate(sources):
         count = len(source.source_names)
         points = Keypoints(source.source_names, np.full((count, 3), float(index + 1)), np.ones(count))
-        stages.append(StageObservation(source.stage_path[-1], keypoints=points))
+        stages.append(StageObservation(source.stage_path[-1], keypoints=points,
+            bounding_boxes=[BoundingBox(10, 20, 30, 40)]))
     body = stages[0]
     body.children = {stage.name: stage for stage in stages[1:] if stage.name != missing}
     return Observation(0, (480, 640), {"body": body, "charuco": StageObservation("charuco")})
@@ -34,8 +57,8 @@ def test_combined_schema_mapping_and_resources():
     assert "right_hand_wrist" in profile.keypoint_names
     assert set(sum(profile.connections, ())).issubset(profile.keypoint_names)
     for child, side in zip(config.stages[0].children, ("right", "left")):
-        assert child.object_detector.center_keypoint_names == (f"{side}_wrist",)
-        assert child.object_detector.scale_keypoint_pairs == ((f"{side}_elbow", f"{side}_wrist"),)
+        assert child.object_detector.center_keypoint_names == (f"{side}_hand_forefinger4", f"{side}_hand_pinky_finger4")
+        assert child.object_detector.scale_factor == 3.0
         assert child.keypoint_detectors[0].assumed_handedness == side
     requests = tracker_session_requests(config, batch_size=3, onnx_overrides={"execution_provider": "cpu"})
     assert {r.config.backend for r in requests} == {"onnx", "mediapipe", "cpu"}
@@ -53,7 +76,11 @@ def test_dense_assembly_missing_hands_and_storage(missing):
     assembly.apply(observation)
     output = observation.stages["body"].keypoints
     assert output.names == tracker_profile("rtmw_mediapipe_hands").keypoint_names
-    assert not observation.stages["body"].children
+    children = observation.stages['body'].children
+    assert set(children) == {'right_hand', 'left_hand'} - {missing}
+    assert all(child.keypoints is None for child in children.values())
+    assert all(child.bounding_boxes[0].x1 == 10 for child in children.values())
+    assert len(observation.to_keypoints().names) == len(output.names)
     assert observation.stages["charuco"] is board
     for source, (indices, destination) in zip(config.keypoint_assembly.sources, assembly.selections):
         if source.stage_path[-1] == missing:
@@ -124,7 +151,9 @@ def test_mediapipe_recipe_assembles_its_declared_schema_standalone():
     observation = observation_for(config, missing="right_hand")
     assembly.apply(observation)
     assert observation.stages["body"].keypoints.names == tracker_profile("mediapipe").keypoint_names
-    assert not observation.stages["body"].children
+    assert set(observation.stages['body'].children) == {'left_hand', 'face'}
+    assert all(child.keypoints is None for child in observation.stages['body'].children.values())
+    assert len(observation.to_keypoints().names) == len(tracker_profile('mediapipe').keypoint_names)
 
 
 def test_assembly_requires_declared_source_stages():

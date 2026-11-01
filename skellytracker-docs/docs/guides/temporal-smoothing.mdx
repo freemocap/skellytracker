@@ -19,11 +19,23 @@ The bounding-box policy controls how the crop for the next frame is derived from
 the current detection and keypoints, with smoothing to keep it from jittering or
 collapsing.
 
-{/* TODO(prose): document the BBoxPolicy / bbox-smoothing API — smooth_bbox,
-    keypoint_tracked_bbox, shrink-rate clamping, config knobs.
-    SOURCE: core/temporal_processing/bbox_policy.py, bbox_smoothing.py;
-    rearchitecture-docs/skellytracker-architecture/11-bbox-policy-guide.md (as-built).
-    See also technical/bbox-policy-reference.mdx. */}
+The body and shared hand presets filter crop corners with `BBoxSmoothingConfig`:
+
+```python
+BBoxSmoothingConfig(min_cutoff=3.0, beta=0.02, d_cutoff=1.0, reset_after_seconds=0.5)
+```
+
+Cutoffs are in Hz. Lower minimum cutoff reduces jitter with more lag; beta raises
+the cutoff during motion. These are starting defaults, not a quality optimum.
+The hand crop uses three times the larger wrist-to-index/pinky-tip distance.
+It adds no further percentage margin.
+
+Provide source `timestamp_ms`, not inference-completion time. Each camera/stage
+has separate filter history and reusable NumPy corner buffers. Missing crops
+and gaps longer than `reset_after_seconds` reset that history. Missing, repeated,
+or backwards timestamps bypass/reset smoothing; they do not invent an interval.
+Reported boxes describe the exact clipped pixel rectangle passed to detection.
+
 
 ## Keypoint filtering
 

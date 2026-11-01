@@ -127,6 +127,10 @@ class OnnxSession(Session):
                     fp16=fp16,
                     log_label=spec.name,
                     max_batch_size=config.batch_size,
+                    # Missing-person crops reduce batches during live tracking.
+                    # Prepare their full range before inference, not on arrival.
+                    # [@ortTensorRTProfiles]
+                    trt_set_batch_profile=active_provider == "trt",
                     gpu_mem_limit=gpu_mem_limit,
                     device_id=device_id,
                     coreml_options=spec.coreml_options,
@@ -227,6 +231,10 @@ class OnnxSession(Session):
         Each value in ``tensors`` is a single-image tensor of shape (3, H, W).
         All images are stacked into a single (N, 3, H, W) batch, fed through
         the model in one ORT call, and the outputs are split back by camera key.
+        N may be smaller than the configured batch size when a detection stage
+        excludes unusable crops. This is expected and needs no padding or
+        session recreation. The model/provider enforces its supported shapes;
+        failures propagate through ``run``. Callers skip inference when N is zero.
 
         Parameters
         ----------
@@ -241,12 +249,6 @@ class OnnxSession(Session):
         dict mapping each camera ID to a list of per-image raw output arrays —
         the same format as a single ``session.run()`` call for that image.
         """
-        if len(tensors) != self.batch_size:
-            logger.warning(
-                "run_batched called with %d cameras but OnnxSessionConfig.batch_size=%d; "
-                "consider recreating the session with batch_size=%d for optimal performance",
-                len(tensors), self.batch_size, len(tensors),
-            )
         ordered_keys = list(tensors.keys())
         stacked = np.stack([tensors[k] for k in ordered_keys])  # (N, 3, H, W)
         input_name = self.get_session(model_name).get_inputs()[0].name
@@ -273,7 +275,7 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
 
     CoreML (macOS) and TRT compile kernels lazily on the first session.run()
     call. Without warmup this happens on the first real frame, causing a silent
-    hang of 5–30 seconds in the middle of the demo loop. Warming up here lets
+    compilation stall in the middle of the demo loop. Warming up here lets
     compilation happen during session creation with a clear log message.
 
     The dummy batch is exactly the batch size the session will be run with, so
@@ -283,7 +285,7 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
     import time
     logger.info(
         "OnnxSession: warming up %d model(s) on provider=%r at batch_size=%d "
-        "(first run may take 5–30 s on CoreML/TRT) ...",
+        "(first TensorRT build may take several minutes; later starts use cached engines) ...",
         len(specs), provider, batch_size,
     )
     for spec in specs:

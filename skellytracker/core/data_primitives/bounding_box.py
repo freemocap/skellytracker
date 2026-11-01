@@ -111,6 +111,11 @@ class BoundingBox:
         x2 = max(0, int(self.x2))
         return image[y1:y2, x1:x2]
 
+    def clipped_pixels(self, image_height: int, image_width: int) -> BoundingBox:
+        """Exact integer boundaries used by the NumPy image slice."""
+        box = self.clipped(image_height, image_width)
+        return BoundingBox(int(box.x1), int(box.y1), int(box.x2), int(box.y2), box.confidence)
+
     # ------------------------------------------------------------------
     # Construction helpers
     # ------------------------------------------------------------------

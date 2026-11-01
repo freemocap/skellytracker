@@ -19,6 +19,7 @@ class TrackerProfile:
     keypoint_names: tuple[str, ...]
     connections: tuple[tuple[str, str], ...]
     mapping_paths: tuple[Path, ...]
+    crop_stage_paths: tuple[tuple[str, ...], ...] = ()
 
     def load_mapping(self) -> CompositeTrackerMapping:
         return CompositeTrackerMapping(tuple(TrackerMapping.from_yaml(path) for path in self.mapping_paths))
@@ -42,16 +43,18 @@ def tracker_profile(preset: str) -> TrackerProfile:
         schema_path = _DETECTORS / "rtmpose/wholebody/rtmpose_wholebody.yaml"
         names, edges = load_point_names(schema_path), load_connections(schema_path)
         if preset == "rtmpose":
-            return TrackerProfile(preset, names, edges, (RTMPOSE_BODY_MAPPING, RTMPOSE_HAND_MAPPING))
+            return TrackerProfile(preset, names, edges, (RTMPOSE_BODY_MAPPING, RTMPOSE_HAND_MAPPING), (('body',),))
         selected = tuple(name for name in names if not name.startswith(("left_hand_", "right_hand_")))
         selected_set = set(selected)
         edges = tuple((a, b) for a, b in edges if a in selected_set and b in selected_set)
         return TrackerProfile(preset, selected + hand_names, edges + hand_edges,
-                              (RTMPOSE_BODY_MAPPING, MEDIAPIPE_HAND_MAPPING))
+                              (RTMPOSE_BODY_MAPPING, MEDIAPIPE_HAND_MAPPING),
+                              (('body',), ('body', 'right_hand'), ('body', 'left_hand')))
     if preset == "mediapipe":
         body = _DETECTORS / "mediapipe/body/mediapipe_body.yaml"
         face = _DETECTORS / "mediapipe/face/mediapipe_face_contour.yaml"
         return TrackerProfile(preset, load_point_names(body) + hand_names + load_point_names(face),
                               load_connections(body) + hand_edges + load_connections(face),
-                              (MEDIAPIPE_BODY_MAPPING, MEDIAPIPE_HAND_MAPPING))
+                              (MEDIAPIPE_BODY_MAPPING, MEDIAPIPE_HAND_MAPPING),
+                              (('body', 'right_hand'), ('body', 'left_hand')))
     raise ValueError(f"Unknown tracker preset {preset!r}")

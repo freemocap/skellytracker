@@ -21,6 +21,7 @@ from skellytracker.core.sessions.session import Session
 from skellytracker.core.detectors.keypoint_detectors._schema_loader import load_point_names
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import get_face_model_path
 from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_task import MediaPipeTask
 
 _POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_face_contour.yaml")
 
@@ -146,7 +147,6 @@ class MediapipeFaceKeypointDetector(KeypointDetector):
 
     def reset_temporal_state(self) -> None:
         self.landmarker.close()
-        self.landmarker = type(self).create(self.config, self.session).landmarker
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
@@ -170,14 +170,14 @@ class MediapipeFaceKeypointDetector(KeypointDetector):
         mp_running_mode = RunningMode.VIDEO if session.running_mode == "video" else RunningMode.IMAGE
         face_path = get_face_model_path()
         opts = FaceLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=str(face_path)),
+            base_options=BaseOptions(model_asset_path=str(face_path), delegate=BaseOptions.Delegate.CPU),
             running_mode=mp_running_mode,
             num_faces=config.num_faces,
             min_face_detection_confidence=config.min_face_detection_confidence,
             min_face_presence_confidence=config.min_face_presence_confidence,
             min_tracking_confidence=config.min_face_tracking_confidence,
         )
-        landmarker = FaceLandmarker.create_from_options(opts)
+        landmarker = MediaPipeTask(FaceLandmarker.create_from_options, opts)
         return cls(config=config, session=session, landmarker=landmarker)
 
 

@@ -62,11 +62,13 @@ class OnnxSessionConfig(SessionConfig):
     Parameters
     ----------
     batch_size:
-        Number of frames to process per inference call. **Required** — the
-        session fails to construct if omitted. Single-camera setups use 1;
-        multi-camera setups pass the camera count. Should equal the number of
-        cameras passed to ``Tracker.process_batch()`` / ``DetectionStage.run_batch()``;
-        a mismatch triggers a runtime warning from ``run_batched``.
+        Batch size used for warmup and provider optimization hints, including
+        the TensorRT profile maximum. **Required** — the session fails to
+        construct if omitted. Single-camera setups use 1; multi-camera setups
+        pass the camera count. Detection stages may submit fewer usable crops
+        per call without padding or recreating the session. Supported runtime
+        sizes still depend on the model and provider; static-batch models retain
+        their fixed shape requirements.
     models:
         List of models to load. Detectors reference them by name.
     execution_provider:

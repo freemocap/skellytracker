@@ -440,6 +440,8 @@ def _trt_dynamic_batch_profile(
     inp = model.graph.input[0]
     name = inp.name
     dims = inp.type.tensor_type.shape.dim
+    if dims[0].HasField("dim_value") and dims[0].dim_value > 0:
+        return {}  # Static-batch models retain their declared shape contract.
     fixed_shape = []
     for i, d in enumerate(dims):
         if i == 0:
@@ -522,7 +524,7 @@ def build_tuned_ort_session(
         sess_options.add_session_config_entry("session.intra_op.allow_spinning", "0")
 
     if trt_set_batch_profile:
-        engine_cache_dir = engine_cache_dir / "dynbatch_v1"
+        engine_cache_dir = engine_cache_dir / "dynbatch_v1" / f"batch_{max_batch_size}"
 
     if provider == "trt":
         engine_cache_dir.mkdir(parents=True, exist_ok=True)

@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
 from skellytracker.core.data_primitives.keypoints import Keypoints
+from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
     KeypointDetector,
@@ -62,11 +63,13 @@ class _RecordingKeypointDetector(KeypointDetector):
     """Child-stage spy: records the shape of every crop it's given."""
 
     seen_crop_shapes: list[tuple[int, int]] = field(default_factory=list)
+    seen_crop_origins: list[tuple[int, int]] = field(default_factory=list)
 
     def detect(
         self, image: NDArray[np.uint8], context: DetectionContext | None = None
     ) -> Keypoints:
         self.seen_crop_shapes.append(image.shape[:2])
+        self.seen_crop_origins.append(tuple(map(int, image[0, 0, :2])))
         return Keypoints(names=(), xyz=np.zeros((0, 3)), visibility=np.zeros(0))
 
     def preprocess(self, image: NDArray[np.uint8]) -> tuple[NDArray[np.float32], Any]:
@@ -195,8 +198,8 @@ class TestParentKeypointsFlowIntoChildObjectDetector:
         obs, _ = body_stage.run(image, StageState())
 
         assert obs.children["right_hand"].bounding_boxes == []
-        # No bbox → child falls back to the full (unclipped) parent crop.
-        assert recorder.seen_crop_shapes == [image.shape[:2]]
+        # Missing wrist coordinates must not trigger an unrelated full-image hand search.
+        assert recorder.seen_crop_shapes == []
 
 
 class TestDegenerateChildCropDoesNotCrash:
@@ -244,6 +247,38 @@ class TestDegenerateChildCropDoesNotCrash:
 
         hand_obs = obs_per_cam["cam0"].children["right_hand"]
         assert hand_obs.keypoints.n_valid == 0
+
+
+@pytest.mark.parametrize('mode', ['single', 'batch', 'associated'])
+@pytest.mark.parametrize('fraction', [0.0, 0.75])
+def test_offset_person_crop_keeps_hand_pixels_and_coordinates_in_same_image(cpu_session, mode, fraction):
+    yy, xx = np.indices((256, 256), dtype=np.uint8)
+    image = np.stack((xx, yy, np.zeros_like(xx)), axis=-1)
+    recorder = _RecordingKeypointDetector(config=_FakeKeypointDetectorConfig(), session=cpu_session)
+    child = DetectionStage(name='right_hand', keypoint_detectors=[recorder],
+        object_detector=KeypointBoundingBoxDetector(config=KeypointBoundingBoxDetectorConfig(
+            center_keypoint_names=('right_wrist',), min_box_size_px=80), session=cpu_session))
+    body = DetectionStage(name='body', children=[child], keypoint_detectors=[
+        _FixedPointKeypointDetector(config=_FixedPointKeypointDetectorConfig(xy=(40, 50)), session=cpu_session)],
+        object_detector=KeypointBoundingBoxDetector(config=KeypointBoundingBoxDetectorConfig(
+            center_keypoint_names=('person_center',), min_box_size_px=120), session=cpu_session))
+    parent_points = Keypoints(('person_center',), np.array([[140. + fraction, 150. + fraction, 0.]]), np.ones(1))
+    try:
+        if mode == 'single':
+            result, _ = body.run(image, StageState(), parent_keypoints=parent_points)
+        elif mode == 'batch':
+            outputs, _ = body.run_batch({'camera': image}, {}, parent_keypoints_per_cam={'camera': parent_points})
+            result = outputs['camera']
+            recorder = child._cam_kp_detectors[0]['camera']
+        else:
+            raw = body.detect_raw_at_bbox(image, BoundingBox(80 + fraction, 90 + fraction, 200 + fraction, 210 + fraction))
+            result, _ = body.finalize_track(raw, StageState())
+        assert recorder.seen_crop_shapes == [(80, 80)]
+        assert recorder.seen_crop_origins == [(80, 100)]
+        box, = result.children['right_hand'].bounding_boxes
+        assert (box.x1, box.y1, box.x2, box.y2) == (80, 100, 160, 180)
+    finally:
+        body.close()
 
 
 class TestBuildDetectorRaisesOnMissingSessionBackend:

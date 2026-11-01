@@ -76,14 +76,9 @@ def combined_tracker_config(
     sources = [KeypointSourceConfig(stage_path=("body",), source_names=body_names,
                                     selected_names=selected_names)]
     for side in ("right", "left"):
-        child = _mediapipe_hand_child_stage(side, detection_confidence=detection_confidence,
+        child = mediapipe_hand_stage(side, parent_preset="rtmpose", detection_confidence=detection_confidence,
                                           presence_confidence=presence_confidence,
                                           tracking_confidence=tracking_confidence)
-        child.object_detector = KeypointBoundingBoxDetectorConfig(
-            center_keypoint_names=(f"{side}_wrist",),
-            scale_keypoint_pairs=((f"{side}_elbow", f"{side}_wrist"),),
-            scale_factor=1.5, min_box_size_px=30.0,
-        )
         config.stages[0].children.append(child)
         names = mediapipe_hand_names(side)
         sources.append(KeypointSourceConfig(stage_path=("body", child.name),
@@ -129,38 +124,49 @@ def skeleton_tracker_config(
                     min_shrink_ratio_per_frame=0.995,
                     min_bbox_size_px=80.0,
                 ),
-                bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
+                bbox_smoothing=BBoxSmoothingConfig(),
             )
         ]
     )
 
 
-def _mediapipe_hand_child_stage(
+def mediapipe_hand_stage(
     side: str,
     *,
-    detection_confidence: float,
-    presence_confidence: float,
-    tracking_confidence: float,
+    parent_preset: str = "mediapipe",
+    detection_confidence: float = 0.5,
+    presence_confidence: float = 0.5,
+    tracking_confidence: float = 0.5,
 ) -> DetectionStageConfig:
-    """Build a wrist-cropped hand child stage for the given side ('left'/'right').
+    """Build the shared hand crop and inference stage for either parent schema.
 
-    Crops tightly around the wrist using the parent body stage's own
-    wrist/index/pinky keypoints (pure keypoint arithmetic, no inference — see
-    KeypointBoundingBoxDetectorConfig), then runs MediaPipe's hand landmarker
-    on that zoomed-in crop with a fixed handedness, since MediaPipe's own
-    per-crop handedness guess is unreliable on a tight single-hand crop.
+    Center between the parent's index and pinky tips, with a square side three
+    times the larger wrist-to-tip distance. Only keypoint names depend on the
+    parent preset; crop geometry, margin, smoothing and inference are shared.
+    RTMW's existing finger estimates guide cropping only; assembled hand output
+    still comes exclusively from MediaPipe. Missing tips suppress that crop.
     """
     from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import (
         MediapipeHandDetectorConfig,
     )
 
+    if side not in ("left", "right"):
+        raise ValueError(f"Unknown hand side {side!r}")
+    if parent_preset == "mediapipe":
+        index_keypoint, pinky_keypoint = f"{side}_index", f"{side}_pinky"
+    elif parent_preset == "rtmpose":
+        index_keypoint = f"{side}_hand_forefinger4"
+        pinky_keypoint = f"{side}_hand_pinky_finger4"
+    else:
+        raise ValueError(f"Unsupported hand-crop parent preset {parent_preset!r}")
+    wrist_keypoint = f"{side}_wrist"
     return DetectionStageConfig(
         name=f"{side}_hand",
         object_detector=KeypointBoundingBoxDetectorConfig(
-            center_keypoint_names=(f"{side}_index", f"{side}_pinky"),
+            center_keypoint_names=(index_keypoint, pinky_keypoint),
             scale_keypoint_pairs=(
-                (f"{side}_wrist", f"{side}_index"),
-                (f"{side}_wrist", f"{side}_pinky"),
+                (wrist_keypoint, index_keypoint),
+                (wrist_keypoint, pinky_keypoint),
             ),
             scale_factor=3.0,
             min_box_size_px=30.0,
@@ -174,7 +180,7 @@ def _mediapipe_hand_child_stage(
                 min_hand_tracking_confidence=tracking_confidence,
             )
         ],
-        bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
+        bbox_smoothing=BBoxSmoothingConfig(),
     )
 
 
@@ -188,13 +194,13 @@ def build_mediapipe_tracker_config(
 ) -> TrackerConfig:
     """Build a MediaPipe body+hands+face TrackerConfig.
 
-    Pose is the parent "body" stage; left_hand/right_hand are wrist-cropped
-    child stages (see _mediapipe_hand_child_stage) instead of full-frame
+    Pose is the parent "body" stage; left_hand/right_hand use shared hand crops
+    (see mediapipe_hand_stage) instead of full-frame
     sibling detectors, since hands occupy a tiny fraction of a full-body frame
     and MediaPipe's palm detector struggles to find them at that scale. Face
     is also a child stage (full-frame, no crop) purely to preserve the
     existing pose/right_hand/left_hand/face point ordering that
-    merge_mediapipe_hand_face_children() and tracker_definitions.py expect.
+    the prepared keypoint assembly and tracker profile expect.
     """
     from skellytracker.core.detectors.keypoint_detectors.mediapipe.body.mediapipe_pose_detector import (
         MediapipePoseDetectorConfig,
@@ -236,13 +242,13 @@ def build_mediapipe_tracker_config(
                     ),
                 ],
                 children=[
-                    _mediapipe_hand_child_stage(
+                    mediapipe_hand_stage(
                         "right",
                         detection_confidence=detection_confidence,
                         presence_confidence=presence_confidence,
                         tracking_confidence=tracking_confidence,
                     ),
-                    _mediapipe_hand_child_stage(
+                    mediapipe_hand_stage(
                         "left",
                         detection_confidence=detection_confidence,
                         presence_confidence=presence_confidence,
@@ -270,29 +276,11 @@ def mediapipe_tracker_config(
     *, model_complexity: MediapipePoseModelComplexity, detection_confidence: float,
     presence_confidence: float, tracking_confidence: float, num_hands: int, num_faces: int,
 ) -> TrackerConfig:
-    """Keep the existing API; each wrist crop now detects one hand independently."""
+    """Build the two-sided human hand recipe; arbitrary hand counts are unsupported."""
+    if num_hands != 2:
+        raise ValueError("The human preset requires two hands, one per side")
     return build_mediapipe_tracker_config(
         model_complexity=model_complexity, detection_confidence=detection_confidence,
         presence_confidence=presence_confidence, tracking_confidence=tracking_confidence,
         num_faces=num_faces,
     )
-
-
-def merge_mediapipe_hand_face_children(obs: Observation) -> None:
-    """Merge left_hand/right_hand/face child-stage keypoints back into the
-    top-level "body" stage, preserving the flat right_hand_*/left_hand_*
-    naming and pose+right_hand+left_hand+face ordering every downstream
-    consumer (skeleton_rigidifier, recording_status, export_to_blender,
-    tracker_definitions, freemocap-ui) expects. Mutates `obs` in place.
-    No-op for non-mediapipe configs (no "body" stage or no children).
-    """
-    body_stage = obs.stages.get("body")
-    if body_stage is None or not body_stage.children:
-        return
-    parts = [body_stage.keypoints] if body_stage.keypoints is not None else []
-    for name in ("right_hand", "left_hand", "face"):
-        child = body_stage.children.pop(name, None)
-        if child is not None and child.keypoints is not None:
-            parts.append(child.keypoints)
-    if len(parts) > 1:
-        body_stage.keypoints = Keypoints.concatenate(parts)

@@ -24,6 +24,20 @@ Add extras to enable additional tracker backends. Pick the bundle that matches y
 | `all-trt` | NVIDIA GPU, CUDA 12 + TensorRT | Same as `recommended-cuda` |
 | `all-directml` | Any GPU on Windows | MediaPipe + RTMPose + YOLOX via DirectML |
 
+The execution providers in this table apply to ONNX models such as RTMPose and
+YOLOX. The current MediaPipe Tasks integration explicitly uses CPU, including
+when installed with a GPU bundle. Its session reports CPU; requesting native
+MediaPipe GPU execution with `disable_gpu=False` raises an unsupported-execution
+error rather than silently using CPU.
+
+TensorRT sessions prepare a batch profile from one image through the configured
+`batch_size` during startup. When a person leaves some camera views, inference
+can process the remaining crops without compiling another engine. Empty crops
+are skipped. The initial engine build can take several minutes; subsequent
+sessions reuse engines cached separately for each configured batch maximum.
+Explicit profiles prevent the engine rebuilds that otherwise occur when inputs
+leave the cached shape range. [@ortTensorRTProfiles]
+
 ```bash
 # CPU / Mac
 pip install "skellytracker[recommended-cpu]"

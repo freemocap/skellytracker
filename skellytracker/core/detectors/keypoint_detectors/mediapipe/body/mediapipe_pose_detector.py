@@ -24,6 +24,7 @@ from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_m
     get_pose_model_path,
 )
 from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_task import MediaPipeTask
 
 _POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_body.yaml")
 
@@ -131,7 +132,6 @@ class MediapipePoseKeypointDetector(KeypointDetector):
 
     def reset_temporal_state(self) -> None:
         self.landmarker.close()
-        self.landmarker = type(self).create(self.config, self.session).landmarker
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
@@ -159,14 +159,14 @@ class MediapipePoseKeypointDetector(KeypointDetector):
         mp_running_mode = RunningMode.VIDEO if session.running_mode == "video" else RunningMode.IMAGE
         pose_path = get_pose_model_path(config.model_complexity)
         opts = PoseLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=str(pose_path)),
+            base_options=BaseOptions(model_asset_path=str(pose_path), delegate=BaseOptions.Delegate.CPU),
             running_mode=mp_running_mode,
             num_poses=config.num_poses,
             min_pose_detection_confidence=config.min_pose_detection_confidence,
             min_pose_presence_confidence=config.min_pose_presence_confidence,
             min_tracking_confidence=config.min_pose_tracking_confidence,
         )
-        landmarker = PoseLandmarker.create_from_options(opts)
+        landmarker = MediaPipeTask(PoseLandmarker.create_from_options, opts)
         return cls(config=config, session=session, landmarker=landmarker)
 
 

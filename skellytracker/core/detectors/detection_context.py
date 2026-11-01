@@ -14,10 +14,10 @@ class DetectionContext:
     the context entirely.
 
     frame_number: Index of the current frame (0-based).
-    timestamp_ms: Monotonically increasing wall-clock time in milliseconds.
+    timestamp_ms: Monotonically increasing source time in milliseconds.
                   Required by detectors running in VIDEO mode (e.g. MediaPipe).
                   When None, detectors that need a timestamp should derive one
-                  from time.monotonic().
+                  from time.monotonic(); temporal smoothing is bypassed without source time.
     timings:      Optional profiler. When set, DetectionStage.run_batch records
                   per-section wall-clock times into it.
     """

@@ -3,8 +3,10 @@
 The MediaPipe and RTMPose body mappings use the same sternoclavicular (SC)
 geometry. These are estimated attachment points, not detector observations.
 
-The coefficients were calculated from the standard-human reference pose in
-SkellyForge revision `0c8edb21a29ba18dc7c92b81393c49b20e7ffe86`:
+The coefficients were recalculated on 2026-11-01 from the editable SkellyForge
+reference pose: SC joints/notch at 70% anterior depth and xiphoid at 60%.
+This supersedes the coefficients from revision
+`0c8edb21a29ba18dc7c92b81393c49b20e7ffe86`. The derivation is unchanged:
 
 1. Use reference acromion positions as shoulders and hip sockets as hips.
 2. Compute shoulder midpoint `M` and shoulder width `W`.
@@ -14,11 +16,13 @@ SkellyForge revision `0c8edb21a29ba18dc7c92b81393c49b20e7ffe86`:
 6. For each reference attachment `P`, compute
    `dot(P - M, axis) / W` for each of these axes.
 
-This gives lateral offsets of -/+0.062498631, anterior 0.234362559, and
-up 0.002493029. The notch has zero lateral offset. The small up component
-comes from the reference shoulder line; it does not change neck/chest midpoints.
-Nine decimal places preserve the reference construction without implying
-anatomical measurement precision.
+SC lateral offsets are -/+0.062498631, anterior 0.234184536150, and up
+-0.009467177190. The notch has zero lateral offset and identical anterior/up.
+Xiphoid anterior is 0.283314074153 and up is -0.496223613273. These include the
+reference shoulder-to-hip tilt; neck/chest midpoints are unchanged. Decimal places
+preserve the construction without implying anatomical measurement precision.
+Do not multiply these ratios by the depth percentage: changing the SC attachment
+also moves the reference acromia, changing the mapping's origin and axes.
 
 Previously MediaPipe used unequal forward offsets (0.15 and 0.234362), while
 RTMPose used 0.1 on both sides. These constructed landmarks also influence the
@@ -28,10 +32,11 @@ observability or introduce variable-length spine segments.
 Tracker tests cover bilateral symmetry, detector agreement, rigid transformation
 and scale equivariance, and omission when evidence is missing. They do not import
 Forge. Reference-skeleton round trips and real-recording reconstruction belong
-in FreeMoCap after the human commits/pushes this repository and updates its
-consumer dependency. Existing prepared recordings must be reconstructed with
-the updated mapping before evaluating its effects; old saved rotations will
-not change automatically.
+in FreeMoCap through its configured editable dependencies. Core's
+`freemocap/tests/test_model_presentation.py` checks scalar and prepared mapping
+against current Forge reference landmarks under rotation, translation and three
+body scales for all three body presets. Existing recordings keep their saved
+mappings and geometry; fresh processing uses these corrected definitions.
 
 Focused validation (no image/video fixtures are needed):
 

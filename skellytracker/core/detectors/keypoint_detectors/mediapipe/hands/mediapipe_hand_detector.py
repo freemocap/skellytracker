@@ -21,6 +21,7 @@ from skellytracker.core.sessions.session import Session
 from skellytracker.core.detectors.keypoint_detectors._schema_loader import load_point_names
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import get_hand_model_path
 from skellytracker.core.sessions.mediapipe_session import MediaPipeSession
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_task import MediaPipeTask
 
 _HAND_POINT_NAMES: tuple[str, ...] = load_point_names(Path(__file__).parent / "mediapipe_hand.yaml")
 _NUM_HAND_KEYPOINTS = len(_HAND_POINT_NAMES)
@@ -167,7 +168,6 @@ class MediapipeHandKeypointDetector(KeypointDetector):
 
     def reset_temporal_state(self) -> None:
         self.landmarker.close()
-        self.landmarker = type(self).create(self.config, self.session).landmarker
 
     @classmethod
     def connections(cls) -> tuple[tuple[str, str], ...]:
@@ -198,14 +198,14 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         mp_running_mode = RunningMode.VIDEO if session.running_mode == "video" else RunningMode.IMAGE
         hand_path = get_hand_model_path()
         opts = HandLandmarkerOptions(
-            base_options=BaseOptions(model_asset_path=str(hand_path)),
+            base_options=BaseOptions(model_asset_path=str(hand_path), delegate=BaseOptions.Delegate.CPU),
             running_mode=mp_running_mode,
             num_hands=config.num_hands,
             min_hand_detection_confidence=config.min_hand_detection_confidence,
             min_hand_presence_confidence=config.min_hand_presence_confidence,
             min_tracking_confidence=config.min_hand_tracking_confidence,
         )
-        landmarker = HandLandmarker.create_from_options(opts)
+        landmarker = MediaPipeTask(HandLandmarker.create_from_options, opts)
         detector = cls(config=config, session=session, landmarker=landmarker)
         if config.assumed_handedness == "right":
             detector._point_names = _RIGHT_NAMES

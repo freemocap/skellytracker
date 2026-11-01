@@ -19,12 +19,26 @@ selection indices derive from the schemas, not hard-coded offsets. Core can sort
 the published channel order using its existing channel contract. The current
 Keypoints API has xyz and visibility arrays; this work does not redefine that API.
 
-Each hand crop is centered on the corresponding RTMW body wrist. Its square size
-uses the same-side elbow-to-wrist distance, initially scaled by 1.5 with the
-existing 30-pixel minimum. Thus missing RTMW finger detections do not prevent
-MediaPipe from finding a hand. Invalid wrists suppress that hand crop. These are
-initial evaluation settings, not empirically optimized settings. Each cropped
+Both presets and the standalone cropped-hand demo use mediapipe_hand_stage.
+The crop center averages the parent's index/pinky tips; square size is three times
+the larger valid wrist-to-tip distance, with a 30-pixel minimum. The preset
+selects only the parent keypoint names: MediaPipe index/pinky or RTMW
+hand_forefinger4/hand_pinky_finger4. RTMW finger estimates guide cropping but never
+replace missing MediaPipe output. If both guiding tips are unavailable, the crop
+is skipped; this remains a limitation to assess during live use. Each cropped
 MediaPipe detector requests one hand with an explicitly assigned side.
+Body and hand crops use the same dense-array One Euro arithmetic as keypoint
+filtering. Each camera/stage retains its own corner workspace. Defaults are
+3 Hz minimum cutoff, beta 0.02 and 1 Hz derivative cutoff. There is no added
+percentage expansion. Missing crops clear filter history; reacquisition starts
+at the detected crop. A source-time gap above 0.5 seconds also resets history.
+The transmitted crop is the exact clipped integer pixel rectangle used for inference.
+
+Pass source `timestamp_ms` to both single-image and batch processing. Recorded
+video processing derives it from recording time; live callers use capture time.
+Missing, duplicate or backwards timestamps bypass/reset smoothing rather than
+assuming a frame rate. Preserved observation arrays and boxes remain independent
+of later state updates.
 
 An absent hand produces NaN coordinates and zero visibility for that hand's
 declared keypoints. Never substitute RTMW hand estimates silently. Body wrists
@@ -130,3 +144,118 @@ and the live comparison procedure. The combined preset is opt-in; its crop and
 threshold settings are not optimized defaults. Final Tracker validation passed
 76 tests, including a fresh-process check that preset registration does not need
 Core, SkellyCam or SkellyForge imports.
+
+## GPU feasibility and crop visibility — 2026-11-01
+
+Core exposes `RTMW + MediaPipe hands` separately from the full `MediaPipe` preset.
+The latter passes the full image to the body task at Tracker's boundary; that
+recipe has no external person detector, as was also true in Core before migration.
+MediaPipe performs its own internal detection/tracking. The hand child stages
+still use explicit Tracker crops. At the initial audit, output assembly removed consumed child
+observations after copying their keypoints, losing crop boxes. The crop correction
+below now preserves those child stages as metadata without duplicate keypoints. Missing overlay boxes do not establish missing cropping.
+The previous Core merge helper also removed those children.
+
+The initial audit found that hand, face and body task constructors omitted an
+explicit delegate. Installed `BaseOptions.to_ctypes` maps that omission to CPU.
+The session's `_probe_gpu` also omitted the delegate, so its success log falsely
+claimed GPU mode without testing GPU inference. The subsequent approved correction
+removes that probe and explicitly requests CPU in all three task constructors.
+The session now reports CPU; an explicit `disable_gpu=False` request raises a clear
+unsupported-execution error. No camera pipeline or application server was restarted.
+The upstream Python options also document platform limits for GPU support.
+[@mediaPipePythonDelegateOptions]
+
+An ONNX route is feasible: OpenCV Zoo publishes converted MediaPipe hand and body
+models. These are candidates, not proof of identical weights or quality to our
+current `.task` files. Start with floating-point artifacts and numerical comparison
+to the current CPU task; the hand model documentation warns about quantization
+accuracy loss. [@opencvZooMediaPipeHandOnnx; @opencvZooMediaPipePoseOnnx]
+
+The hand adapter requires more than a filename: its reference path uses a rotated
+palm crop, NHWC input and inverse coordinate transforms, plus separate presence,
+handedness and coordinate outputs. Our current warm-up assumes NCHW, and the
+existing pose decoder handles SimCC. A Tracker-owned adapter must supply these
+missing contracts. A wrist-centered crop alone is not proof of equivalence to
+the model's required oriented palm crop. [@opencvZooMediaPipeHandTransforms]
+
+The sidecar, registry, session and dense assembly infrastructure can be reused.
+Validate supported batch dimensions before batching hand crops across cameras;
+validate per-camera/per-hand tracking state and reacquisition behavior as well as
+single-image predictions. MediaPipe's task includes tracking behavior beyond the
+neural model. [@mediaPipeHandTaskTracking]
+
+Moving inference to ONNX CUDA is a candidate optimization, not a measured speedup
+or a guarantee of 30 Hz. Crop preparation, inference, temporal tracking and
+transfers need separate profiling. The current whole-body RTMW pass still precedes
+the hand pass; GPU execution does not remove that dependency. This inspection
+made no runtime changes; the later device-reporting correction is described above.
+Neither step downloaded models, installed dependencies or accessed cameras.
+
+Device-reporting validation: 21 tests passed, including actual task option checks
+for hand/body/face in image/video modes, import order, session lifetime, and native
+hand output equality to the prior implicit CPU default on both reference datasets
+(three frames per camera). A shared-session mock was updated for the assembly
+field added earlier. Core's `TRACKER_COMPOSITION_INTEGRATION.md` records remaining
+crop-publication, hand-quality and GPU-adapter work; none is marked complete.
+
+
+## Hand crop correction — 2026-11-01
+
+The hierarchy was broken for nonzero parent crops: it passed a person-cropped
+image to hand children but supplied wrist coordinates in the source image.
+A deterministic pixel-coded-image regression reproduced an intended 80x80 crop
+being delivered as a misplaced 20x40 crop in single, batch and associated-person
+processing. Children now receive the same source image as their parent keypoints;
+only their own crop is sliced. No image copy is added.
+
+Bounding boxes published in StageObservation describe the actual clipped integer
+pixel slice, including smoothing, rather than the raw detector proposal. Keypoint
+translation uses that same integer origin. A missing required crop suppresses
+inference instead of falling back to an unrelated full-image hand search.
+
+Prepared assembly and the merge helper retain child crop metadata while clearing
+only child keypoint references after copying values to the assembled tensor.
+TrackerProfile declares crop_stage_paths. RTMW declares its body crop; the hybrid
+also declares both hand crops; pure MediaPipe declares only its hand crops, not
+full-image body/face fallback rectangles. Core consumes this declaration through
+its existing BOXES_2D channel and renderer.
+
+Validation: 38 focused hierarchy/preset/factory/multi-person tests passed (including
+integer and fractional parent origins), plus four real-model reference tests.
+The reference tests exercised 12 frames per camera, three cameras, both recordings,
+and both single and batch paths: 144 observations total. Single/batch counts agreed
+at 714 finite hand keypoints for test data and 987 for sample data per 36-observation
+run. These counts are availability, not accuracy or a matched quality improvement.
+Hand crop bounds were checked against source image dimensions in the batch runs.
+No live cameras, model weights, thresholds or dependencies were changed.
+
+
+## Shared hand crop policy - 2026-11-01
+
+The hybrid previously built the shared hand stage and then replaced its crop
+configuration. That was setup-time replacement, not two calculations per frame.
+The override is removed. Parent-schema names are selected inside the shared
+factory before constructing the config. The existing KeypointBoundingBoxDetector
+performs the crop calculation. The standalone MediaPipe demo also uses this
+factory instead of a separate copy. No Core production code or dependency changed.
+
+Sixteen geometry cases first failed against the old rules. They now pass for both
+sides, both presets, and four orientations, including a foreshortened forearm,
+partial/missing fingertips, and wrist/fingertip coverage. Demo parity and invalid
+schema tests also pass. Validation: 52 focused Tracker tests across runs, eight
+native-model reference checks, and 15 Core integration tests. Native checks cover
+both presets and both recordings in single and batch modes: 12 frames per camera,
+three cameras per recording; 288 camera observations overall.
+
+Matched hybrid checks in the same environment produced these finite hand keypoint
+counts per 36-observation excerpt; single and batch results agree:
+
+| Recording | Previous wrist/forearm crop | Shared fingertip crop, 4x size |
+| --- | ---: | ---: |
+| Test | 714 | 840 |
+| Sample | 987 | 1323 |
+
+These are availability counts, not accuracy or throughput measurements. Reports
+are ignored under .test-artifacts/crop-policy-{before,after,mediapipe}.xml. Live
+visual acceptance remains open. No cameras or running application were touched.

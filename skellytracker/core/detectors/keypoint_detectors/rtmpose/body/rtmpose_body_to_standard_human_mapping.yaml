@@ -40,7 +40,8 @@ neck_center:
 # SC offsets share one symmetric reference geometry across body trackers.
 # Ratios are projections of (SC - shoulder midpoint) onto lateral/anterior/up,
 # divided by shoulder width, using the standard-human reference pose.
-# The small up component belongs to the SC attachment, not the spine midpoint.
+# Calibrated to SC/notch 70% and xiphoid 60% depth. Project in the
+# hip-midpoint -> shoulder-midpoint frame, including its reference-pose tilt.
 left_sternoclavicular:
   form: anatomical_offset
   origin:
@@ -61,8 +62,8 @@ left_sternoclavicular:
       kind: approximate
   offset:
     lateral: -0.062498631
-    anterior: 0.234362559
-    up: 0.002493029
+    anterior: 0.234184536150
+    up: -0.009467177190
   reference_length:
     from: left_shoulder
     to: right_shoulder
@@ -86,8 +87,8 @@ right_sternoclavicular:
       kind: approximate
   offset:
     lateral: 0.062498631
-    anterior: 0.234362559
-    up: 0.002493029
+    anterior: 0.234184536150
+    up: -0.009467177190
   reference_length:
     from: left_shoulder
     to: right_shoulder
@@ -110,8 +111,8 @@ sternoclavicular_notch:
       to: right_shoulder
       kind: approximate
   offset:
-    anterior: 0.234362559
-    up: 0.002493029
+    anterior: 0.234184536150
+    up: -0.009467177190
   reference_length:
     from: left_shoulder
     to: right_shoulder
@@ -134,8 +135,8 @@ xiphoid_process:
       to: right_shoulder
       kind: approximate
   offset:
-    up: -0.480192
-    anterior: 0.395755
+    up: -0.496223613273
+    anterior: 0.283314074153
   reference_length:
     from: left_shoulder
     to: right_shoulder

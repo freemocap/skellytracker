@@ -30,7 +30,7 @@ class MultiPersonTracker:
     identity, associates candidates to existing PersonTrackStates (IoU +
     keypoint-distance cost, Hungarian assignment — see track_association.py),
     then finalizes each match using that track's own accumulated temporal
-    state (bbox EMA, keypoint smoothing, reset policy) — the same per-subject
+    state (bbox filtering, keypoint smoothing, reset policy) — the same per-subject
     machinery Tracker/DetectionStage use for single-person tracking, just
     keyed per track instead of per frame.
 

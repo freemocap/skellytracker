@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import replace
+import numpy as np
+from skellytracker.core.temporal_processing.one_euro_array import OneEuroWorkspace, one_euro_step
+from skellytracker.core.temporal_processing.temporal_processing_config import BBoxSmoothingConfig
 
 from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.tracker.tracker_state import BBoxSmoothingState
@@ -30,3 +33,32 @@ def apply_bbox_ema(
         smooth = BoundingBox.from_center_size(cx, cy, w, h, confidence=raw_bbox.confidence)
 
     return smooth, replace(state, smooth_bbox=smooth)
+
+
+def apply_bbox_one_euro(raw_bbox: BoundingBox | None, state: BBoxSmoothingState,
+                        config: BBoxSmoothingConfig, dt: float | None):
+    """Filter corner coordinates using reusable tensors; never invent a missing crop."""
+    if raw_bbox is None:
+        return None, replace(state, smooth_bbox=None, corner_workspace=None, raw_corners=None)
+    work = state.corner_workspace
+    raw = state.raw_corners
+    reset = work is None or dt is None or dt > config.reset_after_seconds
+    if work is None:
+        work = OneEuroWorkspace.create((2, 2))
+        raw = np.empty((2, 2), dtype=np.float64)
+    raw[0] = (raw_bbox.x1, raw_bbox.y1)
+    raw[1] = (raw_bbox.x2, raw_bbox.y2)
+    if not np.isfinite(raw).all():
+        return None, replace(state, smooth_bbox=None, corner_workspace=None, raw_corners=None)
+    if reset:
+        np.copyto(work.filtered_values, raw)
+        work.derivative_values.fill(0.0)
+    else:
+        one_euro_step(raw, work.filtered_values, work.derivative_values, dt=dt,
+            min_cutoff=config.min_cutoff, beta=config.beta, d_cutoff=config.d_cutoff, workspace=work)
+    # Different adaptive cutoffs can make corners cross during abrupt resizing.
+    work.filtered_values.sort(axis=0)
+    smooth = BoundingBox(x1=float(work.filtered_values[0, 0]), y1=float(work.filtered_values[0, 1]),
+                         x2=float(work.filtered_values[1, 0]), y2=float(work.filtered_values[1, 1]),
+                         confidence=raw_bbox.confidence)
+    return smooth, replace(state, smooth_bbox=smooth, corner_workspace=work, raw_corners=raw)

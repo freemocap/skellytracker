@@ -23,8 +23,7 @@ from skellytracker.core.detectors.keypoint_detectors.mediapipe.face.mediapipe_fa
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import MediapipeHandDetectorConfig, MediapipeHandKeypointDetector
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.body.mediapipe_pose_detector import MediapipePoseDetectorConfig, MediapipePoseKeypointDetector
-from skellytracker.core.detectors.object_detectors.keypoint_bbox import KeypointBoundingBoxDetectorConfig
-from skellytracker.core.temporal_processing.temporal_processing_config import BBoxSmoothingConfig
+from skellytracker.core.tracker.tracker_presets import mediapipe_hand_stage
 
 
 def build_mediapipe_demo(
@@ -74,41 +73,6 @@ def build_mediapipe_demo(
     return DemoManager(tracker=tracker, annotator=annotator, window_title="MediaPipe Demo")
 
 
-def _hand_child_stage(side: str) -> DetectionStageConfig:
-    """A hand DetectionStage cropped from the parent body stage's own wrist/
-    index/pinky keypoints via the generic KeypointBoundingBoxDetector.
-
-    This is backend-agnostic: KeypointBoundingBoxDetector only reads named
-    keypoints off whatever parent stage it's attached to, so the same crop
-    mechanism works with any body/hand detector pair (RTMPose, etc.) that
-    exposes these point names — not just MediaPipe.
-    """
-    return DetectionStageConfig(
-        name=f"{side}_hand",
-        object_detector=KeypointBoundingBoxDetectorConfig(
-            center_keypoint_names=(f"{side}_index", f"{side}_pinky"),
-            scale_keypoint_pairs=(
-                (f"{side}_wrist", f"{side}_index"),
-                (f"{side}_wrist", f"{side}_pinky"),
-            ),
-            scale_factor=3.0,
-            min_box_size_px=120.0,
-        ),
-        # assumed_handedness overrides MediaPipe's own per-hand label — the
-        # crop is already dedicated to this side (it was cropped from this
-        # side's wrist/index/pinky), which is more reliable than MediaPipe's
-        # label on a tight single-hand crop. See mediapipe_hand_detector.py.
-        keypoint_detectors=[MediapipeHandDetectorConfig(num_hands=1, assumed_handedness=side)],
-        # The box is re-derived from the body stage's wrist/index/pinky
-        # estimate every frame (redetect_interval=1, the default) with no
-        # temporal filtering of its own — EMA smoothing here damps
-        # frame-to-frame jitter in that estimate (most noticeable right as
-        # the hand nears the frame edge, where body-level landmark accuracy
-        # degrades) so the crop doesn't jump/shrink erratically.
-        bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
-    )
-
-
 def build_mediapipe_demo_with_cropped_hands(
     pose_complexity: MediapipePoseModelComplexity = MediapipePoseModelComplexity.LITE,
 ) -> DemoManager:
@@ -119,7 +83,7 @@ def build_mediapipe_demo_with_cropped_hands(
     body_stage = DetectionStageConfig(
         name="body",
         keypoint_detectors=[MediapipePoseDetectorConfig(model_complexity=pose_complexity)],
-        children=[_hand_child_stage("left"), _hand_child_stage("right")],
+        children=[mediapipe_hand_stage("left"), mediapipe_hand_stage("right")],
     )
     tracker = build_tracker(TrackerConfig(stages=[body_stage]))
 

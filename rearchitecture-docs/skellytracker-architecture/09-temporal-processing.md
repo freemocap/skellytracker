@@ -23,7 +23,7 @@ DetectionStage.process(image, frame_number, stage_state):
        → True:  run ObjectDetector on image → raw_bbox
        → False: reuse smoothed bbox from stage_state.bbox_state
 
-  2. Apply bbox smoothing (EMA) to raw_bbox (or reused bbox)
+  2. Apply bbox smoothing (One Euro) to raw_bbox (or reused bbox)
        → smoothed_bbox, updated bbox_state
 
   3. Crop image to smoothed_bbox
@@ -87,28 +87,13 @@ Added to `DetectionStageConfig`:
 bbox_policy: BBoxPolicyConfig = BBoxPolicyConfig()  # default: redetect every frame
 ```
 
-## BBox Smoothing (EMA)
+## BBox Smoothing (One Euro)
 
-Bbox smoothing is applied after the redetection decision, so the crop fed into the keypoint detector is always smoothed regardless of whether the bbox came from fresh detection or reuse. It uses `BBoxSmoothingState` (see `06-tracker-state.md`).
-
-EMA is applied independently to the center coordinates and the diagonal size:
-
-```python
-def apply_bbox_ema(
-    raw_bbox: BoundingBox,
-    state: BBoxSmoothingState,
-) -> tuple[BoundingBox, BBoxSmoothingState]:
-    if state.smooth_center is None:
-        return raw_bbox, replace(state, smooth_center=raw_bbox.center, smooth_size=raw_bbox.diagonal)
-    alpha = state.alpha
-    cx = alpha * state.smooth_center[0] + (1 - alpha) * raw_bbox.center[0]
-    cy = alpha * state.smooth_center[1] + (1 - alpha) * raw_bbox.center[1]
-    size = alpha * state.smooth_size + (1 - alpha) * raw_bbox.diagonal
-    smoothed = BoundingBox.from_center_size(cx, cy, size)
-    return smoothed, replace(state, smooth_center=(cx, cy), smooth_size=size)
-```
-
-Config: `alpha` in `BBoxSmoothingState` (0–1; higher = more lag, more jitter reduction).
+Crop corners use `apply_bbox_one_euro` and the shared `one_euro_step` array math.
+`BBoxSmoothingConfig` controls minimum cutoff (Hz), beta, derivative cutoff (Hz)
+and the elapsed-time threshold for resetting stale history. Each stage/camera
+owns a reusable `OneEuroWorkspace`. The crop is filtered before clipping to
+integer image pixels. Missing crops are not held; their history is cleared.
 
 ## Keypoint Smoothing — One-Euro Filter
 
@@ -155,7 +140,7 @@ A Kalman filter is a natural alternative, particularly when occlusion is common:
 `StageState` carries all temporal processing state for one stage:
 
 - `bbox_state.last_detection_frame` — updated to `frame_number` whenever `BBoxPolicy` runs the detector. Used by `should_redetect()` to compute `frames_since`.
-- `bbox_state.smooth_center`, `bbox_state.smooth_size` — updated by EMA after every frame.
+- `bbox_state.smooth_bbox`, `bbox_state.corner_workspace` — updated after every frame.
 - `keypoint_states[i]` — updated by the one-euro filter after each keypoint detector runs.
 
 All state is returned as a new value; nothing is mutated in place. See `06-tracker-state.md` for full structure.
@@ -167,6 +152,6 @@ All state is returned as a new value; nothing is mutated in place. See `06-track
 | `bbox_policy.redetect_interval` | `1` | Redetect every frame — identical to no policy |
 | `bbox_policy.fitness_checks` | `[]` | No fitness gating |
 | `keypoint_smoothing` | `None` | Raw keypoints passed through unchanged |
-| `bbox_state.alpha` | `0.5` | Moderate EMA smoothing; set to `0.0` to disable |
+| `bbox_smoothing.min_cutoff` | `3.0` Hz | Minimum crop-filter cutoff; set the stage configuration to `None` to disable |
 
 A tracker with all defaults applied behaves identically to a tracker with no temporal processing layer. Features are enabled by setting non-default values in config.
