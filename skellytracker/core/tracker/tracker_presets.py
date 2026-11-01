@@ -1,0 +1,251 @@
+"""Standalone tracker recipes; applications select settings without rebuilding stages."""
+from __future__ import annotations
+
+from skellytracker.core.data_primitives.observation import Observation
+from skellytracker.core.data_primitives.keypoints import Keypoints
+from skellytracker.core.config.tracker_config import TrackerConfig
+from skellytracker.core.config.detection_stage_config import DetectionStageConfig
+from skellytracker.core.detectors.keypoint_detectors.rtmw.wholebody.rtmw_wholebody_detector import RTMWWholebodyDetectorConfig
+from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
+from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetectorConfig
+from skellytracker.core.detectors.object_detectors.keypoint_bbox import KeypointBoundingBoxDetectorConfig
+from skellytracker.core.temporal_processing.temporal_processing_config import BBoxPolicyConfig, BBoxSmoothingConfig, KeypointResetPolicyConfig
+
+_REDETECT_SECONDS = 5.0
+
+
+def combined_tracker_config(
+    *, model_name: str = "rtmw-x-l_256x192", confidence_threshold: float = 0.4,
+    video_fps: float = 30.0, keypoint_bbox_expansion: float = 0.05,
+    detection_confidence: float = 0.5, presence_confidence: float = 0.5,
+    tracking_confidence: float = 0.5,
+) -> TrackerConfig:
+    """RTMW body/face with independently cropped MediaPipe hands."""
+    from skellytracker.core.config.keypoint_assembly_config import KeypointAssemblyConfig, KeypointSourceConfig
+    from skellytracker.core.io.tracker_profiles import tracker_profile, mediapipe_hand_names
+
+    config = skeleton_tracker_config(model_name=model_name, confidence_threshold=confidence_threshold,
+                                     video_fps=video_fps, keypoint_bbox_expansion=keypoint_bbox_expansion)
+    body_names = tracker_profile("rtmpose").keypoint_names
+    selected_names = tuple(name for name in body_names
+                           if not name.startswith(("left_hand_", "right_hand_")))
+    sources = [KeypointSourceConfig(stage_path=("body",), source_names=body_names,
+                                    selected_names=selected_names)]
+    for side in ("right", "left"):
+        child = _mediapipe_hand_child_stage(side, detection_confidence=detection_confidence,
+                                          presence_confidence=presence_confidence,
+                                          tracking_confidence=tracking_confidence)
+        child.object_detector = KeypointBoundingBoxDetectorConfig(
+            center_keypoint_names=(f"{side}_wrist",),
+            scale_keypoint_pairs=((f"{side}_elbow", f"{side}_wrist"),),
+            scale_factor=1.5, min_box_size_px=30.0,
+        )
+        config.stages[0].children.append(child)
+        names = mediapipe_hand_names(side)
+        sources.append(KeypointSourceConfig(stage_path=("body", child.name),
+                                            source_names=names, selected_names=names))
+    config.keypoint_assembly = KeypointAssemblyConfig(target_stage="body", sources=tuple(sources))
+    return config
+
+def skeleton_tracker_config(
+    *, model_name: str, confidence_threshold: float, video_fps: float, keypoint_bbox_expansion: float,
+) -> TrackerConfig:
+    redetect_interval = max(1, round(_REDETECT_SECONDS * video_fps))
+    return TrackerConfig(
+        stages=[
+            DetectionStageConfig(
+                name="body",
+                object_detector=YoloxPersonDetectorConfig(),
+                keypoint_detectors=[
+                    RTMWWholebodyDetectorConfig(
+                        model_name=model_name,
+                        confidence_threshold=confidence_threshold,
+                    )
+                ],
+                bbox_policy=BBoxPolicyConfig(
+                    redetect_interval=redetect_interval,
+                    keypoint_bbox_expansion=keypoint_bbox_expansion,
+                    # No keypoints_within_bbox_ratio check here: it compares
+                    # keypoints against bbox_state.smooth_bbox, but RTMPose does
+                    # not decode into smooth_bbox — rtmpose_letterbox_preprocess
+                    # pads it by 1.25x and then widens it to the model's 3:4
+                    # aspect. For a standing subject (tall, narrow box) the real
+                    # decode window is 2-4x wider than smooth_bbox, so keypoints
+                    # legitimately land outside it and the ratio sits near 0.4,
+                    # under the 0.5 threshold. That forces a full-frame YOLOX
+                    # re-detect every frame (~101 ms for 5 cameras), and because
+                    # the fresh detection produces another narrow box, it latches
+                    # on. Measured: detector ran on 45-100% of frames instead of
+                    # the 0.7% redetect_interval implies. redetect_interval is
+                    # the staleness bound until skellytracker's check compares
+                    # against the actual decode window.
+                    fitness_checks=[],
+                    min_shrink_ratio_per_frame=0.995,
+                    min_bbox_size_px=80.0,
+                ),
+                bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
+            )
+        ]
+    )
+
+
+def _mediapipe_hand_child_stage(
+    side: str,
+    *,
+    detection_confidence: float,
+    presence_confidence: float,
+    tracking_confidence: float,
+) -> DetectionStageConfig:
+    """Build a wrist-cropped hand child stage for the given side ('left'/'right').
+
+    Crops tightly around the wrist using the parent body stage's own
+    wrist/index/pinky keypoints (pure keypoint arithmetic, no inference — see
+    KeypointBoundingBoxDetectorConfig), then runs MediaPipe's hand landmarker
+    on that zoomed-in crop with a fixed handedness, since MediaPipe's own
+    per-crop handedness guess is unreliable on a tight single-hand crop.
+    """
+    from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import (
+        MediapipeHandDetectorConfig,
+    )
+
+    return DetectionStageConfig(
+        name=f"{side}_hand",
+        object_detector=KeypointBoundingBoxDetectorConfig(
+            center_keypoint_names=(f"{side}_index", f"{side}_pinky"),
+            scale_keypoint_pairs=(
+                (f"{side}_wrist", f"{side}_index"),
+                (f"{side}_wrist", f"{side}_pinky"),
+            ),
+            scale_factor=3.0,
+            min_box_size_px=30.0,
+        ),
+        keypoint_detectors=[
+            MediapipeHandDetectorConfig(
+                num_hands=1,
+                assumed_handedness=side,
+                min_hand_detection_confidence=detection_confidence,
+                min_hand_presence_confidence=presence_confidence,
+                min_hand_tracking_confidence=tracking_confidence,
+            )
+        ],
+        bbox_smoothing=BBoxSmoothingConfig(alpha=0.4),
+    )
+
+
+def build_mediapipe_tracker_config(
+    *,
+    model_complexity=None,
+    detection_confidence: float = 0.5,
+    presence_confidence: float = 0.5,
+    tracking_confidence: float = 0.5,
+    num_faces: int = 1,
+) -> TrackerConfig:
+    """Build a MediaPipe body+hands+face TrackerConfig.
+
+    Pose is the parent "body" stage; left_hand/right_hand are wrist-cropped
+    child stages (see _mediapipe_hand_child_stage) instead of full-frame
+    sibling detectors, since hands occupy a tiny fraction of a full-body frame
+    and MediaPipe's palm detector struggles to find them at that scale. Face
+    is also a child stage (full-frame, no crop) purely to preserve the
+    existing pose/right_hand/left_hand/face point ordering that
+    merge_mediapipe_hand_face_children() and tracker_definitions.py expect.
+    """
+    from skellytracker.core.detectors.keypoint_detectors.mediapipe.body.mediapipe_pose_detector import (
+        MediapipePoseDetectorConfig,
+    )
+    from skellytracker.core.detectors.keypoint_detectors.mediapipe.face.mediapipe_face_detector import (
+        MediapipeFaceDetectorConfig,
+    )
+    from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import (
+        MediapipePoseModelComplexity,
+    )
+
+    if model_complexity is None:
+        model_complexity = MediapipePoseModelComplexity.HEAVY
+
+    from skellytracker.core.config.keypoint_assembly_config import KeypointAssemblyConfig, KeypointSourceConfig
+    from skellytracker.core.io.tracker_profiles import tracker_profile
+    names = tracker_profile("mediapipe").keypoint_names
+    selections = (
+        (("body",), tuple(n for n in names if not n.startswith(("right_hand_", "left_hand_", "face_")))),
+        (("body", "right_hand"), tuple(n for n in names if n.startswith("right_hand_"))),
+        (("body", "left_hand"), tuple(n for n in names if n.startswith("left_hand_"))),
+        (("body", "face"), tuple(n for n in names if n.startswith("face_"))),
+    )
+    return TrackerConfig(
+        keypoint_assembly=KeypointAssemblyConfig(target_stage="body", sources=tuple(
+            KeypointSourceConfig(stage_path=path, source_names=points, selected_names=points)
+            for path, points in selections)),
+        stages=[
+            DetectionStageConfig(
+                name="body",
+                keypoint_detectors=[
+                    MediapipePoseDetectorConfig(
+                        model_complexity=model_complexity,
+                        num_poses=1,
+                        min_pose_detection_confidence=detection_confidence,
+                        min_pose_presence_confidence=presence_confidence,
+                        min_pose_tracking_confidence=tracking_confidence,
+                    ),
+                ],
+                children=[
+                    _mediapipe_hand_child_stage(
+                        "right",
+                        detection_confidence=detection_confidence,
+                        presence_confidence=presence_confidence,
+                        tracking_confidence=tracking_confidence,
+                    ),
+                    _mediapipe_hand_child_stage(
+                        "left",
+                        detection_confidence=detection_confidence,
+                        presence_confidence=presence_confidence,
+                        tracking_confidence=tracking_confidence,
+                    ),
+                    DetectionStageConfig(
+                        name="face",
+                        keypoint_detectors=[
+                            MediapipeFaceDetectorConfig(
+                                num_faces=num_faces,
+                                min_face_detection_confidence=detection_confidence,
+                                min_face_presence_confidence=presence_confidence,
+                                min_face_tracking_confidence=tracking_confidence,
+                            )
+                        ],
+                    ),
+                ],
+                keypoint_reset_policy=KeypointResetPolicyConfig(max_consecutive_misses=10),
+            )
+        ]
+    )
+
+
+def mediapipe_tracker_config(
+    *, model_complexity: MediapipePoseModelComplexity, detection_confidence: float,
+    presence_confidence: float, tracking_confidence: float, num_hands: int, num_faces: int,
+) -> TrackerConfig:
+    """Keep the existing API; each wrist crop now detects one hand independently."""
+    return build_mediapipe_tracker_config(
+        model_complexity=model_complexity, detection_confidence=detection_confidence,
+        presence_confidence=presence_confidence, tracking_confidence=tracking_confidence,
+        num_faces=num_faces,
+    )
+
+
+def merge_mediapipe_hand_face_children(obs: Observation) -> None:
+    """Merge left_hand/right_hand/face child-stage keypoints back into the
+    top-level "body" stage, preserving the flat right_hand_*/left_hand_*
+    naming and pose+right_hand+left_hand+face ordering every downstream
+    consumer (skeleton_rigidifier, recording_status, export_to_blender,
+    tracker_definitions, freemocap-ui) expects. Mutates `obs` in place.
+    No-op for non-mediapipe configs (no "body" stage or no children).
+    """
+    body_stage = obs.stages.get("body")
+    if body_stage is None or not body_stage.children:
+        return
+    parts = [body_stage.keypoints] if body_stage.keypoints is not None else []
+    for name in ("right_hand", "left_hand", "face"):
+        child = body_stage.children.pop(name, None)
+        if child is not None and child.keypoints is not None:
+            parts.append(child.keypoints)
+    if len(parts) > 1:
+        body_stage.keypoints = Keypoints.concatenate(parts)

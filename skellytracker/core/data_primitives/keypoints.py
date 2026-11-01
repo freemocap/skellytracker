@@ -27,6 +27,10 @@ class Keypoints:
     _name_to_idx: dict[str, int] = field(init=False, repr=False)
 
     def __post_init__(self) -> None:
+        self._validate_shapes()
+        object.__setattr__(self, "_name_to_idx", {name: i for i, name in enumerate(self.names)})
+
+    def _validate_shapes(self) -> None:
         n = len(self.names)
         if self.xyz.shape != (n, 3):
             raise ValueError(
@@ -37,7 +41,19 @@ class Keypoints:
                 f"visibility shape {self.visibility.shape} does not match {n} names "
                 f"(expected ({n},))"
             )
-        object.__setattr__(self, "_name_to_idx", {name: i for i, name in enumerate(self.names)})
+    def with_values(self, *, xyz: NDArray[np.float64], visibility: NDArray[np.float64]) -> Keypoints:
+        """Bind owned value arrays to this prepared schema without rebuilding its index.
+
+        Arrays are not copied. The caller supplies storage whose lifetime belongs
+        to the returned observation. Name lookup metadata is shared read-only.
+        """
+        result = object.__new__(type(self))
+        result.names = self.names
+        result.xyz = xyz
+        result.visibility = visibility
+        result._name_to_idx = self._name_to_idx
+        result._validate_shapes()
+        return result
 
     # ------------------------------------------------------------------
     # Properties

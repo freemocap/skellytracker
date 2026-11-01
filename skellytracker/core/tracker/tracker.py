@@ -12,6 +12,7 @@ from skellytracker.core.tracker.detection_stage import DetectionStage
 from skellytracker.core.data_primitives.observation import Observation
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.tracker.tracker_state import StageState, TrackerState
+from skellytracker.core.tracker.keypoint_assembly import PreparedKeypointAssembly
 
 
 @dataclass
@@ -26,6 +27,7 @@ class Tracker:
 
     stages: list[DetectionStage]
     sessions: dict[str, Session] = field(default_factory=dict)
+    keypoint_assembly: PreparedKeypointAssembly | None = None
 
     def process_image(
         self,
@@ -64,6 +66,8 @@ class Tracker:
             stages=stage_observations,
         )
         updated_state = TrackerState(stage_states=updated_stage_states)
+        if self.keypoint_assembly is not None:
+            self.keypoint_assembly.apply(observation)
         return observation, updated_state
 
     def process_batch(
@@ -130,6 +134,9 @@ class Tracker:
             cam_id: TrackerState(stage_states=per_cam_stage_states[cam_id])
             for cam_id in cam_ids
         }
+        if self.keypoint_assembly is not None:
+            for observation in observations.values():
+                self.keypoint_assembly.apply(observation)
         return observations, updated_states
 
     def close(self) -> None:
@@ -164,6 +171,8 @@ class Tracker:
         The owner must keep the sessions alive until this tracker is closed.
         Closing this tracker releases its detectors, never the borrowed sessions.
         """
+        assembly = (PreparedKeypointAssembly.prepare(config.keypoint_assembly)
+                    if config.keypoint_assembly is not None else None)
         stages: list[DetectionStage] = []
         try:
             for stage_config in config.stages:
@@ -172,4 +181,4 @@ class Tracker:
             for stage in stages:
                 stage.close()
             raise
-        return cls(stages=stages)
+        return cls(stages=stages, keypoint_assembly=assembly)
