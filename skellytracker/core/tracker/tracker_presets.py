@@ -14,6 +14,50 @@ from skellytracker.core.temporal_processing.temporal_processing_config import BB
 _REDETECT_SECONDS = 5.0
 
 
+def skeleton_model_specs(*, model_name: str, yolox_model_name: str):
+    from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetector
+    from skellytracker.core.detectors.keypoint_detectors.rtmw.wholebody.rtmw_wholebody_detector import RTMWWholebodyDetector
+    return [YoloxPersonDetector.model_spec(yolox_model_name), RTMWWholebodyDetector.model_spec(model_name)]
+
+
+def charuco_tracker_config(board) -> TrackerConfig:
+    from skellytracker.core.detectors.keypoint_detectors.charuco import CharucoDetectorConfig
+    return TrackerConfig(stages=[DetectionStageConfig(name="charuco",
+                         keypoint_detectors=[CharucoDetectorConfig(board=board)])])
+
+
+def with_charuco_tracker(config: TrackerConfig, board) -> TrackerConfig:
+    """Add board detection without dropping the selected preset's output contract."""
+    if any(stage.name == "charuco" for stage in config.stages):
+        raise ValueError("Tracker already declares a charuco stage")
+    result = config.model_copy(deep=True)
+    result.stages.extend(charuco_tracker_config(board).stages)
+    return result
+
+
+def human_tracker_config(
+    *, preset: str, model_name: str = "rtmw-x-l_256x192", confidence_threshold: float = 0.4,
+    video_fps: float = 30.0, keypoint_bbox_expansion: float = 0.05,
+    model_complexity: MediapipePoseModelComplexity = MediapipePoseModelComplexity.HEAVY,
+    detection_confidence: float = 0.5, presence_confidence: float = 0.5,
+    tracking_confidence: float = 0.5, num_faces: int = 1,
+) -> TrackerConfig:
+    """Select a complete Tracker-owned recipe using application-supplied settings."""
+    if preset == "mediapipe":
+        return build_mediapipe_tracker_config(model_complexity=model_complexity,
+            detection_confidence=detection_confidence, presence_confidence=presence_confidence,
+            tracking_confidence=tracking_confidence, num_faces=num_faces)
+    if preset == "rtmpose":
+        return skeleton_tracker_config(model_name=model_name, confidence_threshold=confidence_threshold,
+            video_fps=video_fps, keypoint_bbox_expansion=keypoint_bbox_expansion)
+    if preset == "rtmw_mediapipe_hands":
+        return combined_tracker_config(model_name=model_name, confidence_threshold=confidence_threshold,
+            video_fps=video_fps, keypoint_bbox_expansion=keypoint_bbox_expansion,
+            detection_confidence=detection_confidence, presence_confidence=presence_confidence,
+            tracking_confidence=tracking_confidence)
+    raise ValueError(f"Unknown human tracker preset {preset!r}")
+
+
 def combined_tracker_config(
     *, model_name: str = "rtmw-x-l_256x192", confidence_threshold: float = 0.4,
     video_fps: float = 30.0, keypoint_bbox_expansion: float = 0.05,
@@ -45,6 +89,7 @@ def combined_tracker_config(
         sources.append(KeypointSourceConfig(stage_path=("body", child.name),
                                             source_names=names, selected_names=names))
     config.keypoint_assembly = KeypointAssemblyConfig(target_stage="body", sources=tuple(sources))
+    config.preset_name = "rtmw_mediapipe_hands"
     return config
 
 def skeleton_tracker_config(
@@ -52,6 +97,7 @@ def skeleton_tracker_config(
 ) -> TrackerConfig:
     redetect_interval = max(1, round(_REDETECT_SECONDS * video_fps))
     return TrackerConfig(
+        preset_name="rtmpose",
         stages=[
             DetectionStageConfig(
                 name="body",
@@ -173,6 +219,7 @@ def build_mediapipe_tracker_config(
         (("body", "face"), tuple(n for n in names if n.startswith("face_"))),
     )
     return TrackerConfig(
+        preset_name="mediapipe",
         keypoint_assembly=KeypointAssemblyConfig(target_stage="body", sources=tuple(
             KeypointSourceConfig(stage_path=path, source_names=points, selected_names=points)
             for path, points in selections)),

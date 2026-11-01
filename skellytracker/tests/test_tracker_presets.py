@@ -139,3 +139,17 @@ def test_existing_rtmw_recipe_preserves_public_schema():
     from skellytracker.core.detectors.keypoint_detectors.rtmw.wholebody.rtmw_wholebody_detector import RTMWWholebodyDetector
     assert tracker_profile("rtmpose").keypoint_names == RTMWWholebodyDetector.keypoint_names()
     assert tracker_profile("rtmpose").connections == RTMWWholebodyDetector.connections()
+def test_presets_register_detectors_without_consumer_imports():
+    """A fresh application needs only Tracker's public recipe and factory imports."""
+    import subprocess
+    import sys
+
+    subprocess.run([
+        sys.executable, "-B", "-c",
+        "from skellytracker.core.tracker.tracker_presets import human_tracker_config\n"
+        "from skellytracker.core.tracker.tracker_factory import collect_required_sessions\n"
+        "import sys\n"
+        "for preset in ('rtmpose', 'mediapipe', 'rtmw_mediapipe_hands'):\n"
+        "    assert collect_required_sessions(human_tracker_config(preset=preset)).backends\n"
+        "assert not any(name.split('.')[0] in {'freemocap', 'skellycam', 'skellyforge'} for name in sys.modules)\n",
+    ], check=True, capture_output=True, text=True, timeout=30)

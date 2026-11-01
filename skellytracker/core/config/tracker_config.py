@@ -13,6 +13,7 @@ class TrackerConfig(BaseModel):
     """
 
     stages: list[DetectionStageConfig]
+    preset_name: str | None = None
     keypoint_assembly: KeypointAssemblyConfig | None = None
 
     @model_validator(mode="after")
