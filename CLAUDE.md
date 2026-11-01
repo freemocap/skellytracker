@@ -2,6 +2,11 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+Read [AGENTS.md](AGENTS.md) for current ownership and compaction recovery, and
+[TRACKER_COMPOSITION.md](TRACKER_COMPOSITION.md) for composition decisions. Verify
+the implementation descriptions below against the relevant current source;
+they do not override those contracts or authorize environment/Git changes.
+
 ## Commands
 
 ```bash
