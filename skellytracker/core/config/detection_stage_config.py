@@ -43,6 +43,7 @@ def _restore_detector_config(value, *, keypoint: bool):
     if not isinstance(value, dict):
         return value
     # Register built-ins without constructing sessions or loading model assets.
+    import skellytracker.core.detectors.keypoint_detectors.dlc
     import skellytracker.core.detectors.keypoint_detectors.aruco
     import skellytracker.core.detectors.keypoint_detectors.charuco
     import skellytracker.core.detectors.keypoint_detectors.mediapipe

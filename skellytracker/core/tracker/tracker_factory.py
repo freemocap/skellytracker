@@ -9,6 +9,7 @@ from __future__ import annotations
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from typing import Any
+from collections.abc import Callable
 
 from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.detectors.detector_base_classes import (
@@ -29,6 +30,7 @@ from skellytracker.core.temporal_processing.multi_person_config import (
 class RequiredSessions:
     backends: set[str] = field(default_factory=set)
     onnx_model_specs: dict[str, OnnxModelSpec] = field(default_factory=dict)
+    onnx_validators: list[Callable] = field(default_factory=list)
 
     @property
     def needs_mediapipe(self) -> bool:
@@ -61,6 +63,9 @@ def collect_required_sessions(config: TrackerConfig) -> RequiredSessions:
                 raise ValueError(f"Unsupported session backend: {backend!r}")
             result.backends.add(backend)
             if backend == "onnx":
+                validator = getattr(detector_type, "validate_session_config", None)
+                if callable(validator) and validator not in result.onnx_validators:
+                    result.onnx_validators.append(validator)
                 model_spec = getattr(detector_type, "model_spec", None)
                 model_name = getattr(detector, "model_name", None)
                 if not callable(model_spec) or model_name is None:
@@ -89,7 +94,12 @@ def tracker_session_requests(
     mediapipe_overrides: dict[str, Any] | None = None,
     cpu_overrides: dict[str, Any] | None = None,
 ) -> tuple[SessionRequest, ...]:
-    """Describe requests for the shared-session pool without creating sessions."""
+    """Describe requests without allocation.
+
+    Registered ONNX detectors may expose validate_session_config(config) to
+    reject unsupported provider/precision combinations before sessions load.
+    Detectors without that optional hook retain ordinary session defaults.
+    """
     if batch_size < 1:
         raise ValueError("batch_size must be positive")
     requirements = collect_required_sessions(config)
@@ -134,11 +144,10 @@ def tracker_session_requests(
                 requirements.onnx_model_specs[name]
                 for name in sorted(requirements.onnx_model_specs)
             ]
-            requests.append(
-                SessionRequest(
-                    session_type=OnnxSession, config=OnnxSessionConfig(**values)
-                )
-            )
+            session_config = OnnxSessionConfig(**values)
+            for validator in requirements.onnx_validators:
+                validator(session_config)
+            requests.append(SessionRequest(session_type=OnnxSession, config=session_config))
     return tuple(requests)
 
 

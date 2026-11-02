@@ -74,6 +74,12 @@ class OnnxSession(Session):
     execution_provider: ExecutionProviderName = "cpu"
     device_id: int = 0
     batch_size: int = 1
+    _creation_config: OnnxSessionConfig | None = field(default=None, repr=False)
+
+    @property
+    def creation_config(self) -> OnnxSessionConfig | None:
+        """Return a defensive copy of the configuration used to load these models."""
+        return self._creation_config.model_copy(deep=True) if self._creation_config is not None else None
 
     @classmethod
     def create(cls, config: OnnxSessionConfig) -> OnnxSession:  # type: ignore[override]
@@ -135,6 +141,7 @@ class OnnxSession(Session):
                     device_id=device_id,
                     coreml_options=spec.coreml_options,
                     intra_op_num_threads=config.intra_op_num_threads,
+                    cuda_use_tf32=spec.cuda_use_tf32,
                 )
             except Exception as exc:
                 raise SessionCreationError(
@@ -153,6 +160,7 @@ class OnnxSession(Session):
             execution_provider=active_provider,
             device_id=device_id,
             batch_size=config.batch_size,
+            _creation_config=config.model_copy(deep=True),
         )
         _warmup(
             onnx_session, config.models, active_provider, batch_size=config.batch_size

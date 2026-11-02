@@ -83,4 +83,5 @@ def sidecar_model_spec(
         coreml_options=coreml_options,
         expected_filename=artifact.filename,
         expected_sha256=artifact.url_sha256,
+        cuda_use_tf32=artifact.cuda_use_tf32,
     )

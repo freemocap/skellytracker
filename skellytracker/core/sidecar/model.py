@@ -477,6 +477,7 @@ class PrecisionArtifact(_StrictModel):
     url: str | None = None
     url_sha256: str | None = None
     input_dtype: OnnxDtype | None = None
+    cuda_use_tf32: bool | None = None
 
     @model_validator(mode="after")
     def _check_url_sha(self) -> "PrecisionArtifact":
