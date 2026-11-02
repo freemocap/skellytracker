@@ -37,6 +37,5 @@ Search these existing interfaces before creating a new schema or recipe.
 Treat dated implementation descriptions in CLAUDE.md and rearchitecture plans as
 context to verify, not permission to reopen settled decisions. Continue the
 approved work after targeted recovery; ask only for consequential ambiguity
-about intent that inspection cannot resolve. Preserve existing edits and leave
-Git state to the human. Component tests remain independent of the other Skellies;
+about intent that inspection cannot resolve. Preserve existing edits and follow the workspace Git authorization and repository-scope policy. Component tests remain independent of the other Skellies;
 cross-repository contract checks belong in Core.
