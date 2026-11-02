@@ -696,13 +696,25 @@ The pose output contract declares the keypoints a model produces, the skeleton(s
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `pose.estimator_type` | enum | yes | `top_down_single_person`, `top_down_multi_person`, or `bottom_up`. Top-down models see one person per crop (single-person outputs); bottom-up models (e.g. RTMO, YOLO26-pose) emit all persons in one pass. |
-| `pose.requires_object_detector` | bool | yes | `true` when the model consumes a person crop produced by an upstream detector (top-down models — the host warps each detection box via `affine_person_crop`); `false` when the model consumes the full image (bottom-up models). Must be consistent with `estimator_type`. |
+| `pose.requires_object_detector` | bool | yes | `true` when the model consumes a region supplied by upstream detection (top-down models); `false` for full-image bottom-up models. Must be consistent with `estimator_type`. SimCC retains `affine_person_crop`; coordinate-output models can instead declare `stretch` with explicit `coordinate_scale` after the owning detector supplies the required aligned region. |
 | `pose.landmark_schema` | string | no | Keypoint convention the model uses (e.g. `COCO_WholeBody`, `COCO17`, `MediaPipe_Hand`, `MediaPipe_Pose`, `LaPa_106`). |
 | `pose.tracked_points` | array[string] or `$ref` | yes | Ordered list of keypoint names the model outputs. The i-th name is the i-th model output index. |
 | `pose.connections` | array[Skeleton] or `$ref` | yes | Named skeletons; each joins `tracked_points` into a different skeleton. |
 | `pose.derived_points` | object | no | Optional map of derived point name → derivation. May be referenced by `connections` edges. |
 | `pose.canonical_mapping` | object or `$ref` | no | Maps model keypoint names onto the canonical (VRM 1.0) skeleton (see [Canonical skeleton](#canonical-skeleton)). |
 | `pose.decode` | object | yes | How raw model outputs are decoded into keypoints (see below). Required for all `pose_estimator` models. |
+
+For the experimental palm-aligned hand detector, Tracker's registered detector
+runs palm detection, rotates the palm region, crops and pads it, and only then
+applies the declared `stretch` resize. Its inverse alignment restores output
+coordinates before the stage's existing outer-crop translation. The sidecar
+specifies the individual network input, not that dependent two-network recipe.
+A generic sidecar consumer must not treat resizing the original image as that
+complete hand pipeline. Schema validation does not imply support for a decoder
+or model-specific alignment: use the registered adapter and its paired transforms,
+or reject unsupported execution. This does not add a generic coordinate decoder
+or relax SimCC's current affine preprocessing requirement.
+
 
 ```yaml
 pose:
@@ -1087,7 +1099,7 @@ A sidecar is valid when all of the following hold. Rules marked **(vNEXT)** appl
 - [ ] The sidecar declares `pose` (with `estimator_type` and `requires_object_detector`), `pose.decode`, `pose.tracked_points`, and `pose.connections`.
 - [ ] `pose.requires_object_detector` is a boolean and consistent with `pose.estimator_type`: `true` for `top_down_single_person`/`top_down_multi_person`, `false` for `bottom_up`.
 - [ ] `pose.estimator_type` is one of `top_down_single_person`, `top_down_multi_person`, `bottom_up`; `pose.decode.method` is one of `simcc`, `heatmap`, `coordinate`.
-- [ ] A sidecar with `pose.requires_object_detector: true` declares `input.resize.method: affine_person_crop`.
+- [ ] A sidecar with `pose.requires_object_detector: true` declares `affine_person_crop`, or explicitly declares coordinate decoding, `coordinate_scale` and `stretch`. The registered detector must supply any model-specific aligned region before resize; this is not generic coordinate-pipeline support.
 - [ ] `pose.tracked_points` names are unique.
 - [ ] Every `pose.connections[].edges` endpoint appears in `pose.tracked_points` or `pose.derived_points`, and `pose.connections[].name` values are unique.
 - [ ] `pose.derived_points` names are unique; each derivation is a string (passthrough), a list of names (mean), or a name→number map (weighted), and every referenced source name appears in `pose.tracked_points`.

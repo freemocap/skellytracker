@@ -548,3 +548,57 @@ class TestOverlay:
             "groups": {"body": {"connection_color": [0, 200, 100]}},
         }
         SidecarModel.model_validate(data)
+
+
+class TestTopDownCoordinateResize:
+    @staticmethod
+    def coordinate_model():
+        data = _minimal_pose()
+        data['input']['resize'] = {'method': 'stretch'}
+        data['pose']['decode'] = {'method': 'coordinate', 'coordinate_scale': 'pixel'}
+        data['outputs'] = [{'name': 'keypoints', 'dtype': {'fp32': 'float32'},
+                            'semantic': 'keypoints', 'keypoint_axis': 1, 'keypoint_count': 3}]
+        return data
+
+    def test_explicit_coordinate_resize_preserves_upstream_dependency(self):
+        model = SidecarModel.model_validate(self.coordinate_model())
+        assert model.pose.requires_object_detector is True
+        assert model.resolved_size('m').input.resize.method == 'stretch'
+
+    @pytest.mark.parametrize('resize', [None, {'method': 'none'}, {'method': 'letterbox'}])
+    def test_missing_or_unsupported_top_down_preprocessing_is_rejected(self, resize):
+        data = self.coordinate_model()
+        data['input']['resize'] = resize
+        with pytest.raises(ValidationError, match='Top-down pose'):
+            SidecarModel.model_validate(data)
+
+    def test_missing_coordinate_scale_is_rejected(self):
+        data = self.coordinate_model()
+        del data['pose']['decode']['coordinate_scale']
+        with pytest.raises(ValidationError, match='coordinate_scale'):
+            SidecarModel.model_validate(data)
+
+    def test_stretch_does_not_accept_affine_crop_parameters(self):
+        data = self.coordinate_model()
+        data['input']['resize']['crop_policy'] = {'expand_ratio': 1.25}
+        with pytest.raises(ValidationError, match='crop_policy'):
+            SidecarModel.model_validate(data)
+
+    def test_stretch_still_requires_consistent_input_shape(self):
+        data = self.coordinate_model()
+        data['sizes']['m']['input']['shape'] = [-1, 3, 12, 34]
+        model = SidecarModel.model_validate(data)
+        with pytest.raises(ValidationError, match='spatial dims'):
+            model.resolved_size('m')
+
+    def test_stretch_does_not_bypass_estimator_type_consistency(self):
+        data = self.coordinate_model()
+        data['pose']['requires_object_detector'] = False
+        with pytest.raises(ValidationError, match='inconsistent'):
+            SidecarModel.model_validate(data)
+
+    def test_simcc_still_requires_affine_preprocessing(self):
+        data = _minimal_pose()
+        data['input']['resize'] = {'method': 'stretch'}
+        with pytest.raises(ValidationError, match='Top-down pose'):
+            SidecarModel.model_validate(data)

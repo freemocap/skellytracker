@@ -618,9 +618,20 @@ class SidecarModel(_StrictModel):
     def _check_pose_requires_affine_crop(self) -> "SidecarModel":
         if self.pose is not None and self.pose.requires_object_detector:
             resize = self.input.resize
+            if (
+                self.pose.decode.method == "coordinate"
+                and resize is not None
+                and resize.method == "stretch"
+            ):
+                # The owning detector supplies its required ROI/alignment before
+                # this resize. Sidecar validation does not imply a generic
+                # coordinate decoder or a complete model-specific pipeline.
+                if self.pose.decode.coordinate_scale is None:
+                    raise ValueError("Top-down coordinate stretch requires explicit coordinate_scale")
+                return self
             if resize is None or resize.method != "affine_person_crop":
                 raise ValueError(
-                    "pose.requires_object_detector: true requires input.resize.method: affine_person_crop"
+                    "Top-down pose requires affine_person_crop, or coordinate decoding with explicit stretch"
                 )
         return self
 

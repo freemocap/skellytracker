@@ -488,3 +488,23 @@
   note = {Reviewed engine caching and explicit shape profile sections while reproducing partial-batch inference stalls.}
 }
 
+
+@misc{opencvZooHand2023,
+  title = {OpenCV Zoo MediaPipe hand pose model and adapter},
+  author = {{OpenCV contributors}},
+  url = {https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/handpose_estimation_mediapipe},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {The February 2023 hand model uses a palm-aligned RGB crop, predicts image and metric keypoints plus presence and handedness, and is distributed with an Apache-2.0 license and an int8 accuracy warning.},
+  note = {Inspected the pinned README, license, adapter and LFS artifact identity; verified ONNX metadata and CPU zero-input execution. Equivalence to the installed MediaPipe task and tracking quality remain unverified.}
+}
+
+@misc{opencvZooPalm2023,
+  title = {OpenCV Zoo MediaPipe palm detector and adapter},
+  author = {{OpenCV contributors}},
+  url = {https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/palm_detection_mediapipe},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {The companion palm model consumes normalized RGB input and decodes SSD-anchor offsets, logits and seven palm keypoints for subsequent hand alignment.},
+  note = {Inspected pinned source and ONNX metadata and executed the graph with zero input on CPU; no detection quality or GPU performance claim.}
+}

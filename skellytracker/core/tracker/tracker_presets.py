@@ -43,6 +43,18 @@ def human_tracker_config(
     tracking_confidence: float = 0.5, num_faces: int = 1,
 ) -> TrackerConfig:
     """Select a complete Tracker-owned recipe using application-supplied settings."""
+    if preset == "rtmw_onnx_hands":
+        import os
+        from pathlib import Path
+        from skellytracker.core.detectors.keypoint_detectors.mediapipe_onnx.experimental_recipe import experimental_tracker_config
+        directory = os.environ.get("SKELLYTRACKER_HAND_CANDIDATE_DIR")
+        return experimental_tracker_config(
+            model_directory=Path(directory) if directory else None,
+            model_name=model_name, confidence_threshold=confidence_threshold,
+            video_fps=video_fps, keypoint_bbox_expansion=keypoint_bbox_expansion,
+            detection_confidence=detection_confidence, presence_confidence=presence_confidence,
+            tracking_confidence=tracking_confidence,
+        )
     if preset == "mediapipe":
         return build_mediapipe_tracker_config(model_complexity=model_complexity,
             detection_confidence=detection_confidence, presence_confidence=presence_confidence,
