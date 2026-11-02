@@ -32,8 +32,10 @@ def mediapipe_hand_names(side: str) -> tuple[str, ...]:
     return tuple(f"{side}_hand_{name}" for name in names)
 
 
-@lru_cache(maxsize=3)
+@lru_cache(maxsize=4)
 def tracker_profile(preset: str) -> TrackerProfile:
+    if preset == "rtmw_onnx_hands":
+        return tracker_profile("rtmw_mediapipe_hands")
     hand_path = _DETECTORS / "mediapipe/hands/mediapipe_hand.yaml"
     hand_names = tuple(name for side in ("right", "left") for name in mediapipe_hand_names(side))
     hand_edges = tuple((f"{side}_hand_{a}", f"{side}_hand_{b}")

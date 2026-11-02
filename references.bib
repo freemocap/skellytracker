@@ -558,3 +558,33 @@
   note = {Verified rendered source and installed 3.0.2 training.py; these are configurable baseline settings, not a convergence guarantee}
 }
 
+
+@misc{opencvZooHand2023,
+  title = {OpenCV Zoo MediaPipe hand pose model and adapter},
+  author = {{OpenCV contributors}},
+  url = {https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/handpose_estimation_mediapipe},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {The February 2023 hand model uses a palm-aligned RGB crop, predicts image and metric keypoints plus presence and handedness, and is distributed with an Apache-2.0 license and an int8 accuracy warning.},
+  note = {Inspected the pinned README, license, adapter and LFS artifact identity; verified ONNX metadata and CPU zero-input execution. Equivalence to the installed MediaPipe task and tracking quality remain unverified.}
+}
+
+@misc{opencvZooPalm2023,
+  title = {OpenCV Zoo MediaPipe palm detector and adapter},
+  author = {{OpenCV contributors}},
+  url = {https://github.com/opencv/opencv_zoo/tree/48b10fa505aeb51fbd127fc60a5c660040e823b7/models/palm_detection_mediapipe},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {The companion palm model consumes normalized RGB input and decodes SSD-anchor offsets, logits and seven palm keypoints for subsequent hand alignment.},
+  note = {Inspected pinned source and ONNX metadata and executed the graph with zero input on CPU; no detection quality or GPU performance claim.}
+}
+@misc{dlcConfigYamlIO302,
+  title = {DeepLabCut 3.0.2 configuration YAML utilities},
+  author = {{DeepLabCut contributors}},
+  url = {https://github.com/DeepLabCut/DeepLabCut/blob/v3.0.2/deeplabcut/core/config/utils.py},
+  urldate = {2026-11-02},
+  review = {source-code},
+  claim = {The owning read_config_as_dict and write_config helpers preserve numeric scientific-notation configuration values through the DLC YAML loader and dumper},
+  note = {Inspected installed 3.0.2 source; verified the prepared learning-rate schedule through two hundred CPU scalar optimizer updates. The upstream URL was not retrieved during this local source review}
+}
+

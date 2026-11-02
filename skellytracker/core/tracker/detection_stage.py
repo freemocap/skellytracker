@@ -595,25 +595,39 @@ class DetectionStage:
                 # are excluded from the batch entirely; preprocessing an empty
                 # image would crash, so they get an empty result directly.
                 batch_cam_ids = [c for c in cam_ids if crops[c].size > 0]
-                tensors = {}
-                metas = {}
-                _t = time.perf_counter()
                 pool = self._get_executor(len(cam_ids))
-                fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in batch_cam_ids}
-                for cam_id, fut in fut_map.items():
-                    tensors[cam_id], metas[cam_id] = fut.result()
-                if context is not None and context.timings is not None:
-                    context.timings.stop(f"{self.name}.kp_preprocess", _t)
-                model_name = detector.config.model_name
                 _t = time.perf_counter()
-                raw_batch = detector.session.run_batched(model_name, tensors) if batch_cam_ids else {}
-                if context is not None and context.timings is not None:
-                    context.timings.stop(f"{self.name}.kp_infer", _t)
+                custom_results = None
+                if type(detector).detect_batch is not KeypointDetector.detect_batch:
+                    custom_results = detector.detect_batch(
+                        {c: crops[c] for c in batch_cam_ids}, context, executor=pool
+                    ) if batch_cam_ids else {}
+                if custom_results is not None:
+                    if custom_results.keys() != set(batch_cam_ids):
+                        raise ValueError("Batched detector results must match input camera identities")
+                    if context is not None and context.timings is not None:
+                        context.timings.stop(f"{self.name}.kp_detect_batch", _t)
+                else:
+                    tensors = {}
+                    metas = {}
+                    _t = time.perf_counter()
+                    fut_map = {cam_id: pool.submit(detector.preprocess, crops[cam_id]) for cam_id in batch_cam_ids}
+                    for cam_id, fut in fut_map.items():
+                        tensors[cam_id], metas[cam_id] = fut.result()
+                    if context is not None and context.timings is not None:
+                        context.timings.stop(f"{self.name}.kp_preprocess", _t)
+                    model_name = detector.config.model_name
+                    _t = time.perf_counter()
+                    raw_batch = detector.session.run_batched(model_name, tensors) if batch_cam_ids else {}
+                    if context is not None and context.timings is not None:
+                        context.timings.stop(f"{self.name}.kp_infer", _t)
                 for cam_id in cam_ids:
-                    if cam_id in batch_cam_ids:
-                        kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
-                    else:
+                    if cam_id not in batch_cam_ids:
                         kpts = Keypoints.empty(detector.point_names)
+                    elif custom_results is not None:
+                        kpts = custom_results[cam_id]
+                    else:
+                        kpts = detector.postprocess(raw_batch[cam_id], metas[cam_id])
                     cb = crop_bboxes[cam_id]
                     if cb is not None:
                         kpts = kpts.translated(cb.x1, cb.y1)

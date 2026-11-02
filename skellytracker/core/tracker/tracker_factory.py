@@ -66,23 +66,30 @@ def collect_required_sessions(config: TrackerConfig) -> RequiredSessions:
                 validator = getattr(detector_type, "validate_session_config", None)
                 if callable(validator) and validator not in result.onnx_validators:
                     result.onnx_validators.append(validator)
+                model_specs = getattr(detector_type, "model_specs", None)
                 model_spec = getattr(detector_type, "model_spec", None)
                 model_name = getattr(detector, "model_name", None)
-                if not callable(model_spec) or model_name is None:
+                if callable(model_specs):
+                    descriptors = model_specs(detector)
+                    if not isinstance(descriptors, tuple) or not descriptors:
+                        raise TypeError("model_specs must return a nonempty descriptor tuple")
+                elif callable(model_spec) and model_name is not None:
+                    descriptors = (model_spec(model_name),)
+                else:
                     raise TypeError(
                         f"ONNX detector {detector.detector_type!r} requires model_name and model_spec"
                     )
-                descriptor = model_spec(model_name)
-                if not isinstance(descriptor, OnnxModelSpec):
-                    raise TypeError(
-                        f"Invalid model descriptor for {detector.detector_type!r}"
-                    )
-                previous = result.onnx_model_specs.get(descriptor.name)
-                if previous is not None and previous != descriptor:
-                    raise ValueError(
-                        f"Conflicting descriptors use model name {descriptor.name!r}"
-                    )
-                result.onnx_model_specs[descriptor.name] = descriptor
+                for descriptor in descriptors:
+                    if not isinstance(descriptor, OnnxModelSpec):
+                        raise TypeError(
+                            f"Invalid model descriptor for {detector.detector_type!r}"
+                        )
+                    previous = result.onnx_model_specs.get(descriptor.name)
+                    if previous is not None and previous != descriptor:
+                        raise ValueError(
+                            f"Conflicting descriptors use model name {descriptor.name!r}"
+                        )
+                    result.onnx_model_specs[descriptor.name] = descriptor
     return result
 
 

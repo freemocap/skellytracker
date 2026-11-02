@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from concurrent.futures import Executor
 from dataclasses import dataclass
 from typing import Any
 
@@ -90,6 +91,24 @@ class KeypointDetector(ABC):
 
     config: KeypointDetectorConfig
     session: Session
+
+    def detect_batch(
+        self,
+        images: dict[str, NDArray[np.uint8]],
+        context: DetectionContext | None = None,
+        *,
+        executor: Executor | None = None,
+    ) -> dict[str, Keypoints] | None:
+        """Optional dependent ONNX inference using the factory-owned session.
+
+        None selects the existing single-model preprocess/infer/postprocess path.
+        Overrides return exactly one independently owned, crop-local result per
+        input camera, including empty keypoints when detection fails. Stage owns
+        crop translation, temporal filtering, missingness and output assembly.
+        This hook must not create or close sessions, nor retain cross-camera state.
+        The supplied executor is borrowed from the stage and must not be closed.
+        """
+        return None
 
     @abstractmethod
     def detect(
