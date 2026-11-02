@@ -508,3 +508,53 @@
   note = {Reviewed engine caching and explicit shape profile sections while reproducing partial-batch inference stalls.}
 }
 
+
+@misc{dlcSyntheticLabelLoader302,
+  title = {DeepLabCut 3.0.2 PyTorch label loading},
+  author = {{DeepLabCut contributors}},
+  url = {https://github.com/DeepLabCut/DeepLabCut/blob/v3.0.2/deeplabcut/pose_estimation_pytorch/data/dlcloader.py},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {The installed loader uses supplied xy coordinates and strict image bounds to mark available labels; physical synthetic visibility must remain separate from this label mask},
+  note = {Inspected installed version 3.0.2 dlcloader.py and transforms.py and executed persisted split loading; upstream web retrieval was unavailable during this review}
+}
+
+@misc{albumentationsRasterCoordinates143,
+  title = {Albumentations 1.4.3 geometric keypoint transforms},
+  author = {{Albumentations contributors}},
+  url = {https://github.com/albumentations-team/albumentations/blob/1.4.3/albumentations/augmentations/geometric/functional.py},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {Horizontal keypoint flips use width minus one minus x and rotations use integer raster centre conventions, requiring an explicit half-pixel conversion from the synthetic renderer edge-origin coordinates},
+  note = {Inspected the installed version 1.4.3 geometric functions used by DLC and tested a known-point flip; upstream web retrieval was unavailable during this review}
+}
+
+@misc{dlcSnapshotRetention302,
+  title = {DeepLabCut 3.0.2 PyTorch snapshot retention},
+  author = {{DeepLabCut contributors}},
+  url = {https://github.com/DeepLabCut/DeepLabCut/blob/v3.0.2/deeplabcut/pose_estimation_pytorch/runners/snapshots.py},
+  urldate = {2026-11-02},
+  review = {source-code},
+  claim = {The snapshot manager retains a bounded number of regular snapshots separately from the best snapshot and renames an earlier best snapshot to a regular snapshot when it belongs to the save interval},
+  note = {Reviewed installed version 3.0.2 source and exercised its actual CPU snapshot manager with ten save epochs and changing best metrics}
+}
+@misc{dlcPytorchConfiguration,
+  title = {DeepLabCut PyTorch configuration file reference},
+  author = {{DeepLabCut contributors}},
+  url = {https://deeplabcut.github.io/DeepLabCut/docs/pytorch/pytorch_config.html},
+  urldate = {2026-11-02},
+  review = {excerpt},
+  claim = {The data configuration owns training augmentation and inference preprocessing; horizontal flips require declared symmetry correspondences for symmetric keypoints},
+  note = {Reviewed augmentation and batch image-size sections alongside installed 3.0.2 aug_default.yaml; no claim that defaults establish convergence or real-image accuracy}
+}
+
+@misc{dlcTrainingSettings302,
+  title = {DeepLabCut 3.0.2 training settings configuration},
+  author = {{DeepLabCut contributors}},
+  url = {https://deeplabcut.github.io/DeepLabCut/dev/3.0.2/reference/deeplabcut/pose_estimation_pytorch/config/training/},
+  urldate = {2026-11-02},
+  review = {source-code},
+  claim = {TrainSettingsConfig declares a default batch size of eight and a default duration of two hundred epochs},
+  note = {Verified rendered source and installed 3.0.2 training.py; these are configurable baseline settings, not a convergence guarantee}
+}
+

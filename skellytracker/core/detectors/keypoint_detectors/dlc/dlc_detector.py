@@ -17,6 +17,7 @@ from skellytracker.core.detectors.metadata import ImageTransform
 from skellytracker.core.detectors.processing.coordinate_decode import decode_coordinates
 from skellytracker.core.detectors.processing.image_preprocessing import (
     build_normalization_fn,
+    preprocess_image,
 )
 from skellytracker.core.sessions.onnx_model_spec import OnnxModelSpec, OnnxSessionConfig
 from skellytracker.core.sessions.session import Session
@@ -72,11 +73,30 @@ def _model_contract(model_name: str):
         or image.normalization != "imagenet_rgb"
         or image.normalization_by_precision
         or image.resize is None
-        or image.resize.method != "none"
     ):
         raise ValueError(
-            "DLC requires native-size NCHW ImageNet RGB preprocessing without resizing"
+            "DLC requires declared NCHW float32 ImageNet RGB preprocessing"
         )
+    resize = image.resize
+    if resize.supports_dynamic_size or resize.method not in (
+        "none",
+        "fit",
+        "letterbox",
+    ):
+        raise ValueError("DLC supports native, fit or explicit letterbox resizing only")
+    if resize.method != "none":
+        if resize.target_size != tuple(image.shape[2:]) or resize.pad_value is None:
+            raise ValueError(
+                "DLC resize must declare the model target_size and pad_value"
+            )
+        if resize.method == "letterbox" and (
+            resize.pad_position is None
+            or resize.rounding is None
+            or resize.preserve_aspect_ratio is False
+        ):
+            raise ValueError(
+                "DLC letterbox requires explicit pad_position and rounding with preserved aspect ratio"
+            )
     descriptor = sidecar_model_spec(
         sidecar,
         size="native",
@@ -102,6 +122,7 @@ class DlcDetector(KeypointDetector):
     _input_name: str = field(init=False)
     _input_size: tuple[int, int] = field(init=False)
     _connections: tuple = field(init=False)
+    _input_spec: Any = field(init=False, repr=False)
 
     def __post_init__(self):
         sidecar, resolved, descriptor = _model_contract(self.config.model_name)
@@ -110,6 +131,7 @@ class DlcDetector(KeypointDetector):
         self._normalize = build_normalization_fn(resolved.input, "fp32")
         self._input_name = resolved.input.name
         self._input_size = descriptor.input_size
+        self._input_spec = resolved.input
         self._connections = tuple(
             edge for skeleton in sidecar.pose.connections for edge in skeleton.edges
         )
@@ -188,9 +210,24 @@ class DlcDetector(KeypointDetector):
         return cls(config=config, session=session)
 
     def preprocess(self, image):
-        if image.dtype != np.uint8 or image.shape != (*self._input_size, 3):
+        if (
+            image.dtype != np.uint8
+            or image.ndim != 3
+            or image.shape[2] != 3
+            or min(image.shape[:2]) < 1
+        ):
+            raise ValueError("DLC expects a nonempty uint8 BGR image")
+        if self._input_spec.resize.method != "none":
+            return preprocess_image(
+                image,
+                self._input_size,
+                self._input_spec,
+                precision="fp32",
+                normalization_fn=self._normalize,
+            )
+        if image.shape != (*self._input_size, 3):
             raise ValueError(
-                f"DLC expects uint8 BGR image {(*self._input_size, 3)}; export a matching native-size model"
+                f"DLC native preprocessing expects image {(*self._input_size, 3)}; export a matching model or explicitly declare fit resizing"
             )
         return np.ascontiguousarray(
             self._normalize(image).transpose(2, 0, 1)

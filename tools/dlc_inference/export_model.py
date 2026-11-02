@@ -18,11 +18,27 @@ def export_model(
     output_directory: Path,
     height: int,
     width: int,
+    *,
+    resize_method: str = "none",
+    project_config_path: Path | None = None,
 ) -> None:
     if height < 32 or width < 32:
         raise ValueError("Image dimensions must be at least 32 pixels")
     torch.set_num_threads(4)
     model = load_model(config_path, checkpoint_path)
+    if resize_method not in ("none", "fit"):
+        raise ValueError("DLC export supports native images or explicit aspect-preserving fit")
+    point_names = list(model.contract.keypoint_names)
+    connections = []
+    if project_config_path is not None:
+        project = yaml.safe_load(project_config_path.read_text(encoding="utf8"))
+        if project.get("multianimalproject", False) or project.get("bodyparts") != point_names:
+            raise ValueError("DLC project keypoint identities must match the supported single-subject checkpoint")
+        edges = project.get("skeleton") or []
+        if any(len(edge) != 2 or any(name not in point_names for name in edge) for edge in edges):
+            raise ValueError("DLC project connections reference unknown keypoint identities")
+        if edges:
+            connections = [{"name": "dlc_connections", "edges": edges}]
     output_directory.mkdir(parents=True, exist_ok=False)
     onnx_path = output_directory / "pose_model.onnx"
     example = torch.zeros((2, 3, height, width), dtype=torch.float32)
@@ -39,7 +55,6 @@ def export_model(
     )
     onnx.checker.check_model(str(onnx_path), full_check=True)
     artifact_hash = hashlib.sha256(onnx_path.read_bytes()).hexdigest()
-    point_names = list(model.contract.keypoint_names)
     sidecar = {
         "schema_version": "v2024.09.1019",
         "model_id": "dlc_resnet50_gn",
@@ -50,7 +65,8 @@ def export_model(
             "dtype": {"fp32": "float32"},
             "layout": "NCHW",
             "normalization": "imagenet_rgb",
-            "resize": {"method": "none"},
+            "resize": ({"method": "none"} if resize_method == "none" else
+                       {"method": "fit", "target_size": [height, width], "pad_value": 0}),
         },
         "outputs": [
             {
@@ -67,7 +83,7 @@ def export_model(
             "estimator_type": "bottom_up",
             "requires_object_detector": False,
             "tracked_points": point_names,
-            "connections": [],
+            "connections": connections,
             "decode": {"method": "coordinate", "coordinate_scale": "pixel"},
         },
         "sizes": {
@@ -100,7 +116,9 @@ def export_model(
         "input_size": [height, width],
         "batch_range": [1, 32],
         "keypoint_names": point_names,
-        "spatial_policy": "fixed shape; no implicit resize or padding",
+        "spatial_policy": resize_method,
+        "connections": connections,
+        "project_config_sha256": hashlib.sha256(project_config_path.read_bytes()).hexdigest() if project_config_path else None,
         "cuda_precision_requirement": {"use_tf32": False, "input_dtype": "float32"},
     }
     (output_directory / "conversion_manifest.json").write_text(
@@ -118,5 +136,8 @@ if __name__ == "__main__":
     parser.add_argument("output", type=Path)
     parser.add_argument("--height", type=int, required=True)
     parser.add_argument("--width", type=int, required=True)
+    parser.add_argument("--resize-method", choices=("none", "fit"), default="none")
+    parser.add_argument("--project-config", type=Path)
     args = parser.parse_args()
-    export_model(args.config, args.checkpoint, args.output, args.height, args.width)
+    export_model(args.config, args.checkpoint, args.output, args.height, args.width,
+                 resize_method=args.resize_method, project_config_path=args.project_config)

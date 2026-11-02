@@ -1,6 +1,9 @@
 """Standalone tracker recipes; applications select settings without rebuilding stages."""
 from __future__ import annotations
 
+from dataclasses import dataclass
+from pathlib import Path
+
 from skellytracker.core.data_primitives.observation import Observation
 from skellytracker.core.data_primitives.keypoints import Keypoints
 from skellytracker.core.config.tracker_config import TrackerConfig
@@ -12,6 +15,62 @@ from skellytracker.core.detectors.object_detectors.keypoint_bbox import Keypoint
 from skellytracker.core.temporal_processing.temporal_processing_config import BBoxPolicyConfig, BBoxSmoothingConfig, KeypointResetPolicyConfig
 
 _REDETECT_SECONDS = 5.0
+_DLC_STAGE_PATH = ("dlc_keypoints",)
+
+
+@dataclass(frozen=True, slots=True)
+class DlcTrackerMetadata:
+    """Immutable model identities and output layout; no anatomical interpretation."""
+
+    model_name: str
+    model_sha256: str
+    input_size: tuple[int, int]
+    resize_method: str
+    stage_path: tuple[str, ...]
+    keypoint_names: tuple[str, ...]
+    connections: tuple[tuple[str, str], ...]
+    connection_groups: tuple[tuple[str, tuple[tuple[str, str], ...]], ...]
+
+
+def dlc_tracker_metadata(*, sidecar_path: str | Path) -> DlcTrackerMetadata:
+    """Describe a validated DLC artifact without allocating an inference session.
+
+    ``input_size`` is (height, width); output coordinates belong to the supplied
+    source image. Connections and keypoint order come directly from the sidecar.
+    """
+    from skellytracker.core.detectors.keypoint_detectors.dlc.dlc_detector import _model_contract
+    from skellytracker.core.sessions.model_registry import resolve_model_path
+
+    model_name = str(Path(sidecar_path).expanduser().resolve())
+    sidecar, resolved, descriptor = _model_contract(model_name)
+    resolve_model_path(descriptor.source, expected_filename=descriptor.expected_filename,
+                       expected_sha256=descriptor.expected_sha256)
+    return DlcTrackerMetadata(
+        model_name=model_name, model_sha256=descriptor.expected_sha256,
+        input_size=tuple(descriptor.input_size), resize_method=resolved.input.resize.method,
+        stage_path=_DLC_STAGE_PATH, keypoint_names=tuple(sidecar.pose.tracked_points),
+        connections=tuple(tuple(edge) for group in sidecar.pose.connections for edge in group.edges),
+        connection_groups=tuple((group.name, tuple(tuple(edge) for edge in group.edges))
+                                for group in sidecar.pose.connections),
+    )
+
+
+def dlc_tracker_config(
+    *, sidecar_path: str | Path, confidence_threshold: float = 0.4,
+) -> TrackerConfig:
+    """Build standalone whole-image DLC tracking without geometry or mappings.
+
+    Supply explicit CPU/CUDA FP32 ``onnx_overrides`` to the existing factory.
+    Image resizing is authorized only by the artifact's declared input policy.
+    """
+    from skellytracker.core.detectors.keypoint_detectors.dlc import DlcDetectorConfig
+
+    metadata = dlc_tracker_metadata(sidecar_path=sidecar_path)
+    return TrackerConfig(preset_name="dlc", stages=[DetectionStageConfig(
+        name=metadata.stage_path[0], keypoint_detectors=[DlcDetectorConfig(
+            model_name=metadata.model_name, confidence_threshold=confidence_threshold,
+        )],
+    )])
 
 
 def skeleton_model_specs(*, model_name: str, yolox_model_name: str):
