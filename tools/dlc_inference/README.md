@@ -11,6 +11,31 @@ Use this directory's included `uv.lock` and Python version. Set an explicit
 Torch/timm only for conversion; a deployed Tracker uses its existing ONNX Runtime.
 No installation of these dependencies in Core is required for consuming a bundle.
 
+The application preparation API accepts the project `config.yaml`:
+`prepare_dlc_model(DlcConversionRequest(project_config_path=...), cache_directory=...)`.
+By default it selects the highest numbered saved epoch in the project's configured
+training run. This can differ from the best-validation checkpoint. Supply
+`checkpoint_path` to select a specific checkpoint instead. If multiple training
+shuffles match, preparation asks for a checkpoint rather than choosing a run.
+It finds the checkpoint's adjacent `pytorch_config.yaml` and uses the project's
+single declared video crop size for a fit-resize export. Missing or conflicting
+dimensions are requested explicitly; training augmentation crops are not guessed.
+The supported architecture and preprocessing checks still apply.
+
+Preparation reuses a validated, content-addressed bundle before checking for a
+converter environment. Its identity includes checkpoint/configuration contents,
+input size, preprocessing and exporter implementation. Concurrent requests for
+the same identity share a file lock; different models have separate bundles.
+Progress callbacks report stages and a time estimate from previous comparable
+conversions, or no estimate when no measurement exists.
+
+Converter Python selection is: explicit argument, then
+`SKELLYTRACKER_DLC_CONVERTER_PYTHON`, then
+`~/.config/skellytracker/dlc-converter.json` containing
+`{"python_executable": "/absolute/path/to/python"}`, then this tool directory's
+`.venv`, then the calling Python. Configuration selects an existing environment;
+preparation does not install packages or modify training environments.
+
 The supported model contract and reference tolerances are in
 `../dlc_training/INFERENCE_CONTRACT.md`. Unsupported backbone/head/transform or
 checkpoint fields fail explicitly. The inference model uses dense tensors and a
@@ -56,9 +81,10 @@ TensorRT, FP16 and unverified externally constructed sessions are rejected.
 Other detector defaults remain unchanged; mixed sessions must explicitly choose
 compatible settings. Sidecar model identity includes its absolute path.
 
-The initial contract accepts native image dimensions only. Export a bundle for
-each required image/crop size; arbitrary webcam dimensions are not automatically
-resized. Tracker receives uint8 BGR images and normalizes to ImageNet RGB.
+Native/no-resize bundles require matching image dimensions. Export with
+`--resize-method fit` for webcam/video resizing, and `--project-config PATH`
+to include named connections. The standalone DLC demo documented in
+`skellytracker-docs/docs/getting-started/running-demos.mdx` consumes that bundle. Tracker receives uint8 BGR images and normalizes to ImageNet RGB.
 Keypoint order comes from the sidecar, not an anatomical mapping. Scores use the
 existing inclusive threshold: a finite score equal to the threshold is accepted,
 including zero when the user explicitly chooses threshold zero. Nonfinite rows
@@ -84,11 +110,11 @@ runs two warmups and ten timed repetitions per case, with two ORT CPU threads.
 It reports p50/p95 preprocessing, batch inference, decoding and their combined
 detector duration. It also verifies previously returned observation arrays are
 unchanged after subsequent predictions. This is not an application FPS test.
-The export declares a dynamic batch range of 1–32; numerical/runtime validation
+The export declares a dynamic batch range of 1â€“32; numerical/runtime validation
 covers batch sizes 1, 2 and 3, not exhaustive validation of all 32 sizes.
 
-Foundation-001 CPU detector total p50/p95 milliseconds: 480×640 batch1
-562.42/658.40; batch2 1356.62/1544.19; batch3 2165.38/2315.07; 227×391 crop
+Foundation-001 CPU detector total p50/p95 milliseconds: 480Ã—640 batch1
+562.42/658.40; batch2 1356.62/1544.19; batch3 2165.38/2315.07; 227Ã—391 crop
 batch1 212.16/249.28. These are this machine's bounded run, not a throughput
 promise. Strict CUDA parity is certified separately; no warm GPU latency
 benchmark or live camera/UI validation was performed in this package.

@@ -96,17 +96,24 @@ class DemoManager:
             cv2.destroyAllWindows()
             self.tracker.close()
 
-    def run_video(self, video_path: Path, rotation: int = 0) -> None:
+    def run_video(
+        self, video_path: Path, rotation: int = 0, *,
+        headless: bool = False, output_path: Path | None = None,
+    ) -> int:
+        """Process every video frame, optionally saving annotations without a window."""
         if rotation not in _ROTATION_CODES:
             raise ValueError(f"rotation must be one of {sorted(_ROTATION_CODES)}, got {rotation}")
+        if output_path is not None and output_path.resolve() == video_path.resolve():
+            raise ValueError("Output video must differ from input video")
         cap = cv2.VideoCapture(str(video_path))
-        if not cap.isOpened():
-            raise RuntimeError(f"Could not open video: {video_path}")
         try:
-            self._run_loop_video(cap, rotation)
+            if not cap.isOpened():
+                raise RuntimeError(f"Could not open video: {video_path}")
+            return self._run_loop_video(cap, rotation, headless=headless, output_path=output_path)
         finally:
             cap.release()
-            cv2.destroyAllWindows()
+            if not headless:
+                cv2.destroyAllWindows()
             self.tracker.close()
 
     def _open_camera(self, camera_index: int) -> cv2.VideoCapture:
@@ -166,27 +173,44 @@ class DemoManager:
                 self._draw_hud(display, show_help)
                 cv2.imshow(self.window_title, display)
 
-    def _run_loop_video(self, cap: cv2.VideoCapture, rotation: int = 0) -> None:
+    def _run_loop_video(
+        self, cap: cv2.VideoCapture, rotation: int = 0, *,
+        headless: bool = False, output_path: Path | None = None,
+    ) -> int:
         state = TrackerState()
         frame_number = 0
         fps = cap.get(cv2.CAP_PROP_FPS) or 30.0
-        cv2.namedWindow(self.window_title)
+        if not headless:
+            cv2.namedWindow(self.window_title)
+        writer = None
+        try:
+            while True:
+                ok, frame = cap.read()
+                if not ok:
+                    break
+                frame = _rotate_frame(frame, rotation)
 
-        while True:
-            ok, frame = cap.read()
-            if not ok:
-                break
-            frame = _rotate_frame(frame, rotation)
+                timestamp_ms = int(frame_number / fps * 1000)
+                observation, state = self.tracker.process_image(frame, frame_number, state, timestamp_ms)
+                annotated = self.annotator.annotate(frame, observation)
+                frame_number += 1
 
-            timestamp_ms = int(frame_number / fps * 1000)
-            observation, state = self.tracker.process_image(frame, frame_number, state, timestamp_ms)
-            annotated = self.annotator.annotate(frame, observation)
-            frame_number += 1
-
-            cv2.imshow(self.window_title, annotated)
-            key = cv2.waitKey(1) & 0xFF
-            if key in (_KEY_QUIT_Q, _KEY_QUIT_ESC):
-                break
+                if output_path is not None:
+                    if writer is None:
+                        writer = cv2.VideoWriter(str(output_path), cv2.VideoWriter_fourcc(*"mp4v"), fps,
+                                                 (annotated.shape[1], annotated.shape[0]))
+                        if not writer.isOpened():
+                            raise RuntimeError(f"Could not create output video: {output_path}")
+                    writer.write(annotated)
+                if not headless:
+                    cv2.imshow(self.window_title, annotated)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key in (_KEY_QUIT_Q, _KEY_QUIT_ESC):
+                        break
+        finally:
+            if writer is not None:
+                writer.release()
+        return frame_number
 
     def _draw_hud(self, image: NDArray[np.uint8], show_help: bool) -> None:
         fps = (1.0 / (sum(self._fps_history) / len(self._fps_history))) if self._fps_history else 0.0

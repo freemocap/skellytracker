@@ -32,7 +32,7 @@ uv run skellytracker --tracker mediapipe --rotate 90
 uv run skellytracker --list
 ```
 
-`--tracker` chooses among `mediapipe`, `rtmpose`, `aruco`, and `charuco`. Each
+`--tracker` chooses among `mediapipe`, `rtmpose`, `aruco`, `charuco`, and `dlc` (which requires `--sidecar`). Each
 demo opens a live OpenCV window; press `q` (or close the window) to quit.
 
 ## Tracker-specific options
@@ -63,3 +63,71 @@ uv run python -m skellytracker.core.detectors.keypoint_detectors.charuco.run_dem
 
 - [Processing Videos](./processing-videos.mdx) — run trackers over image folders and video files
 - [Choosing a Tracker](../guides/choosing-a-tracker.mdx) — which backend fits your use case
+
+## Converted DLC models
+
+DLC uses the same Tracker, keypoint annotator, and webcam/video DemoManager as the
+other demos. Supply the **converted sidecar YAML and its adjacent ONNX artifact**.
+You do not need the DLC project, training environment, STL, calibration, Core, or
+Forge for this 2D inference demo. Point names, connections and image resizing come
+from the sidecar; this works with arbitrary keypoint counts and object models.
+It does not estimate a rigid 3D pose or draw an STL mesh.
+
+From the SkellyTracker repository, with its existing environment:
+
+```powershell
+.venv/Scripts/python.exe -m skellytracker --tracker dlc --sidecar "C:/models/model.yaml" --provider cpu --camera 0
+
+# Full DLC options, including video input and confidence filtering:
+.venv/Scripts/python.exe -m skellytracker.core.detectors.keypoint_detectors.dlc.run_demo --help
+.venv/Scripts/python.exe -m skellytracker.core.detectors.keypoint_detectors.dlc.run_demo --sidecar "C:/models/model.yaml" --camera 0 --provider cuda --confidence 0.4
+.venv/Scripts/python.exe -m skellytracker.core.detectors.keypoint_detectors.dlc.run_demo --sidecar "C:/models/model.yaml" --video "C:/data/input.mp4" --provider cpu --headless --output-video ".test-artifacts/annotated.mp4"
+```
+
+Create the output directory first. The output video uses MP4V at the input frame
+rate and contains every processed frame; playback is not a measured inference
+rate. Omit `--headless` to watch video processing. Webcam controls: `q`/Escape
+quit, Space pauses, `h` shows help. Video controls: `q`/Escape quit.
+
+DLC currently supports explicit CPU or CUDA **FP32**, without silent provider
+fallback. The environment needs one ONNX Runtime backend (`onnx-cpu` or
+`onnx-cuda`); a converted model does not require DeepLabCut or PyTorch installed.
+CUDA requires compatible NVIDIA hardware/runtime. CPU is the default. Use the
+repository environment directly to avoid changing its installed dependencies.
+A sidecar with native/no resizing requires the exact declared image dimensions;
+`fit` or `letterbox` sidecars restore predictions into the original image pixels.
+The confidence filter defaults to 0.4; lowering it reveals weaker predictions,
+not necessarily accurate ones.
+
+### Convert a trained checkpoint first
+
+Conversion is a Tracker-owned optional tool, separate from its lightweight ONNX
+inference runtime. Use the Python environment prepared for
+`tools/dlc_inference` (see its README and lockfile); it contains PyTorch, timm,
+ONNX and the export dependencies. No conversion dependency installation is
+required in the normal Tracker environment. The supported contract is currently
+single-subject **ResNet50 GroupNorm**; unsupported architectures fail explicitly.
+
+From the repository root, substitute your prepared converter Python and paths:
+
+```powershell
+& "C:/path/to/converter/.venv/Scripts/python.exe" tools/dlc_inference/export_model.py `
+  "C:/DLC/project/train/pytorch_config.yaml" `
+  "C:/DLC/project/train/snapshot-best-020.pt" `
+  ".test-artifacts/my-dlc-bundle" `
+  --height 480 --width 640 --resize-method fit `
+  --project-config "C:/DLC/project/config.yaml"
+
+.venv/Scripts/python.exe -m skellytracker.core.detectors.keypoint_detectors.dlc.run_demo `
+  --sidecar ".test-artifacts/my-dlc-bundle/dlc_resnet50_gn.yaml" --camera 0 --provider cpu
+```
+
+The converter requires a **new** output directory. It validates the exported
+ONNX graph, writes `pose_model.onnx`, `dlc_resnet50_gn.yaml`, and
+`conversion_manifest.json` with checkpoint/config/model hashes. The project
+configuration supplies named connections; its point order must match the model.
+`--resize-method fit` explicitly supports camera/video dimensions that differ
+from the model's fixed input size. Keep the YAML and ONNX together. The STL is
+used for synthetic data generation and ground truth, not this conversion or
+2D demo. Conversion success proves artifact compatibility; use the synthetic
+video comparison separately to assess prediction accuracy.
