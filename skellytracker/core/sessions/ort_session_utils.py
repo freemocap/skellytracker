@@ -360,7 +360,8 @@ def resolve_provider(
 # =============================================================================
 
 
-def cuda_provider_options(*, gpu_mem_limit: int = 2 * 1024 * 1024 * 1024, device_id: int = 0) -> dict:
+def cuda_provider_options(*, gpu_mem_limit: int = 2 * 1024 * 1024 * 1024, device_id: int = 0,
+                          use_tf32: bool | None = None) -> dict:
     """CUDA EP options with exhaustive algorithm search and sensible defaults.
 
     gpu_mem_limit is a *ceiling* on the CUDA arena (ORT only allocates what an
@@ -370,13 +371,16 @@ def cuda_provider_options(*, gpu_mem_limit: int = 2 * 1024 * 1024 * 1024, device
     should pass a value sized to the device's free VRAM so a full batch fits.
     device_id selects which CUDA GPU to use (0 = first, 1 = second, ...).
     """
-    return {
+    options = {
         "device_id": device_id,
         "cudnn_conv_algo_search": "EXHAUSTIVE",
         "arena_extend_strategy": "kSameAsRequested",
         "do_copy_in_default_stream": True,
         "gpu_mem_limit": gpu_mem_limit,
     }
+    if use_tf32 is not None:
+        options["use_tf32"] = "1" if use_tf32 else "0"
+    return options
 
 
 # =============================================================================
@@ -488,6 +492,7 @@ def build_tuned_ort_session(
     device_id: int = 0,
     coreml_options: dict | None = None,
     intra_op_num_threads: int | None = None,
+    cuda_use_tf32: bool | None = None,
 ) -> ort.InferenceSession:
     """Construct an ORT session with explicit SessionOptions + provider options.
 
@@ -549,10 +554,10 @@ def build_tuned_ort_session(
                 )
             )
         providers.append(("TensorrtExecutionProvider", trt_options))
-        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id)))
+        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id, use_tf32=cuda_use_tf32)))
         providers.append("CPUExecutionProvider")
     elif provider == "cuda":
-        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id)))
+        providers.append(("CUDAExecutionProvider", cuda_provider_options(gpu_mem_limit=gpu_mem_limit, device_id=device_id, use_tf32=cuda_use_tf32)))
         providers.append("CPUExecutionProvider")
     elif provider == "coreml":
         # CoreML EP uses Metal on Apple Silicon. Dynamic batch dims crash CoreML

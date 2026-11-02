@@ -67,6 +67,7 @@ def resolve_model_path(
             path = Path.cwd() / path
         if not path.exists():
             raise FileNotFoundError(f"Local model not found: {path}")
+        _verify_download(str(path), expected_sha256)
         return path
 
     if source.hf_repo is not None:

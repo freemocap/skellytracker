@@ -335,9 +335,10 @@ The full input tensor shape for a group is `[N] + sizes.<size>.input.shape[1:]` 
 | `filename` | string | yes | ONNX filename relative to the sidecar's leaf model directory. |
 | `url` | string | no | Download location. May point to an archive (e.g. `.zip`). |
 | `url_sha256` | string | yes when `url` present | Lowercase hex SHA-256 of the bytes at `url` (the archive or file itself). |
+| `cuda_use_tf32` | boolean or null | no | Per-artifact CUDA execution option; `false` disables TF32, `true` enables it, and absent/null preserves the provider default. It does not choose a provider or define TensorRT/FP16 support; detector validation owns those restrictions. |
 | `input_dtype` | string | no | Optional; ONNX graph input element type for this artifact. Defaults to `input.dtype[precision]`; when authored, must agree with it. |
 
-When the ONNX file is not present locally, the host may download it from `url` and must verify it against `url_sha256` — `url_sha256` is **mandatory** whenever `url` is present. `url` may point directly to an ONNX file, or to an archive; an archive may contain any number of files but must contain exactly one ONNX file, which is extracted and renamed to `filename`. `url` is optional — models that ship their ONNX files alongside the sidecar need no download location.
+When the ONNX file is not present locally, the host may download it from `url` and must verify it against `url_sha256` — `url_sha256` is **mandatory** whenever `url` is present. `url` may point directly to an ONNX file, or to an archive; an archive may contain any number of files but must contain exactly one ONNX file, which is extracted and renamed to `filename`. `url` is optional — models that ship their ONNX files alongside the sidecar need no download location. A supplied `url_sha256` is also verified for a local file before preparation or session allocation; without a supplied hash local files retain their explicit-path behavior.
 
 Rules:
 

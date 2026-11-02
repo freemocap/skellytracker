@@ -105,7 +105,7 @@ class TestExpectedSha256:
             )
         assert path.exists()
 
-    def test_local_path_source_ignores_expected_filename_and_sha256(
+    def test_local_path_source_checks_hash_and_preserves_explicit_path(
         self, tmp_path: Path
     ):
         local_file = tmp_path / "local.onnx"
@@ -113,6 +113,6 @@ class TestExpectedSha256:
         path = resolve_model_path(
             ModelSource(local_path=str(local_file)),
             expected_filename="ignored.onnx",
-            expected_sha256="ignored",
+            expected_sha256=hashlib.sha256(b"local-bytes").hexdigest(),
         )
         assert path == local_file

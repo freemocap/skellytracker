@@ -54,6 +54,9 @@ class OnnxModelSpec:
     # SHA-256 describes the downloaded bytes (the archive for a ZIP source).
     expected_filename: str | None = None
     expected_sha256: str | None = None
+    # Controls CUDA TF32 only; None preserves provider defaults. Detector-owned
+    # validation defines supported providers and precision combinations.
+    cuda_use_tf32: bool | None = None
 
 
 class OnnxSessionConfig(SessionConfig):

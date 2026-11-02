@@ -208,6 +208,26 @@
   note = {Primary-source audit; selected documentation or code inspected, not executed. Moving upstream URLs; no revision pin or benchmark verification.}
 }
 
+@misc{dlcFoundationExample302,
+  title = {Pinned Open-field demonstration project},
+  author = {{DeepLabCut contributors}},
+  url = {https://github.com/DeepLabCut/DeepLabCut/tree/4dcb9a7d5a701427ef78ecc8103d38eeef70601a/examples/openfield-Pranav-2018-10-30},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {Official labeled images and configuration provide the four-keypoint ResNet-50 training fixture.},
+  note = {Downloaded 120 files and verified Git blob hashes; this is input verification, not model accuracy evidence.}
+}
+
+@misc{dlcFoundationApis302,
+  title = {DeepLabCut PyTorch training and image-analysis APIs},
+  author = {{DeepLabCut contributors}},
+  url = {https://github.com/DeepLabCut/DeepLabCut/tree/v3.0.2/deeplabcut/pose_estimation_pytorch/apis},
+  urldate = {2026-11-01},
+  review = {source-code},
+  claim = {Training accepts explicit epochs, device and nested configuration updates; image analysis reloads a selected snapshot and returns per-image predictions.},
+  note = {Inspected installed 3.0.2 signatures and relevant training and analyze_images implementation sections.}
+}
+
 @misc{dlc302Dependencies,
   title = {DeepLabCut 3.0.2 package metadata},
   author = {{DeepLabCut contributors}},
