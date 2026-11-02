@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import ctypes
 import gc
+import hashlib
 import importlib.util
 import logging
 import os
@@ -31,15 +32,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
 
-
 import numpy as np
-from numpy.typing import NDArray
 import onnxruntime as ort
+from numpy.typing import NDArray
 
-from skellytracker.core.sessions.session import Session
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 from skellytracker.core.sessions.model_registry import resolve_model_path
-from skellytracker.core.sessions.session_errors import SessionCreationError
 from skellytracker.core.sessions.ort_session_utils import (
     auto_detect_provider,
     build_tuned_ort_session,
@@ -47,6 +45,8 @@ from skellytracker.core.sessions.ort_session_utils import (
     require_provider,
     select_best_cuda_device,
 )
+from skellytracker.core.sessions.session import Session
+from skellytracker.core.sessions.session_errors import SessionCreationError
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +75,9 @@ class OnnxSession(Session):
     device_id: int = 0
     batch_size: int = 1
     _creation_config: OnnxSessionConfig | None = field(default=None, repr=False)
+    _model_paths: dict[str, Path] = field(default_factory=dict, repr=False)
+    _model_hashes: dict[str, str] = field(default_factory=dict, repr=False)
+    _prepared_warmed: bool = field(default=False, repr=False)
 
     @property
     def creation_config(self) -> OnnxSessionConfig | None:
@@ -82,7 +85,7 @@ class OnnxSession(Session):
         return self._creation_config.model_copy(deep=True) if self._creation_config is not None else None
 
     @classmethod
-    def create(cls, config: OnnxSessionConfig) -> OnnxSession:  # type: ignore[override]
+    def create(cls, config: OnnxSessionConfig, *, engine_cache_dir: Path | None = None) -> OnnxSession:  # type: ignore[override]
         _verify_ort_install()
 
         if config.execution_provider is None:
@@ -117,6 +120,8 @@ class OnnxSession(Session):
             gpu_mem_limit = 2 * 1024 * 1024 * 1024
 
         sessions: dict[str, ort.InferenceSession] = {}
+        model_paths: dict[str, Path] = {}
+        model_hashes: dict[str, str] = {}
         for spec in config.models:
             model_path = resolve_model_path(
                 spec.source,
@@ -125,6 +130,9 @@ class OnnxSession(Session):
             )
             if spec.prepare is not None:
                 model_path = spec.prepare(model_path)
+            model_paths[spec.name] = model_path
+            with model_path.open("rb") as model_file:
+                model_hashes[spec.name] = hashlib.file_digest(model_file, "sha256").hexdigest()
 
             try:
                 ort_session = build_tuned_ort_session(
@@ -142,8 +150,10 @@ class OnnxSession(Session):
                     coreml_options=spec.coreml_options,
                     intra_op_num_threads=config.intra_op_num_threads,
                     cuda_use_tf32=spec.cuda_use_tf32,
+                    engine_cache_dir=engine_cache_dir,
                 )
             except Exception as exc:
+                sessions.clear()
                 raise SessionCreationError(
                     f"Failed to load model {spec.name!r} with provider={active_provider!r}: {exc}"
                 ) from exc
@@ -161,11 +171,61 @@ class OnnxSession(Session):
             device_id=device_id,
             batch_size=config.batch_size,
             _creation_config=config.model_copy(deep=True),
+            _model_paths=model_paths,
+            _model_hashes=model_hashes,
         )
-        _warmup(
-            onnx_session, config.models, active_provider, batch_size=config.batch_size
-        )
+        try:
+            _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size)
+        except BaseException:
+            onnx_session.close()
+            raise
         return onnx_session
+
+    def validate_prepared_backend(self, candidate: OnnxSession) -> None:
+        """Check a warmed same-model CUDA→TRT replacement before ownership moves."""
+        if self.execution_provider != "cuda" or candidate.execution_provider != "trt":
+            raise ValueError("Prepared adoption requires a CUDA to TRT transition")
+        if not candidate._prepared_warmed:
+            raise ValueError("Prepared backend has not completed crop-range warmup")
+        if self.device_id != candidate.device_id or self.batch_size != candidate.batch_size:
+            raise ValueError("Prepared backend device or capacity mismatch")
+        if not self._model_hashes or self._model_hashes != candidate._model_hashes:
+            raise ValueError("Prepared backend model bytes mismatch or unknown")
+        if self._creation_config is None or candidate._creation_config is None:
+            raise ValueError("Prepared backend configuration is unknown")
+        expected = self._creation_config.model_copy(deep=True)
+        expected.execution_provider = "trt"
+        expected.device_id = self.device_id
+        if expected != candidate._creation_config or set(self._sessions) != set(candidate._sessions):
+            raise ValueError("Prepared backend configuration mismatch")
+        for name, current in self._sessions.items():
+            prepared = candidate._sessions[name]
+            if "TensorrtExecutionProvider" not in prepared.get_providers():
+                raise ValueError(f"Prepared model {name!r} did not load TensorRT")
+            for accessor in ("get_inputs", "get_outputs"):
+                old_signature = [(item.name, item.type, tuple(item.shape)) for item in getattr(current, accessor)()]
+                new_signature = [(item.name, item.type, tuple(item.shape)) for item in getattr(prepared, accessor)()]
+                if old_signature != new_signature:
+                    raise ValueError(f"Prepared model {name!r} has a different tensor contract")
+
+    def adopt_prepared_backend(self, candidate: OnnxSession) -> OnnxSession:
+        """Owner-thread, between-request transfer; return old resources without closing.
+
+        The caller schedules returned resources for cleanup away from inference.
+        The candidate is consumed; detector references to this wrapper stay valid.
+        """
+        self.validate_prepared_backend(candidate)
+        retired = OnnxSession(_sessions=self._sessions)
+        self._sessions, candidate._sessions = candidate._sessions, {}
+        self.execution_provider = candidate.execution_provider
+        self._creation_config = candidate._creation_config
+        self._model_paths = candidate._model_paths
+        return retired
+
+    def preparation_job(self, ticket):
+        """Snapshot CUDA identity; prepare and validate TRT only when the job runs."""
+        from skellytracker.core.sessions.onnx_prepared_backend import preparation_job
+        return preparation_job(self, ticket)
 
     def get_session(self, model_name: str) -> ort.InferenceSession:
         """Return the ORT session for *model_name*.
