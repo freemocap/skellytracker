@@ -127,6 +127,35 @@ def test_training_guard_requires_explicit_device_and_positive_epochs(tmp_path):
             validate_training_run(tmp_path, epochs, device)
 
 
+def test_prepared_schedule_preserves_numeric_rates_through_all_milestones(tmp_path):
+    pytest.importorskip("deeplabcut")
+    import torch
+    from deeplabcut.core.config.utils import read_config_as_dict
+    from deeplabcut.pose_estimation_pytorch.runners.schedulers import build_scheduler
+    from train_synthetic import prepare
+
+    source = tmp_path / "dataset"
+    source.mkdir()
+    fixture_dataset(source)
+    output = tmp_path / "prepared"
+    prepare(source, output, epochs=200)
+    config = read_config_as_dict(output / "prepared_pose_config.yaml")
+    parameter = torch.nn.Parameter(torch.zeros(1))
+    optimizer = torch.optim.AdamW([parameter], **config["runner"]["optimizer"]["params"])
+    scheduler = build_scheduler(config["runner"]["scheduler"], optimizer)
+    rates = []
+    for _ in range(200):
+        rate = optimizer.param_groups[0]["lr"]
+        assert isinstance(rate, float) and rate > 0
+        rates.append(rate)
+        parameter.grad = torch.ones(1)
+        optimizer.step()
+        scheduler.step()
+    assert rates[0] == 0.0005
+    assert rates[90] == 0.0001
+    assert rates[120] == 0.00001
+
+
 def test_cuda_statistics_initialize_context_before_allocator_access():
     from train_synthetic import initialize_cuda_statistics
 

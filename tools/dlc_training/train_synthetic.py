@@ -33,7 +33,7 @@ def prepare(
     import deeplabcut
     import numpy as np
     import pandas as pd  # DLC's HDF contract requires a pandas MultiIndex table.
-    import yaml
+    from deeplabcut.core.config.utils import read_config_as_dict, write_config
     from deeplabcut.core.engine import Engine
     from deeplabcut.utils import auxiliaryfunctions as af
 
@@ -111,7 +111,9 @@ def prepare(
     pose_paths = list(project.glob("dlc-models-pytorch/**/train/pytorch_config.yaml"))
     if len(pose_paths) != 1:
         raise ValueError("Expected exactly one prepared training configuration")
-    pose = yaml.safe_load(pose_paths[0].read_text())
+    # DLC's YAML IO preserves scientific-notation rates as numbers. A PyYAML
+    # roundtrip can quote 1e-05 and fail at the later milestone. [@dlcConfigYamlIO302]
+    pose = read_config_as_dict(pose_paths[0])
     if pose["model"]["backbone"]["model_name"] != "resnet50_gn":
         raise ValueError(
             "Prepared backbone is outside the supported conversion contract"
@@ -125,7 +127,7 @@ def prepare(
     pose["runner"]["snapshots"].update(
         save_epochs=save_epochs, max_snapshots=max_snapshots
     )
-    pose_paths[0].write_text(yaml.safe_dump(pose, sort_keys=False), encoding="utf8")
+    write_config(pose_paths[0], pose)
     # DLC rewrites its live config when training applies overrides; retain input bytes.
     shutil.copyfile(config_path, output / "prepared_project_config.yaml")
     shutil.copyfile(pose_paths[0], output / "prepared_pose_config.yaml")
@@ -239,10 +241,10 @@ def initialize_cuda_statistics(cuda, device: str):
 
 def train(output: Path, epochs: int, device: str):
     config_path = validate_training_run(output, epochs, device)
-    import yaml
+    from deeplabcut.core.config.utils import read_config_as_dict
 
     preparation = json.loads((output / "preparation_manifest.json").read_text())
-    pose_config = yaml.safe_load(Path(preparation["pose_config"]).read_text())
+    pose_config = read_config_as_dict(preparation["pose_config"])
     if pose_config["train_settings"]["epochs"] != epochs:
         raise ValueError(
             "Requested epochs differ from the prepared training configuration"
