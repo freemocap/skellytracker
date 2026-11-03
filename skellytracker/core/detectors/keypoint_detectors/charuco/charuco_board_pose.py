@@ -31,7 +31,7 @@ def compute_board_pose(
 
     if object_points is None or len(object_points) < MINIMUM_CHARUCO_CORNERS_FOR_POSE:
         n_detected = 0 if object_points is None else len(object_points)
-        logger.warning(
+        logger.debug(
             f"Cannot estimate board pose: need {MINIMUM_CHARUCO_CORNERS_FOR_POSE} corners, "
             f"got {n_detected}"
         )
@@ -44,7 +44,7 @@ def compute_board_pose(
         distCoeffs=distortion_coefficients,
     )
     if not success:
-        logger.warning("solvePnP failed to estimate board pose")
+        logger.debug("No board pose estimated by solvePnP")
         return None
 
     return np.squeeze(rvec).astype(np.float32), np.squeeze(tvec).astype(np.float32)
