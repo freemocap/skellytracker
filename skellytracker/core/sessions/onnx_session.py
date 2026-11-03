@@ -352,10 +352,11 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
     """
     import time
     logger.info(
-        "OnnxSession: warming up %d model(s) on provider=%r at batch_size=%d "
-        "(first TensorRT build may take several minutes; later starts use cached engines) ...",
+        "OnnxSession: warming up %d model(s) on provider=%r at batch_size=%d ...",
         len(specs), provider, batch_size,
     )
+    if provider == "trt":
+        logger.info("TensorRT warmup can compile uncached engines and may take several minutes")
     for spec in specs:
         ort_session = session.get_session(spec.name)
         input_h, input_w = spec.input_size  # spec.input_size is always (H, W)
