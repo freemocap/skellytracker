@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from threading import get_ident
 from uuid import uuid4
@@ -11,6 +12,7 @@ from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.sessions.onnx_preparation import (
     OnnxPreparationJob,
     OnnxPreparationTicket,
+    PreparationPhase,
 )
 from skellytracker.core.sessions.session import Session
 from skellytracker.core.tracker.tracker import Tracker
@@ -30,6 +32,7 @@ class SessionEntry:
     upgradeable: bool = False
     preparation: OnnxPreparationJob | None = None
     activation: BackendActivation | None = None
+    generation: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,7 +75,7 @@ class SharedSessionPool:
             raise RuntimeError("SharedSessionPool must be used on its owning inference thread")
 
     def create_tracker(self, *, config: TrackerConfig, requests: tuple[SessionRequest, ...],
-                       cuda_first: bool = False) -> TrackerLease:
+                       cuda_first: bool = False, progress: Callable[[str, str], None] | None = None) -> TrackerLease:
         self._require_owner()
         if self._closed:
             raise RuntimeError("SharedSessionPool is closed")
@@ -85,7 +88,7 @@ class SharedSessionPool:
                 if request.config.backend != request.session_type.kind:
                     raise ValueError("Session configuration backend does not match session type")
                 upgradeable = (cuda_first and request.config.backend == "onnx"
-                               and request.config.execution_provider is None)
+                               and request.config.execution_provider in (None, "trt"))
                 if upgradeable:
                     from skellytracker.core.tracker.tracker_factory import (
                         collect_required_sessions,
@@ -112,7 +115,8 @@ class SharedSessionPool:
                     initial = snapshot.config.model_copy(deep=True)
                     if upgradeable:
                         initial.execution_provider = "cuda"
-                    entry = SessionEntry(request=snapshot, session=snapshot.session_type.create(initial),
+                    options = {"progress": progress} if progress is not None and initial.backend == "onnx" else {}
+                    entry = SessionEntry(request=snapshot, session=snapshot.session_type.create(initial, **options),
                                          upgradeable=upgradeable)
                     self._entries.append(entry)
                 entry.references += 1
@@ -128,7 +132,24 @@ class SharedSessionPool:
         self._leases.append(lease)
         return lease
 
-    def prepare_onnx(self, *, lease: TrackerLease) -> OnnxPreparationJob | None:
+    def can_prepare_onnx(self, *, lease: TrackerLease) -> bool:
+        self._require_owner()
+        if lease._pool is not self or lease._closed:
+            return False
+        return any(entry.upgradeable and entry.session.execution_provider == "cuda" for entry in lease._entries)
+
+    def onnx_provider(self, *, lease: TrackerLease) -> str | None:
+        """Read owner-thread provider metadata, including shared entry upgrades."""
+        self._require_owner()
+        if lease._pool is not self or lease._closed:
+            raise ValueError("Tracker lease is no longer owned by this pool")
+        for entry in lease._entries:
+            if entry.request.config.backend == "onnx":
+                return entry.session.execution_provider
+        return None
+
+    def prepare_onnx(self, *, lease: TrackerLease, isolated: bool = True,
+                     retry: bool = False) -> OnnxPreparationJob | None:
         """Issue/coalesce a job after CUDA inference, without running native work."""
         self._require_owner()
         if lease._pool is not self or lease._closed:
@@ -136,9 +157,20 @@ class SharedSessionPool:
         for entry in lease._entries:
             if not entry.upgradeable:
                 continue
+            if retry and entry.preparation is not None:
+                terminal = entry.preparation.snapshot().phase in (PreparationPhase.FAILED, PreparationPhase.CANCELLED)
+                terminal = terminal or (entry.activation is not None and entry.activation.error is not None)
+                if terminal:
+                    runtime = getattr(entry.preparation, "runtime", None)
+                    if runtime is not None and runtime.status().alive:
+                        raise ValueError("Previous native worker is still stopping")
+                    entry.preparation = None
+                    entry.activation = None
+                    entry.generation += 1
             if entry.preparation is None:
-                ticket = OnnxPreparationTicket(str(uuid4()), 0, str(uuid4()))
-                entry.preparation = entry.session.preparation_job(ticket)
+                ticket = OnnxPreparationTicket(str(uuid4()), entry.generation, str(uuid4()))
+                factory = entry.session.isolated_preparation_job if isolated else entry.session.preparation_job
+                entry.preparation = factory(ticket)
             return entry.preparation
         return None
 

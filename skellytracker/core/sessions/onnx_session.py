@@ -28,6 +28,7 @@ import importlib.util
 import logging
 import os
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import ClassVar
@@ -38,6 +39,10 @@ from numpy.typing import NDArray
 
 from skellytracker.core.sessions.execution_provider_name import ExecutionProviderName
 from skellytracker.core.sessions.model_registry import resolve_model_path
+from skellytracker.core.sessions.onnx_runtime_protocol import (
+    OnnxResourceOwner,
+    OnnxRuntimeSession,
+)
 from skellytracker.core.sessions.ort_session_utils import (
     auto_detect_provider,
     build_tuned_ort_session,
@@ -70,7 +75,7 @@ class OnnxSession(Session):
 
     kind: ClassVar[str] = "onnx"
 
-    _sessions: dict[str, ort.InferenceSession] = field(default_factory=dict)
+    _sessions: dict[str, OnnxRuntimeSession] = field(default_factory=dict)
     execution_provider: ExecutionProviderName = "cpu"
     device_id: int = 0
     batch_size: int = 1
@@ -78,6 +83,7 @@ class OnnxSession(Session):
     _model_paths: dict[str, Path] = field(default_factory=dict, repr=False)
     _model_hashes: dict[str, str] = field(default_factory=dict, repr=False)
     _prepared_warmed: bool = field(default=False, repr=False)
+    _resource_owner: OnnxResourceOwner | None = field(default=None, repr=False)
 
     @property
     def creation_config(self) -> OnnxSessionConfig | None:
@@ -85,7 +91,8 @@ class OnnxSession(Session):
         return self._creation_config.model_copy(deep=True) if self._creation_config is not None else None
 
     @classmethod
-    def create(cls, config: OnnxSessionConfig, *, engine_cache_dir: Path | None = None) -> OnnxSession:  # type: ignore[override]
+    def create(cls, config: OnnxSessionConfig, *, engine_cache_dir: Path | None = None,
+               progress: Callable[[str, str], None] | None = None) -> OnnxSession:  # type: ignore[override]
         _verify_ort_install()
 
         if config.execution_provider is None:
@@ -123,6 +130,8 @@ class OnnxSession(Session):
         model_paths: dict[str, Path] = {}
         model_hashes: dict[str, str] = {}
         for spec in config.models:
+            if progress is not None:
+                progress("loading_models", spec.name)
             model_path = resolve_model_path(
                 spec.source,
                 expected_filename=spec.expected_filename,
@@ -175,7 +184,7 @@ class OnnxSession(Session):
             _model_hashes=model_hashes,
         )
         try:
-            _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size)
+            _warmup(onnx_session, config.models, active_provider, batch_size=config.batch_size, progress=progress)
         except BaseException:
             onnx_session.close()
             raise
@@ -183,6 +192,8 @@ class OnnxSession(Session):
 
     def validate_prepared_backend(self, candidate: OnnxSession) -> None:
         """Check a warmed same-model CUDA→TRT replacement before ownership moves."""
+        if candidate._resource_owner is not None:
+            candidate._resource_owner.ensure_ready()
         if self.execution_provider != "cuda" or candidate.execution_provider != "trt":
             raise ValueError("Prepared adoption requires a CUDA to TRT transition")
         if not candidate._prepared_warmed:
@@ -215,8 +226,9 @@ class OnnxSession(Session):
         The candidate is consumed; detector references to this wrapper stay valid.
         """
         self.validate_prepared_backend(candidate)
-        retired = OnnxSession(_sessions=self._sessions)
+        retired = OnnxSession(_sessions=self._sessions, _resource_owner=self._resource_owner)
         self._sessions, candidate._sessions = candidate._sessions, {}
+        self._resource_owner, candidate._resource_owner = candidate._resource_owner, None
         self.execution_provider = candidate.execution_provider
         self._creation_config = candidate._creation_config
         self._model_paths = candidate._model_paths
@@ -227,7 +239,14 @@ class OnnxSession(Session):
         from skellytracker.core.sessions.onnx_prepared_backend import preparation_job
         return preparation_job(self, ticket)
 
-    def get_session(self, model_name: str) -> ort.InferenceSession:
+    def isolated_preparation_job(self, ticket):
+        """Explicit preparation whose native session stays in an owned process."""
+        from skellytracker.core.sessions.isolated_onnx_preparation import (
+            isolated_preparation_job,
+        )
+        return isolated_preparation_job(self, ticket)
+
+    def get_session(self, model_name: str) -> OnnxRuntimeSession:
         """Return the ORT session for *model_name*.
 
         Raises
@@ -335,10 +354,14 @@ class OnnxSession(Session):
         the pipeline's own shutdown sequence instead.
         """
         self._sessions.clear()
+        if self._resource_owner is not None:
+            self._resource_owner.close()
+            self._resource_owner = None
         gc.collect()
 
 
-def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, batch_size: int = 1) -> None:
+def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, batch_size: int = 1,
+            progress: Callable[[str, str], None] | None = None) -> None:
     """Run a dummy inference through each model to trigger JIT compilation.
 
     CoreML (macOS) and TRT compile kernels lazily on the first session.run()
@@ -358,6 +381,8 @@ def _warmup(session: OnnxSession, specs: list[OnnxModelSpec], provider: str, *, 
     if provider == "trt":
         logger.info("TensorRT warmup can compile uncached engines and may take several minutes")
     for spec in specs:
+        if progress is not None:
+            progress("warming_models", spec.name)
         ort_session = session.get_session(spec.name)
         input_h, input_w = spec.input_size  # spec.input_size is always (H, W)
         dummy = np.zeros((batch_size, 3, input_h, input_w), dtype=np.float32)

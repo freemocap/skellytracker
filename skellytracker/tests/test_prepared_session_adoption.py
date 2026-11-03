@@ -87,7 +87,7 @@ def test_pool_isolates_pinned_cuda_and_coalesces_automatic_clients():
     candidate = session("trt")
     job = OnnxPreparationJob(ticket=OnnxPreparationTicket("entry", 0, "identity"),
                              build=lambda: candidate, validate=lambda _: None)
-    with patch.object(OnnxSession, "preparation_job", return_value=job) as prepare:
+    with patch.object(OnnxSession, "isolated_preparation_job", return_value=job) as prepare:
         assert pool.prepare_onnx(lease=first) is job
         assert pool.prepare_onnx(lease=second) is job
         assert pool.prepare_onnx(lease=pinned) is None
@@ -140,4 +140,55 @@ def test_unsupported_recipe_cannot_share_an_upgradeable_entry():
         lease = pool.create_tracker(config=TrackerConfig(stages=[]), requests=(request(),), cuda_first=True)
     assert not lease._entries[0].upgradeable
     assert pool.prepare_onnx(lease=lease) is None
+    pool.close()
+
+
+def test_retry_waits_for_previous_worker_exit_and_rejects_old_generation():
+    pool = SharedSessionPool()
+    with patch.object(OnnxSession, "create", return_value=session()):
+        lease = pool.create_tracker(config=TrackerConfig(stages=[]), requests=(request(),), cuda_first=True)
+    def fail():
+        raise RuntimeError("fixture construction failed")
+    first = OnnxPreparationJob(ticket=OnnxPreparationTicket("first", 0, "identity"), build=fail, validate=lambda _: None)
+    first.runtime = SimpleNamespace(status=lambda: SimpleNamespace(alive=True))
+    second = OnnxPreparationJob(ticket=OnnxPreparationTicket("second", 1, "identity"),
+                                build=lambda: session("trt"), validate=lambda _: None)
+    with patch.object(OnnxSession, "isolated_preparation_job", side_effect=[first, second]) as factory:
+        assert pool.prepare_onnx(lease=lease) is first
+        with pytest.raises(RuntimeError, match="fixture construction failed"):
+            first.run()
+        with pytest.raises(ValueError, match="still stopping"):
+            pool.prepare_onnx(lease=lease, retry=True)
+        assert factory.call_count == 1
+        first.runtime.status = lambda: SimpleNamespace(alive=False)
+        assert pool.prepare_onnx(lease=lease, retry=True) is second
+        assert factory.call_args.args[0].generation == 1
+    with pytest.raises(ValueError, match="current session generation"):
+        pool.activate_prepared(lease=lease, job=first)
+    pool.close()
+
+
+def test_failed_adoption_retry_waits_for_candidate_cleanup():
+    pool = SharedSessionPool()
+    with patch.object(OnnxSession, "create", return_value=session()):
+        lease = pool.create_tracker(config=TrackerConfig(stages=[]), requests=(request(),), cuda_first=True)
+    candidate = session("trt")
+    candidate.device_id = 1
+    first = OnnxPreparationJob(ticket=OnnxPreparationTicket("first", 0, "identity"),
+                               build=lambda: candidate, validate=lambda _: None)
+    first.runtime = SimpleNamespace(status=lambda: SimpleNamespace(alive=True))
+    lease._entries[0].preparation = first
+    first.run()
+    result = pool.activate_prepared(lease=lease, job=first)
+    assert result.error and result.cleanup is candidate
+    with pytest.raises(ValueError, match="still stopping"):
+        pool.prepare_onnx(lease=lease, retry=True)
+    result.cleanup.close()
+    first.runtime.status = lambda: SimpleNamespace(alive=False)
+    second = OnnxPreparationJob(ticket=OnnxPreparationTicket("second", 1, "identity"),
+                                build=lambda: session("trt"), validate=lambda _: None)
+    with patch.object(OnnxSession, "isolated_preparation_job", return_value=second):
+        assert pool.prepare_onnx(lease=lease, retry=True) is second
+    assert lease._entries[0].activation is None
+    assert lease._entries[0].generation == 1
     pool.close()
