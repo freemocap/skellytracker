@@ -271,21 +271,67 @@ _PROVIDER_EP_NAME: dict[str, str] = {
 }
 
 
+_session_probe_results: dict[str, bool] = {}
+
+
+def provider_loads(provider: ExecutionProviderName) -> bool:
+    """Return whether *provider* registers in a real ONNX Runtime session.
+
+    ``ort.get_available_providers()`` lists the EPs compiled into the installed
+    wheel, not the ones this machine can run: onnxruntime-gpu lists CUDA and
+    TensorRT without an NVIDIA GPU or driver. Building a one-node session and
+    reading ``get_providers()`` is the same evidence that explicit-provider
+    checks use after session creation. Session probes are cached per process,
+    so this is startup work only.
+    """
+    ep = _PROVIDER_EP_NAME[provider]
+    if ep not in ort.get_available_providers():
+        return False
+    if provider == "cpu":
+        return True
+    # TensorRT's EP runs on top of CUDA; skip its costlier probe when CUDA cannot load.
+    if provider == "trt" and not provider_loads("cuda"):
+        return False
+    if ep not in _session_probe_results:
+        _session_probe_results[ep] = _probe_session_provider(ep, cuda=provider in ("cuda", "trt"))
+        if not _session_probe_results[ep]:
+            logger.info("provider_loads: %r is installed but did not load on this machine", provider)
+    return _session_probe_results[ep]
+
+
+def _probe_session_provider(ep: str, *, cuda: bool) -> bool:
+    try:
+        if cuda:
+            ensure_cuda_dlls_loaded()
+        value = onnx.helper.make_tensor_value_info("x", onnx.TensorProto.FLOAT, [1])
+        result = onnx.helper.make_tensor_value_info("y", onnx.TensorProto.FLOAT, [1])
+        graph = onnx.helper.make_graph(
+            [onnx.helper.make_node("Identity", ["x"], ["y"])], "provider_probe", [value], [result])
+        model = onnx.helper.make_model(graph, opset_imports=[onnx.helper.make_opsetid("", 13)])
+        model.ir_version = 8
+        options = ort.SessionOptions()
+        options.log_severity_level = 3  # The expected failure is reported by the caller.
+        session = ort.InferenceSession(model.SerializeToString(), sess_options=options, providers=[ep])
+        return ep in session.get_providers()
+    except Exception as error:  # A failed EP load is a normal "no" answer here.
+        logger.debug("provider probe for %s failed: %s", ep, error)
+        return False
+
+
 def auto_detect_provider() -> ExecutionProviderName:
-    """Probe available ONNX Runtime providers and return the best one.
+    """Probe ONNX Runtime providers and return the best one that loads.
 
     Called when the caller did not specify an execution provider. Probes in
     preference order: trt → cuda → coreml (macOS only) → cpu. Never raises —
     cpu is always available.
     """
-    available = set(ort.get_available_providers())
     probe_order: list[ExecutionProviderName] = ["trt", "cuda", "coreml", "cpu"]
     for candidate in probe_order:
-        ep = _PROVIDER_EP_NAME[candidate]
         if candidate == "coreml" and sys.platform != "darwin":
             continue
-        if ep in available:
-            logger.info("auto_detect_provider: selected %r (available: %s)", candidate, sorted(available))
+        if provider_loads(candidate):
+            logger.info("auto_detect_provider: selected %r (installed: %s)",
+                        candidate, sorted(ort.get_available_providers()))
             return candidate
     return "cpu"
 
