@@ -804,16 +804,14 @@ def _symbolize_batch_dim(value_info) -> None:
 
 
 def ensure_cuda_dlls_loaded() -> None:
-    """Ensure NVIDIA CUDA/cuDNN DLLs are discoverable on Windows.
+    """Make NVIDIA CUDA/cuDNN DLLs loadable, exactly as OnnxSession does.
 
-    Delegates to the existing helper in rtmpose_detector to avoid duplication.
+    On Windows, OnnxSession's helper first adds the pip-installed
+    ``nvidia/*/bin`` directories; every platform then runs ``ort.preload_dlls()``.
     """
-    if sys.platform != "win32":
-        ort.preload_dlls()
-        return
-    from skellytracker.trackers.rtmpose_tracker.rtmpose_detector import (
-        _make_nvidia_pip_dlls_discoverable_on_windows,
-    )
+    if sys.platform == "win32":
+        # Imported here because onnx_session imports this module at load time.
+        from skellytracker.core.sessions.onnx_session import _load_nvidia_dlls_on_windows
 
-    _make_nvidia_pip_dlls_discoverable_on_windows()
+        _load_nvidia_dlls_on_windows()
     ort.preload_dlls()
