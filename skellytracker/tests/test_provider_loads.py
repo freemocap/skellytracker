@@ -48,3 +48,15 @@ def test_uninstalled_provider_is_not_probed(probes):
 
 def test_real_cpu_probe_builds_a_session():
     assert utils._probe_session_provider("CPUExecutionProvider", cuda=False)
+
+
+def test_cuda_probe_prepares_windows_dlls_like_onnx_session(monkeypatch):
+    """The CUDA probe uses OnnxSession's Windows DLL setup, then ORT's preload."""
+    from skellytracker.core.sessions import onnx_session
+
+    calls = []
+    monkeypatch.setattr(utils.sys, "platform", "win32")
+    monkeypatch.setattr(onnx_session, "_load_nvidia_dlls_on_windows", lambda: calls.append("nvidia"))
+    monkeypatch.setattr(utils.ort, "preload_dlls", lambda *args, **kwargs: calls.append("preload"))
+    utils.ensure_cuda_dlls_loaded()
+    assert calls == ["nvidia", "preload"]

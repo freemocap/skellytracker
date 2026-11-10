@@ -804,8 +804,13 @@ def _symbolize_batch_dim(value_info) -> None:
 
 
 def ensure_cuda_dlls_loaded() -> None:
-    """Use the same CUDA library setup for provider probes and model sessions."""
+    """Make NVIDIA CUDA/cuDNN DLLs loadable, exactly as OnnxSession does.
+
+    On Windows, OnnxSession's helper first adds the pip-installed
+    ``nvidia/*/bin`` directories; every platform then runs ``ort.preload_dlls()``.
+    """
     if sys.platform == "win32":
+        # Imported here because onnx_session imports this module at load time.
         from skellytracker.core.sessions.onnx_session import _load_nvidia_dlls_on_windows
 
         _load_nvidia_dlls_on_windows()
