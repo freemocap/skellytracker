@@ -26,7 +26,6 @@ import gc
 import importlib.util
 import logging
 import os
-import sys
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -40,6 +39,7 @@ from skellytracker.core.sessions.execution_provider_name import ExecutionProvide
 from skellytracker.core.sessions.model_registry import resolve_model_path
 from skellytracker.core.sessions.ort_session_utils import (
     auto_detect_provider,
+    ensure_cuda_dlls_loaded,
     build_tuned_ort_session,
     cuda_device_total_bytes,
     require_provider,
@@ -94,10 +94,8 @@ class OnnxSession(Session):
             )  # raises SessionCreationError if unavailable
             active_provider = config.execution_provider
 
-        if active_provider in ("cuda", "trt") and sys.platform == "win32":
-            _load_nvidia_dlls_on_windows()
         if active_provider in ("cuda", "trt"):
-            ort.preload_dlls()
+            ensure_cuda_dlls_loaded()
 
         # CoreML does not support fp16 inputs.
         fp16 = config.fp16 and active_provider != "coreml"
