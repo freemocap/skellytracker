@@ -40,6 +40,15 @@ class TrackerProfile:
             mappings = (TrackerMapping(entries, known_tracker_keypoints=set(self.keypoint_names)),)
         return CompositeTrackerMapping(mappings)
 
+    def hand_mapping(self, side: str) -> TrackerMapping:
+        """The hand-only wrist and finger mapping for one independent detector instance."""
+        if self.name != "mediapipe_hands":
+            raise ValueError(f"{self.name!r} does not track independent hands")
+        names = mediapipe_hand_names(side)
+        snapshot, = self.load_mapping().mapping_snapshots()
+        entries = {name: rule for name, rule in snapshot.entries.items() if name.startswith(f"{side}_")}
+        return TrackerMapping(entries, known_tracker_keypoints=set(names))
+
 
 def mediapipe_hand_names(side: str) -> tuple[str, ...]:
     if side not in ("left", "right"):

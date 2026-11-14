@@ -29,6 +29,11 @@ def test_independent_tracks_survive_reordering_occlusion_and_duplicate_sides():
         landmarks = mapping.apply(points.to_named_dict(3))
         np.testing.assert_array_equal(landmarks[f"{hand.handedness}_carpal_origin"], hand.keypoints.xyz[0])
         assert f"{hand.handedness}_index_cmc" in landmarks
+        sided_mapping = profile.hand_mapping(hand.handedness)
+        snapshot, = sided_mapping.mapping_snapshots()
+        assert all(name.startswith(f"{hand.handedness}_") for name in snapshot.entries)
+        for name, value in sided_mapping.apply(points.to_named_dict(3)).items():
+            np.testing.assert_array_equal(value, landmarks[name])
 
 
 def test_crossing_right_hands_retain_ids_when_detection_order_reverses():
