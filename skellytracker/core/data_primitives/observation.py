@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from skellytracker.core.data_primitives.bounding_box import BoundingBox
 from skellytracker.core.data_primitives.keypoints import Keypoints
+from skellytracker.core.data_primitives.tracked_hand import TrackedHand
 
 
 @dataclass
@@ -19,6 +20,7 @@ class StageObservation:
     keypoints: Keypoints | None = None
     children: dict[str, StageObservation] = field(default_factory=dict)
     detector_ran: bool = True
+    hands: tuple[TrackedHand, ...] = ()
 
 
 @dataclass

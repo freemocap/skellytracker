@@ -12,7 +12,7 @@ from skellytracker.core.tracker.tracker_presets import combined_tracker_config
 from skellytracker.core.tracker.tracker_factory import tracker_session_requests
 
 
-@pytest.mark.parametrize("preset", ["rtmpose", "mediapipe", "rtmw_mediapipe_hands"])
+@pytest.mark.parametrize("preset", ["rtmpose", "mediapipe", "mediapipe_hands", "rtmw_mediapipe_hands"])
 def test_serialized_recipe_preserves_concrete_detector_settings(preset):
     from skellytracker.core.config.tracker_config import TrackerConfig
     from skellytracker.core.tracker.tracker_presets import human_tracker_config
@@ -178,7 +178,7 @@ def test_presets_register_detectors_without_consumer_imports():
         "from skellytracker.core.tracker.tracker_presets import human_tracker_config\n"
         "from skellytracker.core.tracker.tracker_factory import collect_required_sessions\n"
         "import sys\n"
-        "for preset in ('rtmpose', 'mediapipe', 'rtmw_mediapipe_hands'):\n"
+        "for preset in ('rtmpose', 'mediapipe', 'mediapipe_hands', 'rtmw_mediapipe_hands'):\n"
         "    assert collect_required_sessions(human_tracker_config(preset=preset)).backends\n"
         "assert not any(name.split('.')[0] in {'freemocap', 'skellycam', 'skellyforge'} for name in sys.modules)\n",
     ], check=True, capture_output=True, text=True, timeout=30)

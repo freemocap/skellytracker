@@ -49,7 +49,8 @@ def _restore_detector_config(value, *, keypoint: bool):
     import skellytracker.core.detectors.keypoint_detectors.mediapipe
     import skellytracker.core.detectors.keypoint_detectors.rtmw.wholebody.rtmw_wholebody_detector
     import skellytracker.core.detectors.keypoint_detectors.rtmpose
-    import skellytracker.core.detectors.object_detectors.yolox
+    if not keypoint:
+        import skellytracker.core.detectors.object_detectors.yolox
     from typing import get_type_hints
     from skellytracker.core.detectors.detector_base_classes import (
         KEYPOINT_DETECTOR_REGISTRY, OBJECT_DETECTOR_REGISTRY,

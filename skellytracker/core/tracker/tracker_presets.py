@@ -10,7 +10,7 @@ from skellytracker.core.config.tracker_config import TrackerConfig
 from skellytracker.core.config.detection_stage_config import DetectionStageConfig
 from skellytracker.core.detectors.keypoint_detectors.rtmw.wholebody.rtmw_wholebody_detector import RTMWWholebodyDetectorConfig
 from skellytracker.core.detectors.keypoint_detectors.mediapipe.mediapipe_model_manager import MediapipePoseModelComplexity
-from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetectorConfig
+from skellytracker.core.data_primitives.tracked_hand import HandCount
 from skellytracker.core.detectors.object_detectors.keypoint_bbox import KeypointBoundingBoxDetectorConfig
 from skellytracker.core.temporal_processing.temporal_processing_config import BBoxPolicyConfig, BBoxSmoothingConfig, KeypointResetPolicyConfig
 
@@ -99,9 +99,21 @@ def human_tracker_config(
     video_fps: float = 30.0, keypoint_bbox_expansion: float = 0.05,
     model_complexity: MediapipePoseModelComplexity = MediapipePoseModelComplexity.HEAVY,
     detection_confidence: float = 0.5, presence_confidence: float = 0.5,
-    tracking_confidence: float = 0.5, num_faces: int = 1,
+    tracking_confidence: float = 0.5, num_faces: int = 1, hand_count: HandCount = "two",
 ) -> TrackerConfig:
     """Select a complete Tracker-owned recipe using application-supplied settings."""
+    if preset == "mediapipe_hands":
+        from skellytracker.core.detectors.keypoint_detectors.mediapipe.hands.mediapipe_hand_detector import (
+            MediapipeHandDetectorConfig,
+        )
+        hands = MediapipeHandDetectorConfig(
+            num_hands=1 if hand_count == "one" else 2,
+            independent_hand_count=hand_count,
+            min_hand_detection_confidence=detection_confidence,
+            min_hand_presence_confidence=presence_confidence,
+            min_hand_tracking_confidence=tracking_confidence,
+        )
+        return TrackerConfig(preset_name=preset, stages=[DetectionStageConfig(name="hands", keypoint_detectors=[hands])])
     if preset == "rtmw_onnx_hands":
         import os
         from pathlib import Path
@@ -161,6 +173,7 @@ def combined_tracker_config(
 def skeleton_tracker_config(
     *, model_name: str, confidence_threshold: float, video_fps: float, keypoint_bbox_expansion: float,
 ) -> TrackerConfig:
+    from skellytracker.core.detectors.object_detectors.yolox import YoloxPersonDetectorConfig
     redetect_interval = max(1, round(_REDETECT_SECONDS * video_fps))
     return TrackerConfig(
         preset_name="rtmpose",

@@ -259,3 +259,13 @@ counts per 36-observation excerpt; single and batch results agree:
 These are availability counts, not accuracy or throughput measurements. Reports
 are ignored under .test-artifacts/crop-policy-{before,after,mediapipe}.xml. Live
 visual acceptance remains open. No cameras or running application were touched.
+
+## Hands only
+
+The `mediapipe_hands` preset runs one full-frame Hand Landmarker per camera. In
+video mode MediaPipe tracks hands between frames and invokes palm detection when
+needed [@mediaPipeHandTaskTracking]. Each detected hand carries 21 keypoints, its camera-local track ID, and its
+handedness. Multiple hands may have the same handedness. One and Two set the
+MediaPipe task capacity. Unknown grows the capacity and checks the current
+frame again whenever it fills. The mapping uses each hand's wrist
+for the carpal origin and the palm frame used to estimate the finger CMCs.

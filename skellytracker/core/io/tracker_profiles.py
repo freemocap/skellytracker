@@ -22,7 +22,23 @@ class TrackerProfile:
     crop_stage_paths: tuple[tuple[str, ...], ...] = ()
 
     def load_mapping(self) -> CompositeTrackerMapping:
-        return CompositeTrackerMapping(tuple(TrackerMapping.from_yaml(path) for path in self.mapping_paths))
+        mappings = tuple(TrackerMapping.from_yaml(path) for path in self.mapping_paths)
+        if self.name == "mediapipe_hands":
+            # The shared finger mapping uses pose wrists to construct the palm frame.
+            # With only hands visible, source that same frame from HandLandmarker.
+            snapshot, = mappings[0].mapping_snapshots()
+            entries = snapshot.entries
+            for side in ("left", "right"):
+                wrist = f"{side}_hand_wrist"
+                entries[f"{side}_carpal_origin"] = wrist
+                for finger in ("index", "middle", "ring", "pinky"):
+                    offset = entries[f"{side}_{finger}_cmc"]
+                    offset["origin"] = [wrist]
+                    for axis in offset["frame"].values():
+                        axis["from"] = wrist
+                    offset["reference_length"]["from"] = wrist
+            mappings = (TrackerMapping(entries, known_tracker_keypoints=set(self.keypoint_names)),)
+        return CompositeTrackerMapping(mappings)
 
 
 def mediapipe_hand_names(side: str) -> tuple[str, ...]:
@@ -32,14 +48,20 @@ def mediapipe_hand_names(side: str) -> tuple[str, ...]:
     return tuple(f"{side}_hand_{name}" for name in names)
 
 
-@lru_cache(maxsize=4)
+@lru_cache(maxsize=1)
+def hand_connections() -> tuple[tuple[str, str], ...]:
+    return load_connections(_DETECTORS / "mediapipe/hands/mediapipe_hand.yaml")
+
+
+@lru_cache(maxsize=None)
 def tracker_profile(preset: str) -> TrackerProfile:
     if preset == "rtmw_onnx_hands":
         return tracker_profile("rtmw_mediapipe_hands")
-    hand_path = _DETECTORS / "mediapipe/hands/mediapipe_hand.yaml"
     hand_names = tuple(name for side in ("right", "left") for name in mediapipe_hand_names(side))
     hand_edges = tuple((f"{side}_hand_{a}", f"{side}_hand_{b}")
-                       for side in ("right", "left") for a, b in load_connections(hand_path))
+                       for side in ("right", "left") for a, b in hand_connections())
+    if preset == "mediapipe_hands":
+        return TrackerProfile(preset, hand_names, hand_edges, (MEDIAPIPE_HAND_MAPPING,))
     if preset in ("rtmpose", "rtmw_mediapipe_hands"):
         # Same authored public schema consumed by RTMW's native-order permutation.
         schema_path = _DETECTORS / "rtmpose/wholebody/rtmpose_wholebody.yaml"

@@ -806,7 +806,13 @@ class DetectionStage:
                 child = cls.create(child_config, sessions)
                 cleanup.callback(child.close)
                 children.append(child)
-            stage = cls(
+            stage_type = cls
+            if any(getattr(d.config, "independent_hand_count", None) for d in keypoint_detectors):
+                from skellytracker.core.tracker.hand_tracking_stage import HandTrackingStage
+                if object_detector or children or len(keypoint_detectors) != 1:
+                    raise ValueError("Independent hand tracking requires a single full-frame hand detector")
+                stage_type = HandTrackingStage
+            stage = stage_type(
                 name=config.name,
                 object_detector=object_detector,
                 keypoint_detectors=keypoint_detectors,

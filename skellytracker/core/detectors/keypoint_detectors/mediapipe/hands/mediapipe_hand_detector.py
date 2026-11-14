@@ -7,9 +7,11 @@ from typing import Any, Literal
 
 import numpy as np
 from numpy.typing import NDArray
+from pydantic import Field
 
 from skellytracker.core.config.detector_configs import KeypointDetectorConfig
 from skellytracker.core.data_primitives import Keypoints
+from skellytracker.core.data_primitives.tracked_hand import HandCount
 from skellytracker.core.io.mapping_paths import MEDIAPIPE_HAND_MAPPING
 from skellytracker.core.detectors.detection_context import DetectionContext
 from skellytracker.core.detectors.detector_base_classes import (
@@ -31,10 +33,12 @@ _LEFT_NAMES: tuple[str, ...] = tuple(f"left_hand_{n}" for n in _HAND_POINT_NAMES
 _BOTH_HAND_NAMES: tuple[str, ...] = _RIGHT_NAMES + _LEFT_NAMES
 
 
+
 class MediapipeHandDetectorConfig(KeypointDetectorConfig):
     detector_type: Literal["mediapipe_hand"] = "mediapipe_hand"
     session_backend: Literal["mediapipe"] = "mediapipe"
-    num_hands: int = 2
+    num_hands: int = Field(default=2, gt=0)
+    independent_hand_count: HandCount | None = None
     min_hand_detection_confidence: float = 0.5
     min_hand_presence_confidence: float = 0.5
     min_hand_tracking_confidence: float = 0.5
@@ -97,6 +101,9 @@ class MediapipeHandKeypointDetector(KeypointDetector):
         context: DetectionContext | None = None,
     ) -> Keypoints:
         h, w = image.shape[:2]
+        return self.postprocess((self._run_task(image, context), h, w), EmptyMetadata())
+
+    def _run_task(self, image, context):
         rgb = _to_rgb(image)
         import mediapipe as mp  # noqa: PLC0415 — heavy; deferred to the per-frame path
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
@@ -107,12 +114,25 @@ class MediapipeHandKeypointDetector(KeypointDetector):
                 if (context is not None and context.timestamp_ms is not None)
                 else int(time.monotonic() * 1000)
             )
-            result = self.landmarker.detect_for_video(mp_image, ts)
-        else:
-            result = self.landmarker.detect(mp_image)
+            return self.landmarker.detect_for_video(mp_image, ts)
+        return self.landmarker.detect(mp_image)
 
-        xyz, visibility = self._assign_hands(result.hand_landmarks, result.handedness, h, w)
-        return Keypoints(names=self._point_names, xyz=xyz, visibility=visibility)
+    def detect_hands(self, image, context):
+        result = self._run_task(image, context)
+        # MediaPipe requires a finite capacity. Grow only on saturation and
+        # rerun this frame in a fresh task so discoveries are never truncated.
+        while (self.config.independent_hand_count == "unknown"
+               and len(result.hand_landmarks) == self.landmarker.options.num_hands):
+            self.landmarker.close()
+            self.landmarker.options.num_hands *= 2
+            result = self._run_task(image, context)
+        h, w = image.shape[:2]
+        detections = []
+        for landmarks, labels in zip(result.hand_landmarks, result.handedness, strict=True):
+            side = labels[0].category_name.lower()
+            xyz, visibility = _hand_xyz_vis(landmarks, h, w)
+            detections.append((side, Keypoints(_HAND_POINT_NAMES, xyz, visibility)))
+        return detections
 
     def _assign_hands(
         self,
