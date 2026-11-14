@@ -35,6 +35,7 @@ def sidecar_model_spec(
     sidecar_dir: Path,
     prepare: Callable[[Path], Path] | None = None,
     coreml_options: dict | None = None,
+    coreml_fixed_batch: bool = False,
 ) -> OnnxModelSpec:
     """Build a lazy `OnnxModelSpec` for one (size, batch, precision) artifact.
 
@@ -81,6 +82,7 @@ def sidecar_model_spec(
         input_size=input_size,  # type: ignore[arg-type]
         prepare=prepare,
         coreml_options=coreml_options,
+        coreml_fixed_batch=coreml_fixed_batch,
         expected_filename=artifact.filename,
         expected_sha256=artifact.url_sha256,
         cuda_use_tf32=artifact.cuda_use_tf32,

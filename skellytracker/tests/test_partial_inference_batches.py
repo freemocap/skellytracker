@@ -73,6 +73,8 @@ def test_stage_skips_missing_crops_but_retains_every_camera(present, caplog):
             visibility=np.ones(1)),
         close=lambda: None,
     )
+    # The stage checks the detector class for a custom batch implementation.
+    type(detector).detect_batch = KeypointDetector.detect_batch
     objects = Mock(spec=ObjectDetector,
         session=SimpleNamespace(kind="cpu"), close=lambda: None,
         detect=lambda image, *args: [BoundingBox.full_image(8, 8)] if image[0, 0, 0] else [],
@@ -104,4 +106,18 @@ def test_stage_skips_missing_crops_but_retains_every_camera(present, caplog):
         assert not caplog.records
     finally:
         stage.close()
+        session.close()
+
+
+def test_fixed_batch_uses_warmup_shape_and_returns_only_real_camera_rows():
+    session = make_session(batch_dimension=4)
+    session._fixed_batch_models = frozenset({"identity"})
+    try:
+        for keys in ("abcd", "d", "bca", "da", "", "abcde", "dcba"):
+            tensors = {key: np.full((3, 8, 8), ord(key), np.float32) for key in keys}
+            result = session.run_batched("identity", tensors)
+            assert list(result) == list(keys)
+            for key, outputs in result.items():
+                np.testing.assert_array_equal(outputs[0], tensors[key][None])
+    finally:
         session.close()

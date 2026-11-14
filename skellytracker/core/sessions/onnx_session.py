@@ -76,6 +76,8 @@ class OnnxSession(Session):
     batch_size: int = 1
     _creation_config: OnnxSessionConfig | None = field(default=None, repr=False)
 
+    _fixed_batch_models: frozenset[str] = field(default_factory=frozenset, repr=False)
+
     @property
     def creation_config(self) -> OnnxSessionConfig | None:
         """Return a defensive copy of the configuration used to load these models."""
@@ -162,6 +164,8 @@ class OnnxSession(Session):
             device_id=device_id,
             batch_size=config.batch_size,
             _creation_config=config.model_copy(deep=True),
+            _fixed_batch_models=frozenset(spec.name for spec in config.models
+                                          if active_provider == "coreml" and spec.coreml_fixed_batch),
         )
         _warmup(
             onnx_session, config.models, active_provider, batch_size=config.batch_size, progress=progress
@@ -241,8 +245,9 @@ class OnnxSession(Session):
         All images are stacked into a single (N, 3, H, W) batch, fed through
         the model in one ORT call, and the outputs are split back by camera key.
         N may be smaller than the configured batch size when a detection stage
-        excludes unusable crops. This is expected and needs no padding or
-        session recreation. The model/provider enforces its supported shapes;
+        excludes unusable crops. CoreML models that require a fixed input shape
+        use the warmed batch size, returning only the real predictions. Other
+        model/provider combinations enforce their supported shapes;
         failures propagate through ``run``. Callers skip inference when N is zero.
 
         Parameters
@@ -259,11 +264,21 @@ class OnnxSession(Session):
         the same format as a single ``session.run()`` call for that image.
         """
         ordered_keys = list(tensors.keys())
-        stacked = np.stack([tensors[k] for k in ordered_keys])  # (N, 3, H, W)
+        if not ordered_keys:
+            return {}
+        fixed = model_name in self._fixed_batch_models
+        batch_size = self.batch_size if fixed else len(ordered_keys)
         input_name = self.get_session(model_name).get_inputs()[0].name
-        raw_outputs = self.run(model_name, {input_name: stacked})
-        # raw_outputs is a list of arrays, each (N, ...) — split per camera.
-        return {k: [out[i:i+1] for out in raw_outputs] for i, k in enumerate(ordered_keys)}
+        results = {}
+        for start in range(0, len(ordered_keys), batch_size):
+            keys = ordered_keys[start:start + batch_size]
+            images = [tensors[key] for key in keys]
+            # Repeat the last real crop for unused slots in the warmed CoreML shape.
+            images.extend([images[-1]] * (batch_size - len(keys)))
+            raw_outputs = self.run(model_name, {input_name: np.stack(images)})
+            for i, key in enumerate(keys):
+                results[key] = [out[i:i+1] for out in raw_outputs]
+        return results
 
     def close(self) -> None:
         """Explicitly tear down ORT sessions rather than relying on GC.

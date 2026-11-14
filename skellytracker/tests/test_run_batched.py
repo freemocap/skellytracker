@@ -14,6 +14,8 @@ Integration tests (require onnxruntime + model download; auto-skip otherwise)
 
 from __future__ import annotations
 
+import sys
+
 import numpy as np
 import pytest
 
@@ -295,6 +297,27 @@ class TestRunBatchedYolox:
 
 
 class TestRunBatchedRTMPose:
+    @pytest.mark.skipif(sys.platform != "darwin", reason="Requires macOS CoreML")
+    def test_coreml_partial_batches_match_full_batch(self, test_image):
+        from skellytracker.core.sessions.onnx_session import OnnxSession, OnnxSessionConfig
+
+        spec = RTMPoseKeypointDetector.model_spec("rtmw-x-l_256x192")
+        session = OnnxSession.create(OnnxSessionConfig(
+            models=[spec], execution_provider="coreml", batch_size=4))
+        try:
+            detector = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), session)
+            tensors = {key: detector.preprocess(np.rot90(test_image, k))[0]
+                       for k, key in enumerate("abcd")}
+            expected = session.run_batched(spec.name, tensors)
+            for keys in ("c", "adcb", "bd", "dca", "abcd"):
+                outputs = session.run_batched(spec.name, {key: tensors[key] for key in keys})
+                assert list(outputs) == list(keys)
+                for key in keys:
+                    for actual, baseline in zip(outputs[key], expected[key], strict=True):
+                        np.testing.assert_allclose(actual, baseline, rtol=1e-5, atol=1e-5)
+        finally:
+            session.close()
+
     def test_two_cameras_keys_preserved(self, test_image, rtmpose_session_n2):
         detector = RTMPoseKeypointDetector.create(RTMPoseDetectorConfig(), rtmpose_session_n2)
         tensors = {k: detector.preprocess(img)[0] for k, img in _two_cam(test_image).items()}

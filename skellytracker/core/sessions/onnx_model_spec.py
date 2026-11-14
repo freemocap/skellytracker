@@ -57,6 +57,8 @@ class OnnxModelSpec:
     # Controls CUDA TF32 only; None preserves provider defaults. Detector-owned
     # validation defines supported providers and precision combinations.
     cuda_use_tf32: bool | None = None
+    # Keep CoreML predictions at the shape used during model warmup.
+    coreml_fixed_batch: bool = False
 
 
 class OnnxSessionConfig(SessionConfig):
@@ -69,7 +71,7 @@ class OnnxSessionConfig(SessionConfig):
         the TensorRT profile maximum. **Required** — the session fails to
         construct if omitted. Single-camera setups use 1; multi-camera setups
         pass the camera count. Detection stages may submit fewer usable crops
-        per call without padding or recreating the session. Supported runtime
+        per call. Models opting into fixed CoreML batches are padded internally. Supported runtime
         sizes still depend on the model and provider; static-batch models retain
         their fixed shape requirements.
     models:

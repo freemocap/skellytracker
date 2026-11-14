@@ -185,6 +185,7 @@ class RTMWWholebodyDetector(KeypointDetector):
             name=model_name,
             sidecar_dir=_SIDECAR_PATH.parent,
             coreml_options={"MLComputeUnits": "CPUAndGPU"},
+            coreml_fixed_batch=True,
         )
 
 
